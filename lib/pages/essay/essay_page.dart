@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/components/essay/essay_card.dart';
-import 'package:torrid/components/essay/year_summary_card.dart';
-import 'package:torrid/pages/essay/essay_detail_screen.dart';
-import 'package:torrid/pages/essay/example_datas.dart';
 
 class EssayPage extends StatelessWidget {
   const EssayPage({super.key});

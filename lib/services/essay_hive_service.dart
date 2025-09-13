@@ -4,7 +4,6 @@ import 'package:hive_flutter/adapters.dart';
 import 'package:torrid/models/essay/essay.dart';
 import 'package:torrid/models/essay/label.dart';
 import 'package:torrid/models/essay/year_summary.dart';
-import 'package:torrid/services/http_service.dart';
 
 class EssayHiveService {
   // 表名

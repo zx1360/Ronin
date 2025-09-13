@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:torrid/services/io_service.dart';
 import 'comic_detail.dart';
 
 class ComicReadPage extends StatefulWidget {
@@ -181,6 +184,51 @@ class _ComicReadPageState extends State<ComicReadPage> {
     }
   }
 
+  Future<void> _saveThisImage(BuildContext context) async {
+    // 检查是否有可保存的图片
+    if (_imagePaths.isEmpty ||
+        _currentIndex < 0 ||
+        _currentIndex >= _imagePaths.length) {
+      _showSnackBar(context, "没有可保存的图片");
+      return;
+    }
+
+    try {
+      // 获取当前图片文件
+      final sourceFile = File(_imagePaths[_currentIndex]);
+      if (!await sourceFile.exists()) {
+        _showSnackBar(context, "图片文件不存在");
+        return;
+      }
+
+      // 生成保存的文件名（漫画名_章节号_页码.扩展名）
+      final fileExtension = sourceFile.path.split('.').last;
+      final fileName =
+          "${widget.comicName}_"
+          "第${_chapterInfo.chapterNumber}章_"
+          "第${_currentIndex + 1}页."
+          "$fileExtension";
+      IoService.saveThisImage(_imagePaths[_currentIndex], fileName);
+
+      _showSnackBar(context, "图片已保存: $fileName");
+    } catch (e) {
+      _showSnackBar(context, "保存失败: ${e.toString()}");
+      print("保存图片错误: $e");
+    }
+  }
+
+  // 显示提示信息
+  void _showSnackBar(BuildContext context, String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,7 +256,7 @@ class _ComicReadPageState extends State<ComicReadPage> {
                 left: 0,
                 width: MediaQuery.of(context).size.width / 4,
                 child: GestureDetector(
-                  onTap: (){_prevImage();print("###");},
+                  onTap: _prevImage,
                   behavior: HitTestBehavior.translucent,
                 ),
               ),
@@ -272,10 +320,10 @@ class _ComicReadPageState extends State<ComicReadPage> {
                         ),
                       ),
 
-                      // 全屏按钮
+                      // 保存当前图片按钮
                       IconButton(
-                        icon: Icon(Icons.abc, color: Colors.transparent),
-                        onPressed: () {},
+                        icon: Icon(Icons.save_alt_rounded, color: Colors.white),
+                        onPressed: (){_saveThisImage(context);},
                       ),
                     ],
                   ),
@@ -381,7 +429,6 @@ class _ComicReadPageState extends State<ComicReadPage> {
           imageProvider: FileImage(File(_imagePaths[index])),
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 2,
-          initialScale: PhotoViewComputedScale.contained,
         );
       },
       scrollPhysics: const ClampingScrollPhysics(),
