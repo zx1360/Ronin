@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/services/hive_service.dart';
+import 'package:torrid/services/common/hive_service.dart';
 
 class ActionInfo {
   final IconData icon;
@@ -35,9 +35,9 @@ class InfoDatas {
       action: HiveService.syncEssay,
     ),
     ActionInfo(
-      icon: Icons.note,
-      label: "同步媒体阅读器",
-      action: HiveService.syncViewhub,
+      icon: Icons.label,
+      label: "同步藏品",
+      action: HiveService.syncTuntun,
     ),
 
     // 更新到PC
@@ -58,9 +58,9 @@ class InfoDatas {
       action: HiveService.updateEssay,
     ),
     ActionInfo(
-      icon: Icons.upload,
-      label: "更新媒体阅读器",
-      action: HiveService.updateViewhub,
+      icon: Icons.label,
+      label: "更新藏品",
+      action: HiveService.updateTuntun,
     ),
   ];
 }

@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class ImageUploader {
+class HttpService {
   /// 将本地图片上传到指定url
   /// [relativePaths] 本地图片url列表
   /// [url] 目标网络地址
@@ -77,6 +78,10 @@ class ImageUploader {
     }
   }
 
-
+  // 获取pc端的ip
+  static Future getPcIp() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString("PC_IP");
+  }
   
 }

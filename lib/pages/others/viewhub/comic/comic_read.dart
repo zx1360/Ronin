@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
-import 'package:torrid/services/io_service.dart';
+import 'package:torrid/services/common/io_service.dart';
 import 'comic_detail.dart';
 
 class ComicReadPage extends StatefulWidget {

@@ -17,7 +17,7 @@ import 'package:torrid/util/util.dart';
 import 'package:torrid/models/booklet/style.dart';
 import 'package:torrid/models/booklet/record.dart';
 import 'package:torrid/models/booklet/task.dart';
-import 'package:torrid/services/booklet_hive_service.dart';
+import 'package:torrid/services/booklet/booklet_hive_service.dart';
 
 /// 历来打卡信息总览页面
 /// 展示当前样式的打卡统计、日历视图，支持切换样式和创建新样式

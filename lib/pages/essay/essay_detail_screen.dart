@@ -32,7 +32,6 @@ class _EssayDetailScreenState extends State<EssayDetailScreen> {
     setState(() {
       _messages.add(
         Message(
-          id: DateTime.now().toString(),
           timestamp: DateTime.now(),
           content: _messageController.text.trim(),
         ),

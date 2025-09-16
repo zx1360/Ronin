@@ -19,12 +19,10 @@ class EssaySampleData {
   static List<Message> _createSampleMessages() {
     return [
       Message(
-        id: Util.generateId(),
         timestamp: DateTime.now().subtract(const Duration(days: 2)),
         content: "现在回看这段文字，依然很有感触。",
       ),
       Message(
-        id: Util.generateId(),
         timestamp: DateTime.now().subtract(const Duration(days: 1)),
         content: "当时的想法后来有了新的发展...",
       ),
@@ -65,7 +63,6 @@ class EssaySampleData {
       labels: [sampleLabels[0].id, sampleLabels[2].id],
       messages: [
         Message(
-          id: Util.generateId(),
           timestamp: DateTime.now().subtract(const Duration(days: 5)),
           content: "这地方真美，下次也想去看看！",
         ),
@@ -91,12 +88,10 @@ class EssaySampleData {
       labels: [sampleLabels[4].id],
       messages: [
         Message(
-          id: Util.generateId(),
           timestamp: DateTime.now().subtract(const Duration(days: 12)),
           content: "和团队讨论过了，大家都很认可这些建议！",
         ),
         Message(
-          id: Util.generateId(),
           timestamp: DateTime.now().subtract(const Duration(days: 8)),
           content: "已经开始实施，效果不错！",
         ),

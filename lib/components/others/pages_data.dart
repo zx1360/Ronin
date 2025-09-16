@@ -21,13 +21,6 @@ class OtherPagesData {
       icon: Icons.wb_incandescent_sharp,
       builder: (context) => IdeasPage(),
     ),
-    
-    // 世界观/主支线剧情体验
-    PageItem(
-      label: "领域",
-      icon: Icons.category,
-      builder: (context) => RealmPage(),
-    ),
 
     // 影视页, 媒体查看.
     PageItem(
@@ -40,6 +33,14 @@ class OtherPagesData {
       label: "藏品",
       icon: Icons.assessment,
       builder: (context) => TuntunPage(),
+    ),
+
+
+    // 世界观/主支线剧情体验
+    PageItem(
+      label: "领域",
+      icon: Icons.category,
+      builder: (context) => RealmPage(),
     ),
   ];
 }

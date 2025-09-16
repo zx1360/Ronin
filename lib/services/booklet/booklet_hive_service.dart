@@ -11,8 +11,8 @@ import 'package:torrid/models/booklet/record.dart';
 import 'package:http/http.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/services/hive_service.dart';
-import 'package:torrid/services/io_service.dart';
+import 'package:torrid/services/common/http_service.dart';
+import 'package:torrid/services/common/io_service.dart';
 import 'package:torrid/util/util.dart';
 
 class BookletHiveService {
@@ -305,7 +305,7 @@ class BookletHiveService {
       // 一并同步对应的task图片文件
       // TODO: 检查完全按预期结果验证.
       List<String> urls = [];
-      final url = await HiveService.getPcIp();
+      final url = await HttpService.getPcIp();
       _styleBox.values.toList().forEach((style) {
         style.tasks
             .where((task) => task.image.isNotEmpty && task.image != '')
