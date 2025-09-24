@@ -433,6 +433,9 @@ class _ComicReadPageState extends State<ComicReadPage> {
       },
       scrollPhysics: const ClampingScrollPhysics(),
       backgroundDecoration: const BoxDecoration(color: Colors.black),
+      // scrollDirection: Axis.vertical,
+      // loadingBuilder:(context, event) => Center() ,
+      
       onPageChanged: (index) {
         setState(() {
           _currentIndex = index;

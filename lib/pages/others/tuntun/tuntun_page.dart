@@ -17,7 +17,7 @@ class _TuntunPageState extends State<TuntunPage> {
   late Box<Status> _statusBox;
   List<Info> _allMedia = [];
   List<Info> _filteredMedia = [];
-  List<String> _selectedMediaIds = [];
+  final List<String> _selectedMediaIds = [];
   String? _currentFilterTag;
   bool _showDeleted = false;
 

@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:torrid/pages/others/viewhub/comic/hub_comic_page.dart';
-import 'comic_read.dart';
+import 'comic_read_flip.dart';
+import 'comic_read_scroll.dart';
 
 class ComicDetailPage extends StatefulWidget {
   final ComicInfo comicInfo;
@@ -16,6 +17,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   List<ChapterInfo> _chapters = [];
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isScrollMode = false;
 
   @override
   void initState() {
@@ -119,11 +121,26 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
             _buildComicHeader(),
 
             // 章节列表标题
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                '章节列表',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Text(
+                    '章节列表',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Spacer(),
+                  Text(_isScrollMode ? "下拉阅读" : "翻页阅读"),
+                  Switch(
+                    value: _isScrollMode,
+                    onChanged: (bool value) {
+                      setState(() {
+                        _isScrollMode = value;
+                        print(_isScrollMode);
+                      });
+                    },
+                  ),
+                ],
               ),
             ),
 
@@ -273,17 +290,31 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
+      // 根据切换按钮的状态, 选择翻页阅读页面或下拉阅读页面.
       onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ComicReadPage(
-              comicName: widget.comicInfo.name,
-              chapters: _chapters,
-              currentChapter: chapter.chapterNumber-1,
+        if (_isScrollMode) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ComicScrollPage(
+                comicName: widget.comicInfo.name,
+                chapters: _chapters,
+                currentChapter: chapter.chapterNumber - 1,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ComicReadPage(
+                comicName: widget.comicInfo.name,
+                chapters: _chapters,
+                currentChapter: chapter.chapterNumber - 1,
+              ),
+            ),
+          );
+        }
       },
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -309,7 +340,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(width: 8,),
+              const SizedBox(width: 8),
               Text(
                 '${chapter.imageCount} 页',
                 style: const TextStyle(fontSize: 10, color: Colors.grey),
