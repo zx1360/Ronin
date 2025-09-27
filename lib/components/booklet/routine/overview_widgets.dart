@@ -18,7 +18,7 @@ Widget buildStyleDropdown(Style? currentStyle, Function(String?)? onStyleChanged
   return LimitedBox(
     maxHeight: dropdownMaxHeight,
     child: DropdownButtonFormField<String>(
-      value: currentStyle!.id,
+      initialValue: currentStyle!.id,
       items: allStyles.map((style) {
         final startDateStr = fullDateFormatter.format(style.startDate).split(' ')[0];
         return DropdownMenuItem<String>(

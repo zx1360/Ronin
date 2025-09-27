@@ -183,7 +183,6 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
     setState(() {
       _updateCurrentImageIndex();
     });
-    _resetControlsTimer();
   }
 
   void _updateCurrentImageIndex() {
@@ -203,22 +202,6 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
         break;
       }
     }
-  }
-
-  void _updateImageLayout(int index, double height) {
-    if (index < 0 || index >= _imagePaths.length) return;
-
-    setState(() {
-      _imageHeights[index] = height;
-      if (index == 0) {
-        _imageOffsets[index] = 0.0;
-      } else {
-        _imageOffsets[index] = (_imageOffsets[index - 1] ?? 0.0) + 
-                              (_imageHeights[index - 1] ?? 0.0) + 2;
-      }
-    });
-
-    _updateCurrentImageIndex();
   }
 
   void _jumpToImage(int index) {
@@ -259,23 +242,19 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
     }
   }
 
-  void _showSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: GestureDetector(
         onTap: () {
-          _resetControlsTimer();
+          if(_showControls){
+            _controlsTimer.cancel();
+            setState(() {
+              _showControls = false;
+            });
+          }else{
+            _resetControlsTimer();
+          }
         },
         child: Stack(
           children: [
@@ -427,26 +406,34 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
       );
     }
 
-    // 使用InteractiveViewer实现整体缩放
-    return InteractiveViewer(
-      transformationController: _transformationController,
-      minScale: _minScale,
-      maxScale: _maxScale,
-      panEnabled: true,
-      scaleEnabled: true,
-      onInteractionEnd: (details) {
-        _handleScale();
-        _resetControlsTimer();
-      },
-      child: ListView.builder(
+    // // 使用InteractiveViewer实现整体缩放
+    // return InteractiveViewer(
+    //   transformationController: _transformationController,
+    //   minScale: _minScale,
+    //   maxScale: _maxScale,
+    //   panEnabled: true,
+    //   scaleEnabled: true,
+    //   onInteractionEnd: (details) {
+    //     _handleScale();
+    //     _resetControlsTimer();
+    //   },
+    //   child: ListView.builder(
+    //     controller: _scrollController,
+    //     physics: const BouncingScrollPhysics(),
+    //     itemCount: _imagePaths.length,
+    //     itemBuilder: (context, index) {
+    //       return _buildComicImage(index);
+    //     },
+    //   ),
+    // );
+     return ListView.builder(
         controller: _scrollController,
         physics: const BouncingScrollPhysics(),
         itemCount: _imagePaths.length,
         itemBuilder: (context, index) {
           return _buildComicImage(index);
         },
-      ),
-    );
+      );
   }
 
   Widget _buildComicImage(int index) {

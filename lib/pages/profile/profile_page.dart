@@ -197,7 +197,7 @@ class _ProfilePageState extends State<ProfilePage> {
         trailing: Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: Theme.of(context).primaryColor,
+          activeThumbColor: Theme.of(context).primaryColor,
         ),
         minLeadingWidth: 24,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
