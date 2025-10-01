@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:torrid/services__to-core/common/io_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 
 class TaskWidget extends StatelessWidget {
   const TaskWidget({

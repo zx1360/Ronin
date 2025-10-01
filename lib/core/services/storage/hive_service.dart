@@ -6,10 +6,10 @@ import 'package:http/http.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
-import 'package:torrid/services__to-core/booklet/booklet_hive_service.dart';
-import 'package:torrid/services__to-core/essay/essay_hive_service.dart';
-import 'package:torrid/services__to-core/common/http_service.dart';
-import 'package:torrid/services__to-core/tuntun/tuntun_hive_service.dart';
+import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
+import 'package:torrid/features/essay/services/essay_hive_service.dart';
+import 'package:torrid/core/services/network/http_service.dart';
+import 'package:torrid/features/others/tuntun/services/tuntun_hive_service.dart';
 
 class HiveService {
   static Future<void> init() async {

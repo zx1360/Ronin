@@ -11,8 +11,8 @@ import 'package:torrid/features/booklet/models/record.dart';
 import 'package:http/http.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/services__to-core/common/http_service.dart';
-import 'package:torrid/services__to-core/common/io_service.dart';
+import 'package:torrid/core/services/network/http_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 class BookletHiveService {

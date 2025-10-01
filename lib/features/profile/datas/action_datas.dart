@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/services__to-core/common/hive_service.dart';
+import 'package:torrid/core/services/storage/hive_service.dart';
 
 class ActionInfo {
   final IconData icon;

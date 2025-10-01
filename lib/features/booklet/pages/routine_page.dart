@@ -9,9 +9,9 @@ import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/pages/booklet_overview_page.dart';
 
-import 'package:torrid/services__to-core/booklet/booklet_hive_service.dart';
-import 'package:torrid/services__to-core/common/hive_service.dart';
-import 'package:torrid/services__to-core/common/io_service.dart';
+import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
+import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 
 class RoutinePage extends StatefulWidget {
   const RoutinePage({super.key});

@@ -1,6 +1,6 @@
 import 'package:go_router/go_router.dart';
 
-import 'package:torrid/features/home/home_page.dart';
+import 'package:torrid/features/home/pages/home_page.dart';
 
 import 'package:torrid/features/booklet/pages/booklet_page.dart';
 import 'package:torrid/features/essay/pages/essay_page.dart';
@@ -9,12 +9,12 @@ import 'package:torrid/features/others/pages/others_page.dart';
 
 import 'package:torrid/features/profile/pages/profile_page.dart';
 import 'package:torrid/features/profile/pages/profile_detail_page.dart';
-import 'package:torrid/features/profile/detail_page/profile_user.dart';
-import 'package:torrid/features/profile/detail_page/profile_preferences.dart';
-import 'package:torrid/features/profile/detail_page/profile_data.dart';
-import 'package:torrid/features/profile/detail_page/profile_account.dart';
-import 'package:torrid/features/profile/detail_page/profile_abount.dart';
-import 'package:torrid/features/profile/detail_page/profile_help.dart';
+import 'package:torrid/features/profile/detail_pages/profile_user.dart';
+import 'package:torrid/features/profile/detail_pages/profile_preferences.dart';
+import 'package:torrid/features/profile/detail_pages/profile_data.dart';
+import 'package:torrid/features/profile/detail_pages/profile_account.dart';
+import 'package:torrid/features/profile/detail_pages/profile_abount.dart';
+import 'package:torrid/features/profile/detail_pages/profile_help.dart';
 
 
 // 页面路径声明文件.

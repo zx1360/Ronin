@@ -339,7 +339,8 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
                       ),
                       Expanded(
                         child: Slider(
-                          value: _currentImageIndex.toDouble(),
+                          // value: _currentImageIndex.toDouble(),
+                          value: 0,
                           min: 0,
                           max: (_imagePaths.length - 1).toDouble(),
                           divisions: _imagePaths.length - 1,

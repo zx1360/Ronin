@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/widgets/routine/global_variable.dart';
-import 'package:torrid/services__to-core/booklet/booklet_hive_service.dart';
+import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 
 /// 构建Style下拉选择框（支持滚动，按创建时间倒序）
 /// [currentStyle]：当前选中的样式
