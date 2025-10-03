@@ -252,12 +252,13 @@ class BookletHiveService {
       // TODO: 检查完全按预期结果验证.
       List<String> urls = [];
       final prefs = await PrefsService.prefs;
-      final url = prefs.getString("PC_IP");
+    final pcIp = prefs.getString("PC_IP");
+    final pcPort = prefs.getString("PC_PORT");
       _styleBox.values.toList().forEach((style) {
         style.tasks
             .where((task) => task.image.isNotEmpty && task.image != '')
             .forEach((task) {
-              urls.add("http://$url:4215/static/${task.image}");
+              urls.add("http://$pcIp:$pcPort/static/${task.image}");
             });
       });
       if (urls.isNotEmpty) {

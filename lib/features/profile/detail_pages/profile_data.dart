@@ -13,45 +13,50 @@ class _ProfileDataState extends State<ProfileData> {
   final List<ActionInfo> infos = InfoDatas.infos;
   bool isLoading = false;
   final TextEditingController _ipController = TextEditingController();
+  final TextEditingController _portController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadIpAddress();
+    _loadAddress();
   }
 
   @override
   void dispose() {
     _ipController.dispose();
+    _portController.dispose();
     super.dispose();
   }
 
   // 加载保存的IP地址
-  Future<void> _loadIpAddress() async {
+  Future<void> _loadAddress() async {
     final prefs = await PrefsService.prefs;
-    final ipAddress = prefs.getString('PC_IP');
+    final ip = prefs.getString('PC_IP');
+    final port = prefs.getString("PC_PORT");
 
     setState(() {
-      _ipController.text = ipAddress ?? '';
+      _ipController.text = ip ?? '';
+      _portController.text = port ?? '';
     });
   }
 
   // 保存IP地址
-  Future<void> _saveIpAddress() async {
-    final ipAddress = _ipController.text.trim();
+  Future<void> _saveAddress() async {
+    final ip = _ipController.text.trim();
+    final port = _portController.text.trim();
     final prefs = await PrefsService.prefs;
 
-    if (ipAddress.isNotEmpty) {
-      await prefs.setString('PC_IP', ipAddress);
+    await prefs.setString('PC_IP', ip);
+    await prefs.setString('PC_PORT', port);
 
-      // 显示保存成功提示
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('IP地址已保存')));
-      }
+    // 显示保存成功提示
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('地址已保存.')));
     }
   }
+
 
   Future<void> loadWithFunc(Future<void> func) async {
     setState(() {
@@ -59,7 +64,7 @@ class _ProfileDataState extends State<ProfileData> {
     });
     await func;
     setState(() {
-      if(mounted) {
+      if (mounted) {
         isLoading = false;
       }
     });
@@ -137,23 +142,40 @@ class _ProfileDataState extends State<ProfileData> {
                         ],
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
-                            child: TextField(
-                              controller: _ipController,
-                              decoration: const InputDecoration(
-                                hintText: '输入...',
-                                border: InputBorder.none,
-                                hintStyle: TextStyle(color: Colors.grey),
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 16,
+                            child: Column(
+                              children: [
+                                TextField(
+                                  controller: _ipController,
+                                  decoration: const InputDecoration(
+                                    hintText: '请输入IP地址(IPV4)...',
+                                    border: InputBorder.none,
+                                    hintStyle: TextStyle(color: Colors.grey),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                  keyboardType: TextInputType.url,
                                 ),
-                              ),
-                              keyboardType: TextInputType.url,
+                                TextField(
+                                  controller: _portController,
+                                  decoration: const InputDecoration(
+                                    hintText: '请输入端口...',
+                                    border: InputBorder.none,
+                                    hintStyle: TextStyle(color: Colors.grey),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                  keyboardType: TextInputType.url,
+                                ),
+                              ],
                             ),
                           ),
                           ElevatedButton(
-                            onPressed: _saveIpAddress,
+                            onPressed: _saveAddress,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: theme.colorScheme.primary,
                               shape: RoundedRectangleBorder(
@@ -245,4 +267,5 @@ class _ProfileDataState extends State<ProfileData> {
       ),
     );
   }
+
 }

@@ -17,8 +17,10 @@ class ApiclientHandler {
     NetworkStatus? status,
     Map<String, dynamic> params = const {},
   }) async {
-    final pcIP = (await PrefsService.prefs).getString("PC_IP");
-    final apiClient = ApiClient(baseUrl: "http://$pcIP:4215");
+    final prefs = await PrefsService.prefs;
+    final pcIp = prefs.getString("PC_IP");
+    final pcPort = prefs.getString("PC_PORT");
+    final apiClient = ApiClient(baseUrl: "http://$pcIp:$pcPort");
     try {
       final resp = await apiClient.get(
         path,
@@ -46,8 +48,10 @@ class ApiclientHandler {
     Map<String, dynamic> jsonData = const {},
     List<File> files = const[],
   }) async {
-    final pcIP = (await PrefsService.prefs).getString("PC_IP");
-    final apiClient = ApiClient(baseUrl: "http://$pcIP:4215");
+    final prefs = await PrefsService.prefs;
+    final pcIp = prefs.getString("PC_IP");
+    final pcPort = prefs.getString("PC_PORT");
+    final apiClient = ApiClient(baseUrl: "http://$pcIp:$pcPort");
     try {
       final resp = await apiClient.post(
         path,
