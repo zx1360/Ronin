@@ -28,7 +28,7 @@ class _ProfileAboutState extends State<ProfileAbout> {
   Future<void> _loadMarkdownFile() async {
     try {
       // 从assets加载文件内容
-      String content = await rootBundle.loadString('assets/files/设计模式示例简介.md');
+      String content = await rootBundle.loadString('assets/files/about.md');
 
       setState(() {
         markdownContent = content;

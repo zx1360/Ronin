@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/others/widgets/entry_button.dart';
+
 import 'package:torrid/features/others/ideas/pages/ideas_page.dart';
 import 'package:torrid/features/others/notes/pages/notes_page.dart';
+import 'package:torrid/features/others/comic/pages/comic_page.dart';
 
 import 'package:torrid/features/others/realm/pages/realm_page.dart';
 import 'package:torrid/features/others/tuntun/pages/tuntun_page.dart';
-import 'package:torrid/features/others/viewhub/pages/viewhub_page.dart';
 
 class OtherPagesData {
   static List<PageItem> get pages => [
@@ -22,11 +23,11 @@ class OtherPagesData {
       builder: (context) => IdeasPage(),
     ),
 
-    // 影视页, 媒体查看.
+    // 漫画页
     PageItem(
-      label: "媒体",
-      icon: Icons.grid_view,
-      builder: (context) => ViewhubPage(),
+      label: "漫画",
+      icon: IconData(0xe600, fontFamily: "iconfont"),
+      builder: (context) => ComicPage(),
     ),
     // 战利品页.
     PageItem(

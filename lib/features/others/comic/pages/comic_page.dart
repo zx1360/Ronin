@@ -4,14 +4,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'comic_detail.dart';
 
-class HubComicPage extends StatefulWidget {
-  const HubComicPage({super.key});
+class ComicPage extends StatefulWidget {
+  const ComicPage({super.key});
 
   @override
-  State<HubComicPage> createState() => _HubComicPageState();
+  State<ComicPage> createState() => _ComicPageState();
 }
 
-class _HubComicPageState extends State<HubComicPage> {
+class _ComicPageState extends State<ComicPage> {
   List<ComicInfo> _comics = [];
   bool _isLoading = true;
   String? _errorMessage;

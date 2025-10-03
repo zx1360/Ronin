@@ -85,4 +85,8 @@ flutter:
     - family: fangsong
       fonts:
         - asset: assets/fonts/fangsong.ttf
+    # iconfont
+    - family: iconfont
+      fonts:
+        - asset: assets/fonts/iconfont.ttf
 

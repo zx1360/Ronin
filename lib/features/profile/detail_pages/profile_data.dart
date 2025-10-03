@@ -59,7 +59,9 @@ class _ProfileDataState extends State<ProfileData> {
     });
     await func;
     setState(() {
-      isLoading = false;
+      if(mounted) {
+        isLoading = false;
+      }
     });
   }
 

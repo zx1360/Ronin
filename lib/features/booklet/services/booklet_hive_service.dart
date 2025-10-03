@@ -257,7 +257,7 @@ class BookletHiveService {
         style.tasks
             .where((task) => task.image.isNotEmpty && task.image != '')
             .forEach((task) {
-              urls.add("http://$url:4215/${task.image}");
+              urls.add("http://$url:4215/static/${task.image}");
             });
       });
       if (urls.isNotEmpty) {
@@ -279,7 +279,7 @@ class BookletHiveService {
         ..sort((a, b) => b.date.compareTo(a.date));
       records = records.map((item) => item.toJson()).toList();
 
-      return {"styles": jsonEncode(styles), "records": jsonEncode(records)};
+      return {"jsonData": jsonEncode({"styles": styles, "records": records})};
     } catch (err) {
       throw Exception(err);
     }

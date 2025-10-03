@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:torrid/features/others/viewhub/comic/hub_comic_page.dart';
+import 'package:torrid/features/others/comic/pages/comic_page.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 

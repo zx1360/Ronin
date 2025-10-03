@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/services/booklet_service.dart';
+import 'package:torrid/features/essay/services/essay_service.dart';
 
 class ActionInfo {
   final IconData icon;
@@ -21,7 +22,10 @@ class InfoDatas {
     ActionInfo(
       icon: Icons.download,
       label: "同步所有",
-      action: ()async{},
+      action: () async {
+        await BookletService.syncBooklet();
+        await EssayService.syncEssay();
+      },
       highlighted: true,
     ),
     ActionInfo(
@@ -29,38 +33,29 @@ class InfoDatas {
       label: "同步打卡",
       action: BookletService.syncBooklet,
     ),
-    ActionInfo(
-      icon: Icons.note,
-      label: "同步随笔",
-      action: ()async{},
-    ),
-    ActionInfo(
-      icon: Icons.label,
-      label: "同步藏品",
-      action: ()async{},
-    ),
+    ActionInfo(icon: Icons.note, label: "同步随笔", action: EssayService.syncEssay),
+    ActionInfo(icon: Icons.label, label: "同步藏品", action: () async {}),
 
-    // 更新到PC
+    // 备份到PC
     ActionInfo(
       icon: Icons.upload,
-      label: "更新所有",
-      action: ()async{},
+      label: "备份所有",
+      action: () async {
+        await BookletService.backupBooklet();
+        await EssayService.backupEssay();
+      },
       highlighted: true,
     ),
     ActionInfo(
       icon: Icons.upload_file,
-      label: "更新打卡",
+      label: "备份打卡",
       action: BookletService.backupBooklet,
     ),
     ActionInfo(
       icon: Icons.upload,
-      label: "更新随笔",
-      action: ()async{},
+      label: "备份随笔",
+      action: EssayService.backupEssay,
     ),
-    ActionInfo(
-      icon: Icons.label,
-      label: "更新藏品",
-      action: ()async{},
-    ),
+    ActionInfo(icon: Icons.label, label: "备份藏品", action: () async {}),
   ];
 }

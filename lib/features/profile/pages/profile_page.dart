@@ -31,7 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
         // 沉浸式状态栏
         systemOverlayStyle: SystemUiOverlayStyle.light,
         title: const Text(
-          '设置',
+          '个人',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
         ),
         elevation: 1,
