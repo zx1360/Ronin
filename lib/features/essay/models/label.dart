@@ -18,7 +18,7 @@ class Label {
 
   factory Label.fromJson(Map<String, dynamic> json) {
     return Label(
-      id: Util.generateId(),
+      id: (json['id']as String).length<17? Util.generateId(): json['id'],
       name: json['name'],
       essayCount: json['essayCount'],
     );

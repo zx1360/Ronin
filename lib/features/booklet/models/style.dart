@@ -48,7 +48,7 @@ class Style {
 
   factory Style.fromJson(Map<String, dynamic> json) {
     return Style(
-      id: Util.generateId(),
+      id: (json['id']as String).length<17? Util.generateId(): json['id'],
       startDate: DateTime.parse(json['startDate']),
       validCheckIn: json['validCheckIn'],
       fullyDone: json['fullyDone'],

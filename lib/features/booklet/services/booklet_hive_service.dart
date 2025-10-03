@@ -1,18 +1,14 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 
-import 'package:http/http.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
-import 'package:torrid/core/services/network/http_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
+
 import 'package:torrid/shared/utils/util.dart';
 
 class BookletHiveService {
@@ -106,10 +102,10 @@ class BookletHiveService {
   }
 
   // 8. 根据styleId获取style
-  static Style? getStyleById(String id){
+  static Style? getStyleById(String id) {
     return _styleBox.get(id);
   }
-  
+
   // ####### 全部style刷新信息;
   static Future<void> refreshAll() async {
     final allStyles = _styleBox.values.toList();
@@ -215,58 +211,8 @@ class BookletHiveService {
     return maxStreak;
   }
 
-  // GET请求图片并保存到安卓应用的外部私有空间
-  static Future<void> saveFromUrls(
-    List<String> urls,
-    String relativePath,
-  ) async {
-    try {
-      await IoService.clearSpecificDirectory("img_storage");
-      // 获取应用的外部私有存储目录
-      // 对于Android，这是位于外部存储的Android/data/[包名]/files/目录
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        throw Exception("无法获取应用外部私有存储目录");
-      }
-
-      // 构建目标文件的完整路径
-      if (relativePath.startsWith("/")) {
-        relativePath = relativePath.replaceFirst("/", "");
-      }
-      final targetPath = path.join(externalDir.path, relativePath);
-      // 创建目标文件所在的目录（如果不存在）
-      final targetDir = path.dirname(targetPath);
-
-      // 确保目录存在
-      final directory = Directory(targetDir);
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
-      }
-
-      // 请求图片
-      for (final url in urls) {
-        final response = await get(Uri.parse(url));
-        if (response.statusCode != 200) {
-          print('图片请求失败，状态码: ${response.statusCode}');
-          throw Exception('图片请求失败，状态码: ${response.statusCode}');
-        }
-
-        // 获取图片数据
-        final Uint8List imageData = response.bodyBytes;
-        final String fileName = path.basename(url);
-        final String savePath = path.join(targetDir, fileName);
-
-        // 将图片数据写入文件
-        final File imageFile = File(savePath);
-        await imageFile.writeAsBytes(imageData);
-      }
-    } catch (e) {
-      throw Exception("保存到应用外部私有空间失败\n$e");
-    }
-  }
-
-
   // # 根据传入的数据覆盖本地的booklet存储数据.
+  // TODO: 由于从sqlite3转到这里, 如果id格式不一样需要转的时候要保持数据对应, 以后格式完全一样后就删掉这部分逻辑.
   static Future<void> syncData(dynamic json) async {
     try {
       // 保存信息数据
@@ -305,7 +251,8 @@ class BookletHiveService {
       // 一并同步对应的task图片文件
       // TODO: 检查完全按预期结果验证.
       List<String> urls = [];
-      final url = await HttpService.getPcIp();
+      final prefs = await PrefsService.prefs;
+      final url = prefs.getString("PC_IP");
       _styleBox.values.toList().forEach((style) {
         style.tasks
             .where((task) => task.image.isNotEmpty && task.image != '')
@@ -314,7 +261,7 @@ class BookletHiveService {
             });
       });
       if (urls.isNotEmpty) {
-        await saveFromUrls(urls, "img_storage/booklet/JJ.BB");
+        await IoService.saveFromUrls(urls, "img_storage/booklet/zx.1360");
       }
     } catch (e) {
       throw Exception("Booklet同步出错咯 $e");
@@ -322,7 +269,7 @@ class BookletHiveService {
   }
 
   // # 打包本地Booklet数据
-  static String packUp() {
+  static Map<String, dynamic> packUp() {
     try {
       List styles = BookletHiveService.getAllStyles().toList()
         ..sort((a, b) => b.startDate.compareTo(a.startDate));
@@ -332,7 +279,7 @@ class BookletHiveService {
         ..sort((a, b) => b.date.compareTo(a.date));
       records = records.map((item) => item.toJson()).toList();
 
-      return jsonEncode({"styles": styles, "records": records});
+      return {"styles": jsonEncode(styles), "records": jsonEncode(records)};
     } catch (err) {
       throw Exception(err);
     }

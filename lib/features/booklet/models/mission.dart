@@ -48,7 +48,7 @@ class Mission {
 
   factory Mission.fromJson(Map<String, dynamic> json) {
     return Mission(
-      id: Util.generateId(),
+      id: (json['id']as String).length<17? Util.generateId(): json['id'],
       title: json['title'],
       description: json['description'],
       image: json['image'],

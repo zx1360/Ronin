@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:torrid/features/booklet/services/booklet_service.dart';
 
 class ActionInfo {
   final IconData icon;
@@ -21,46 +21,46 @@ class InfoDatas {
     ActionInfo(
       icon: Icons.download,
       label: "同步所有",
-      action: HiveService.syncDatas,
+      action: ()async{},
       highlighted: true,
     ),
     ActionInfo(
       icon: Icons.check_circle,
       label: "同步打卡",
-      action: HiveService.syncBooklet,
+      action: BookletService.syncBooklet,
     ),
     ActionInfo(
       icon: Icons.note,
       label: "同步随笔",
-      action: HiveService.syncEssay,
+      action: ()async{},
     ),
     ActionInfo(
       icon: Icons.label,
       label: "同步藏品",
-      action: HiveService.syncTuntun,
+      action: ()async{},
     ),
 
     // 更新到PC
     ActionInfo(
       icon: Icons.upload,
       label: "更新所有",
-      action: HiveService.updateDatas,
+      action: ()async{},
       highlighted: true,
     ),
     ActionInfo(
       icon: Icons.upload_file,
       label: "更新打卡",
-      action: HiveService.updateBooklet,
+      action: BookletService.backupBooklet,
     ),
     ActionInfo(
       icon: Icons.upload,
       label: "更新随笔",
-      action: HiveService.updateEssay,
+      action: ()async{},
     ),
     ActionInfo(
       icon: Icons.label,
       label: "更新藏品",
-      action: HiveService.updateTuntun,
+      action: ()async{},
     ),
   ];
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/profile/datas/action_datas.dart';
 
 class ProfileData extends StatefulWidget {
@@ -28,7 +28,7 @@ class _ProfileDataState extends State<ProfileData> {
 
   // 加载保存的IP地址
   Future<void> _loadIpAddress() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await PrefsService.prefs;
     final ipAddress = prefs.getString('PC_IP');
 
     setState(() {
@@ -39,7 +39,7 @@ class _ProfileDataState extends State<ProfileData> {
   // 保存IP地址
   Future<void> _saveIpAddress() async {
     final ipAddress = _ipController.text.trim();
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await PrefsService.prefs;
 
     if (ipAddress.isNotEmpty) {
       await prefs.setString('PC_IP', ipAddress);

@@ -10,7 +10,6 @@ import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/pages/booklet_overview_page.dart';
 
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
-import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 
 class RoutinePage extends StatefulWidget {
@@ -57,23 +56,6 @@ class _RoutinePageState extends State<RoutinePage> {
       styleId: _latestStyle!.id,
       record: _todayRecord,
     );
-  }
-
-  // # 请求并保存booklet数据
-  Future<void> fetchAndSaveBooklet() async {
-    setState(() {
-      _isRequesting = true;
-    });
-    try {
-      await HiveService.syncBooklet();
-      readFromHive();
-    } catch (err) {
-      throw Exception("请求Booklet错误.${err.toString()}");
-    } finally {
-      setState(() {
-        _isRequesting = false;
-      });
-    }
   }
 
   // # 从Hive读取数据
@@ -222,7 +204,7 @@ class _RoutinePageState extends State<RoutinePage> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // 统计信息卡片, 点击可以查看总览/本地同步于PC/更新PC进度.
+                // 统计信息卡片, 点击可以查看总览
                 GestureDetector(
                   onTap: () async {
                     await Navigator.push(

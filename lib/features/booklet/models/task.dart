@@ -32,7 +32,7 @@ class Task {
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
-      id: Util.generateId(),
+      id: (json['id']as String).length<17? Util.generateId(): json['id'],
       title: json['title'],
       description: json['description'],
       image: json['image'],

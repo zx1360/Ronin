@@ -1,12 +1,32 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import 'package:torrid/core/services/system/system_service.dart';
+
 class IoService {
+  // 创建应用需要用到的所有目录.
+  // TODO: 优化点, 全局搜索"getExternalStorageDirectory();"
+  // --------系统目录相关--------
+  static Future<void> initDirs()async{
+    // 获取应用外部私有存储目录（Android的getExternalFilesDir，iOS的Documents）
+    // booklet/essay图片文件夹.
+    final directory = await getExternalStorageDirectory();
+    if (directory == null) return;
+    final bookletImgDir = path.join(directory.path, "img_storage/booklet");
+    final essayImgDir = path.join(directory.path, "img_storage/essay");
+
+    // 确保目录存在
+    await Directory(bookletImgDir).create(recursive: true);
+    await Directory(essayImgDir).create(recursive: true);
+  }
+
   // 删除目录下的所有内容但保留目录本身
   static Future<void> deleteDirectoryContents(Directory dir) async {
     if (!await dir.exists()) return;
@@ -50,6 +70,10 @@ class IoService {
     }
   }
 
+
+
+
+// --------文件内容相关--------
   // 读取外部私有空间的图片文件
   static Future<File?> getImageFile(String imgUrl) async {
     try {
@@ -77,6 +101,7 @@ class IoService {
     String? filename,
   ) async {
     try {
+      // TODO: 结合permission_handler.
       // 检查存储权限
       // var status = await Permission.storage.isGranted;
       // if (!status) {
@@ -86,7 +111,6 @@ class IoService {
       //     return false;
       //   }
       // }
-      print("b");
 
       // 验证源文件是否存在
       File sourceFile = File(privateImagePath);
@@ -137,7 +161,7 @@ class IoService {
 
       // 通知系统媒体库更新
       if (Platform.isAndroid) {
-        await _scanFile(targetFile.path);
+        await SystemService.scanFile(targetFile.path);
       }
 
       return true;
@@ -148,6 +172,60 @@ class IoService {
     }
   }
 
+  // GET请求图片并保存到安卓应用的外部私有空间
+  static Future<void> saveFromUrls(
+    List<String> urls,
+    String relativePath,
+  ) async {
+    try {
+      await IoService.clearSpecificDirectory("img_storage/booklet");
+      // 获取应用的外部私有存储目录
+      // 对于Android，这是位于外部存储的Android/data/[包名]/files/目录
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir == null) {
+        throw Exception("无法获取应用外部私有存储目录");
+      }
+
+      // 构建目标文件的完整路径
+      if (relativePath.startsWith("/")) {
+        relativePath = relativePath.replaceFirst("/", "");
+      }
+      final targetPath = path.join(externalDir.path, relativePath);
+      // 创建目标文件所在的目录（如果不存在）
+      final targetDir = path.dirname(targetPath);
+
+      // 确保目录存在
+      final directory = Directory(targetDir);
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+
+      // 请求图片
+      for (final url in urls) {
+        final response = await get(Uri.parse(url));
+        if (response.statusCode != 200) {
+          print('图片请求失败，状态码: ${response.statusCode}');
+          throw Exception('图片请求失败，状态码: ${response.statusCode}');
+        }
+
+        // 获取图片数据
+        final Uint8List imageData = response.bodyBytes;
+        final String fileName = path.basename(url);
+        final String savePath = path.join(targetDir, fileName);
+
+        // 将图片数据写入文件
+        final File imageFile = File(savePath);
+        await imageFile.writeAsBytes(imageData);
+      }
+    } catch (e) {
+      throw Exception("保存到应用外部私有空间失败\n$e");
+    }
+  }
+
+
+
+
+// --------其他--------
   // 提取文件扩展名
   static String _getFileExtension(String filePath) {
     int lastDotIndex = filePath.lastIndexOf('.');
@@ -157,18 +235,4 @@ class IoService {
     return '';
   }
 
-  // 通知Android系统扫描文件，使其在相册中可见
-  static Future<void> _scanFile(String path) async {
-    try {
-      await Process.run('am', [
-        'broadcast',
-        '-a',
-        'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
-        '-d',
-        'file://$path',
-      ]);
-    } catch (e) {
-      print('扫描文件失败: $e');
-    }
-  }
 }

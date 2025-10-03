@@ -36,6 +36,7 @@ class Record {
     required this.taskCompletion,
   });
 
+  // TODO: 删掉.
   Record.noId({
     required this.styleId,
     required this.date,
@@ -56,7 +57,8 @@ class Record {
 
   factory Record.fromJson(Map<String, dynamic> json) {
     return Record(
-      id: Util.generateId(),
+      // TODO: 只是临时这么些,  如果id还是之前的递增计数, 那就创建17位的id, 否则不动.
+      id: (json['id']as String).length<17? Util.generateId(): json['id'],
       styleId: json['styleId'],
       date: DateTime.parse(json['date']),
       message: json['message'],

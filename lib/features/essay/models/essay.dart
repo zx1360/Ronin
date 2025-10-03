@@ -61,7 +61,7 @@ class Essay {
 
   factory Essay.fromJson(Map<String, dynamic> json) {
     return Essay(
-      id: Util.generateId(),
+      id: (json['id']as String).length<17? Util.generateId(): json['id'],
       date: DateTime.parse(json['date']),
       wordCount: json['wordCount'],
       content: json['content'],
