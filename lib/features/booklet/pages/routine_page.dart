@@ -12,6 +12,7 @@ import 'package:torrid/features/booklet/pages/booklet_overview_page.dart';
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 
+// TODO: 引入riverpod重构本模块, 拆分组件!  (仅800行的routine_overview.dart怪吓人的).
 class RoutinePage extends StatefulWidget {
   const RoutinePage({super.key});
 
@@ -297,7 +298,6 @@ class _RoutinePageState extends State<RoutinePage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: ElevatedButton(
-                            // TODO:
                             onPressed: saveMessage,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.yellow[700],

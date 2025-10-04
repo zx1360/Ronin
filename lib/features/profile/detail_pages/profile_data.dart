@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/services/network/apiclient_handler.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/profile/datas/action_datas.dart';
 
@@ -11,7 +13,10 @@ class ProfileData extends StatefulWidget {
 
 class _ProfileDataState extends State<ProfileData> {
   final List<ActionInfo> infos = InfoDatas.infos;
+
   bool isLoading = false;
+  bool hasConnected = false;
+
   final TextEditingController _ipController = TextEditingController();
   final TextEditingController _portController = TextEditingController();
 
@@ -19,6 +24,7 @@ class _ProfileDataState extends State<ProfileData> {
   void initState() {
     super.initState();
     _loadAddress();
+    _testRequest();
   }
 
   @override
@@ -26,6 +32,24 @@ class _ProfileDataState extends State<ProfileData> {
     _ipController.dispose();
     _portController.dispose();
     super.dispose();
+  }
+
+  // 网络请求测试方法.
+  Future<void> _testRequest() async {
+    bool hasConnected_ = false;
+    try {
+      final resp = await ApiclientHandler.fetch(path: "/util/test");
+      if (resp!.statusCode == 200) {
+        hasConnected_ = true;
+      }
+    } catch (e) {
+      AppLogger().info("_testRequest: 当前地址无web服务连接.");
+    }
+    if (hasConnected_ != hasConnected) {
+      setState(() {
+        hasConnected = hasConnected_;
+      });
+    }
   }
 
   // 加载保存的IP地址
@@ -48,7 +72,7 @@ class _ProfileDataState extends State<ProfileData> {
 
     await prefs.setString('PC_IP', ip);
     await prefs.setString('PC_PORT', port);
-
+    _testRequest();
     // 显示保存成功提示
     if (mounted) {
       ScaffoldMessenger.of(
@@ -57,7 +81,7 @@ class _ProfileDataState extends State<ProfileData> {
     }
   }
 
-
+  // 网络请求时候的isLoading状态切换.
   Future<void> loadWithFunc(Future<void> func) async {
     setState(() {
       isLoading = true;
@@ -103,9 +127,8 @@ class _ProfileDataState extends State<ProfileData> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('数据同步'), elevation: 0),
-      body: isLoading
+    return Container(
+      child: isLoading
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -126,7 +149,6 @@ class _ProfileDataState extends State<ProfileData> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // IP地址输入框
                     Container(
                       margin: const EdgeInsets.only(bottom: 24),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -144,6 +166,7 @@ class _ProfileDataState extends State<ProfileData> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
+                          // 地址输入区域
                           Expanded(
                             child: Column(
                               children: [
@@ -174,15 +197,32 @@ class _ProfileDataState extends State<ProfileData> {
                               ],
                             ),
                           ),
-                          ElevatedButton(
-                            onPressed: _saveAddress,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.colorScheme.primary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
+                          IntrinsicWidth(
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Text("连接状态: "),
+                                    Icon(
+                                      Icons.circle,
+                                      color: hasConnected
+                                          ? Colors.lightGreenAccent
+                                          : Colors.amber,
+                                    ),
+                                  ],
+                                ),
+                                ElevatedButton(
+                                  onPressed: _saveAddress,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: theme.colorScheme.primary,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                  child: const Text('保存'),
+                                ),
+                              ],
                             ),
-                            child: const Text('保存'),
                           ),
                         ],
                       ),
@@ -267,5 +307,4 @@ class _ProfileDataState extends State<ProfileData> {
       ),
     );
   }
-
 }

@@ -66,9 +66,7 @@ class _ProfilePageState extends State<ProfilePage> {
       child: ListTile(
         leading: const CircleAvatar(
           radius: 30,
-          backgroundImage: NetworkImage(
-            'https://img2.huashi6.com/images/resource/thumbnail/2025/07/22/22311_66194159821.jpg?imageMogr2/quality/100/interlace/1/thumbnail/2000x%3E',
-          ),
+          backgroundImage: AssetImage("assets/icons/six.png"),
           backgroundColor: Colors.grey,
         ),
         title: Text(

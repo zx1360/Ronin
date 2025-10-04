@@ -27,8 +27,6 @@ class Essay {
   @HiveField(6)
   final List<Message> messages;
 
-  // TODO: 对以前的日记的留言, 也许像链表一样再接上另一个Essay实例?
-
   Essay({
     required this.id,
     required this.date,
@@ -39,29 +37,9 @@ class Essay {
     this.messages = const [],
   });
 
-  // Essay copyWith({
-  //   String? id,
-  //   DateTime? date,
-  //   int? wordCount,
-  //   String? content,
-  //   List<String>? imgs,
-  //   List<String>? labels,
-  //   List<Message>? messages,
-  // }) {
-  //   return Essay(
-  //     id: id ?? this.id,
-  //     date: date ?? this.date,
-  //     wordCount: wordCount ?? this.wordCount,
-  //     content: content ?? this.content,
-  //     imgs: imgs ?? this.imgs,
-  //     labels: labels ?? this.labels,
-  //     messages: messages ?? this.messages,
-  //   );
-  // }
-
   factory Essay.fromJson(Map<String, dynamic> json) {
     return Essay(
-      id: (json['id']as String).length<17? Util.generateId(): json['id'],
+      id: (json['id'] as String).length < 17 ? Util.generateId() : json['id'],
       date: DateTime.parse(json['date']),
       wordCount: json['wordCount'],
       content: json['content'],

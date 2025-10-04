@@ -71,7 +71,7 @@ flutter:
     - assets/images/
     - assets/files/
     # - assets/videos/
-    # - assets/icons
+    - assets/icons/
   fonts:
     # 楷体
     - family: kaiti

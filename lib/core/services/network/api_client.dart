@@ -9,8 +9,8 @@ class ApiClient {
 
   ApiClient({required this.baseUrl}) {
     _dio.options.baseUrl = baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 10);
-    _dio.options.receiveTimeout = const Duration(seconds: 10);
+    _dio.options.connectTimeout = const Duration(seconds: 4);
+    _dio.options.receiveTimeout = const Duration(seconds: 6);
   }
 
   // GET请求

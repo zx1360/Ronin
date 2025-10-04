@@ -5,8 +5,8 @@ class ProfileAccount extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
+    return Container(
+      child: Center(
         child: Text("账号页详情"),
       ),
     );

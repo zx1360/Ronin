@@ -9,7 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:torrid/shared/models/network_status.dart';
 
 
-// TODO: 实际上页面创建status等会传三层到达Dio, 也许麻烦了, 但也留了设置全局拦截器, 页面拦截器的空间.
+// TODO: Dio虽轻量, 但是调用fetch(), send()都会创建ApiClient和Dio实例, 试着改为单例呢?
 class ApiclientHandler {
   // GET请求封装
   static Future<Response?> fetch({

@@ -5,8 +5,8 @@ class ProfilePreferences extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
+    return Container(
+      child: Center(
         child: Text("首选项页面"),
       ),
     );
