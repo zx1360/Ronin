@@ -89,8 +89,8 @@ class TaskWidget extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  // maxLines: 2,
+                  overflow: TextOverflow.visible,
                   style: TextStyle(
                     color: Colors.grey.shade700,
                     fontSize: 14,

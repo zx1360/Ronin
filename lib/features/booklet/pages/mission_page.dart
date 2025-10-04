@@ -201,8 +201,9 @@ class _MissionPageState extends State<MissionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
+    return Container(
+      color: Colors.yellow.shade50,
+      child: Center(
         child: Text("挑战页..."),
       ),
       // body: ListView.builder(
@@ -221,7 +222,6 @@ class _MissionPageState extends State<MissionPage> {
       //     );
       //   },
       // ),
-      // backgroundColor: Colors.yellow.shade50,
     );
   }
 }

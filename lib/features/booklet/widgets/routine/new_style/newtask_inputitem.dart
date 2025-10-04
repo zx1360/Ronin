@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:torrid/features/booklet/widgets/routine/global_variable.dart';
-import 'package:torrid/features/booklet/widgets/routine/new_task.dart';
+import 'package:torrid/features/booklet/widgets/routine/constants/global_variable.dart';
+import 'package:torrid/features/booklet/widgets/routine/data_class/new_task.dart';
 
 /// 构建任务输入项（新建样式时的单个任务表单）
 /// [task]：task对象.
@@ -39,7 +39,7 @@ Widget inputItem({
               borderSide: BorderSide(color: Color(0xFF8B5A2B)),
             ),
           ),
-          maxLength: 20,
+          maxLength: 12,
           maxLengthEnforcement: MaxLengthEnforcement.enforced,
         ),
         const SizedBox(height: 8),
@@ -60,7 +60,7 @@ Widget inputItem({
             ),
           ),
           maxLines: 2,
-          maxLength: 50,
+          maxLength: 40,
           maxLengthEnforcement: MaxLengthEnforcement.enforced,
         ),
         const SizedBox(height: 8),

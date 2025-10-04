@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/models/style.dart';
-import 'package:torrid/features/booklet/widgets/routine/global_variable.dart';
+import 'package:torrid/features/booklet/widgets/routine/constants/global_variable.dart';
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 
 /// 构建Style下拉选择框（支持滚动，按创建时间倒序）
@@ -78,22 +78,24 @@ Widget buildCompactStyleOverview(Style? currentStyle) {
 
         // 3列网格展示统计数据
         GridView.count(
-          shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 3,
+          shrinkWrap: true,
+          padding: EdgeInsets.only(top: 5, left: 5, right: 5),
+          
+          crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 8,
-          childAspectRatio: 1.5,
+          childAspectRatio: 4,
           children: [
-            buildStatItem(
-              '开始日期',
-              fullDateFormatter.format(currentStyle.startDate).split(' ')[0],
-            ),
+            // buildStatItem(
+            //   '开始日期',
+            //   fullDateFormatter.format(currentStyle.startDate).split(' ')[0],
+            // ),
             buildStatItem('有效打卡', '${currentStyle.validCheckIn} 天'),
             buildStatItem('全完成', '${currentStyle.fullyDone} 次'),
             buildStatItem('最长连续', '${currentStyle.longestStreak} 天'),
             buildStatItem('最长全完成', '${currentStyle.longestFullyStreak} 天'),
-            buildStatItem('任务数', '${currentStyle.tasks.length} 个'),
+            // buildStatItem('任务数', '${currentStyle.tasks.length} 个'),
           ],
         ),
       ],

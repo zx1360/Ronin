@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:torrid/features/booklet/widgets/topbar/topbar.dart';
-import 'package:torrid/features/booklet/widgets/routine/task_widget.dart';
+import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
+import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
 
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
@@ -72,6 +72,7 @@ class _RoutinePageState extends State<RoutinePage> {
     setState(() {
       _tasks = _latestStyle!.tasks;
       _stats = _latestStyle!.toJson();
+      _stats['latest_streak'] = BookletHiveService.getLatestStreak(_latestStyle!.id);
 
       for (Task task in _latestStyle!.tasks) {
         _completions.add(_todayRecord.taskCompletion[task.id] ?? false);
@@ -199,12 +200,14 @@ class _RoutinePageState extends State<RoutinePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _isRequesting
+    return Container(
+      color: Colors.yellow.shade50,
+      child: _isRequesting
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 // 统计信息卡片, 点击可以查看总览
+                // TODO: 不展示本style的最大记录, 而展示目前的连续记录.
                 GestureDetector(
                   onTap: () async {
                     await Navigator.push(
@@ -315,8 +318,6 @@ class _RoutinePageState extends State<RoutinePage> {
                   ),
               ],
             ),
-
-      backgroundColor: Colors.yellow.shade50,
     );
   }
 }

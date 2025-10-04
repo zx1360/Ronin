@@ -6,10 +6,11 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/features/booklet/widgets/routine/new_task.dart';
-import 'package:torrid/features/booklet/widgets/routine/newtask_inputitem.dart';
-import 'package:torrid/features/booklet/widgets/routine/global_variable.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview_widgets.dart';
+import 'package:torrid/features/booklet/widgets/routine/data_class/new_task.dart';
+import 'package:torrid/features/booklet/widgets/routine/new_style/newtask_inputitem.dart';
+import 'package:torrid/features/booklet/widgets/routine/constants/global_variable.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/new_style_widgets.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/task_widget_display.dart';
 
 // 工具类
 import 'package:torrid/shared/utils/util.dart';
@@ -113,8 +114,12 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
       if (confirm != true) return;
       await _deleteTodayRecords(); // 确认后删除今天记录
     }
-    // 如果前一个样式是今天创建的, 一同删去.
+    // 如果前一个样式是今天创建的, 一同删去.  然后重新加载数据, 防止DropdownButton指向无效值.
     await BookletHiveService.deleteTodayStyle();
+    _loadInitialData();
+    if (mounted) {
+      setState(() {});
+    }
 
     // 初始化新样式的任务相关控制器
     _titleControllers.clear();
@@ -435,7 +440,6 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
       (r) => Util.isSameDay(r.date, date),
       orElse: () => Record.empty(styleId: _currentStyle!.id),
     );
-    print(targetRecord.toJson());
 
     showDialog(
       context: context,
@@ -469,15 +473,19 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
                 final isCompleted =
                     targetRecord.taskCompletion[task.id] ?? false;
                 return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      isCompleted
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      color: isCompleted
-                          ? const Color(0xFF8B5A2B)
-                          : const Color(0xFF8B7355),
-                      size: 16,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(
+                        isCompleted
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank,
+                        color: isCompleted
+                            ? const Color(0xFF8B5A2B)
+                            : const Color(0xFF8B7355),
+                        size: 16,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -489,8 +497,8 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
                             Text(
                               task.description,
                               style: noteSmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              // maxLines: 1,
+                              overflow: TextOverflow.visible,
                             ),
                         ],
                       ),
@@ -663,60 +671,88 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F0E1),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: const AssetImage('assets/images/3.jpg'),
-            fit: BoxFit.cover,
-            opacity: 0.15,
+    return ConstrainedBox(
+      constraints: const BoxConstraints.expand(),
+      child: Container(
+        color: const Color(0xFFF5F0E1),
+        child: Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: const AssetImage('assets/images/3.jpg'),
+              fit: BoxFit.cover,
+              opacity: 0.15,
+            ),
           ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 页面标题
-              Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
-              const SizedBox(height: 20),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 页面标题
+                Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
+                const SizedBox(height: 20),
 
-              // 顶部操作栏（样式选择 + 新建按钮）
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: buildStyleDropdown(_currentStyle, _onStyleChanged),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _openCreateStyleBottomSheet,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF8B5A2B),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
+                // 顶部操作栏（样式选择 + 新建按钮）
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: buildStyleDropdown(_currentStyle, _onStyleChanged),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _openCreateStyleBottomSheet,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5A2B),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      child: Text(
+                        '开始新样式',
+                        style: TextStyle(color: Colors.amber),
                       ),
                     ),
-                    child: Text('开始新样式', style: TextStyle(
-                      color: Colors.amber
-                    )),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // 打卡计划概览卡片
+                buildCompactStyleOverview(_currentStyle),
+                const SizedBox(height: 6),
+
+                // 打卡样式的任务展示
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12)
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                  clipBehavior: Clip.antiAlias,
+                  height: 200,
+                  child: ListView.builder(
+                    padding: EdgeInsets.only(top: 0),
+                    itemCount: _currentStyle!.tasks.length,
+                    itemBuilder: (context, index) {
+                      Task task = _currentStyle!.tasks[index];
+                      return TaskSimpleWidget(
+                        title: task.title,
+                        description: task.description,
+                        imgUrl: task.image,
+                      );
+                    },
+                  ),
+                ),
 
-              // 打卡计划概览卡片
-              buildCompactStyleOverview(_currentStyle),
-              const SizedBox(height: 24),
+                const SizedBox(height: 18),
 
-              // 打卡记录日历
-              Text('打卡记录总览', style: noteTitle),
-              const SizedBox(height: 12),
-              _buildCheckInCalendar(),
-            ],
+
+                // 打卡记录日历
+                Text('打卡记录总览', style: noteTitle),
+                const SizedBox(height: 12),
+                _buildCheckInCalendar(),
+              ],
+            ),
           ),
         ),
       ),

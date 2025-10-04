@@ -211,6 +211,55 @@ class BookletHiveService {
     return maxStreak;
   }
 
+  // TODO: 这类的工具类静态方法竟然都是同步的吗, 感觉会卡UI, 之后弄个常态Isolate来解决吧.
+  /// 获取某个Style的最近连续打卡天数
+  /// 如果今天有记录，则包含今天
+  /// 如果今天没有记录，则计算截至昨天的连续天数
+  /// 如果今天和昨天都没有记录，则返回0
+  static int getLatestStreak(String styleId) {
+    // 获取该style的所有记录
+    final records = _recordBox.values
+        .where((r) => r.styleId == styleId)
+        .toList();
+
+    if (records.isEmpty) return 0;
+
+    // 提取并排序所有不重复的日期（仅年月日）
+    final uniqueDates =
+        records
+            .map((r) => DateTime(r.date.year, r.date.month, r.date.day))
+            .toSet()
+            .toList()
+          ..sort();
+
+    // 获取今天和昨天的日期
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final yesterdayDate = todayDate.subtract(const Duration(days: 1));
+
+    // 检查今天是否有记录
+    final hasTodayRecord = uniqueDates.any((d) => d == todayDate);
+
+    // 检查昨天是否有记录
+    final hasYesterdayRecord = uniqueDates.any((d) => d == yesterdayDate);
+
+    // 如果今天和昨天都没有记录，连续打卡已中断
+    if (!hasTodayRecord && !hasYesterdayRecord) {
+      return 0;
+    }
+
+    // 从最新的日期开始计算连续天数
+    int streak = 0;
+    DateTime currentDate = hasTodayRecord ? todayDate : yesterdayDate;
+
+    while (uniqueDates.contains(currentDate)) {
+      streak++;
+      currentDate = currentDate.subtract(const Duration(days: 1));
+    }
+
+    return streak;
+  }
+
   // # 根据传入的数据覆盖本地的booklet存储数据.
   // TODO: 由于从sqlite3转到这里, 如果id格式不一样需要转的时候要保持数据对应, 以后格式完全一样后就删掉这部分逻辑.
   static Future<void> syncData(dynamic json) async {
@@ -252,8 +301,8 @@ class BookletHiveService {
       // TODO: 检查完全按预期结果验证.
       List<String> urls = [];
       final prefs = await PrefsService.prefs;
-    final pcIp = prefs.getString("PC_IP");
-    final pcPort = prefs.getString("PC_PORT");
+      final pcIp = prefs.getString("PC_IP");
+      final pcPort = prefs.getString("PC_PORT");
       _styleBox.values.toList().forEach((style) {
         style.tasks
             .where((task) => task.image.isNotEmpty && task.image != '')
@@ -280,13 +329,15 @@ class BookletHiveService {
         ..sort((a, b) => b.date.compareTo(a.date));
       records = records.map((item) => item.toJson()).toList();
 
-      return {"jsonData": jsonEncode({"styles": styles, "records": records})};
+      return {
+        "jsonData": jsonEncode({"styles": styles, "records": records}),
+      };
     } catch (err) {
       throw Exception(err);
     }
   }
 
-  // 一并上传task图片
+  // 打包task图片路径.
   static List<String> getImgsPath() {
     List<String> urls = [];
     _styleBox.values.toList().forEach((style) {

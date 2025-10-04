@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/features/booklet/widgets/topbar/stat_item.dart';
+import 'package:torrid/features/booklet/widgets/routine/topbar/stat_item.dart';
 
 // 统计信息卡片组件.
 class Topbar extends StatelessWidget {
@@ -52,8 +52,8 @@ class Topbar extends StatelessWidget {
                   icon: Icons.star,
                 ),
                 StatItem(
-                  label: "最长连续",
-                  value: "${stats["longestStreak"]}天",
+                  label: "当前连续",
+                  value: "${stats["latest_streak"]}天",
                   icon: Icons.fireplace,
                 ),
               ],

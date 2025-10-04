@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:torrid/features/booklet/widgets/bottom_nav_bar.dart';
+import 'package:torrid/features/booklet/widgets/bottom_navbar/bottom_nav_bar.dart';
 import 'package:torrid/features/booklet/pages/mission_page.dart';
 import 'package:torrid/features/booklet/pages/routine_page.dart';
 
