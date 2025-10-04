@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 资源文件(图片等)/TODO文件夹等.
+/# TODO/
+/assets/
