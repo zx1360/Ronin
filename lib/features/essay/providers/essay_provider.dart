@@ -1,11 +1,8 @@
-// providers.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/essay.dart';
 import '../models/label.dart';
 import '../models/year_summary.dart';
-// import '../models/message.dart';
-// import '../utils/util.dart';
 
 // Hive 盒子提供者
 final essaysBoxProvider = Provider<Box<Essay>>((ref) {
@@ -28,6 +25,8 @@ final labelsProvider = FutureProvider<List<Label>>((ref) async {
   return box.values.toList();
 });
 
+// TODO: 没懂但是直接用的东西, 有时间了思考一下呢.
+// 1.FutureProvider.  2.此处的操作过程. 3."过滤功能"的riverpod实现.
 // 随笔总览数据提供者
 final yearSummariesProvider = FutureProvider<List<YearSummary>>((ref) async {
   final essays = await ref.watch(essaysProvider.future);
@@ -156,4 +155,16 @@ final filteredEssaysProvider = FutureProvider<List<Essay>>((ref) async {
   }
   
   return filtered;
+});
+
+// 指定年份的随笔列表提供者（基于筛选结果）
+final yearEssaysProvider = FutureProvider.family<List<Essay>, String>((ref, year) async {
+  // 先获取筛选后的随笔列表
+  final filteredEssays = await ref.watch(filteredEssaysProvider.future);
+
+  // 筛选出指定年份的随笔，并按时间降序排列
+  return filteredEssays
+      .where((essay) => essay.year.toString() == year)
+      .toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
 });

@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/booklet/widgets/routine/data_class/new_task.dart';
 import 'package:torrid/features/booklet/widgets/routine/new_style/newtask_inputitem.dart';
 import 'package:torrid/features/booklet/widgets/routine/constants/global_variable.dart';
@@ -208,7 +209,7 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
           File(targetPath).writeAsBytes(await imageFiles[i]!.readAsBytes());
           imagePaths[i] = path.join("img_storage/booklet", newFileName);
         } catch (e) {
-          print('保存图片失败: $e');
+          AppLogger().error('保存图片失败: $e');
           return;
         }
       }

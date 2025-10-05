@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/features/essay/example_datas.dart';
-import 'package:torrid/features/essay/pages/essay_detail_page.dart';
-import 'package:torrid/features/essay/widgets/essay_card.dart';
+import 'package:torrid/features/essay/pages/__tmp/_essay_detail_page.dart';
+import 'package:torrid/features/essay/pages/__tmp/_example.dart';
+import 'package:torrid/features/essay/pages/__tmp/_essay_card.dart';
 import 'package:torrid/features/essay/widgets/year_summary_card.dart';
 
-
-class EssayPage extends StatelessWidget {
-  const EssayPage({super.key});
+class EssayDisplayScreen extends StatelessWidget {
+  const EssayDisplayScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     // 获取示例数据
     final essays = EssaySampleData.sampleEssays;
     final yearSummaries = EssaySampleData.sampleYearSummaries;
-    
+
     // 按日期排序（最新的在前）
     essays.sort((a, b) => b.date.compareTo(a.date));
 
@@ -28,7 +27,6 @@ class EssayPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TODO: 👇不满意.
             // 年度总结部分
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -38,30 +36,28 @@ class EssayPage extends StatelessWidget {
                   Text(
                     '写作统计',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   // 只展示今年的总结
-                  YearSummaryCard(
-                    summary: yearSummaries.first,
-                  ),
+                  YearSummaryCard(summary: yearSummaries.first),
                 ],
               ),
             ),
-            
+
             // 随笔列表部分
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Text(
                 '我的随笔',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
-            
+
             // 随笔列表
             ListView.builder(
               shrinkWrap: true,
@@ -70,7 +66,10 @@ class EssayPage extends StatelessWidget {
               itemBuilder: (context, index) {
                 final essay = essays[index];
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
                   child: EssayCard(
                     essay: essay,
                     onTap: () => Navigator.push(
@@ -87,7 +86,7 @@ class EssayPage extends StatelessWidget {
           ],
         ),
       ),
-      
+
       // 添加新随笔的按钮
       floatingActionButton: FloatingActionButton(
         onPressed: () {

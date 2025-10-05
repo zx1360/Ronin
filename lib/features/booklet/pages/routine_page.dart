@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
@@ -10,7 +8,7 @@ import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/pages/booklet_overview_page.dart';
 
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
-import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 // TODO: 引入riverpod重构本模块, 拆分组件!  (仅800行的routine_overview.dart怪吓人的).
 class RoutinePage extends StatefulWidget {
@@ -131,47 +129,7 @@ class _RoutinePageState extends State<RoutinePage> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: FutureBuilder<File?>(
-                                future: IoService.getImageFile(task.image),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.done) {
-                                    if (snapshot.hasData) {
-                                      return Image.file(
-                                        snapshot.data!,
-                                        fit: BoxFit.contain,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                              return Container(
-                                                width: 60,
-                                                height: 60,
-                                                color: Colors.yellow.shade200,
-                                                child: Icon(
-                                                  Icons.task,
-                                                  color: Colors.yellow.shade700,
-                                                ),
-                                              );
-                                            },
-                                      );
-                                    }
-                                  }
-                                  return Container(
-                                    width: 60,
-                                    height: 60,
-                                    color: Colors.yellow.shade200,
-                                    child:
-                                        snapshot.connectionState ==
-                                            ConnectionState.waiting
-                                        ? const CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          )
-                                        : Icon(
-                                            Icons.task,
-                                            color: Colors.yellow.shade700,
-                                          ),
-                                  );
-                                },
-                              ),
+                              child: FileImageBuilder(relativeImagePath: task.image),
                             ),
                           );
                         },

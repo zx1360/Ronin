@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'comic_detail.dart';
 
@@ -213,7 +214,7 @@ class _ComicReadPageState extends State<ComicReadPage> {
       _showSnackBar(context, "图片已保存: $fileName");
     } catch (e) {
       _showSnackBar(context, "保存失败: ${e.toString()}");
-      print("保存图片错误: $e");
+      AppLogger().error("保存图片错误: $e");
     }
   }
 

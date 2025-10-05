@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 class TaskWidget extends StatelessWidget {
   const TaskWidget({
@@ -34,40 +35,7 @@ class TaskWidget extends StatelessWidget {
           // 任务相关图片
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: FutureBuilder<File?>(
-              future: IoService.getImageFile(imgUrl),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  if (snapshot.hasData) {
-                    return Image.file(
-                      snapshot.data!,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 60,
-                          height: 60,
-                          color: Colors.yellow.shade200,
-                          child: Icon(
-                            Icons.task,
-                            color: Colors.yellow.shade700,
-                          ),
-                        );
-                      },
-                    );
-                  }
-                }
-                return Container(
-                  width: 60,
-                  height: 60,
-                  color: Colors.yellow.shade200,
-                  child: snapshot.connectionState == ConnectionState.waiting
-                      ? const CircularProgressIndicator(strokeWidth: 2)
-                      : Icon(Icons.task, color: Colors.yellow.shade700),
-                );
-              },
-            ),
+            child: FileImageBuilder(relativeImagePath: imgUrl),
           ),
           const SizedBox(width: 12),
           // 任务标题和描述等信息

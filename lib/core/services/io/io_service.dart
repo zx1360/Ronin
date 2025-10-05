@@ -7,6 +7,7 @@ import 'package:http/http.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 
 import 'package:torrid/core/services/system/system_service.dart';
 
@@ -36,13 +37,12 @@ class IoService {
       if (entity is File) {
         // 删除文件
         await entity.delete();
-        print("已删除文件: ${entity.path}");
       } else if (entity is Directory) {
         // 递归删除子目录
         await entity.delete(recursive: true);
-        print("已删除目录: ${entity.path}");
       }
     }
+    AppLogger().info("已清空'${dir.path}'目录下的所有内容.");
   }
 
   // 清除外部私有空间中的指定目录
@@ -61,9 +61,9 @@ class IoService {
       if (await targetDir.exists()) {
         // 递归删除该目录及其所有内容
         await targetDir.delete(recursive: true);
-        print("已清除指定目录: ${targetDir.path}");
+        AppLogger().info("已清除指定目录: ${targetDir.path}");
       } else {
-        print("指定目录不存在: ${targetDir.path}");
+        AppLogger().info("指定目录不存在: ${targetDir.path}");
       }
     } catch (e) {
       throw Exception("清除指定目录失败: $e");
@@ -88,7 +88,7 @@ class IoService {
       final file = File(filePath);
       return await file.exists() ? file : null;
     } catch (e) {
-      debugPrint('图片路径处理错误: $e');
+      AppLogger().error('图片路径处理错误: $e');
       return null;
     }
   }
@@ -144,7 +144,6 @@ class IoService {
         targetFileName =
             'img_${timestamp}_$randomNum${fileExtension.isNotEmpty ? '.$fileExtension' : ''}';
       }
-      print("a");
 
       // 生成目标文件路径
       File targetFile = File('${publicDir.path}/$targetFileName');
@@ -165,7 +164,7 @@ class IoService {
       return true;
     } catch (e) {
       // 捕获所有可能的异常
-      print('保存图片失败: $e');
+      AppLogger().error('保存图片失败: $e');
       return false;
     }
   }

@@ -25,7 +25,7 @@ class LabelSelector extends StatelessWidget {
           selected: isSelected,
           onSelected: (_) => onToggleLabel(label.id),
           selectedColor: Theme.of(context).colorScheme.primaryContainer,
-          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         );
       }).toList(),
     );

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/others/comic/pages/comic_page.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
@@ -101,7 +102,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         }
       }
     } catch (e) {
-      print("计算章节图片数失败: $e");
+      AppLogger().error("计算章节图片数失败: $e");
     }
     return count;
   }
@@ -136,7 +137,6 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
                     onChanged: (bool value) {
                       setState(() {
                         _isScrollMode = value;
-                        print(_isScrollMode);
                       });
                     },
                   ),

@@ -71,7 +71,6 @@ class EssayHiveService {
       await _yearSummaryBox.clear();
       await _labelBox.clear();
       await _essayBox.clear();
-      print("1");
 
       // 年度(月度)信息
       for (Map<String, dynamic> yearSummary in (json['year_summaries'] as List)) {
@@ -97,10 +96,9 @@ class EssayHiveService {
       final pcPort = prefs.getString("PC_PORT");
       _essayBox.values.where((essay)=>essay.imgs.isNotEmpty).toList().forEach((essay){
         for (var img in essay.imgs) {
-          urls.add("http://$pcIp:$pcPort/static/${img}");
+          urls.add("http://$pcIp:$pcPort/static/$img");
         }
       });
-      print(urls);
       if (urls.isNotEmpty) {
         await IoService.saveFromUrls(urls, "img_storage/essay/zx.1360");
       }

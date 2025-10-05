@@ -20,8 +20,8 @@ class EssayWritePage extends ConsumerStatefulWidget {
 class _EssayWritePageState extends ConsumerState<EssayWritePage> {
   final TextEditingController _contentController = TextEditingController();
   final TextEditingController _newLabelController = TextEditingController();
-  List<String> _selectedLabels = [];
-  List<File> _selectedImages = [];
+  final List<String> _selectedLabels = [];
+  final List<File> _selectedImages = [];
   
   @override
   void dispose() {

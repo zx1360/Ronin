@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'comic_detail.dart';
 
 class ComicPage extends StatefulWidget {
@@ -116,7 +117,7 @@ class _ComicPageState extends State<ComicPage> {
         }
       }
     } catch (e) {
-      print("查找封面图失败: $e");
+      AppLogger().error("查找封面图失败: $e");
     }
     return null;
   }
@@ -127,7 +128,7 @@ class _ComicPageState extends State<ComicPage> {
       final chapters = await comicDir.list().where((entity) => entity is Directory).toList();
       return chapters.length;
     } catch (e) {
-      print("计算章节数失败: $e");
+      AppLogger().error("计算章节数失败: $e");
       return 0;
     }
   }
@@ -145,7 +146,7 @@ class _ComicPageState extends State<ComicPage> {
         }
       }
     } catch (e) {
-      print("计算图片数失败: $e");
+      AppLogger().error("计算图片数失败: $e");
     }
     return count;
   }
