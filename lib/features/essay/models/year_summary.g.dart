@@ -20,7 +20,7 @@ class YearSummaryAdapter extends TypeAdapter<YearSummary> {
       year: fields[0] as String,
       essayCount: fields[1] as int,
       wordCount: fields[2] as int,
-      monthSummaries: (fields[3] as List).cast<MonthSummary>(),
+      monthSummaries: (fields[3] as List?)?.cast<MonthSummary>(),
     );
   }
 
@@ -61,15 +61,21 @@ class MonthSummaryAdapter extends TypeAdapter<MonthSummary> {
     };
     return MonthSummary(
       month: fields[0] as String,
+      essayCount: fields[1] as int,
+      wordCount: fields[2] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, MonthSummary obj) {
     writer
-      ..writeByte(1)
+      ..writeByte(3)
       ..writeByte(0)
-      ..write(obj.month);
+      ..write(obj.month)
+      ..writeByte(1)
+      ..write(obj.essayCount)
+      ..writeByte(2)
+      ..write(obj.wordCount);
   }
 
   @override

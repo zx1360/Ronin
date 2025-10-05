@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:torrid/features/home/pages/home_page.dart';
 
 import 'package:torrid/features/booklet/pages/booklet_page.dart';
-import 'package:torrid/features/essay/pages/essay_page.dart';
+import 'package:torrid/features/essay/pages/essay_browse_page.dart';
 import 'package:torrid/features/news/news_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
 
@@ -35,7 +35,7 @@ final List<RouteBase> routes = [
   GoRoute(
     path: "/essay",
     name: "essay",
-    builder: (context, state) => EssayPage(),
+    builder: (context, state) => EssayBrowsePage(),
   ),
 
   // 早报页,

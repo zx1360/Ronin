@@ -14,7 +14,7 @@ class Message {
 
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
-      timestamp: json['time'],
+      timestamp: DateTime.parse(json['timestamp']),
       content: json['content'],
     );
   }

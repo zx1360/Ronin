@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:hive_flutter/adapters.dart';
+import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
@@ -14,8 +16,8 @@ class EssayHiveService {
   // 初始化Hive
   static Future<void> init() async {
     // 注册适配器
-    Hive.registerAdapter(YearSummaryAdapter());
     Hive.registerAdapter(MonthSummaryAdapter());
+    Hive.registerAdapter(YearSummaryAdapter());
     Hive.registerAdapter(LabelAdapter());
     Hive.registerAdapter(EssayAdapter());
 
@@ -69,22 +71,38 @@ class EssayHiveService {
       await _yearSummaryBox.clear();
       await _labelBox.clear();
       await _essayBox.clear();
+      print("1");
+
       // 年度(月度)信息
-      for (dynamic yearSummary in (json['year_summaries'] as List)) {
+      for (Map<String, dynamic> yearSummary in (json['year_summaries'] as List)) {
         await _yearSummaryBox.put(
           yearSummary['year'],
           YearSummary.fromJson(yearSummary),
         );
       }
       // 标签信息
-      for (dynamic label in (json['labels'] as List)) {
+      for (Map<String, dynamic> label in (json['labels'] as List)) {
         final label_ = Label.fromJson(label);
         await _labelBox.put(label_.id, label_);
       }
       // 随笔内容
-      for (dynamic essay in (json['essays'] as List)) {
+      for (Map<String, dynamic> essay in (json['essays'] as List)) {
         final essay_ = Essay.fromJson(essay);
         await _essayBox.put(essay_.id, essay_);
+      }
+      // 一并保存图片文件
+      List<String> urls = [];
+      final prefs = await PrefsService.prefs;
+      final pcIp = prefs.getString("PC_IP");
+      final pcPort = prefs.getString("PC_PORT");
+      _essayBox.values.where((essay)=>essay.imgs.isNotEmpty).toList().forEach((essay){
+        for (var img in essay.imgs) {
+          urls.add("http://$pcIp:$pcPort/static/${img}");
+        }
+      });
+      print(urls);
+      if (urls.isNotEmpty) {
+        await IoService.saveFromUrls(urls, "img_storage/essay/zx.1360");
       }
     } catch (err) {
       throw Exception("同步essay出错: $err");

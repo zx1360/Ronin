@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
@@ -15,9 +16,7 @@ class EssayService {
       if (resp == null || resp.statusCode != 200) {
         AppLogger().error("syncEssay失败");
       } else {
-        AppLogger().debug("111");
-        AppLogger().debug(resp.data.toString());
-        // EssayHiveService.syncData(resp.data);
+        await EssayHiveService.syncData(resp.data);
       }
     } catch (e) {
       throw Exception("syncEssay出错: $e");
@@ -39,7 +38,7 @@ class EssayService {
           .toList();
 
       final resp = await ApiclientHandler.send(
-        path: "/backup/booklet",
+        path: "/backup/essay",
         jsonData: data,
         files: files,
       );

@@ -17,7 +17,7 @@ class BookletService {
       if (resp == null || resp.statusCode != 200) {
         AppLogger().error("syncBooklet出错");
       } else {
-        BookletHiveService.syncData(resp.data);
+        await BookletHiveService.syncData(resp.data);
       }
     } catch (e) {
       throw Exception("syncBooklet出错: $e");
@@ -42,8 +42,9 @@ class BookletService {
         jsonData: data,
         files: files,
       );
-      if (resp?.statusCode != 200)
+      if (resp?.statusCode != 200) {
         throw Exception("backupBooklet失败.");
+      }
     } catch (e) {
       throw Exception("backupBooklet出错: $e");
     }

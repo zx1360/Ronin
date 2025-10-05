@@ -724,28 +724,28 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
                 const SizedBox(height: 6),
 
                 // 打卡样式的任务展示
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12)
+                if (_currentStyle != null)
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    height: 200,
+                    child: ListView.builder(
+                      padding: EdgeInsets.only(top: 0),
+                      itemCount: _currentStyle!.tasks.length,
+                      itemBuilder: (context, index) {
+                        Task task = _currentStyle!.tasks[index];
+                        return TaskSimpleWidget(
+                          title: task.title,
+                          description: task.description,
+                          imgUrl: task.image,
+                        );
+                      },
+                    ),
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  height: 200,
-                  child: ListView.builder(
-                    padding: EdgeInsets.only(top: 0),
-                    itemCount: _currentStyle!.tasks.length,
-                    itemBuilder: (context, index) {
-                      Task task = _currentStyle!.tasks[index];
-                      return TaskSimpleWidget(
-                        title: task.title,
-                        description: task.description,
-                        imgUrl: task.image,
-                      );
-                    },
-                  ),
-                ),
 
                 const SizedBox(height: 18),
-
 
                 // 打卡记录日历
                 Text('打卡记录总览', style: noteTitle),

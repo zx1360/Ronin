@@ -85,9 +85,7 @@ class IoService {
           ? imgUrl.replaceFirst("/", "")
           : imgUrl;
       final filePath = '${externalDir.path}/$pureUrl';
-      // print(filePath);
       final file = File(filePath);
-      // print(file.exists());
       return await file.exists() ? file : null;
     } catch (e) {
       debugPrint('图片路径处理错误: $e');
@@ -178,7 +176,7 @@ class IoService {
     String relativePath,
   ) async {
     try {
-      await IoService.clearSpecificDirectory("img_storage/booklet");
+      await IoService.clearSpecificDirectory(path.dirname(relativePath));
       // 获取应用的外部私有存储目录
       // 对于Android，这是位于外部存储的Android/data/[包名]/files/目录
       final externalDir = await getExternalStorageDirectory();
@@ -204,7 +202,6 @@ class IoService {
       for (final url in urls) {
         final response = await get(Uri.parse(url));
         if (response.statusCode != 200) {
-          print('图片请求失败，状态码: ${response.statusCode}');
           throw Exception('图片请求失败，状态码: ${response.statusCode}');
         }
 

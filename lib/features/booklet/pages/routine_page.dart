@@ -31,8 +31,6 @@ class _RoutinePageState extends State<RoutinePage> {
   // 控制消息输入框的控制器
   late TextEditingController _messageController;
   late FocusNode _focusNode;
-  // 如果正在请求数据则显示加载中.
-  bool _isRequesting = false;
 
   // # record变动(任务完成情况, 标题/描述, 留言)
   Future<void> updateRecord(String taskId, bool completed) async {
@@ -73,7 +71,9 @@ class _RoutinePageState extends State<RoutinePage> {
     setState(() {
       _tasks = _latestStyle!.tasks;
       _stats = _latestStyle!.toJson();
-      _stats['latest_streak'] = BookletHiveService.getLatestStreak(_latestStyle!.id);
+      _stats['latest_streak'] = BookletHiveService.getLatestStreak(
+        _latestStyle!.id,
+      );
 
       for (Task task in _latestStyle!.tasks) {
         _completions.add(_todayRecord.taskCompletion[task.id] ?? false);
@@ -203,121 +203,119 @@ class _RoutinePageState extends State<RoutinePage> {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.yellow.shade50,
-      child: _isRequesting
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // 统计信息卡片, 点击可以查看总览
-                // TODO: 不展示本style的最大记录, 而展示目前的连续记录.
-                GestureDetector(
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => OverviewPage()),
-                    );
-                    readFromHive();
-                  },
-                  child: Topbar(stats: _stats),
-                ),
+      child: Column(
+        children: [
+          // 统计信息卡片, 点击可以查看总览
+          // TODO: 不展示本style的最大记录, 而展示目前的连续记录.
+          GestureDetector(
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => OverviewPage()),
+              );
+              readFromHive();
+            },
+            child: Topbar(stats: _stats),
+          ),
 
-                // 任务列表
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: _tasks.length,
-                    itemBuilder: (context, index) {
-                      Task taskData = _tasks[index];
-                      return GestureDetector(
-                        onDoubleTap: () => _showTaskDetails(taskData),
-                        child: TaskWidget(
-                          title: taskData.title,
-                          description: taskData.description,
-                          imgUrl: taskData.image,
-                          completed: _completions.isNotEmpty
-                              ? _completions[index]
-                              : false,
-                          switchCB: (value) {
-                            updateRecord(_latestStyle!.tasks[index].id, value);
-                          },
-                        ),
-                      );
+          // 任务列表
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: _tasks.length,
+              itemBuilder: (context, index) {
+                Task taskData = _tasks[index];
+                return GestureDetector(
+                  onDoubleTap: () => _showTaskDetails(taskData),
+                  child: TaskWidget(
+                    title: taskData.title,
+                    description: taskData.description,
+                    imgUrl: taskData.image,
+                    completed: _completions.isNotEmpty
+                        ? _completions[index]
+                        : false,
+                    switchCB: (value) {
+                      updateRecord(_latestStyle!.tasks[index].id, value);
                     },
                   ),
-                ),
+                );
+              },
+            ),
+          ),
 
-                // 留言栏
-                if (_latestStyle != null)
-                  Container(
-                    margin: const EdgeInsets.all(12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.yellow[100], // 淡黄色背景，符合记事本风格
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.brown.withValues(alpha: 0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                      border: Border.all(color: Colors.yellow[300]!, width: 1),
+          // 留言栏
+          if (_latestStyle != null)
+            Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.yellow[100], // 淡黄色背景，符合记事本风格
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.brown.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+                border: Border.all(color: Colors.yellow[300]!, width: 1),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 消息输入框
+                  TextField(
+                    controller: _messageController,
+                    focusNode: _focusNode,
+                    maxLines: 3,
+                    style: TextStyle(
+                      color: Colors.brown[800],
+                      fontSize: 14,
+                      fontFamily: 'NotoSerif',
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 消息输入框
-                        TextField(
-                          controller: _messageController,
-                          focusNode: _focusNode,
-                          maxLines: 3,
-                          style: TextStyle(
-                            color: Colors.brown[800],
-                            fontSize: 14,
-                            fontFamily: 'NotoSerif',
-                          ),
-                          decoration: InputDecoration(
-                            hintText: "给今天的自己留段话吧...",
-                            hintStyle: TextStyle(
-                              color: Colors.brown[400],
-                              fontSize: 14,
-                            ),
-                            border: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            filled: true,
-                            fillColor: Colors.yellow[50],
-                            contentPadding: const EdgeInsets.all(12),
-                          ),
-                          onTapOutside: (event) {
-                            _focusNode.unfocus();
-                          },
+                    decoration: InputDecoration(
+                      hintText: "给今天的自己留段话吧...",
+                      hintStyle: TextStyle(
+                        color: Colors.brown[400],
+                        fontSize: 14,
+                      ),
+                      border: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      filled: true,
+                      fillColor: Colors.yellow[50],
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                    onTapOutside: (event) {
+                      _focusNode.unfocus();
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  // TODO: 保存按钮左边有一片区域空着, 也许放点小表情(天气图标) 表示当天心情?
+                  // 保存按钮
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: saveMessage,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.yellow[700],
+                        foregroundColor: Colors.brown[900],
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        const SizedBox(height: 6),
-                        // TODO: 保存按钮左边有一片区域空着, 也许放点小表情(天气图标) 表示当天心情?
-                        // 保存按钮
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton(
-                            onPressed: saveMessage,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.yellow[700],
-                              foregroundColor: Colors.brown[900],
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-                            child: const Text("保存"),
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ],
+                      ),
+                      child: const Text("保存"),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
+        ],
+      ),
     );
   }
 }
