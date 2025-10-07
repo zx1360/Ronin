@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/pages/essay_detail_page.dart';
 import 'package:torrid/features/essay/providers/essay_provider.dart';
-import 'package:torrid/features/essay/widgets/essay_card.dart';
-import 'package:torrid/features/essay/widgets/year_summary_card.dart';
+import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
+import 'package:torrid/features/essay/widgets/browse/year_summary_card.dart';
 
 
 // TODO: 常常第一次进加载不出, 回退再进就可以.
@@ -24,7 +24,7 @@ class _EssayBrowsePartState extends ConsumerState<EssayBrowsePart>
 
   @override
   Widget build(BuildContext context) {
-    final essaysAsync = ref.read(yearEssaysProvider(widget.yearSummary.year));
+    final essaysAsync = ref.watch(yearEssaysProvider(widget.yearSummary.year));
 
     super.build(context);
     return SingleChildScrollView(
@@ -66,7 +66,7 @@ class _EssayBrowsePartState extends ConsumerState<EssayBrowsePart>
             },
           ),
           // 给右下角floating_btn留空.
-          SizedBox(height: 24),
+          SizedBox(height: 80),
         ],
       ),
     );

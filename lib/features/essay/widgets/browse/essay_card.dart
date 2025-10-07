@@ -1,23 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/essay.dart';
-import 'package:torrid/features/essay/pages/__tmp/_example.dart';
+import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 class EssayCard extends StatelessWidget {
   final Essay essay;
   final VoidCallback onTap;
 
-  const EssayCard({
-    super.key,
-    required this.essay,
-    required this.onTap,
-  });
+  const EssayCard({super.key, required this.essay, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MM月dd日');
-    final labelNames = essay.labels.map((id) => EssaySampleData.getLabelName(id)).toList();
-    
+    final labelNames = essay.labels;
+
     // 内容预览（最多显示3行）
     String previewText = essay.content.replaceAll('\n', ' ');
     if (previewText.length > 100) {
@@ -34,7 +30,7 @@ class EssayCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12.0),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withAlpha(8),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -49,22 +45,32 @@ class EssayCard extends StatelessWidget {
               children: [
                 Text(
                   dateFormat.format(essay.date),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
                 if (labelNames.isNotEmpty)
-                  Text(
-                    labelNames.first,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).primaryColor,
-                        ),
+                  Row(
+                    children: labelNames
+                        .map(
+                          (label) => Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: Text(
+                              label,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // 内容预览
             Text(
               previewText,
@@ -72,9 +78,9 @@ class EssayCard extends StatelessWidget {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // 图片预览
             if (essay.imgs.isNotEmpty)
               Padding(
@@ -83,35 +89,27 @@ class EssayCard extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8.0),
-                      child: Image.network(
-                        essay.imgs[0],
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                      ),
+                      child: FileImageBuilder(relativeImagePath: essay.imgs[0]),
                     ),
                     if (essay.imgs.length > 1)
-                      Positioned(
-                        left: 45,
-                        child: Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(8.0),
-                            border: Border.all(
-                              color: Theme.of(context).cardColor,
-                              width: 2,
-                            ),
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(8.0),
+                          border: Border.all(
+                            color: Theme.of(context).cardColor,
+                            width: 2,
                           ),
-                          child: Center(
-                            child: Text(
-                              '+${essay.imgs.length - 1}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '+${essay.imgs.length - 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -119,25 +117,25 @@ class EssayCard extends StatelessWidget {
                   ],
                 ),
               ),
-            
+
             const SizedBox(height: 12),
-            
+
             // 底部信息
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   '${essay.wordCount} 字',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[500],
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
                 ),
                 if (essay.messages.isNotEmpty)
                   Text(
                     '${essay.messages.length} 条留言',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[500],
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
                   ),
               ],
             ),

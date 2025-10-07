@@ -5,6 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'comic_detail.dart';
 
+
+// TODO: 一开始自动创建comics目录,
 class ComicPage extends StatefulWidget {
   const ComicPage({super.key});
 

@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/providers/essay_provider.dart';
-import 'package:torrid/features/essay/widgets/image_preview.dart';
+import 'package:torrid/features/essay/widgets/write/image_preview.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
 import 'package:torrid/shared/utils/util.dart';
 

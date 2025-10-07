@@ -1,7 +1,5 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 class TaskWidget extends StatelessWidget {

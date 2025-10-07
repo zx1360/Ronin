@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/pages/essay_browse_part.dart';
 
-import 'package:torrid/features/essay/pages/essay_write_page.dart';
 import 'package:torrid/features/essay/providers/essay_provider.dart';
-import 'package:torrid/features/essay/widgets/browse_setting.dart';
+import 'package:torrid/features/essay/widgets/browse/floating_dial_btn.dart';
+import 'package:torrid/features/essay/widgets/modify/browse_setting.dart';
 
 class EssayBrowsePage extends ConsumerWidget {
-  const EssayBrowsePage({super.key});
+  EssayBrowsePage({super.key});
+
+  final PageController controller = PageController();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: 新增随笔后, 会不会不刷新? (调用加载一下好了.
-    final yearSummaries = ref.read(yearSummariesProvider);
-    final PageController _controller = PageController();
+    // TODO: ref.read()相比.watch()不会在.when()切换状态, 似乎不适合FutureProvider.
+    final yearSummaries = ref.watch(yearSummariesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -31,19 +32,13 @@ class EssayBrowsePage extends ConsumerWidget {
         error: (error, stack) => Center(child: Text('加载失败: $error')),
         data: (years) {
           return PageView(
-            controller: _controller,
+            controller: controller,
             children: 
             years.map((year)=>EssayBrowsePart(yearSummary: year)).toList(),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const EssayWritePage()),
-        ),
-        child: const Icon(Icons.edit),
-      ),
+      floatingActionButton: FloatingDialBtn(),
     );
   }
 

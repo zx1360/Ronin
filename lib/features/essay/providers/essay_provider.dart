@@ -165,6 +165,6 @@ final yearEssaysProvider = FutureProvider.family<List<Essay>, String>((ref, year
   // 筛选出指定年份的随笔，并按时间降序排列
   return filteredEssays
       .where((essay) => essay.year.toString() == year)
-      .toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
+      .toList();
+        // ..sort((a, b) => b.date.compareTo(a.date));
 });
