@@ -37,6 +37,26 @@ class Essay {
     this.messages = const [],
   });
 
+  Essay copyWith({
+  String? id,
+  DateTime? date,
+  int? wordCount,
+  String? content,
+  List<String>? imgs,
+  List<String>? labels,
+  List<Message>? messages,
+}) {
+  return Essay(
+    id: id ?? this.id,
+    date: date ?? this.date,
+    wordCount: wordCount ?? this.wordCount,
+    content: content ?? this.content,
+    imgs: imgs ?? this.imgs,
+    labels: labels ?? this.labels,
+    messages: messages ?? this.messages,
+  );
+}
+
   factory Essay.fromJson(Map<String, dynamic> json) {
     return Essay(
       id: (json['id'] as String).length < 17 ? Util.generateId() : json['id'],

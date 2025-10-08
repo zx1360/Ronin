@@ -1,16 +1,15 @@
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 import 'comic_detail.dart';
 
-
 // TODO: 还有一些漏洞:
-//    缩放体验不好, 很容易识别为漫画滚动, 
 //    滑动阅读时, 比较容易识别为一下子往顶上滚到最开始.
-class ComicScrollPage extends StatefulWidget {
+class ComicScrollPage extends ConsumerStatefulWidget {
   final List<ChapterInfo> chapters;
   final int currentChapter;
   final String comicName;
@@ -23,27 +22,25 @@ class ComicScrollPage extends StatefulWidget {
   });
 
   @override
-  State<ComicScrollPage> createState() => _ComicScrollPageState();
+  ConsumerState<ComicScrollPage> createState() => _ComicScrollPageState();
 }
 
-class _ComicScrollPageState extends State<ComicScrollPage> {
+class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   late int _currentChapter = widget.currentChapter;
   late ChapterInfo _chapterInfo = widget.chapters[_currentChapter];
+  List<String> _imagePaths = [];
+  final Duration closeBarDuration = const Duration(seconds: 4);
+
+  int _currentImageIndex = 0;
+
   bool _showControls = true;
   bool _isLoading = true;
-  List<String> _imagePaths = [];
-  int _currentImageIndex = 0;
+
   final ScrollController _scrollController = ScrollController();
   final Map<int, double> _imageOffsets = {};
   final Map<int, double> _imageHeights = {};
   late Timer _controlsTimer;
-  final Duration closeBarDuration = const Duration(seconds: 4);
   bool _isDraggingSlider = false;
-  
-  // 缩放相关控制器
-  final TransformationController _transformationController = TransformationController();
-  final double _minScale = 1.0;
-  final double _maxScale = 3.0;
 
   @override
   void initState() {
@@ -56,8 +53,6 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
   void dispose() {
     _controlsTimer.cancel();
     _scrollController.dispose();
-    _transformationController.dispose();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -82,15 +77,9 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
       _showControls = true;
     });
     _initializeControlsTimer();
-    _toggleSystemUi();
   }
 
-  void _toggleSystemUi() {
-    SystemChrome.setEnabledSystemUIMode(
-      _showControls ? SystemUiMode.edgeToEdge : SystemUiMode.immersive,
-    );
-  }
-
+  // 加载所有图片并获取其长宽用作获取当前阅读页数.
   Future<void> _loadChapterImages() async {
     try {
       final chapterDir = Directory(_chapterInfo.path);
@@ -128,16 +117,24 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
         _isLoading = false;
         _imageOffsets.clear();
         _imageHeights.clear();
-        for (int i = 0; i < _imagePaths.length; i++) {
-          _imageOffsets[i] = 0.0;
-          _imageHeights[i] = 0.0;
-        }
       });
+
+      // 预计算所有图片尺寸
+      for (int i = 0; i < _imagePaths.length; i++) {
+        final size = await _getImageSize(_imagePaths[i]);
+        final screenWidth = MediaQuery.of(context).size.width;
+        final imageHeight = (screenWidth / size.width) * size.height;
+
+        _imageHeights[i] = imageHeight;
+      }
+      setState(() {});
+
+      _updateImagePositions();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载图片失败: ${e.toString()}'))
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('加载图片失败: ${e.toString()}')));
         setState(() {
           _isLoading = false;
         });
@@ -147,7 +144,6 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
 
   void _prevChapter() {
     if (_currentChapter > 0) {
-      _resetZoom();
       setState(() {
         _currentChapter--;
         _chapterInfo = widget.chapters[_currentChapter];
@@ -163,7 +159,6 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
 
   void _nextChapter() {
     if (_currentChapter < widget.chapters.length - 1) {
-      _resetZoom();
       setState(() {
         _currentChapter++;
         _chapterInfo = widget.chapters[_currentChapter];
@@ -180,27 +175,51 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
   void _onScroll() {
     if (_isDraggingSlider || _imagePaths.isEmpty) return;
 
-    setState(() {
-      _updateCurrentImageIndex();
-    });
+    _updateCurrentImageIndex();
   }
 
+  // 在滑动时更新当前img页数.
   void _updateCurrentImageIndex() {
-    if (_imageOffsets.isEmpty || _scrollController.position.maxScrollExtent == 0) {
+    if (_imageOffsets.isEmpty ||
+        _scrollController.position.maxScrollExtent == 0) {
       return;
     }
 
     final currentPosition = _scrollController.position.pixels;
-    for (int i = _imagePaths.length - 1; i >= 0; i--) {
-      final imageOffset = _imageOffsets[i] ?? 0.0;
+    double cumulativeOffset = 0.0;
+
+    for (int i = 0; i < _imagePaths.length; i++) {
       final imageHeight = _imageHeights[i] ?? 0.0;
-      if (currentPosition >= imageOffset - 100 || 
-          (currentPosition >= imageOffset && currentPosition <= imageOffset + imageHeight)) {
-        setState(() {
-          _currentImageIndex = i;
-        });
+
+      // 计算图片可见比例
+      final visibleStart = currentPosition;
+      final visibleEnd =
+          currentPosition + _scrollController.position.viewportDimension;
+
+      final overlapStart = max(cumulativeOffset, visibleStart);
+      final overlapEnd = min(cumulativeOffset + imageHeight, visibleEnd);
+      final visibleRatio = (overlapEnd - overlapStart) / imageHeight;
+
+      // 当图片可见比例超过50%时，认为是当前阅读的图片
+      if (visibleRatio > 0.5) {
+        if (_currentImageIndex != i) {
+          setState(() {
+            _currentImageIndex = i;
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(comicProgressProvider.notifier).updateProgress(
+          comicName: widget.comicName,
+          chapterIndex: _currentChapter,
+          pageIndex: i,
+        );
+      }
+    });
+        }
         break;
       }
+
+      cumulativeOffset += imageHeight;
     }
   }
 
@@ -214,32 +233,17 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
       _isDraggingSlider = true;
     });
 
-    _scrollController.animateTo(
-      _imageOffsets[index] ?? 0.0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    ).whenComplete(() {
-      setState(() {
-        _isDraggingSlider = false;
-      });
-    });
-  }
-
-  // 重置缩放
-  void _resetZoom() {
-    _transformationController.value = Matrix4.identity();
-  }
-
-  // 处理缩放范围限制
-  void _handleScale() {
-    final currentScale = _transformationController.value.getMaxScaleOnAxis();
-    
-    // 限制缩放范围
-    if (currentScale < _minScale) {
-      _transformationController.value = Matrix4.identity()..scale(_minScale);
-    } else if (currentScale > _maxScale) {
-      _transformationController.value = Matrix4.identity()..scale(_maxScale);
-    }
+    _scrollController
+        .animateTo(
+          _imageOffsets[index] ?? 0.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )
+        .whenComplete(() {
+          setState(() {
+            _isDraggingSlider = false;
+          });
+        });
   }
 
   @override
@@ -247,12 +251,12 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
     return Scaffold(
       body: GestureDetector(
         onTap: () {
-          if(_showControls){
+          if (_showControls) {
             _controlsTimer.cancel();
             setState(() {
               _showControls = false;
             });
-          }else{
+          } else {
             _resetControlsTimer();
           }
         },
@@ -339,8 +343,7 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
                       ),
                       Expanded(
                         child: Slider(
-                          // value: _currentImageIndex.toDouble(),
-                          value: 0,
+                          value: _currentImageIndex.toDouble(),
                           min: 0,
                           max: (_imagePaths.length - 1).toDouble(),
                           divisions: _imagePaths.length - 1,
@@ -393,9 +396,12 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
     );
   }
 
+  // 漫画内容部分构建
   Widget _buildScrollGallery() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
     }
 
     if (_imagePaths.isEmpty) {
@@ -406,62 +412,55 @@ class _ComicScrollPageState extends State<ComicScrollPage> {
         ),
       );
     }
-
-    // // 使用InteractiveViewer实现整体缩放
-    // return InteractiveViewer(
-    //   transformationController: _transformationController,
-    //   minScale: _minScale,
-    //   maxScale: _maxScale,
-    //   panEnabled: true,
-    //   scaleEnabled: true,
-    //   onInteractionEnd: (details) {
-    //     _handleScale();
-    //     _resetControlsTimer();
-    //   },
-    //   child: ListView.builder(
-    //     controller: _scrollController,
-    //     physics: const BouncingScrollPhysics(),
-    //     itemCount: _imagePaths.length,
-    //     itemBuilder: (context, index) {
-    //       return _buildComicImage(index);
-    //     },
-    //   ),
-    // );
-     return ListView.builder(
-        controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _imagePaths.length,
-        itemBuilder: (context, index) {
-          return _buildComicImage(index);
-        },
-      );
+    return ListView.builder(
+      controller: _scrollController,
+      physics: const BouncingScrollPhysics(),
+      itemCount: _imagePaths.length,
+      itemBuilder: (context, index) {
+        return _buildComicImage(index);
+      },
+    );
   }
 
+  // 某一个图片
   Widget _buildComicImage(int index) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
 
-        return Column(
-          children: [
-            Image.file(
-              File(_imagePaths[index]),
+        return Image.file(
+          File(_imagePaths[index]),
+          width: screenWidth,
+          fit: BoxFit.fitWidth,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
               width: screenWidth,
-              fit: BoxFit.fitWidth,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: screenWidth,
-                  height: screenWidth * 1.5,
-                  color: Colors.black12,
-                  child: const Center(
-                    child: Icon(Icons.error, color: Colors.red, size: 40),
-                  ),
-                );
-              },
-            ),
-          ],
+              height: screenWidth * 1.5,
+              color: Colors.black12,
+              child: const Center(
+                child: Icon(Icons.error, color: Colors.red, size: 40),
+              ),
+            );
+          },
         );
       },
     );
+  }
+
+  // 获取图片尺寸
+  Future<Size> _getImageSize(String path) async {
+    final bytes = await File(path).readAsBytes();
+    final decodedImage = await decodeImageFromList(bytes);
+    return Size(decodedImage.width.toDouble(), decodedImage.height.toDouble());
+  }
+
+  // 更新所有图片位置信息
+  void _updateImagePositions() {
+    double offset = 0.0;
+    for (int i = 0; i < _imagePaths.length; i++) {
+      _imageOffsets[i] = offset;
+      offset += _imageHeights[i] ?? 0.0;
+    }
+    _updateCurrentImageIndex();
   }
 }
