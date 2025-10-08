@@ -8,7 +8,6 @@ import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
 import 'package:torrid/features/essay/widgets/browse/year_summary_card.dart';
 
 
-// TODO: 常常第一次进加载不出, 回退再进就可以.
 class EssayBrowsePart extends ConsumerStatefulWidget {
   final YearSummary yearSummary;
   const EssayBrowsePart({super.key, required this.yearSummary});

@@ -15,7 +15,6 @@ class FloatingDialBtn extends StatelessWidget {
       children: [
         SpeedDialChild(
           child: const Icon(Icons.edit),
-          // label: "写文章",
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const EssayWritePage()),
@@ -25,12 +24,10 @@ class FloatingDialBtn extends StatelessWidget {
         // TODO: 之后试试riverpod实现,也理解理解GlobalKey实现的原理.
         SpeedDialChild(
           child: const Icon(Icons.refresh),
-          // label: "刷新",
           onTap: () => {},
         ),
         SpeedDialChild(
           child: const Icon(Icons.rocket),
-          // label: "回到顶部",
           onTap: () => {},
         ),
       ],

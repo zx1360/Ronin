@@ -13,17 +13,27 @@ final labelsBoxProvider = Provider<Box<Label>>((ref) {
   return Hive.box<Label>('labels');
 });
 
-// 随笔列表提供者
-final essaysProvider = FutureProvider<List<Essay>>((ref) async {
-  final box = ref.watch(essaysBoxProvider);
-  return box.values.toList();
-});
 
 // 标签列表提供者
 final labelsProvider = FutureProvider<List<Label>>((ref) async {
   final box = ref.watch(labelsBoxProvider);
   return box.values.toList();
 });
+
+// 标签id-name映射表提供者
+final labelMapProvider = FutureProvider<Map<String, String>>((ref) async {
+  final allLabels = await ref.watch(labelsProvider.future);
+  return {
+    for (final label in allLabels) label.id: label.name,
+  };
+});
+
+// 随笔列表提供者
+final essaysProvider = FutureProvider<List<Essay>>((ref) async {
+  final box = ref.watch(essaysBoxProvider);
+  return box.values.toList();
+});
+
 
 // TODO: 没懂但是直接用的东西, 有时间了思考一下呢.
 // 1.FutureProvider.  2.此处的操作过程. 3."过滤功能"的riverpod实现.
@@ -120,6 +130,7 @@ class BrowseSettingsNotifier extends StateNotifier<BrowseSettings> {
     } else {
       selectedLabels.add(labelId);
     }
+    print(selectedLabels);
     state = state.copyWith(selectedLabels: selectedLabels);
   }
   
@@ -137,6 +148,8 @@ final filteredEssaysProvider = FutureProvider<List<Essay>>((ref) async {
   List<Essay> filtered = essays;
   if (settings.selectedLabels.isNotEmpty) {
     filtered = filtered.where((essay) {
+      print(essay.labels);
+      print(settings.selectedLabels);
       return essay.labels.any((labelId) => settings.selectedLabels.contains(labelId));
     }).toList();
   }
@@ -162,9 +175,8 @@ final yearEssaysProvider = FutureProvider.family<List<Essay>, String>((ref, year
   // 先获取筛选后的随笔列表
   final filteredEssays = await ref.watch(filteredEssaysProvider.future);
 
-  // 筛选出指定年份的随笔，并按时间降序排列
+  // 筛选出指定年份的随笔
   return filteredEssays
       .where((essay) => essay.year.toString() == year)
       .toList();
-        // ..sort((a, b) => b.date.compareTo(a.date));
 });

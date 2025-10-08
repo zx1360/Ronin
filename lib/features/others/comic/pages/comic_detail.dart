@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/others/comic/pages/comic_page.dart';
+import 'package:torrid/features/others/comic/widgets/continue_read_btn.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 
@@ -124,21 +125,29 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
             // 章节列表标题
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Column(
                 children: [
-                  const Text(
-                    '章节列表',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ContinueReadingButton(
+                    comicName: widget.comicInfo.name,
+                    chapters: _chapters,
                   ),
-                  Spacer(),
-                  Text(_isScrollMode ? "下拉阅读" : "翻页阅读"),
-                  Switch(
-                    value: _isScrollMode,
-                    onChanged: (bool value) {
-                      setState(() {
-                        _isScrollMode = value;
-                      });
-                    },
+                  Row(
+                    children: [
+                      const Text(
+                        '章节列表',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      Spacer(),
+                      Text(_isScrollMode ? "下拉阅读" : "翻页阅读"),
+                      Switch(
+                        value: _isScrollMode,
+                        onChanged: (bool value) {
+                          setState(() {
+                            _isScrollMode = value;
+                          });
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),

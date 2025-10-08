@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/features/others/comic/widgets/latest_read_display.dart';
 import 'comic_detail.dart';
 
 
@@ -204,19 +205,27 @@ class _ComicPageState extends State<ComicPage> {
     }
 
     // 网格布局展示漫画，使用等高等宽设置
-    return GridView.builder(
-      padding: const EdgeInsets.all(10),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1, // 等宽等高
-        crossAxisSpacing: 6,
-        mainAxisSpacing: 6,
-      ),
-      itemCount: _comics.length,
-      itemBuilder: (context, index) {
-        final comic = _comics[index];
-        return _buildComicItem(comic);
-      },
+    return Column(
+      children: [
+        // TODO: 显示最近阅读的漫画, 点击直接跳转.
+        // const LatestReadDisplay(),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(10),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 1, // 等宽等高
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+            ),
+            itemCount: _comics.length,
+            itemBuilder: (context, index) {
+              final comic = _comics[index];
+              return _buildComicItem(comic);
+            },
+          ),
+        ),
+      ],
     );
   }
 

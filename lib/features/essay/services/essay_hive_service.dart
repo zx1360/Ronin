@@ -54,18 +54,8 @@ class EssayHiveService {
         .toList();
   }
 
-  //
-
-  // 添加日记
-
-  // 删除日记
-
-  // ####### 内部方法, 用于年份总信息和标签信息的更新
-  static Future<void> _updateYearSummary() async {}
-
-  static Future<void> _updateLabelCounts() async {}
-
   // ####### 同步数据至本地
+  // TODO: 同booklet, 数据格式完全一样之后删去相关逻辑.
   static Future<void> syncData(dynamic json) async {
     try {
       await _yearSummaryBox.clear();
@@ -73,20 +63,26 @@ class EssayHiveService {
       await _essayBox.clear();
 
       // 年度(月度)信息
-      for (Map<String, dynamic> yearSummary in (json['year_summaries'] as List)) {
+      for (Map<String, dynamic> yearSummary
+          in (json['year_summaries'] as List)) {
         await _yearSummaryBox.put(
           yearSummary['year'],
           YearSummary.fromJson(yearSummary),
         );
       }
+      final Map<String, String> labelIdMap = {};
       // 标签信息
       for (Map<String, dynamic> label in (json['labels'] as List)) {
         final label_ = Label.fromJson(label);
+        labelIdMap.addAll({label['id']: label_.id});
         await _labelBox.put(label_.id, label_);
       }
       // 随笔内容
       for (Map<String, dynamic> essay in (json['essays'] as List)) {
-        final essay_ = Essay.fromJson(essay);
+        var essay_ = Essay.fromJson(essay);
+        essay_ = essay_.copyWith(
+          labels: essay_.labels.map((label) => labelIdMap[label]!).toList(),
+        );
         await _essayBox.put(essay_.id, essay_);
       }
       // 一并保存图片文件
@@ -94,11 +90,13 @@ class EssayHiveService {
       final prefs = await PrefsService.prefs;
       final pcIp = prefs.getString("PC_IP");
       final pcPort = prefs.getString("PC_PORT");
-      _essayBox.values.where((essay)=>essay.imgs.isNotEmpty).toList().forEach((essay){
-        for (var img in essay.imgs) {
-          urls.add("http://$pcIp:$pcPort/static/$img");
-        }
-      });
+      _essayBox.values.where((essay) => essay.imgs.isNotEmpty).toList().forEach(
+        (essay) {
+          for (var img in essay.imgs) {
+            urls.add("http://$pcIp:$pcPort/static/$img");
+          }
+        },
+      );
       if (urls.isNotEmpty) {
         await IoService.saveFromUrls(urls, "img_storage/essay/zx.1360");
       }

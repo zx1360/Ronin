@@ -4,14 +4,16 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 import 'comic_detail.dart';
 
-class ComicReadPage extends StatefulWidget {
+class ComicReadPage extends ConsumerStatefulWidget {
   final List<ChapterInfo> chapters;
   final int currentChapter;
   final String comicName;
@@ -24,10 +26,10 @@ class ComicReadPage extends StatefulWidget {
   });
 
   @override
-  State<ComicReadPage> createState() => _ComicReadPageState();
+  ConsumerState<ComicReadPage> createState() => _ComicReadPageState();
 }
 
-class _ComicReadPageState extends State<ComicReadPage> {
+class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   late int _currentChapter = widget.currentChapter;
   late ChapterInfo _chapterInfo = widget.chapters[_currentChapter];
   // 是否展示操作栏
@@ -131,6 +133,20 @@ class _ComicReadPageState extends State<ComicReadPage> {
     }
   }
 
+  void updateRecord(index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref
+            .read(comicProgressProvider.notifier)
+            .updateProgress(
+              comicName: widget.comicName, // 漫画名作为唯一key
+              chapterIndex: _currentChapter, // 当前章节索引
+              pageIndex: index, // 当前图片索引
+            );
+      }
+    });
+  }
+
   // 导航到上一页
   void _prevImage() {
     if (_currentIndex > 0) {
@@ -138,6 +154,7 @@ class _ComicReadPageState extends State<ComicReadPage> {
         duration: switchImgDuration,
         curve: Curves.easeInOut,
       );
+      updateRecord(_currentIndex-1);
     } else {
       _prevChapter();
     }
@@ -150,6 +167,7 @@ class _ComicReadPageState extends State<ComicReadPage> {
         duration: switchImgDuration,
         curve: Curves.easeInOut,
       );
+      updateRecord(_currentIndex+1);
     } else {
       _nextChapter();
     }
@@ -222,10 +240,7 @@ class _ComicReadPageState extends State<ComicReadPage> {
   void _showSnackBar(BuildContext context, String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-        ),
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
       );
     }
   }
@@ -324,7 +339,9 @@ class _ComicReadPageState extends State<ComicReadPage> {
                       // 保存当前图片按钮
                       IconButton(
                         icon: Icon(Icons.save_alt_rounded, color: Colors.white),
-                        onPressed: (){_saveThisImage(context);},
+                        onPressed: () {
+                          _saveThisImage(context);
+                        },
                       ),
                     ],
                   ),
@@ -434,12 +451,13 @@ class _ComicReadPageState extends State<ComicReadPage> {
       },
       scrollPhysics: const ClampingScrollPhysics(),
       backgroundDecoration: const BoxDecoration(color: Colors.black),
+
       // scrollDirection: Axis.vertical,
       // loadingBuilder:(context, event) => Center() ,
-      
       onPageChanged: (index) {
         setState(() {
           _currentIndex = index;
+          updateRecord(index);
         });
       },
       pageController: _pageController,
