@@ -1,8 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PrefsService {
-  static final PrefsService _instance = PrefsService._internal();
-  PrefsService._internal();
+  // 饿汉式单例
+  static final PrefsService _instance = PrefsService._();
+  PrefsService._();
   // 静态唯一实例
   factory PrefsService() => _instance;
   // 由此管理的唯一对象

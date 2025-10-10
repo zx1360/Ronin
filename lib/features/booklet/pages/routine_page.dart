@@ -129,7 +129,10 @@ class _RoutinePageState extends State<RoutinePage> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: FileImageBuilder(relativeImagePath: task.image),
+                              child: FileImageBuilder(
+                                relativeImagePath: task.image,
+                                isOriginScale: true,
+                              ),
                             ),
                           );
                         },
