@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/others/comic/models/comic_progress.dart';
 
 // 漫画进度Provider（全局唯一）
@@ -77,7 +78,7 @@ class ComicProgressNotifier extends StateNotifier<Map<String, ComicProgress>> {
   /// 更新最近阅读漫画记录到SharedPreferences
   Future<void> _updateLatestReadComic(String comicName) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await PrefsService.prefs;
       await prefs.setString('latest_read_comic', comicName);
     } catch (e) {
       if (kDebugMode) print('更新最近阅读失败: $e');

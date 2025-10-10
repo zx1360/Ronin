@@ -28,11 +28,11 @@ class _HomePageState extends State<HomePage>
 
   // 菜单按钮数据列表
   final List<ButtonInfo> _buttonInfos = [
-    ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
-    ButtonInfo(name: "随笔", icon: Icons.description, route: "essay"),
-    ButtonInfo(name: "早报", icon: Icons.newspaper, route: "news"),
-    ButtonInfo(name: "其他", icon: Icons.account_tree_rounded, route: "others"),
-    ButtonInfo(name: "个人", icon: Icons.person, route: "profile"),
+    const ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
+    const ButtonInfo(name: "随笔", icon: Icons.description, route: "essay"),
+    const ButtonInfo(name: "早报", icon: Icons.newspaper, route: "news"),
+    const ButtonInfo(name: "其他", icon: Icons.account_tree_rounded, route: "others"),
+    const ButtonInfo(name: "个人", icon: Icons.person, route: "profile"),
   ];
 
   @override
@@ -90,6 +90,7 @@ class _HomePageState extends State<HomePage>
     final menuWidth = size.width * 0.7;
 
     return Scaffold(
+      backgroundColor: AppTheme.background,
       body: Stack(
         children: [
           // 1. 主内容区域 - 点击任意位置触发菜单
@@ -128,7 +129,7 @@ class _HomePageState extends State<HomePage>
                   fit: BoxFit.cover,
                   opacity: 0.28,
                 ),
-                color: AppTheme.lightCardColor,
+                color: AppTheme.surfaceContainer,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.12),
@@ -156,7 +157,7 @@ class _HomePageState extends State<HomePage>
                             fontFamily: "kaiti",
                             fontSize: 22,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.primaryColorDark,
+                            color: AppTheme.primary,
                             letterSpacing: 0.8,
                           ),
                         ),
@@ -165,7 +166,7 @@ class _HomePageState extends State<HomePage>
                     Divider(
                       height: 30,
                       thickness: 1.2,
-                      color: AppTheme.primaryColorLight.withOpacity(0.4),
+                      color: AppTheme.primaryContainer.withOpacity(0.4),
                       indent: 20,
                       endIndent: 20,
                     ),
@@ -180,8 +181,8 @@ class _HomePageState extends State<HomePage>
                             child: MenuButton(
                               info: button,
                               func: _navigateTo,
-                              textColor: AppTheme.darkTextColor,
-                              highlightColor: AppTheme.primaryColorLight
+                              textColor: AppTheme.onSurface,
+                              highlightColor: AppTheme.primaryContainer
                                   .withOpacity(0.3),
                             ),
                           );
@@ -196,13 +197,13 @@ class _HomePageState extends State<HomePage>
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          color: AppTheme.lightSurfaceColor.withOpacity(0.3),
+                          color: AppTheme.surfaceContainerHighest.withOpacity(0.3),
                         ),
                         child: MenuButton(
                           info: _buttonInfos.last,
                           func: _navigateTo,
-                          textColor: AppTheme.primaryColorDark,
-                          highlightColor: AppTheme.primaryColorLight
+                          textColor: AppTheme.primary,
+                          highlightColor: AppTheme.primaryContainer
                               .withOpacity(0.25),
                         ),
                       ),

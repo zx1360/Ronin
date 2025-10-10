@@ -3,11 +3,11 @@ import 'dart:math';
 
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:torrid/features/booklet/models/style.dart';
-import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/features/booklet/models/task.dart';
 
 import 'package:torrid/shared/utils/util.dart';
 

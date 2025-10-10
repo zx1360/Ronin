@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/app/theme_light.dart';
 
-// 按钮数据模型（保持简洁，新增const构造优化性能）
+// 按钮数据模型
 class ButtonInfo {
   final String name;
   final IconData icon;
   final String route;
 
-  // 新增const构造，支持编译期常量优化
   const ButtonInfo({
     required this.name,
     required this.icon,
@@ -15,10 +14,10 @@ class ButtonInfo {
   });
 }
 
-// 菜单按钮组件（与全局主题深度绑定，优化交互反馈）
+// 菜单按钮组件
 class MenuButton extends StatelessWidget {
   final ButtonInfo info;
-  final Function(String route) func; // 明确参数类型，提升代码可读性
+  final Function(String route) func;
   final Color? textColor;
   final Color? highlightColor;
 
@@ -32,18 +31,17 @@ class MenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 从主题获取默认值，确保风格统一
     final theme = Theme.of(context);
-    final defaultTextColor = textColor ?? AppTheme.darkTextColor;
+    final defaultTextColor = textColor ?? AppTheme.onSurface;
     final defaultHighlightColor =
         highlightColor ??
-        AppTheme.primaryColorLight.withOpacity(0.2); // 替代过时的withValues
+        AppTheme.primaryContainer.withOpacity(0.2);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => func(info.route),
-        splashColor: AppTheme.primaryColor.withOpacity(0.2),
+        splashColor: AppTheme.primary.withOpacity(0.2),
         highlightColor: defaultHighlightColor,
         borderRadius: BorderRadius.circular(10),
         child: Container(
