@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/features/others/comic/widgets/latest_read_display.dart';
 import 'comic_detail.dart';
 
 

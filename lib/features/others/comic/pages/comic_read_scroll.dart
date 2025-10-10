@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 import 'comic_detail.dart';
@@ -207,14 +206,16 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
             _currentImageIndex = i;
           });
           WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ref.read(comicProgressProvider.notifier).updateProgress(
-          comicName: widget.comicName,
-          chapterIndex: _currentChapter,
-          pageIndex: i,
-        );
-      }
-    });
+            if (mounted) {
+              ref
+                  .read(comicProgressProvider.notifier)
+                  .updateProgress(
+                    comicName: widget.comicName,
+                    chapterIndex: _currentChapter,
+                    pageIndex: i,
+                  );
+            }
+          });
         }
         break;
       }
@@ -457,10 +458,33 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   // 更新所有图片位置信息
   void _updateImagePositions() {
     double offset = 0.0;
+    double totalHeight = 0.0;
+
+    // 先计算所有图片高度总和
+    for (int i = 0; i < _imagePaths.length; i++) {
+      totalHeight += _imageHeights[i] ?? 0.0;
+    }
+
+    // 检查是否需要调整滚动位置
+    final currentPosition = _scrollController.position.pixels;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final maxScrollExtent = totalHeight - viewportHeight;
+
+    if (currentPosition > maxScrollExtent && maxScrollExtent > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(maxScrollExtent);
+        }
+      });
+    }
+
+    // 重新计算偏移量
+    offset = 0.0;
     for (int i = 0; i < _imagePaths.length; i++) {
       _imageOffsets[i] = offset;
       offset += _imageHeights[i] ?? 0.0;
     }
+
     _updateCurrentImageIndex();
   }
 }
