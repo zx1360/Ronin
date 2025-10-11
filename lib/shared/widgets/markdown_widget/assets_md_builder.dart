@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
-class ProfileAbout extends StatefulWidget {
-  const ProfileAbout({super.key});
+class AssetsMdBuilder extends StatefulWidget {
+  final String mdPath;
+  const AssetsMdBuilder({super.key, required this.mdPath});
 
   @override
-  State<ProfileAbout> createState() => _ProfileAboutState();
+  State<AssetsMdBuilder> createState() => _AssetsMdBuilderState();
 }
 
-class _ProfileAboutState extends State<ProfileAbout> {
+class _AssetsMdBuilderState extends State<AssetsMdBuilder> {
   // 存储从本地文件读取的Markdown内容
   String? markdownContent;
   // 加载状态标识
@@ -28,7 +29,7 @@ class _ProfileAboutState extends State<ProfileAbout> {
   Future<void> _loadMarkdownFile() async {
     try {
       // 从assets加载文件内容
-      String content = await rootBundle.loadString('assets/files/about.md');
+      String content = await rootBundle.loadString(widget.mdPath);
 
       setState(() {
         markdownContent = content;
@@ -68,21 +69,24 @@ class _ProfileAboutState extends State<ProfileAbout> {
 
     // 成功加载后渲染Markdown内容
     return Markdown(
+      // onTapLink: (text, href, title) {},
+      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)),
       data: markdownContent!,
       syntaxHighlighter: CodeSyntaxHighlighter(),
-      // imageBuilder: (uri, title, alt) {
-      //   return Image.network(
-      //     uri.toString(),
-      //     fit: BoxFit.cover,
-      //     errorBuilder: (context, error, stackTrace) {
-      //       return Text(alt ?? '图片加载失败');
-      //     },
-      //   );
-      // },
+      imageBuilder: (uri, title, alt) {
+        return Image.network(
+          uri.toString(),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Text(alt ?? '图片加载失败');
+          },
+        );
+      },
     );
   }
 }
 
+// TODO: 引入flutter_hightlight包实现代码高亮.
 // 代码语法高亮器
 class CodeSyntaxHighlighter extends SyntaxHighlighter {
   CodeSyntaxHighlighter();
