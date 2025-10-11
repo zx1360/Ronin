@@ -1,12 +1,11 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:torrid/app/theme_light.dart';
 import 'package:torrid/features/home/widgets/menu_button.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final int bgIndex;
+  const HomePage({super.key, required this.bgIndex});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -14,9 +13,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
-  // 随机获取一张图片作为大屏壁纸
-  final randomIndex = (Random().nextInt(6) + 1).toString();
-
   // 动画控制器，用于管理菜单滑入滑出动画
   late AnimationController _controller;
   // 侧边菜单滑行动画
@@ -100,7 +96,7 @@ class _HomePageState extends State<HomePage>
             child: Container(
               constraints: BoxConstraints.expand(),
               child: Image.asset(
-                "assets/images/$randomIndex.jpg",
+                "assets/images/${widget.bgIndex}.jpg",
                 fit: BoxFit.cover,
               ),
             ),

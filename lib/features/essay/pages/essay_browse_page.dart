@@ -11,6 +11,7 @@ class EssayBrowsePage extends ConsumerWidget {
 
   final PageController controller = PageController();
 
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // TODO: ref.read()相比.watch()不会在.when()切换状态, 似乎不适合FutureProvider.
