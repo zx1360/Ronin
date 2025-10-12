@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/booklet/widgets/routine/data_class/new_task.dart';
 import 'package:torrid/features/booklet/widgets/routine/new_style/newtask_inputitem.dart';
-import 'package:torrid/features/booklet/widgets/routine/constants/global_variable.dart';
+import 'package:torrid/features/booklet/widgets/routine/constants/global_constants.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/new_style_widgets.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/task_widget_display.dart';
 
@@ -679,7 +679,7 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
         child: Container(
           decoration: BoxDecoration(
             image: DecorationImage(
-              image: const AssetImage('assets/images/3.jpg'),
+              image: const AssetImage('assets/images/2.jpg'),
               fit: BoxFit.cover,
               opacity: 0.15,
             ),

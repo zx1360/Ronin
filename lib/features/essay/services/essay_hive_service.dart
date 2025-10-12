@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:hive_flutter/adapters.dart';
 import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
@@ -87,18 +86,15 @@ class EssayHiveService {
       }
       // 一并保存图片文件
       List<String> urls = [];
-      final prefs = await PrefsService.prefs;
-      final pcIp = prefs.getString("PC_IP");
-      final pcPort = prefs.getString("PC_PORT");
       _essayBox.values.where((essay) => essay.imgs.isNotEmpty).toList().forEach(
         (essay) {
           for (var img in essay.imgs) {
-            urls.add("http://$pcIp:$pcPort/static/$img");
+            urls.add(img);
           }
         },
       );
       if (urls.isNotEmpty) {
-        await IoService.saveFromUrls(urls, "img_storage/essay/zx.1360");
+        await IoService.saveFromRelativeUrls(urls, "img_storage/essay");
       }
     } catch (err) {
       throw Exception("同步essay出错: $err");

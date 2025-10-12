@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:torrid/features/booklet/widgets/routine/constants/global_variable.dart';
+import 'package:torrid/features/booklet/widgets/routine/constants/global_constants.dart';
 import 'package:torrid/features/booklet/widgets/routine/data_class/new_task.dart';
 
 /// 构建任务输入项（新建样式时的单个任务表单）

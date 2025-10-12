@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
 
 import 'package:torrid/core/services/system/system_service.dart';
 
@@ -169,12 +170,12 @@ class IoService {
   }
 
   // GET请求图片并保存到安卓应用的外部私有空间
-  static Future<void> saveFromUrls(
+  static Future<void> saveFromRelativeUrls(
     List<String> urls,
-    String relativePath,
+    String relativeDir,
   ) async {
     try {
-      await IoService.clearSpecificDirectory(path.dirname(relativePath));
+      await IoService.clearSpecificDirectory(relativeDir);
       // 获取应用的外部私有存储目录
       // 对于Android，这是位于外部存储的Android/data/[包名]/files/目录
       final externalDir = await getExternalStorageDirectory();
@@ -182,23 +183,20 @@ class IoService {
         throw Exception("无法获取应用外部私有存储目录");
       }
 
-      // 构建目标文件的完整路径
-      if (relativePath.startsWith("/")) {
-        relativePath = relativePath.replaceFirst("/", "");
-      }
-      final targetPath = path.join(externalDir.path, relativePath);
-      // 创建目标文件所在的目录（如果不存在）
-      final targetDir = path.dirname(targetPath);
-
-      // 确保目录存在
+      // 创建目标文件所在的目录, 确保目录存在
+      final targetDir = path.join(externalDir.path, relativeDir);
       final directory = Directory(targetDir);
       if (!await directory.exists()) {
         await directory.create(recursive: true);
       }
 
+      // TODO: 在ApiHandler改为单例模式之后, 用它发送请求, 省去获重复取ip,port.
+      final prefs = await PrefsService.prefs;
+      final pcIp = prefs.getString("PC_IP");
+      final pcPort = prefs.getString("PC_PORT");
       // 请求图片
       for (final url in urls) {
-        final response = await get(Uri.parse(url));
+        final response = await get(Uri.parse("http://$pcIp:$pcPort/static/$url"));
         if (response.statusCode != 200) {
           throw Exception('图片请求失败，状态码: ${response.statusCode}');
         }
