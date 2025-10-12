@@ -1,6 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/features/booklet/providers/routine/routine_notifier.dart';
+import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
+import 'package:torrid/features/booklet/widgets/routine/widget/bottom_sheet.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
 
 import 'package:torrid/features/booklet/models/style.dart';
@@ -8,8 +14,6 @@ import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/pages/booklet_overview_page.dart';
 
-import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
-import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 // TODO: 引入riverpod重构本模块, 拆分组件!  (近800行的routine_overview.dart怪吓人的).
 class RoutinePage extends ConsumerStatefulWidget {
@@ -26,61 +30,23 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
   List<Task> _tasks = [];
   Map<String, dynamic> _stats = {};
   final List<bool> _completions = [];
-  String _message = "";
   // 控制消息输入框的控制器
   late TextEditingController _messageController;
   late FocusNode _focusNode;
+  // routine的数据操作Notifier
+  Server? _server;
 
   // # record变动(任务完成情况, 标题/描述, 留言)
-  Future<void> updateRecord(String taskId, bool completed) async {
+  Future<void> toggleCompletion(String taskId, bool completed) async {
     _todayRecord.taskCompletion[taskId] = completed;
-    BookletHiveService.updateRecord(
-      styleId: _latestStyle!.id,
-      record: _todayRecord,
-    );
-    readFromHive();
+    await _server!.updateRecord(styleId: _latestStyle!.id, record: _todayRecord);
   }
 
   // # 保存消息到记录
   Future<void> saveMessage() async {
     if (_latestStyle == null) return;
-
-    setState(() {
-      _message = _messageController.text;
-      _todayRecord.message = _message;
-    });
-
-    await BookletHiveService.updateRecord(
-      styleId: _latestStyle!.id,
-      record: _todayRecord,
-    );
-  }
-
-  // # 从Hive读取数据
-  void readFromHive() {
-    // 读取最近的样式, 如有, 设置一些信息.
-    _latestStyle = BookletHiveService.getLatestStyle();
-    if (_latestStyle == null) return;
-    // 读取该样式下, 今天是否有记录.
-    _todayRecord =
-        BookletHiveService.getTodayRecordByStyleId(_latestStyle!.id) ??
-        Record.empty(styleId: _latestStyle!.id);
-    _completions.clear();
-
-    setState(() {
-      _tasks = _latestStyle!.tasks;
-      _stats = _latestStyle!.toJson();
-      _stats['latest_streak'] = BookletHiveService.getLatestStreak(
-        _latestStyle!.id,
-      );
-
-      for (Task task in _latestStyle!.tasks) {
-        _completions.add(_todayRecord.taskCompletion[task.id] ?? false);
-      }
-      _message = _todayRecord.message;
-      // 更新文本控制器的值
-      _messageController.text = _message;
-    });
+    _todayRecord.message = _messageController.text;
+    await _server!.updateRecord(styleId: _latestStyle!.id, record: _todayRecord);
   }
 
   // 初始化, (读取数据)
@@ -89,80 +55,37 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
     super.initState();
     _messageController = TextEditingController();
     _focusNode = FocusNode();
-    readFromHive();
   }
 
-  // 释放资源
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  // 双击任务查看任务详情
-  void _showTaskDetails(Task task) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      isScrollControlled: true,
-      builder: (context) {
-        // 定义本弹出页的最大高度和最小宽度.
-        final maxHeight = MediaQuery.of(context).size.height * 0.85;
-        final minWidth = MediaQuery.of(context).size.width;
-        return Container(
-          padding: const EdgeInsets.all(16),
-          constraints: BoxConstraints(maxHeight: maxHeight, minWidth: minWidth),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (task.image.isNotEmpty)
-                  LayoutBuilder(
-                    builder:
-                        (BuildContext context, BoxConstraints constraints) {
-                          return ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight: maxHeight * 0.7,
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: FileImageBuilder(
-                                relativeImagePath: task.image,
-                                isOriginScale: true,
-                              ),
-                            ),
-                          );
-                        },
-                  ),
-                const SizedBox(height: 16),
-                Text(
-                  task.title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.brown[800],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  task.description,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: Colors.brown[700]),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
+    _server = ref.watch(serverProvider.notifier);
+    // 响应式数据获取.
+    _latestStyle = ref.watch(latestStyleProvider);
+    // 如果有style记录或变动, 则(重新)绑定一系列数据监听.
+      AppLogger().debug("111");
+    if (_latestStyle != null) {
+      AppLogger().debug("__22");
+      _todayRecord =
+          ref.watch(todayRecordProvider) ??
+          Record.empty(styleId: _latestStyle!.id);
+      AppLogger().debug(jsonEncode(_todayRecord.toJson()));
+      _completions.clear();
+
+      _tasks = _latestStyle!.tasks;
+      _stats = _latestStyle!.toJson();
+      _stats['latest_streak'] = ref.watch(
+        currentStreakProvider(_latestStyle!.id),
+      );
+
+      for (final task in _latestStyle!.tasks) {
+        _completions.add(_todayRecord.taskCompletion[task.id] ?? false);
+      }
+      _messageController.text = _todayRecord.message;
+    }
+
+    // UI
     return Container(
       color: Colors.yellow.shade50,
       child: Column(
@@ -175,7 +98,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
                 context,
                 MaterialPageRoute(builder: (context) => OverviewPage()),
               );
-              readFromHive();
+              // TODO: readFromHive();
             },
             child: Topbar(stats: _stats),
           ),
@@ -188,7 +111,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
               itemBuilder: (context, index) {
                 Task taskData = _tasks[index];
                 return GestureDetector(
-                  onDoubleTap: () => _showTaskDetails(taskData),
+                  onDoubleTap: () => showTaskDetails(context, taskData),
                   child: TaskWidget(
                     title: taskData.title,
                     description: taskData.description,
@@ -197,7 +120,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
                         ? _completions[index]
                         : false,
                     switchCB: (value) {
-                      updateRecord(_latestStyle!.tasks[index].id, value);
+                      toggleCompletion(_latestStyle!.tasks[index].id, value);
                     },
                   ),
                 );
@@ -279,5 +202,13 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
         ],
       ),
     );
+  }
+
+  // 释放资源
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _focusNode.dispose();
+    super.dispose();
   }
 }

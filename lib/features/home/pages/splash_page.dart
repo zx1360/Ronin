@@ -35,10 +35,10 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   Future<void> _initialize() async {
     // 初始化操作.
     await Hive.initFlutter();
+    await PrefsService().initPrefs();
     await Future.wait([
       IoService.initDirs(),
 
-      PrefsService().initPrefs(),
       ref.read(appSettingsProviderProvider.notifier).initSettings(),
 
       BookletHiveService.init(),

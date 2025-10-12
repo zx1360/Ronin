@@ -13,5 +13,5 @@ Box<Style> styleBox(StyleBoxRef ref) {
 
 @riverpod
 Box<Record> recordBox(RecordBoxRef ref) {
-  return Hive.box("styles");
+  return Hive.box("records");
 }

@@ -20,7 +20,7 @@ final styleStreamProvider = AutoDisposeStreamProvider<List<Style>>.internal(
 );
 
 typedef StyleStreamRef = AutoDisposeStreamProviderRef<List<Style>>;
-String _$stylesHash() => r'9b9c875963eb2edcb01413700bce6a873421d681';
+String _$stylesHash() => r'743824b9c3482ad25ec4da3287c95061e254cd06';
 
 /// See also [styles].
 @ProviderFor(styles)
@@ -211,7 +211,7 @@ class _StyleWithIdProviderElement extends AutoDisposeProviderElement<Style?>
   String get styleId => (origin as StyleWithIdProvider).styleId;
 }
 
-String _$latestStyleHash() => r'b3562555ba2b06292d86b920f5c0a4b91d389de9';
+String _$latestStyleHash() => r'd0398e6b65f352be8f7724b835616e379703e634';
 
 /// See also [latestStyle].
 @ProviderFor(latestStyle)

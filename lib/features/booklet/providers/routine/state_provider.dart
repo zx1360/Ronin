@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:rxdart/transformers.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 
 import 'package:torrid/features/booklet/providers/routine/box_provider.dart';
 import 'package:torrid/features/booklet/models/record.dart';
@@ -15,8 +18,11 @@ part 'state_provider.g.dart';
 @riverpod
 Stream<List<Style>> styleStream(StyleStreamRef ref) {
   final box = ref.read(styleBoxProvider);
-  // 当Box内容变化, 重新推送所有记录.
-  return box.watch().map((_) => box.values.toList());
+  // 当Box内容变化, 重新推送所有记录. (初次绑定监听时先发送一次事件触发数据发射).
+  return box
+      .watch()
+      .startWith(BoxEvent(box.name, null, false))
+      .map((_) => box.values.toList());
 }
 
 @riverpod
@@ -32,7 +38,10 @@ List<Style> styles(StylesRef ref) {
 @riverpod
 Stream<List<Record>> recordStream(RecordStreamRef ref) {
   final box = ref.read(recordBoxProvider);
-  return box.watch().map((_) => box.values.toList());
+  return box
+      .watch()
+      .startWith(BoxEvent(box.name, null, false))
+      .map((_) => box.values.toList());
 }
 
 @riverpod
@@ -94,9 +103,7 @@ List<Record> recordsWithStyleid(RecordsWithStyleidRef ref, String styleId) {
 /// 如果今天和昨天都没有记录，则返回0
 @riverpod
 int currentStreak(CurrentStreakRef ref, String styleId) {
-  final currentRecords = ref.watch(
-    recordsWithStyleidProvider(styleId),
-  );
+  final currentRecords = ref.watch(recordsWithStyleidProvider(styleId));
   if (currentRecords.isEmpty) return 0;
 
   // 转为日期对象排序.

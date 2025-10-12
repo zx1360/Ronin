@@ -7,10 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/features/booklet/widgets/routine/data_class/new_task.dart';
-import 'package:torrid/features/booklet/widgets/routine/new_style/newtask_inputitem.dart';
-import 'package:torrid/features/booklet/widgets/routine/constants/global_constants.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/new_style_widgets.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/data_class/new_task.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/new_style/newtask_inputitem.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/new_style/new_style_widgets.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/task_widget_display.dart';
 
 // 工具类
