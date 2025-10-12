@@ -3,26 +3,24 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/booklet/providers/routine/routine_notifier.dart';
 import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/new_style/new_task.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/new_style/newtask_inputitem.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/checkin_calendar.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/newtask_inputitem.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/new_style/new_style_widgets.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/widgets/task_simple_widget.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/style_info_widgets.dart'; 
+import 'package:torrid/features/booklet/widgets/routine/overview/task_simple_widget.dart';
 
 // 工具类
 import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 // 导入数据模型与Hive服务
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/task.dart';
-import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 
 /// 历来打卡信息总览页面
 /// 展示当前样式的打卡统计、日历视图，支持切换样式和创建新样式
@@ -50,48 +48,25 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
       final latestStyle = ref.read(latestStyleProvider);
       if (latestStyle != null) {
         _currentStyle = latestStyle;
-        _relatedRecords = ref.read(
-          recordsWithStyleidProvider(_currentStyle!.id),
-        );
       }
+      setState(() {});
     });
   }
 
-  // TODO: 为什么是String? 能否确定非空.
   /// 切换选中的样式（下拉框回调）
   /// [newStyle]：新选中的样式
   void _onStyleChanged(String? newStyleId) {
     if (newStyleId != _currentStyle?.id) {
       setState(() {
         _currentStyle = ref.read(styleWithIdProvider(newStyleId!));
-        _relatedRecords = ref.read(recordsWithStyleidProvider(newStyleId));
       });
     }
-  }
-
-  // TODO: 优化
-  /// 检查今天是否有任何打卡记录
-  bool _hasTodayRecord() {
-    return ref.read(todayRecordProvider) == null;
-  }
-
-  /// 删除今天所有打卡记录（创建新样式前确认用）
-  Future<void> _deleteTodayRecords() async {
-    final today = getTodayDate();
-    final todayRecords = ref
-        .read(recordsProvider)
-        .where((r) => Util.isSameDay(r.date, today))
-        .toList();
-    for (final record in todayRecords) {
-      await ref.watch(serverProvider).recordBox.delete(record.id);
-    }
-    await _server.refreshOne(_currentStyle!.id);
   }
 
   /// 打开新建样式BottomSheet（最大高度85%设备高度，超出可滚动）
   void _openCreateStyleBottomSheet() async {
     // 检查今天是否有记录，有则弹窗确认
-    if (_hasTodayRecord()) {
+    if (ref.read(todayRecordProvider) != null) {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -116,15 +91,11 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
           ],
         ),
       );
+      // 除了点击"确定"以外的操作都直接返回.
       if (confirm != true) return;
-      await _deleteTodayRecords(); // 确认后删除今天记录
     }
-    // 如果前一个样式是今天创建的, 一同删去.  然后重新加载数据, 防止DropdownButton指向无效值.
-    await _server.deleteTodayNewStyle();
-    // TODO: _loadInitialData();
-    if (mounted) {
-      setState(() {});
-    }
+    // 新建样式前, 删除<日期为今天>的record记录和style记录
+    await _server.clearBeforeNewStyle();
 
     // 初始化新样式的任务相关控制器
     _titleControllers.clear();
@@ -256,7 +227,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
       }).toList();
 
       // 创建新Style并保存到Hive
-      final newStyle = Style.newOne(getTodayDate(), tasks);
+      final newStyle = Style.newOne(Util.getTodayDate(), tasks);
       _server.putStyle(style: newStyle);
 
       // 关闭BottomSheet并刷新页面数据
@@ -357,315 +328,20 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
         ),
       );
     }
-  }
-
-  /// 获取打卡日历的日期范围（当前样式的第一条记录 ~ 最后一条记录）
-  DateTimeRange _getCalendarDateRange() {
-    if (_relatedRecords.isEmpty) {
-      return DateTimeRange(start: getTodayDate(), end: getTodayDate());
-    }
-    // 相关记录已按日期倒序，最早日期=最后一条记录，最晚日期=第一条记录
-    final earliestDate = DateTime(
-      _relatedRecords.last.date.year,
-      _relatedRecords.last.date.month,
-      _relatedRecords.last.date.day,
-    );
-    final latestDate = DateTime(
-      _relatedRecords.first.date.year,
-      _relatedRecords.first.date.month,
-      _relatedRecords.first.date.day,
-    );
-    return DateTimeRange(start: earliestDate, end: latestDate);
-  }
-
-  /// 根据日期获取打卡状态（返回颜色索引，对应checkInColors）
-  /// [date]：目标日期
-  int _getCheckInStatusIndex(DateTime date) {
-    if (_currentStyle == null) return 0;
-
-    final targetRecord = _relatedRecords.firstWhere(
-      (r) => Util.isSameDay(r.date, date),
-      orElse: () => Record.empty(styleId: _currentStyle!.id),
-    );
-
-    // 无记录或未完成任一任务
-    if (targetRecord.taskCompletion.isEmpty ||
-        targetRecord.taskCompletion.values.every((v) => !v)) {
-      return 0;
-    }
-
-    // 计算未完成任务数
-    final totalTasks = _currentStyle!.tasks.length;
-    final completedCount = targetRecord.taskCompletion.values
-        .where((v) => v)
-        .length;
-    final incompleteCount = totalTasks - completedCount;
-
-    // 根据未完成数返回颜色索引
-    return switch (incompleteCount) {
-      0 => 1, // 全完成
-      1 => 2, // 差1个
-      2 => 3, // 差2个
-      3 => 4, // 差3个
-      4 => 5, // 差4个（最多5个任务）
-      _ => 0,
-    };
-  }
-
-  /// 检查日期是否有留言
-  /// [date]：目标日期
-  bool _hasMessage(DateTime date) {
-    if (_currentStyle == null) return false;
-
-    final targetRecord = _relatedRecords.firstWhere(
-      (r) => Util.isSameDay(r.date, date),
-      orElse: () => Record.empty(styleId: _currentStyle!.id),
-    );
-    return targetRecord.message.isNotEmpty;
-  }
-
-  /// 打开日期详情弹窗（展示该日期的打卡记录和任务完成情况）
-  /// [date]：目标日期
-  void _openDateDetailDialog(DateTime date) {
-    if (_currentStyle == null) return;
-
-    final targetRecord = _relatedRecords.firstWhere(
-      (r) => Util.isSameDay(r.date, date),
-      orElse: () => Record.empty(styleId: _currentStyle!.id),
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFFF5F0E1),
-        title: Text(fullDateFormatter.format(date), style: noteTitle),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 留言展示（如有）
-              if (targetRecord.message.isNotEmpty)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('打卡留言：', style: noteSmall),
-                    const SizedBox(height: 4),
-                    Text(
-                      targetRecord.message,
-                      style: noteText.copyWith(fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ),
-
-              // 任务完成情况
-              Text('任务完成情况：', style: noteSmall),
-              const SizedBox(height: 8),
-              ..._currentStyle!.tasks.map((task) {
-                final isCompleted =
-                    targetRecord.taskCompletion[task.id] ?? false;
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Icon(
-                        isCompleted
-                            ? Icons.check_box
-                            : Icons.check_box_outline_blank,
-                        color: isCompleted
-                            ? const Color(0xFF8B5A2B)
-                            : const Color(0xFF8B7355),
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(task.title, style: noteText),
-                          if (task.description.isNotEmpty)
-                            Text(
-                              task.description,
-                              style: noteSmall,
-                              // maxLines: 1,
-                              overflow: TextOverflow.visible,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              }),
-
-              // 无记录提示
-              if (targetRecord.taskCompletion.isEmpty)
-                Text('无打卡记录', style: noteSmall),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              '关闭',
-              style: noteText.copyWith(color: const Color(0xFF8B5A2B)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建GitHub式打卡日历（支持月份倒序、星期对齐）
-  Widget _buildCheckInCalendar() {
-    if (_currentStyle == null) {
-      return const Center(child: Text('请先选择或创建打卡计划'));
-    }
-
-    final dateRange = _getCalendarDateRange();
-    final totalDays = dateRange.end.difference(dateRange.start).inDays + 1;
-    final dates = List.generate(
-      totalDays,
-      (i) => dateRange.start.add(Duration(days: i)),
-    );
-
-    // 按月份分组（key: 月份文本，value: 该月所有日期）
-    final Map<String, List<DateTime>> monthGroups = {};
-    for (final date in dates) {
-      final monthKey = monthFormatter.format(date);
-      if (!monthGroups.containsKey(monthKey)) {
-        monthGroups[monthKey] = [];
-      }
-      monthGroups[monthKey]!.add(date);
-    }
-
-    // 月份倒序展示
-    return Column(
-      children: monthGroups.entries.toList().reversed.map((monthEntry) {
-        final month = monthEntry.key;
-        final monthDates = monthEntry.value;
-        // 计算该月第一天的星期偏移（周一→0，周二→1，...，周日→6）
-        final firstDay = monthDates.first;
-        final offset = firstDay.weekday - 1; // DateTime.weekday: 1=周一，7=周日
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 月份标题
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(month, style: noteTitle),
-            ),
-
-            // 星期标题（一 ~ 日）
-            Row(
-              children: [
-                buildWeekDayLabel('一'),
-                buildWeekDayLabel('二'),
-                buildWeekDayLabel('三'),
-                buildWeekDayLabel('四'),
-                buildWeekDayLabel('五'),
-                buildWeekDayLabel('六'),
-                buildWeekDayLabel('日'),
-              ],
-            ),
-
-            // 日期网格（补空格子实现星期对齐）
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7, // 7列（对应星期）
-                childAspectRatio: 1.2, // 方格宽高比
-                crossAxisSpacing: 4,
-                mainAxisSpacing: 4,
-              ),
-              itemCount: offset + monthDates.length, // 总格子数=偏移数+当月天数
-              itemBuilder: (context, index) {
-                // 偏移范围内的格子为空（用于对齐星期）
-                if (index < offset) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      color: Colors.transparent,
-                    ),
-                  );
-                }
-
-                // 计算当前日期（偏移后）
-                final date = monthDates[index - offset];
-                final statusIndex = _getCheckInStatusIndex(date);
-                final hasMessage = _hasMessage(date);
-                // 获取目标记录（判断是否有打卡数据）
-                final targetRecord = _relatedRecords.firstWhere(
-                  (r) => Util.isSameDay(r.date, date),
-                  orElse: () => Record.empty(styleId: _currentStyle!.id),
-                );
-
-                return GestureDetector(
-                  // 无记录且无留言时，不触发弹窗
-                  onTap: (statusIndex == 0 && targetRecord.message == "")
-                      ? null
-                      : () => _openDateDetailDialog(date),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // 日期方格
-                      Container(
-                        decoration: BoxDecoration(
-                          color: checkInColors[statusIndex],
-                          border: Border.all(
-                            color: const Color(0xFFD4C8B8),
-                            width: 0.5,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Center(
-                          child: Text(
-                            dayFormatter.format(date),
-                            style: noteSmall.copyWith(
-                              color: date.isAfter(getTodayDate())
-                                  ? const Color(0xFF8B7355).withAlpha(
-                                      128,
-                                    ) // 未来日期半透明
-                                  : const Color(0xFF3A2E2F),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // 留言标记（右上角小圆点）
-                      if (hasMessage)
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: messageMarkerColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      }).toList(),
-    );
+    setState(() {
+      _currentStyle = ref.read(latestStyleProvider);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     _server = ref.watch(serverProvider.notifier);
     // 响应式数据
+    if (_currentStyle != null) {
+      _relatedRecords = ref.watch(
+        recordsWithStyleidProvider(_currentStyle!.id),
+      );
+    }
 
     // UI
     return ConstrainedBox(
@@ -694,7 +370,10 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: buildStyleDropdown(_currentStyle, _onStyleChanged),
+                      child: StyleDropdown(
+                        currentStyle: _currentStyle,
+                        onStyleChanged: _onStyleChanged,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
@@ -717,7 +396,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
                 const SizedBox(height: 20),
 
                 // 打卡计划概览卡片
-                buildCompactStyleOverview(_currentStyle),
+                CompactStyleOverview(currentStyle: _currentStyle),
                 const SizedBox(height: 6),
 
                 // 打卡样式的任务展示
@@ -747,7 +426,11 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
                 // 打卡记录日历
                 Text('打卡记录总览', style: noteTitle),
                 const SizedBox(height: 12),
-                _buildCheckInCalendar(),
+                CheckinCalendar(
+                  context: context,
+                  style: _currentStyle,
+                  records: _relatedRecords,
+                ),
               ],
             ),
           ),

@@ -54,7 +54,7 @@ class _ProfileDataState extends State<ProfileData> {
 
   // 加载保存的IP地址
   Future<void> _loadAddress() async {
-    final prefs = await PrefsService.prefs;
+    final prefs = PrefsService().prefs;
     final ip = prefs.getString('PC_IP');
     final port = prefs.getString("PC_PORT");
 
@@ -68,7 +68,7 @@ class _ProfileDataState extends State<ProfileData> {
   Future<void> _saveAddress() async {
     final ip = _ipController.text.trim();
     final port = _portController.text.trim();
-    final prefs = await PrefsService.prefs;
+    final prefs = PrefsService().prefs;
 
     await prefs.setString('PC_IP', ip);
     await prefs.setString('PC_PORT', port);

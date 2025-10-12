@@ -34,9 +34,7 @@ class Server extends _$Server {
   }
 
   // 写入新Style记录
-  Future<void> putStyle({
-    required Style style,
-  }) async {
+  Future<void> putStyle({required Style style}) async {
     final styleBox = state.styleBox;
     await styleBox.put(style.id, style);
   }
@@ -51,15 +49,23 @@ class Server extends _$Server {
     await refreshOne(styleId);
   }
 
-  // 删除如果最近的样式是今天开始的, 删去.(新建样式时调用)
-  Future<void> deleteTodayNewStyle() async {
-    final styleBox = state.styleBox;
+  // 新建样式前, 删除<日期为今天>的record记录和style记录
+  Future<void> clearBeforeNewStyle() async {
+    final allStyles = ref.read(stylesProvider);
+    final allRecords = ref.read(recordsProvider);
 
-    final todayStyles = styleBox.values
+    final todayStyles = allStyles
         .where((s) => Util.isSameDay(s.startDate, DateTime.now()))
         .toList();
+    final todayRecords = allRecords
+        .where((r) => Util.isSameDay(r.date, DateTime.now()))
+        .toList();
     for (final style in todayStyles) {
-      styleBox.delete(style.id);
+      await state.styleBox.delete(style.id);
+    }
+    for (final record in todayRecords) {
+      await state.recordBox.delete(record.id);
+      await refreshOne(record.styleId);
     }
   }
 
@@ -145,23 +151,22 @@ class Server extends _$Server {
     // 存储json数据到Hive.
     List jsonStyles = json['styles'];
     List jsonRecords = json['records'];
-    for(dynamic style in jsonStyles){
+    for (dynamic style in jsonStyles) {
       Style style_ = Style.fromJson(style);
       await state.styleBox.put(style_.id, style_);
     }
-    for(dynamic record in jsonRecords){
+    for (dynamic record in jsonRecords) {
       Record record_ = Record.fromJson(record);
       await state.recordBox.put(record_.id, record_);
     }
     // 将其中的task图片文件同时保存到本地.
     final List<String> urls = [];
     for (var style in state.styleBox.values) {
-      style.tasks.where((task)=>task.image.isNotEmpty)
-      .forEach((task){
+      style.tasks.where((task) => task.image.isNotEmpty).forEach((task) {
         urls.add(task.image);
       });
     }
-    if(urls.isNotEmpty){
+    if (urls.isNotEmpty) {
       await IoService.saveFromRelativeUrls(urls, "img_storage/booklet");
     }
   }

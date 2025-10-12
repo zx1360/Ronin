@@ -6,10 +6,6 @@ import 'package:torrid/shared/utils/util.dart';
 
 part 'record.g.dart';
 
-DateTime getTodayDate(){
-  final today = DateTime.now();
-  return DateTime(today.year, today.month, today.day);
-}
 
 @HiveType(typeId: 12)
 class Record {
@@ -44,10 +40,11 @@ class Record {
     required this.taskCompletion,
   }): id=Util.generateId();
 
+  // TODO: 优化
   Record.empty({
     required this.styleId,
     this.message = "",
-  }):id = Util.generateId(), date = getTodayDate(){
+  }):id = Util.generateId(), date = Util.getTodayDate(){
     taskCompletion = {};
     Style style = BookletHiveService.getAllStyles().where((item)=>item.id==styleId).first;
     for(Task task in style.tasks){

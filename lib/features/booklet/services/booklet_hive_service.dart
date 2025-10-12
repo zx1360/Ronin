@@ -95,7 +95,7 @@ class BookletHiveService {
   static Future<void> deleteTodayStyle() async {
     Style? latestStyle = getLatestStyle();
     if (latestStyle == null) return;
-    while (Util.isSameDay(getTodayDate(), latestStyle!.startDate)) {
+    while (Util.isSameDay(Util.getTodayDate(), latestStyle!.startDate)) {
       _styleBox.delete(latestStyle.id);
       latestStyle = getLatestStyle();
       if (latestStyle == null) return;
