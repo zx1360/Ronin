@@ -1,30 +1,32 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/core/services/storage/user_pref_provider/app_settings_provider.dart';
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 import 'package:torrid/features/essay/services/essay_hive_service.dart';
 import 'package:torrid/features/others/comic/services/comic_hive_service.dart';
 import 'package:torrid/features/others/tuntun/services/tuntun_hive_service.dart';
 
 // 启动屏, 最快速度显示
-class SplashPage extends StatefulWidget {
+class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
 
   @override
-  State<SplashPage> createState() => _SplashPageState();
+  ConsumerState<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> {
+class _SplashPageState extends ConsumerState<SplashPage> {
   // 随机展示一个背景图片. 并在之后传给HomePage.
   final randomIndex = (Random().nextInt(6) + 1).toString();
 
   @override
   void initState() {
-    print("__1");
     super.initState();
     _initialize();
   }
@@ -35,6 +37,9 @@ class _SplashPageState extends State<SplashPage> {
     await Hive.initFlutter();
     await Future.wait([
       IoService.initDirs(),
+
+      PrefsService().initPrefs(),
+      ref.read(appSettingsProviderProvider.notifier).initSettings(),
 
       BookletHiveService.init(),
       EssayHiveService.init(),
