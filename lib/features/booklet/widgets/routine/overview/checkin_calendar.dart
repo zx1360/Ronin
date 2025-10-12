@@ -57,7 +57,7 @@ class CheckinCalendar extends StatelessWidget {
 
     final targetRecord = records.firstWhere(
       (r) => Util.isSameDay(r.date, date),
-      orElse: () => Record.empty(styleId: style!.id),
+      orElse: () => Record.empty(style: style!),
     );
 
     // 无记录或未完成任一任务
@@ -91,7 +91,7 @@ class CheckinCalendar extends StatelessWidget {
 
     final targetRecord = records.firstWhere(
       (r) => Util.isSameDay(r.date, date),
-      orElse: () => Record.empty(styleId: style!.id),
+      orElse: () => Record.empty(style: style!),
     );
     return targetRecord.message.isNotEmpty;
   }
@@ -103,7 +103,7 @@ class CheckinCalendar extends StatelessWidget {
 
     final targetRecord = records.firstWhere(
       (r) => Util.isSameDay(r.date, date),
-      orElse: () => Record.empty(styleId: style!.id),
+      orElse: () => Record.empty(style: style!),
     );
 
     showDialog(
@@ -274,7 +274,7 @@ class CheckinCalendar extends StatelessWidget {
                 // 获取目标记录（判断是否有打卡数据）
                 final targetRecord = records.firstWhere(
                   (r) => Util.isSameDay(r.date, date),
-                  orElse: () => Record.empty(styleId: style!.id),
+                  orElse: () => Record.empty(style: style!),
                 );
 
                 return GestureDetector(

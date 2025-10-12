@@ -65,7 +65,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
     if (_latestStyle != null) {
       _todayRecord =
           ref.watch(todayRecordProvider) ??
-          Record.empty(styleId: _latestStyle!.id);
+          Record.empty(style: _latestStyle!);
       _completions.clear();
 
       _tasks = _latestStyle!.tasks;
