@@ -6,11 +6,12 @@ import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 
 import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 
 import 'package:torrid/shared/utils/util.dart';
 
+
+// TODO: 也许之后跳转每一个独立板块中间都用过渡屏转场, 并在其中初始化? (再说吧, 复杂度上来耗时久了再改)
 class BookletHiveService {
   static const String styleBoxName = 'styles';
   static const String recordBoxName = 'records';
@@ -76,8 +77,8 @@ class BookletHiveService {
     required String styleId,
     required Record record,
   }) async {
-    _recordBox.put(record.id, record);
-    refreshOne(styleId);
+    await _recordBox.put(record.id, record);
+    await refreshOne(styleId);
   }
 
   // 5. 获取所有Style数据
@@ -300,18 +301,15 @@ class BookletHiveService {
       // 一并同步对应的task图片文件
       // TODO: 检查完全按预期结果验证.
       List<String> urls = [];
-      final prefs = await PrefsService.prefs;
-      final pcIp = prefs.getString("PC_IP");
-      final pcPort = prefs.getString("PC_PORT");
       _styleBox.values.toList().forEach((style) {
         style.tasks
             .where((task) => task.image.isNotEmpty && task.image != '')
             .forEach((task) {
-              urls.add("http://$pcIp:$pcPort/static/${task.image}");
+              urls.add(task.image);
             });
       });
       if (urls.isNotEmpty) {
-        await IoService.saveFromUrls(urls, "img_storage/booklet/zx.1360");
+        await IoService.saveFromRelativeUrls(urls, "img_storage/booklet");
       }
     } catch (e) {
       throw Exception("Booklet同步出错咯 $e");
