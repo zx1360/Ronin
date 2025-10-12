@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
 
@@ -10,15 +11,15 @@ import 'package:torrid/features/booklet/pages/booklet_overview_page.dart';
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 
-// TODO: 引入riverpod重构本模块, 拆分组件!  (仅800行的routine_overview.dart怪吓人的).
-class RoutinePage extends StatefulWidget {
+// TODO: 引入riverpod重构本模块, 拆分组件!  (近800行的routine_overview.dart怪吓人的).
+class RoutinePage extends ConsumerStatefulWidget {
   const RoutinePage({super.key});
 
   @override
-  State<RoutinePage> createState() => _RoutinePageState();
+  ConsumerState<RoutinePage> createState() => _RoutinePageState();
 }
 
-class _RoutinePageState extends State<RoutinePage> {
+class _RoutinePageState extends ConsumerState<RoutinePage> {
   Style? _latestStyle;
   late Record _todayRecord;
   // 用以呈现渲染的数据
