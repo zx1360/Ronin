@@ -34,9 +34,6 @@ class ComicProgressNotifier extends StateNotifier<Map<String, ComicProgress>> {
     required int chapterIndex,
     required int pageIndex,
   }) {
-    print(comicName);
-    print(chapterIndex);
-    print(pageIndex);
     if (chapterIndex < 0 || pageIndex < 0) return;
 
     // 1. 更新内存与Hive进度
@@ -78,7 +75,7 @@ class ComicProgressNotifier extends StateNotifier<Map<String, ComicProgress>> {
   /// 更新最近阅读漫画记录到SharedPreferences
   Future<void> _updateLatestReadComic(String comicName) async {
     try {
-      final prefs = await PrefsService.prefs;
+      final prefs = PrefsService().prefs;
       await prefs.setString('latest_read_comic', comicName);
     } catch (e) {
       if (kDebugMode) print('更新最近阅读失败: $e');

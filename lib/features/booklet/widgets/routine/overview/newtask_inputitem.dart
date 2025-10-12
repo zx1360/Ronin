@@ -3,7 +3,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/new_style/new_task.dart';
+
+class NewTask {
+  final int index;
+  final TextEditingController titleCtrl;
+  final TextEditingController descCtrl;
+  String imagePath;
+
+  NewTask({
+    required this.index,
+    required this.titleCtrl,
+    required this.descCtrl,
+    this.imagePath = "",
+  });
+}
 
 /// 构建任务输入项（新建样式时的单个任务表单）
 /// [task]：task对象.

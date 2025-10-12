@@ -191,7 +191,7 @@ class IoService {
       }
 
       // TODO: 在ApiHandler改为单例模式之后, 用它发送请求, 省去获重复取ip,port.
-      final prefs = await PrefsService.prefs;
+      final prefs = PrefsService().prefs;
       final pcIp = prefs.getString("PC_IP");
       final pcPort = prefs.getString("PC_PORT");
       // 请求图片
