@@ -1,8 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
+
 import 'package:torrid/features/booklet/providers/routine/routine_notifier.dart';
 import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
@@ -39,14 +37,14 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
   // # record变动(任务完成情况, 标题/描述, 留言)
   Future<void> toggleCompletion(String taskId, bool completed) async {
     _todayRecord.taskCompletion[taskId] = completed;
-    await _server!.updateRecord(styleId: _latestStyle!.id, record: _todayRecord);
+    await _server!.putRecord(styleId: _latestStyle!.id, record: _todayRecord);
   }
 
   // # 保存消息到记录
   Future<void> saveMessage() async {
     if (_latestStyle == null) return;
     _todayRecord.message = _messageController.text;
-    await _server!.updateRecord(styleId: _latestStyle!.id, record: _todayRecord);
+    await _server!.putRecord(styleId: _latestStyle!.id, record: _todayRecord);
   }
 
   // 初始化, (读取数据)
@@ -64,13 +62,10 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
     // 响应式数据获取.
     _latestStyle = ref.watch(latestStyleProvider);
     // 如果有style记录或变动, 则(重新)绑定一系列数据监听.
-      AppLogger().debug("111");
     if (_latestStyle != null) {
-      AppLogger().debug("__22");
       _todayRecord =
           ref.watch(todayRecordProvider) ??
           Record.empty(styleId: _latestStyle!.id);
-      AppLogger().debug(jsonEncode(_todayRecord.toJson()));
       _completions.clear();
 
       _tasks = _latestStyle!.tasks;
@@ -91,14 +86,12 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
       child: Column(
         children: [
           // 统计信息卡片, 点击可以查看总览
-          // TODO: 不展示本style的最大记录, 而展示目前的连续记录.
           GestureDetector(
             onTap: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => OverviewPage()),
               );
-              // TODO: readFromHive();
             },
             child: Topbar(stats: _stats),
           ),

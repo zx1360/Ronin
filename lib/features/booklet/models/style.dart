@@ -57,14 +57,17 @@ class Style {
     );
   }
 
-  Style.noId({
-    required this.startDate,
-    required this.validCheckIn,
-    required this.fullyDone,
-    required this.longestStreak,
-    required this.longestFullyStreak,
-    required this.tasks,
-  }) : id = Util.generateId();
+  factory Style.newOne(DateTime date, List<Task> tasks) {
+    return Style(
+      id: Util.generateId(),
+      startDate: date,
+      validCheckIn: 0,
+      fullyDone: 0,
+      longestStreak: 0,
+      longestFullyStreak: 0,
+      tasks: tasks,
+    );
+  }
 
   factory Style.fromJson(Map<String, dynamic> json) {
     return Style(

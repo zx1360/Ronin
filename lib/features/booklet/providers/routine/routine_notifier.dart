@@ -33,8 +33,16 @@ class Server extends _$Server {
     );
   }
 
+  // 写入新Style记录
+  Future<void> putStyle({
+    required Style style,
+  }) async {
+    final styleBox = state.styleBox;
+    await styleBox.put(style.id, style);
+  }
+
   // 更新Record, 并更新对应的style信息.
-  Future<void> updateRecord({
+  Future<void> putRecord({
     required String styleId,
     required Record record,
   }) async {
@@ -46,7 +54,6 @@ class Server extends _$Server {
   // 删除如果最近的样式是今天开始的, 删去.(新建样式时调用)
   Future<void> deleteTodayNewStyle() async {
     final styleBox = state.styleBox;
-    final today = DateTime.now();
 
     final todayStyles = styleBox.values
         .where((s) => Util.isSameDay(s.startDate, DateTime.now()))

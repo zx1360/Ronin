@@ -1,17 +1,20 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/data_class/new_task.dart';
+import 'package:torrid/features/booklet/providers/routine/routine_notifier.dart';
+import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/new_style/new_task.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/new_style/newtask_inputitem.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/new_style/new_style_widgets.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/task_widget_display.dart';
+import 'package:torrid/features/booklet/widgets/routine/overview/widgets/task_simple_widget.dart';
 
 // 工具类
 import 'package:torrid/shared/utils/util.dart';
@@ -23,65 +26,66 @@ import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 
 /// 历来打卡信息总览页面
 /// 展示当前样式的打卡统计、日历视图，支持切换样式和创建新样式
-class RoutineOverviewPage extends StatefulWidget {
+class RoutineOverviewPage extends ConsumerStatefulWidget {
   const RoutineOverviewPage({super.key});
 
   @override
-  State<RoutineOverviewPage> createState() => _RoutineOverviewPageState();
+  ConsumerState<RoutineOverviewPage> createState() =>
+      _RoutineOverviewPageState();
 }
 
-class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
+class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
   Style? _currentStyle; // 当前选中的打卡样式
   List<Record> _relatedRecords = []; // 当前样式的所有打卡记录（按日期倒序）
   final ImagePicker _imagePicker = ImagePicker(); // 图片选择器
   final List<TextEditingController> _titleControllers = []; // 新建样式时的任务标题控制器
 
+  late Server _server;
+
   @override
   void initState() {
     super.initState();
-    _loadInitialData(); // 初始化加载数据
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final latestStyle = ref.read(latestStyleProvider);
+      if (latestStyle != null) {
+        _currentStyle = latestStyle;
+        _relatedRecords = ref.read(
+          recordsWithStyleidProvider(_currentStyle!.id),
+        );
+      }
+    });
   }
 
-  /// 加载初始数据（最新样式 + 对应打卡记录）
-  void _loadInitialData() {
-    final latestStyle = BookletHiveService.getLatestStyle();
-    if (latestStyle != null) {
-      _currentStyle = latestStyle;
-      _relatedRecords = BookletHiveService.getRecordsByStyleId(latestStyle.id);
-    }
-  }
-
+  // TODO: 为什么是String? 能否确定非空.
   /// 切换选中的样式（下拉框回调）
   /// [newStyle]：新选中的样式
   void _onStyleChanged(String? newStyleId) {
     if (newStyleId != _currentStyle?.id) {
       setState(() {
-        _currentStyle = BookletHiveService.getStyleById(newStyleId!);
-        _relatedRecords = BookletHiveService.getRecordsByStyleId(newStyleId);
+        _currentStyle = ref.read(styleWithIdProvider(newStyleId!));
+        _relatedRecords = ref.read(recordsWithStyleidProvider(newStyleId));
       });
     }
   }
 
+  // TODO: 优化
   /// 检查今天是否有任何打卡记录
   bool _hasTodayRecord() {
-    final today = getTodayDate();
-    return BookletHiveService.getAllRecords().any(
-      (r) => Util.isSameDay(r.date, today),
-    );
+    return ref.read(todayRecordProvider) == null;
   }
 
   /// 删除今天所有打卡记录（创建新样式前确认用）
   Future<void> _deleteTodayRecords() async {
     final today = getTodayDate();
-    final todayRecords = BookletHiveService.getAllRecords()
+    final todayRecords = ref
+        .read(recordsProvider)
         .where((r) => Util.isSameDay(r.date, today))
         .toList();
     for (final record in todayRecords) {
-      await Hive.box<Record>(
-        BookletHiveService.recordBoxName,
-      ).delete(record.id);
+      await ref.watch(serverProvider).recordBox.delete(record.id);
     }
-    await BookletHiveService.refreshOne(_currentStyle!.id);
+    await _server.refreshOne(_currentStyle!.id);
   }
 
   /// 打开新建样式BottomSheet（最大高度85%设备高度，超出可滚动）
@@ -116,8 +120,8 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
       await _deleteTodayRecords(); // 确认后删除今天记录
     }
     // 如果前一个样式是今天创建的, 一同删去.  然后重新加载数据, 防止DropdownButton指向无效值.
-    await BookletHiveService.deleteTodayStyle();
-    _loadInitialData();
+    await _server.deleteTodayNewStyle();
+    // TODO: _loadInitialData();
     if (mounted) {
       setState(() {});
     }
@@ -251,28 +255,16 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
         );
       }).toList();
 
-      // 创建新Style
-      final newStyle = Style.noId(
-        startDate: getTodayDate(),
-        validCheckIn: 0,
-        fullyDone: 0,
-        longestStreak: 0,
-        longestFullyStreak: 0,
-        tasks: tasks,
-      );
-
-      // 保存到Hive并刷新统计
-      await Hive.box<Style>(
-        BookletHiveService.styleBoxName,
-      ).put(newStyle.id, newStyle);
-      await BookletHiveService.refreshOne(newStyle.id);
+      // 创建新Style并保存到Hive
+      final newStyle = Style.newOne(getTodayDate(), tasks);
+      _server.putStyle(style: newStyle);
 
       // 关闭BottomSheet并刷新页面数据
       if (mounted) {
         context.pop();
-        // 重新加载最新样式和记录
-        _loadInitialData();
-        setState(() {});
+        // TODO?: 重新加载最新样式和记录
+        // loadInitialData();
+        // setState(() {});
       }
     }
 
@@ -672,6 +664,10 @@ class _RoutineOverviewPageState extends State<RoutineOverviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    _server = ref.watch(serverProvider.notifier);
+    // 响应式数据
+
+    // UI
     return ConstrainedBox(
       constraints: const BoxConstraints.expand(),
       child: Container(
