@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:rxdart/transformers.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
 
 import 'package:torrid/features/booklet/providers/routine/box_provider.dart';
 import 'package:torrid/features/booklet/models/record.dart';
