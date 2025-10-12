@@ -20,7 +20,7 @@ final styleBoxProvider = AutoDisposeProvider<Box<Style>>.internal(
 );
 
 typedef StyleBoxRef = AutoDisposeProviderRef<Box<Style>>;
-String _$recordBoxHash() => r'2fd20f3b9da4ac3f644c80333d9398598e11982a';
+String _$recordBoxHash() => r'a5c7238767d478f70acf3b56a4a32998dd20e150';
 
 /// See also [recordBox].
 @ProviderFor(recordBox)
