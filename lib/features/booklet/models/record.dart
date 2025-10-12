@@ -6,7 +6,6 @@ import 'package:torrid/shared/utils/util.dart';
 
 part 'record.g.dart';
 
-
 @HiveType(typeId: 12)
 class Record {
   @HiveField(0)
@@ -32,39 +31,34 @@ class Record {
     required this.taskCompletion,
   });
 
-  // TODO: 删掉.
-  Record.noId({
-    required this.styleId,
-    required this.date,
-    required this.message,
-    required this.taskCompletion,
-  }): id=Util.generateId();
-
-  // TODO: 优化
-  Record.empty({
-    required this.styleId,
-    this.message = "",
-  }):id = Util.generateId(), date = Util.getTodayDate(){
-    taskCompletion = {};
-    Style style = BookletHiveService.getAllStyles().where((item)=>item.id==styleId).first;
-    for(Task task in style.tasks){
+  factory Record.empty({required Style style}) {
+    final Map<String, bool> taskCompletion = {};
+    for (Task task in style.tasks) {
       taskCompletion.addAll({task.id: false});
     }
-  }
-
-  factory Record.fromJson(Map<String, dynamic> json) {
     return Record(
-      // TODO: 只是临时这么写,  如果id还是之前的递增计数, 那就创建17位的id, 否则不动.
-      id: (json['id']as String).length<17? Util.generateId(): json['id'],
-      styleId: json['styleId'],
-      date: DateTime.parse(json['date']),
-      message: json['message'],
-      taskCompletion: json['taskCompletion'],
+      id: Util.generateId(),
+      styleId: style.id,
+      date: Util.getTodayDate(),
+      message: "",
+      taskCompletion: taskCompletion,
     );
   }
 
-  Map<String, dynamic> toJson(){
-    return{
+  factory Record.fromJson(Map<String, dynamic> json) {
+    final taskCompletions = (json['taskCompletion'] as Map<String, dynamic>)
+        .map((k, v) => MapEntry(k, v as bool));
+    return Record(
+      id: (json['id'] as String).length < 17 ? Util.generateId() : json['id'],
+      styleId: json['styleId'],
+      date: DateTime.parse(json['date']),
+      message: json['message'],
+      taskCompletion: taskCompletions,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
       "id": id,
       "styleId": styleId,
       "date": date.toLocal().toString().split(".").first,

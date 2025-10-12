@@ -96,6 +96,12 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
     }
     // 新建样式前, 删除<日期为今天>的record记录和style记录
     await _server.clearBeforeNewStyle();
+    // 本方法内两个setState()
+    // 前者为了确保有style记录被删时, 下拉栏断言不出错. 
+    // 后者为了新建之后立刻显示新style的overview.
+    setState(() {
+      _currentStyle = ref.read(latestStyleProvider);
+    });
 
     // 初始化新样式的任务相关控制器
     _titleControllers.clear();
