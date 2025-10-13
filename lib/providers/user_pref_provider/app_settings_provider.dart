@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
 
-import 'package:torrid/services/storage/user_pref_provider/app_setting.dart';
+import 'package:torrid/providers/user_pref_provider/app_setting.dart';
 
 part 'app_settings_provider.g.dart';
 

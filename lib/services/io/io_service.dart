@@ -9,7 +9,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
 
-import 'package:torrid/services/system/system_service.dart';
 
 class IoService {
   // 创建应用需要用到的所有目录.
@@ -155,11 +154,6 @@ class IoService {
 
       // 复制文件
       await sourceFile.copy(targetFile.path);
-
-      // 通知系统媒体库更新
-      if (Platform.isAndroid) {
-        await SystemService.scanFile(targetFile.path);
-      }
 
       return true;
     } catch (e) {
