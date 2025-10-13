@@ -5,9 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
-import 'package:torrid/core/services/storage/user_pref_provider/app_settings_provider.dart';
+import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/services/storage/prefs_service.dart';
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 import 'package:torrid/features/essay/services/essay_hive_service.dart';
 import 'package:torrid/features/others/comic/services/comic_hive_service.dart';

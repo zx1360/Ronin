@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/services/debug/logging_service.dart';
 
 class SystemService {
   // 通知Android系统扫描文件，使其在相册中可见

@@ -1,7 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
-import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 part 'record.g.dart';

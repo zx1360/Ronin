@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:torrid/app/theme_light.dart';
-import 'package:torrid/core/router/router.dart';
+import 'package:torrid/app/router.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
