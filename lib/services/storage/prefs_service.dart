@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:torrid/core/services/storage/user_pref_provider/app_setting.dart';
+import 'package:torrid/services/storage/user_pref_provider/app_setting.dart';
 
 class PrefsService {
   // 饿汉式单例

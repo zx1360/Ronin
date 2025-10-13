@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:hive/hive.dart';
-import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 

@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/services/storage/prefs_service.dart';
 
-import 'package:torrid/core/services/network/api_client.dart';
+import 'package:torrid/services/network/api_client.dart';
 import 'package:dio/dio.dart';
 
 import 'package:torrid/shared/models/network_status.dart';

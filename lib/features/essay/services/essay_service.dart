@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/core/services/network/apiclient_handler.dart';
+import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/services/network/apiclient_handler.dart';
 import 'package:torrid/features/essay/services/essay_hive_service.dart';
 
 class EssayService {

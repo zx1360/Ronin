@@ -16,7 +16,7 @@ import 'package:torrid/features/booklet/widgets/routine/overview/task_simple_wid
 
 // 工具类
 import 'package:torrid/shared/utils/util.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/services/debug/logging_service.dart';
 // 导入数据模型与Hive服务
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';

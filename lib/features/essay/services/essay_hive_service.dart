@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:hive_flutter/adapters.dart';
-import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';

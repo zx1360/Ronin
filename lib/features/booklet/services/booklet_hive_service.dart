@@ -4,7 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 
-import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 
 

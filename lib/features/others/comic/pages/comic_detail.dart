@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/features/others/comic/pages/comic_page.dart';
 import 'package:torrid/features/others/comic/widgets/continue_read_btn.dart';
 import 'comic_read_flip.dart';

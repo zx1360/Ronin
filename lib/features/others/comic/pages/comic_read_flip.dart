@@ -8,8 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 import 'comic_detail.dart';
 

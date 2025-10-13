@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/core/services/network/apiclient_handler.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/services/network/apiclient_handler.dart';
+import 'package:torrid/services/storage/prefs_service.dart';
 import 'package:torrid/features/profile/datas/action_datas.dart';
 
 class ProfileData extends StatefulWidget {
