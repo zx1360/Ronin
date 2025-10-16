@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_progress.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 
+// TODO: 有问题待修正未加入.
 /// 最近阅读展示组件
 class LatestReadDisplay extends ConsumerWidget {
   const LatestReadDisplay({super.key});

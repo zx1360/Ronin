@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/services/network/apiclient_handler.dart';
 
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
@@ -28,7 +28,7 @@ class BookletService {
     try {
       final data = BookletHiveService.packUp();
       // 获取外部存储目录
-      final externalDir = await getExternalStorageDirectory();
+      final externalDir = await IoService.externalStorageDir;
       if (externalDir == null) {
         throw Exception("无法获取外部存储目录");
       }

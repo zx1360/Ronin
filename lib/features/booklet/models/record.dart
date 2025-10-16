@@ -36,9 +36,9 @@ class Record {
       taskCompletion.addAll({task.id: false});
     }
     return Record(
-      id: Util.generateId(),
+      id: generateId(),
       styleId: style.id,
-      date: Util.getTodayDate(),
+      date: getTodayDate(),
       message: "",
       taskCompletion: taskCompletion,
     );
@@ -48,7 +48,7 @@ class Record {
     final taskCompletions = (json['taskCompletion'] as Map<String, dynamic>)
         .map((k, v) => MapEntry(k, v as bool));
     return Record(
-      id: (json['id'] as String).length < 17 ? Util.generateId() : json['id'],
+      id: (json['id'] as String).length < 17 ? generateId() : json['id'],
       styleId: json['styleId'],
       date: DateTime.parse(json['date']),
       message: json['message'],

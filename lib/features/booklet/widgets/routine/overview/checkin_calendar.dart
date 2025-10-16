@@ -32,8 +32,8 @@ class CheckinCalendar extends StatelessWidget {
   DateTimeRange _getCalendarDateRange() {
     if (records.isEmpty) {
       return DateTimeRange(
-        start: Util.getTodayDate(),
-        end: Util.getTodayDate(),
+        start: getTodayDate(),
+        end: getTodayDate(),
       );
     }
     // 相关记录已按日期倒序，最早日期=最后一条记录，最晚日期=第一条记录
@@ -56,7 +56,7 @@ class CheckinCalendar extends StatelessWidget {
     if (style == null) return 0;
 
     final targetRecord = records.firstWhere(
-      (r) => Util.isSameDay(r.date, date),
+      (r) => isSameDay(r.date, date),
       orElse: () => Record.empty(style: style!),
     );
 
@@ -90,7 +90,7 @@ class CheckinCalendar extends StatelessWidget {
     if (style == null) return false;
 
     final targetRecord = records.firstWhere(
-      (r) => Util.isSameDay(r.date, date),
+      (r) => isSameDay(r.date, date),
       orElse: () => Record.empty(style: style!),
     );
     return targetRecord.message.isNotEmpty;
@@ -102,7 +102,7 @@ class CheckinCalendar extends StatelessWidget {
     if (style == null) return;
 
     final targetRecord = records.firstWhere(
-      (r) => Util.isSameDay(r.date, date),
+      (r) => isSameDay(r.date, date),
       orElse: () => Record.empty(style: style!),
     );
 
@@ -273,7 +273,7 @@ class CheckinCalendar extends StatelessWidget {
                 final hasMessage = _hasMessage(date);
                 // 获取目标记录（判断是否有打卡数据）
                 final targetRecord = records.firstWhere(
-                  (r) => Util.isSameDay(r.date, date),
+                  (r) => isSameDay(r.date, date),
                   orElse: () => Record.empty(style: style!),
                 );
 
@@ -299,7 +299,7 @@ class CheckinCalendar extends StatelessWidget {
                           child: Text(
                             dayFormatter.format(date),
                             style: noteSmall.copyWith(
-                              color: date.isAfter(Util.getTodayDate())
+                              color: date.isAfter(getTodayDate())
                                   ? const Color(0xFF8B7355).withAlpha(
                                       128,
                                     ) // 未来日期半透明

@@ -80,7 +80,7 @@ Record? todayRecord(TodayRecordRef ref) {
       .where(
         (item) =>
             item.styleId == todayStyle.id &&
-            Util.isSameDay(item.date, todayDate),
+            isSameDay(item.date, todayDate),
       )
       .toList();
 

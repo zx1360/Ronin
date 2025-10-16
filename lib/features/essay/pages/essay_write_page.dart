@@ -45,7 +45,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     if (labelName.isEmpty) return;
     
     final newLabel = Label(
-      id: Util.generateId(),
+      id: generateId(),
       name: labelName,
       essayCount: 0,
     );
@@ -106,7 +106,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     
     // 创建随笔对象
     final essay = Essay(
-      id: Util.generateId(),
+      id: generateId(),
       date: DateTime.now(),
       wordCount: content.length,
       content: content,

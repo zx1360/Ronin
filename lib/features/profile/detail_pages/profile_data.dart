@@ -4,6 +4,9 @@ import 'package:torrid/services/network/apiclient_handler.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
 import 'package:torrid/features/profile/datas/action_datas.dart';
 
+
+// TODO: riverpod重构, 本页面似乎无需管理私有状态, 改为ConsumerWidget吧.
+// 七七八八的感觉都能用riverpod替代.
 class ProfileData extends StatefulWidget {
   const ProfileData({super.key});
 

@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/services/network/apiclient_handler.dart';
 import 'package:torrid/features/essay/services/essay_hive_service.dart';
 
@@ -28,10 +28,7 @@ class EssayService {
     try {
       final data = EssayHiveService.packUp();
       // 获取外部存储目录
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        throw Exception("无法获取外部存储目录");
-      }
+      final externalDir = await IoService.externalStorageDir;
       final files = EssayHiveService.getImgsPath()
           .map((path) => File("${externalDir.path}/$path"))
           .toList();

@@ -28,11 +28,11 @@ class Task {
     required this.title,
     required this.description,
     required this.image,
-  }): id=Util.generateId();
+  }): id=generateId();
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
-      id: (json['id']as String).length<17? Util.generateId(): json['id'],
+      id: (json['id']as String).length<17? generateId(): json['id'],
       title: json['title'],
       description: json['description'],
       image: json['image'],

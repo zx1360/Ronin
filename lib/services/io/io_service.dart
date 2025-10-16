@@ -8,23 +8,24 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
-
+import 'package:torrid/shared/utils/util.dart';
 
 class IoService {
-  // 创建应用需要用到的所有目录.
-  // TODO: 优化点, 全局搜索"getExternalStorageDirectory();"
-  // --------系统目录相关--------
-  static Future<void> initDirs()async{
-    // 获取应用外部私有存储目录（Android的getExternalFilesDir，iOS的Documents）
-    // booklet/essay图片文件夹.
-    final directory = await getExternalStorageDirectory();
-    if (directory == null) return;
-    final bookletImgDir = path.join(directory.path, "img_storage/booklet");
-    final essayImgDir = path.join(directory.path, "img_storage/essay");
+  static Directory? _externalStorageDir;
 
-    // 确保目录存在
-    await Directory(bookletImgDir).create(recursive: true);
-    await Directory(essayImgDir).create(recursive: true);
+  static Future<Directory> get externalStorageDir async {
+    _externalStorageDir ??= await getExternalStorageDirectory();
+    return _externalStorageDir!;
+  }
+
+  // --------系统目录相关--------
+  // 创建应用需要用到的所有目录.
+  static Future<void> initDirs() async {
+    final directory = await externalStorageDir;
+    final dirs = ["img_storage/booklet", "img_storage/essay", "comics"];
+    for (final dir in dirs) {
+      await Directory(path.join(directory.path, dir)).create(recursive: true);
+    }
   }
 
   // 删除目录下的所有内容但保留目录本身
@@ -44,14 +45,11 @@ class IoService {
     AppLogger().info("已清空'${dir.path}'目录下的所有内容.");
   }
 
-  // 清除外部私有空间中的指定目录
+  // 清除外部私有空间中的指定目录(包括本身)
   static Future<void> clearSpecificDirectory(String relativePath) async {
     try {
       // 获取应用外部私有存储根目录
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        throw Exception("无法获取应用外部私有存储目录");
-      }
+      final externalDir = await IoService.externalStorageDir;
 
       // 构建目标目录的完整路径
       final targetDir = Directory(path.join(externalDir.path, relativePath));
@@ -69,17 +67,11 @@ class IoService {
     }
   }
 
-
-
-
-// --------文件内容相关--------
+  // --------文件内容相关--------
   // 读取外部私有空间的图片文件
   static Future<File?> getImageFile(String imgUrl) async {
     try {
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        throw Exception("无法获取应用外部私有存储目录");
-      }
+      final externalDir = await IoService.externalStorageDir;
       final pureUrl = imgUrl.startsWith("/")
           ? imgUrl.replaceFirst("/", "")
           : imgUrl;
@@ -128,7 +120,7 @@ class IoService {
 
       // 处理文件名
       String targetFileName;
-      String fileExtension = _getFileExtension(sourceFile.path);
+      String fileExtension = getFileExtension(sourceFile.path);
 
       if (filename != null && filename.isNotEmpty) {
         // 使用传入的文件名，确保包含扩展名
@@ -172,10 +164,7 @@ class IoService {
       await IoService.clearSpecificDirectory(relativeDir);
       // 获取应用的外部私有存储目录
       // 对于Android，这是位于外部存储的Android/data/[包名]/files/目录
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        throw Exception("无法获取应用外部私有存储目录");
-      }
+      final externalDir = await externalStorageDir;
 
       // 创建目标文件所在的目录, 确保目录存在
       final targetDir = path.join(externalDir.path, relativeDir);
@@ -184,13 +173,16 @@ class IoService {
         await directory.create(recursive: true);
       }
 
+      // TODO: 此处网络相关之后分离到transfer_service.dart中.
       // TODO: 在ApiHandler改为单例模式之后, 用它发送请求, 省去获重复取ip,port.
       final prefs = PrefsService().prefs;
       final pcIp = prefs.getString("PC_IP");
       final pcPort = prefs.getString("PC_PORT");
       // 请求图片
       for (final url in urls) {
-        final response = await get(Uri.parse("http://$pcIp:$pcPort/static/$url"));
+        final response = await get(
+          Uri.parse("http://$pcIp:$pcPort/static/$url"),
+        );
         if (response.statusCode != 200) {
           throw Exception('图片请求失败，状态码: ${response.statusCode}');
         }
@@ -208,18 +200,4 @@ class IoService {
       throw Exception("保存到应用外部私有空间失败\n$e");
     }
   }
-
-
-
-
-// --------其他--------
-  // 提取文件扩展名
-  static String _getFileExtension(String filePath) {
-    int lastDotIndex = filePath.lastIndexOf('.');
-    if (lastDotIndex != -1 && lastDotIndex < filePath.length - 1) {
-      return filePath.substring(lastDotIndex + 1).toLowerCase();
-    }
-    return '';
-  }
-
 }

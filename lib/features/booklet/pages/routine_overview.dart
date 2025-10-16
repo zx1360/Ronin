@@ -11,8 +11,9 @@ import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/checkin_calendar.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/newtask_inputitem.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
-import 'package:torrid/features/booklet/widgets/routine/overview/style_info_widgets.dart'; 
+import 'package:torrid/features/booklet/widgets/routine/overview/style_info_widgets.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/task_simple_widget.dart';
+import 'package:torrid/services/io/io_service.dart';
 
 // 工具类
 import 'package:torrid/shared/utils/util.dart';
@@ -97,7 +98,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
     // 新建样式前, 删除<日期为今天>的record记录和style记录
     await _server.clearBeforeNewStyle();
     // 本方法内两个setState()
-    // 前者为了确保有style记录被删时, 下拉栏断言不出错. 
+    // 前者为了确保有style记录被删时, 下拉栏断言不出错.
     // 后者为了新建之后立刻显示新style的overview.
     setState(() {
       _currentStyle = ref.read(latestStyleProvider);
@@ -168,8 +169,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
         if (imagePaths[i] == '' || imageFiles[i] == null) continue;
         try {
           // 获取应用外部私有存储目录（Android的getExternalFilesDir，iOS的Documents）
-          final directory = await getExternalStorageDirectory();
-          if (directory == null) return;
+          final directory = await IoService.externalStorageDir;
 
           // 确保目录存在
           await directory.create(recursive: true);
@@ -233,7 +233,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
       }).toList();
 
       // 创建新Style并保存到Hive
-      final newStyle = Style.newOne(Util.getTodayDate(), tasks);
+      final newStyle = Style.newOne(getTodayDate(), tasks);
       _server.putStyle(style: newStyle);
 
       // 关闭BottomSheet并刷新页面数据
