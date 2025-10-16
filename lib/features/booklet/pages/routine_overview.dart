@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/features/booklet/providers/routine/routine_notifier.dart';
+import 'package:torrid/features/booklet/providers/routine/notifier_provider.dart';
 import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/checkin_calendar.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/newtask_inputitem.dart';

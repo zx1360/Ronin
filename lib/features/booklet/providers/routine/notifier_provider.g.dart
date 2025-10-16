@@ -1,12 +1,12 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'routine_notifier.dart';
+part of 'notifier_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serverHash() => r'b626361475a9876d4ee85b4a76056a02c609f6ab';
+String _$serverHash() => r'4f82f408f12a6c8b22e01bdcead35caf9a94107b';
 
 /// See also [Server].
 @ProviderFor(Server)

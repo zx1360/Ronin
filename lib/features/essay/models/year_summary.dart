@@ -40,8 +40,11 @@ class YearSummary {
     return {
       'year': year,
       'essayCount': essayCount,
-      'totalWordCount': wordCount,
-      'months': monthSummaries.map((month) => month.toJson()).toList(),
+      // TODO: 数据格式统一后, 改用这个字段名
+      // 'totalWordCount': wordCount,
+      // 'months': monthSummaries.map((month) => month.toJson()).toList(),
+      'wordCount': wordCount,
+      'monthSummaries': monthSummaries.map((month) => month.toJson()).toList(),
     };
   }
 }

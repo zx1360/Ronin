@@ -41,20 +41,8 @@ class EssayHiveService {
   static List<Essay> get allEssays => _essayBox.values.toList();
   static List<Label> get allLabels => _labelBox.values.toList();
 
-  // 按年份获取文章
-  static List<Essay> getEssayByYear(int year) {
-    return _essayBox.values.where((essay) => essay.year == year).toList();
-  }
-
-  // 按标签获取文章
-  static List<Essay> getEssayByLabel(String labelName) {
-    return _essayBox.values
-        .where((essay) => essay.labels.contains(labelName))
-        .toList();
-  }
-
   // ####### 同步数据至本地
-  // TODO: 同booklet, 数据格式完全一样之后删去相关逻辑.
+  // TODO: 数据格式完全一样之后删去相关逻辑.
   static Future<void> syncData(dynamic json) async {
     try {
       await _yearSummaryBox.clear();

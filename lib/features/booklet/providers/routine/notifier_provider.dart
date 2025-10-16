@@ -12,7 +12,7 @@ import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 
 import 'package:torrid/shared/utils/util.dart';
 
-part 'routine_notifier.g.dart';
+part 'notifier_provider.g.dart';
 
 // --------------业务相关的数据操作
 class Cashier {

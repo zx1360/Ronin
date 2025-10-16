@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/pages/essay_browse_part.dart';
 
-import 'package:torrid/features/essay/providers/essay_provider.dart';
+import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/floating_dial_btn.dart';
 import 'package:torrid/features/essay/widgets/modify/browse_setting.dart';
 
@@ -14,7 +14,6 @@ class EssayBrowsePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: ref.read()相比.watch()不会在.when()切换状态, 似乎不适合FutureProvider.
     final yearSummaries = ref.watch(yearSummariesProvider);
 
     return Scaffold(

@@ -17,6 +17,7 @@ class Label {
   Label({required this.id, required this.name, required this.essayCount});
 
   factory Label.fromJson(Map<String, dynamic> json) {
+    // TODO: 等待格式统一.
     print((json['id']as String).length<17);
     print(json['id']);
     return Label(

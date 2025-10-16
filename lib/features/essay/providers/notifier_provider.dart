@@ -1,46 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:torrid/features/essay/providers/status_provider.dart';
 
 import '../models/essay.dart';
-import '../models/label.dart';
 import '../models/year_summary.dart';
 
-// Hive 盒子提供者
-final essaysBoxProvider = Provider<Box<Essay>>((ref) {
-  return Hive.box<Essay>('essays');
-});
-
-final labelsBoxProvider = Provider<Box<Label>>((ref) {
-  return Hive.box<Label>('labels');
-});
-
-
-// 标签列表提供者
-final labelsProvider = FutureProvider<List<Label>>((ref) async {
-  final box = ref.watch(labelsBoxProvider);
-  return box.values.toList();
-});
-
-// 标签id-name映射表提供者
-final labelMapProvider = FutureProvider<Map<String, String>>((ref) async {
-  final allLabels = await ref.watch(labelsProvider.future);
-  return {
-    for (final label in allLabels) label.id: label.name,
-  };
-});
-
-// 随笔列表提供者
-final essaysProvider = FutureProvider<List<Essay>>((ref) async {
-  final box = ref.watch(essaysBoxProvider);
-  return box.values.toList();
-});
-
-
-// TODO: 没懂但是直接用的东西, 有时间了思考一下呢.
-// 1.FutureProvider.  2.此处的操作过程. 3."过滤功能"的riverpod实现.
+// TODO: 此处还是一堆get的数据, 此处应该放对数据修改的代码逻辑.
 // 随笔总览数据提供者
 final yearSummariesProvider = FutureProvider<List<YearSummary>>((ref) async {
-  final essays = await ref.watch(essaysProvider.future);
+  final essays = ref.watch(essaysProvider);
   
   // 按年份分组
   final Map<String, Map<int, MonthSummary>> yearMap = {};
@@ -142,15 +109,13 @@ class BrowseSettingsNotifier extends StateNotifier<BrowseSettings> {
 
 // 过滤后的随笔列表提供者
 final filteredEssaysProvider = FutureProvider<List<Essay>>((ref) async {
-  final essays = await ref.watch(essaysProvider.future);
+  final essays = ref.watch(essaysProvider);
   final settings = ref.watch(browseSettingsProvider);
   
   // 过滤标签
   List<Essay> filtered = essays;
   if (settings.selectedLabels.isNotEmpty) {
     filtered = filtered.where((essay) {
-      print(essay.labels);
-      print(settings.selectedLabels);
       return essay.labels.any((labelId) => settings.selectedLabels.contains(labelId));
     }).toList();
   }
