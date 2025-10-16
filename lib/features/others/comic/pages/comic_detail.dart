@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:torrid/services/debug/logging_service.dart';
-import 'package:torrid/features/others/comic/pages/comic_page.dart';
-import 'package:torrid/features/others/comic/widgets/continue_read_btn.dart';
+import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/services/io_comic_service.dart';
+import 'package:torrid/features/others/comic/widgets/detail_page/comic_header.dart';
+import 'package:torrid/features/others/comic/widgets/detail_page/continue_read_btn.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 
@@ -41,9 +42,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       chapterDirs.sort((a, b) {
         final aName = (a as Directory).path.split(Platform.pathSeparator).last;
         final bName = (b as Directory).path.split(Platform.pathSeparator).last;
-        return _extractChapterNumber(
+        return extractChapterNumber(
           aName,
-        ).compareTo(_extractChapterNumber(bName));
+        ).compareTo(extractChapterNumber(bName));
       });
 
       List<ChapterInfo> chapters = [];
@@ -53,7 +54,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         final chapterName = chapterDir.path.split(Platform.pathSeparator).last;
 
         // 计算章节图片数量
-        final imageCount = await _countChapterImages(chapterDir);
+        final imageCount = await countChapterImages(chapterDir);
 
         chapters.add(
           ChapterInfo(
@@ -63,7 +64,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
             name: chapterName,
             path: chapterDir.path,
             imageCount: imageCount,
-            chapterNumber: _extractChapterNumber(chapterName),
+            chapterNumber: extractChapterNumber(chapterName),
           ),
         );
       }
@@ -80,34 +81,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
     }
   }
 
-  // 从章节名称中提取章节号
-  int _extractChapterNumber(String chapterName) {
-    // 确保章节名格式为 "数字_章节名"
-    final parts = chapterName.split('_');
-    if (parts.isNotEmpty) {
-      return int.tryParse(parts[0]) ?? 0;
-    }
-    return 0;
-  }
-
-  // 计算章节图片数量
-  Future<int> _countChapterImages(Directory chapterDir) async {
-    int count = 0;
-    try {
-      await for (var entity in chapterDir.list()) {
-        if (entity is File) {
-          final extension = entity.path.split('.').last.toLowerCase();
-          if (['jpg', 'jpeg', 'png', 'gif'].contains(extension)) {
-            count++;
-          }
-        }
-      }
-    } catch (e) {
-      AppLogger().error("计算章节图片数失败: $e");
-    }
-    return count;
-  }
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,9 +94,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 漫画封面和基本信息
-            _buildComicHeader(),
+            ComicHeader(info: widget.comicInfo,),
 
-            // 章节列表标题
+            // 阅读选项
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -161,85 +135,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
     );
   }
 
-  Widget _buildComicHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 封面图
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: widget.comicInfo.coverImage != null
-                ? Image.file(
-                    File(widget.comicInfo.coverImage!),
-                    width: 120,
-                    height: 180,
-                    fit: BoxFit.cover,
-                  )
-                : Container(
-                    width: 120,
-                    height: 180,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(Icons.book, color: Colors.grey, size: 40),
-                    ),
-                  ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // 漫画信息，使用Expanded避免溢出
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.comicInfo.name,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                _buildInfoRow('章节数', '${widget.comicInfo.chapterCount} 章'),
-                _buildInfoRow('总图片数', '${widget.comicInfo.totalImages} 张'),
-                _buildInfoRow(
-                  '存储路径',
-                  widget.comicInfo.path.split(Platform.pathSeparator).last,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label: ',
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 14),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // TODO: 之后再用riverpod重构这一块吧.
   Widget _buildChaptersList() {
     if (_isLoading) {
       return const Center(
@@ -360,24 +256,4 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       ),
     );
   }
-}
-
-// 章节信息模型
-class ChapterInfo {
-  // 章节标题
-  final String title;
-  // 章节文件夹名
-  final String name;
-  // 章节路径
-  final String path;
-  final int imageCount;
-  final int chapterNumber;
-
-  ChapterInfo({
-    this.title = "",
-    required this.name,
-    required this.path,
-    required this.imageCount,
-    required this.chapterNumber,
-  });
 }

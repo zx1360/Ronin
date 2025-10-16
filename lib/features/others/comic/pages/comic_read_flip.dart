@@ -5,13 +5,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
-import 'comic_detail.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final List<ChapterInfo> chapters;
@@ -84,53 +84,11 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 获取所有图片文件的path
   Future<void> _loadChapterImages() async {
-    try {
-      final chapterDir = Directory(_chapterInfo.path);
-
-      // 获取所有图片并按名称排序
-      final imageFiles = await chapterDir
-          .list()
-          .where(
-            (entity) =>
-                entity is File &&
-                [
-                  'jpg',
-                  'jpeg',
-                  'png',
-                  'gif',
-                ].contains((entity).path.split('.').last.toLowerCase()),
-          )
-          .toList();
-
-      // 按文件名排序（假设文件名是数字）
-      imageFiles.sort((a, b) {
-        final aName = (a as File).path
-            .split(Platform.pathSeparator)
-            .last
-            .split('.')
-            .first;
-        final bName = (b as File).path
-            .split(Platform.pathSeparator)
-            .last
-            .split('.')
-            .first;
-        return int.tryParse(aName)?.compareTo(int.tryParse(bName) ?? 0) ?? 0;
-      });
-
-      setState(() {
-        _imagePaths = imageFiles.map((file) => (file as File).path).toList();
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context as BuildContext,
-        ).showSnackBar(SnackBar(content: Text('加载图片失败: ${e.toString()}')));
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    final paths = await loadChapterImages(_chapterInfo);
+    setState(() {
+      _imagePaths = paths;
+      _isLoading = false;
+    });
   }
 
   void updateRecord(index) {
@@ -154,7 +112,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         duration: switchImgDuration,
         curve: Curves.easeInOut,
       );
-      updateRecord(_currentIndex-1);
+      updateRecord(_currentIndex - 1);
     } else {
       _prevChapter();
     }
@@ -167,7 +125,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         duration: switchImgDuration,
         curve: Curves.easeInOut,
       );
-      updateRecord(_currentIndex+1);
+      updateRecord(_currentIndex + 1);
     } else {
       _nextChapter();
     }

@@ -55,10 +55,10 @@ class Server extends _$Server {
     final allRecords = ref.read(recordsProvider);
 
     final todayStyles = allStyles
-        .where((s) => Util.isSameDay(s.startDate, DateTime.now()))
+        .where((s) => isSameDay(s.startDate, DateTime.now()))
         .toList();
     final todayRecords = allRecords
-        .where((r) => Util.isSameDay(r.date, DateTime.now()))
+        .where((r) => isSameDay(r.date, DateTime.now()))
         .toList();
     for (final style in todayStyles) {
       await state.styleBox.delete(style.id);

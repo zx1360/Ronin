@@ -20,7 +20,7 @@ class Label {
     print((json['id']as String).length<17);
     print(json['id']);
     return Label(
-      id: (json['id']as String).length<17? Util.generateId(): json['id'],
+      id: (json['id']as String).length<17? generateId(): json['id'],
       name: json['name'],
       essayCount: json['essayCount'],
     );

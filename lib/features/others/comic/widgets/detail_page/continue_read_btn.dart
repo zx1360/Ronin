@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/comic/pages/comic_detail.dart';
+import 'package:torrid/features/others/comic/models/data_class.dart';
 import 'package:torrid/features/others/comic/pages/comic_read_scroll.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 

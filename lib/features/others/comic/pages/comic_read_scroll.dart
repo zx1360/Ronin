@@ -1,13 +1,14 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/others/comic/models/data_class.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
-import 'comic_detail.dart';
+import 'package:torrid/features/others/comic/services/io_image_service.dart';
+import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.dart';
+import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 
-// TODO: 还有一些漏洞:
-//    滑动阅读时, 比较容易识别为一下子往顶上滚到最开始.
+// TODO: 有奇怪的表现: 滑动时某些情况下会一下子往顶上滚到最开始.
 class ComicScrollPage extends ConsumerStatefulWidget {
   final List<ChapterInfo> chapters;
   final int currentChapter;
@@ -25,21 +26,23 @@ class ComicScrollPage extends ConsumerStatefulWidget {
 }
 
 class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
+  // comic信息相关
   late int _currentChapter = widget.currentChapter;
   late ChapterInfo _chapterInfo = widget.chapters[_currentChapter];
   List<String> _imagePaths = [];
-  final Duration closeBarDuration = const Duration(seconds: 4);
 
+  // 状态量
   int _currentImageIndex = 0;
-
   bool _showControls = true;
   bool _isLoading = true;
 
+  // 实现交互界面
   final ScrollController _scrollController = ScrollController();
   final Map<int, double> _imageOffsets = {};
   final Map<int, double> _imageHeights = {};
   late Timer _controlsTimer;
   bool _isDraggingSlider = false;
+  final Duration closeBarDuration = const Duration(seconds: 4);
 
   @override
   void initState() {
@@ -81,46 +84,16 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   // 加载所有图片并获取其长宽用作获取当前阅读页数.
   Future<void> _loadChapterImages() async {
     try {
-      final chapterDir = Directory(_chapterInfo.path);
-
-      final imageFiles = await chapterDir
-          .list()
-          .where(
-            (entity) =>
-                entity is File &&
-                [
-                  'jpg',
-                  'jpeg',
-                  'png',
-                  'gif',
-                ].contains((entity).path.split('.').last.toLowerCase()),
-          )
-          .toList();
-
-      imageFiles.sort((a, b) {
-        final aName = (a as File).path
-            .split(Platform.pathSeparator)
-            .last
-            .split('.')
-            .first;
-        final bName = (b as File).path
-            .split(Platform.pathSeparator)
-            .last
-            .split('.')
-            .first;
-        return int.tryParse(aName)?.compareTo(int.tryParse(bName) ?? 0) ?? 0;
-      });
-
+      final paths = await loadChapterImages(_chapterInfo);
       setState(() {
-        _imagePaths = imageFiles.map((file) => (file as File).path).toList();
+        _imagePaths = paths;
         _isLoading = false;
         _imageOffsets.clear();
         _imageHeights.clear();
       });
-
       // 预计算所有图片尺寸
       for (int i = 0; i < _imagePaths.length; i++) {
-        final size = await _getImageSize(_imagePaths[i]);
+        final size = await getImageSize(_imagePaths[i]);
         final screenWidth = MediaQuery.of(context).size.width;
         final imageHeight = (screenWidth / size.width) * size.height;
 
@@ -268,52 +241,11 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
             // 顶部控制栏
             if (_showControls)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top,
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
-                  ),
-                  color: Colors.black54,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.comicName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Text(
-                              '${_chapterInfo.name} (${_currentImageIndex + 1}/${_imagePaths.length})',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
+              TopBar(
+                comicName: widget.comicName,
+                chapterName: _chapterInfo.title,
+                currentNum: _currentImageIndex,
+                totalNum: _imagePaths.length,
               ),
 
             // 底部控制栏
@@ -418,41 +350,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
       physics: const BouncingScrollPhysics(),
       itemCount: _imagePaths.length,
       itemBuilder: (context, index) {
-        return _buildComicImage(index);
+        return ComicImage(path: _imagePaths[index]);
       },
     );
-  }
-
-  // 某一个图片
-  Widget _buildComicImage(int index) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final screenWidth = constraints.maxWidth;
-
-        return Image.file(
-          File(_imagePaths[index]),
-          width: screenWidth,
-          fit: BoxFit.fitWidth,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              width: screenWidth,
-              height: screenWidth * 1.5,
-              color: Colors.black12,
-              child: const Center(
-                child: Icon(Icons.error, color: Colors.red, size: 40),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // 获取图片尺寸
-  Future<Size> _getImageSize(String path) async {
-    final bytes = await File(path).readAsBytes();
-    final decodedImage = await decodeImageFromList(bytes);
-    return Size(decodedImage.width.toDouble(), decodedImage.height.toDouble());
   }
 
   // 更新所有图片位置信息

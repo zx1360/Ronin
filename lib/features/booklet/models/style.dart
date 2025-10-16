@@ -59,7 +59,7 @@ class Style {
 
   factory Style.newOne(DateTime date, List<Task> tasks) {
     return Style(
-      id: Util.generateId(),
+      id: generateId(),
       startDate: date,
       validCheckIn: 0,
       fullyDone: 0,
@@ -71,7 +71,7 @@ class Style {
 
   factory Style.fromJson(Map<String, dynamic> json) {
     return Style(
-      id: (json['id'] as String).length < 17 ? Util.generateId() : json['id'],
+      id: (json['id'] as String).length < 17 ? generateId() : json['id'],
       startDate: DateTime.parse(json['startDate']),
       validCheckIn: json['validCheckIn'],
       fullyDone: json['fullyDone'],
