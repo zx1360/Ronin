@@ -6,7 +6,7 @@ part of 'state_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$styleStreamHash() => r'e38257e0f7621ea6172abaa61d732d4f8777532d';
+String _$styleStreamHash() => r'b49238f28b67da248f3d6bc7ba30cc47be00ea0c';
 
 /// See also [styleStream].
 @ProviderFor(styleStream)
@@ -20,7 +20,7 @@ final styleStreamProvider = AutoDisposeStreamProvider<List<Style>>.internal(
 );
 
 typedef StyleStreamRef = AutoDisposeStreamProviderRef<List<Style>>;
-String _$stylesHash() => r'743824b9c3482ad25ec4da3287c95061e254cd06';
+String _$stylesHash() => r'9b9c875963eb2edcb01413700bce6a873421d681';
 
 /// See also [styles].
 @ProviderFor(styles)
@@ -34,7 +34,7 @@ final stylesProvider = AutoDisposeProvider<List<Style>>.internal(
 );
 
 typedef StylesRef = AutoDisposeProviderRef<List<Style>>;
-String _$recordStreamHash() => r'852fb096a01ac067492344b8e58f79a5f7dfe3a3';
+String _$recordStreamHash() => r'2804565cfdd95b58ae43a8c4cd7baef0a3ab2b36';
 
 /// See also [recordStream].
 @ProviderFor(recordStream)
@@ -211,7 +211,7 @@ class _StyleWithIdProviderElement extends AutoDisposeProviderElement<Style?>
   String get styleId => (origin as StyleWithIdProvider).styleId;
 }
 
-String _$latestStyleHash() => r'd0398e6b65f352be8f7724b835616e379703e634';
+String _$latestStyleHash() => r'b3562555ba2b06292d86b920f5c0a4b91d389de9';
 
 /// See also [latestStyle].
 @ProviderFor(latestStyle)
@@ -225,7 +225,7 @@ final latestStyleProvider = AutoDisposeProvider<Style?>.internal(
 );
 
 typedef LatestStyleRef = AutoDisposeProviderRef<Style?>;
-String _$todayRecordHash() => r'366521d13c204a9ed8d17643bcb2a2d83b32eb48';
+String _$todayRecordHash() => r'4e5a35a1336f2845b535df1b32a6cd83f054fe65';
 
 /// See also [todayRecord].
 @ProviderFor(todayRecord)

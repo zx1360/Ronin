@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/essay/providers/essay_provider.dart';
+import 'package:torrid/features/essay/providers/notifier_provider.dart';
+import 'package:torrid/features/essay/providers/status_provider.dart';
 
 class BrowseSettingsBottomSheet extends ConsumerStatefulWidget {
   const BrowseSettingsBottomSheet({super.key});
-  
+
   @override
-  ConsumerState<BrowseSettingsBottomSheet> createState() => _BrowseSettingsBottomSheetState();
+  ConsumerState<BrowseSettingsBottomSheet> createState() =>
+      _BrowseSettingsBottomSheetState();
 }
 
-class _BrowseSettingsBottomSheetState extends ConsumerState<BrowseSettingsBottomSheet> {
+class _BrowseSettingsBottomSheetState
+    extends ConsumerState<BrowseSettingsBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(browseSettingsProvider);
-    final labelsAsync = ref.watch(labelsProvider);
+    final labels = ref.watch(labelsProvider);
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
-    
+
     return Container(
       constraints: BoxConstraints(maxHeight: maxHeight),
       padding: const EdgeInsets.all(16),
@@ -26,14 +29,11 @@ class _BrowseSettingsBottomSheetState extends ConsumerState<BrowseSettingsBottom
             '浏览设置',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // 排序方式
-          const Text(
-            '排序方式:',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          const Text('排序方式:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           RadioListTile<SortType>(
             title: const Text('时间升序'),
@@ -65,42 +65,30 @@ class _BrowseSettingsBottomSheetState extends ConsumerState<BrowseSettingsBottom
               }
             },
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // 标签筛选
-          const Text(
-            '标签筛选:',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          const Text('标签筛选:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          
-          labelsAsync.when(
-            loading: () => const CircularProgressIndicator(),
-            error: (error, stack) => Text('加载标签失败: $error'),
-            data: (labels) {
-              if (labels.isEmpty) {
-                return const Text('暂无标签');
-              }
-              
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: labels.map((label) {
-                  final isSelected = settings.selectedLabels.contains(label.id);
-                  return FilterChip(
-                    label: Text(label.name),
-                    selected: isSelected,
-                    onSelected: (_) => 
-                      ref.read(browseSettingsProvider.notifier).toggleLabel(label.id),
-                  );
-                }).toList(),
+
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: labels.map((label) {
+              final isSelected = settings.selectedLabels.contains(label.id);
+              return FilterChip(
+                label: Text(label.name),
+                selected: isSelected,
+                onSelected: (_) => ref
+                    .read(browseSettingsProvider.notifier)
+                    .toggleLabel(label.id),
               );
-            },
+            }).toList(),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // 重置按钮
           ElevatedButton(
             onPressed: () {
