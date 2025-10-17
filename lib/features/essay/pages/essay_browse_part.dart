@@ -3,10 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/pages/essay_detail_page.dart';
-import 'package:torrid/features/essay/providers/notifier_provider.dart';
+import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
 import 'package:torrid/features/essay/widgets/browse/year_summary_card.dart';
-
 
 class EssayBrowsePart extends ConsumerStatefulWidget {
   final YearSummary yearSummary;
@@ -23,7 +22,7 @@ class _EssayBrowsePartState extends ConsumerState<EssayBrowsePart>
 
   @override
   Widget build(BuildContext context) {
-    final essaysAsync = ref.watch(yearEssaysProvider(widget.yearSummary.year));
+    final essays = ref.watch(yearEssaysProvider(year: widget.yearSummary.year));
 
     super.build(context);
     return SingleChildScrollView(
@@ -35,32 +34,26 @@ class _EssayBrowsePartState extends ConsumerState<EssayBrowsePart>
             child: YearSummaryCard(summary: widget.yearSummary),
           ),
           // 随笔内容浏览
-          essaysAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stack) => Center(child: Text('加载失败: $error')),
-            data: (essays) {
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: essays.length,
-                itemBuilder: (context, index) {
-                  final essay = essays[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 8.0,
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: essays.length,
+            itemBuilder: (context, index) {
+              final essay = essays[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                child: EssayCard(
+                  essay: essay,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EssayDetailPage(essay: essay),
                     ),
-                    child: EssayCard(
-                      essay: essay,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EssayDetailPage(essay: essay),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                  ),
+                ),
               );
             },
           ),

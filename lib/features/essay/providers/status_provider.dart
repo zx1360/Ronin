@@ -1,50 +1,32 @@
 // 标签列表提供者
-import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:rxdart/transformers.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
+import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/notifier_provider.dart';
 
 part 'status_provider.g.dart';
 
 // ----Stream响应每次的box内容修改, List暴露简单的同步数据.
 // essays数据
 @riverpod
-Stream<List<Essay>> essayStream(EssayStreamRef ref) {
-  final box = ref.read(essayBoxProvider);
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
-}
-
-@riverpod
 List<Essay> essays(EssaysRef ref) {
+  final idMaps = ref.watch(idMapProvider);
   final asyncVal = ref.watch(essayStreamProvider);
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  final idMaps = ref.watch(idMapProvider);
   final essays = asyncVal.asData?.value ?? [];
-  if(essays.isNotEmpty){
-    for (var essay in essays) {
-      for (int i = 0; i < essay.labels.length; i++) {
-          essay.labels[i] = idMaps[essay.labels[i]]!;
-        }
-    }
-  }
-  return essays;
-}
-
-// labels数据
-@riverpod
-Stream<List<Label>> labelStream(LabelStreamRef ref) {
-  final box = ref.read(labelBoxProvider);
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
+  if (essays.isEmpty) return essays;
+  // 根据idMap的id获取label的name.
+  return essays
+      .map(
+        (essay) => essay.copyWith(
+          labels: essay.labels.map((label) => idMaps[label] ?? "").toList(),
+        ),
+      )
+      .toList();
 }
 
 @riverpod
@@ -60,4 +42,69 @@ List<Label> labels(LabelsRef ref) {
 Map<String, String> idMap(IdMapRef ref) {
   final allLabels = ref.watch(labelsProvider);
   return {for (final label in allLabels) label.id: label.name};
+}
+
+// 随笔总览数据提供者
+@riverpod
+List<YearSummary> summaries(SummariesRef ref) {
+  final asyncVal = ref.watch(summaryStreamProvider);
+  if (asyncVal.hasError) {
+    throw asyncVal.error!;
+  }
+  final summaries = asyncVal.asData?.value ?? [];
+  if (summaries.isEmpty) return summaries;
+  // 按时间降序.
+  for (final summary in summaries) {
+    summary.monthSummaries.sort(
+      (a, b) => int.parse(a.month).compareTo(int.parse(b.month)),
+    );
+  }
+
+  return summaries
+    ..sort((a, b) => int.parse(b.year).compareTo(int.parse(a.year)));
+}
+
+// 过滤后的随笔列表提供者
+@riverpod
+List<Essay> filteredEssays(FilteredEssaysRef ref) {
+  final essays = ref.watch(essaysProvider);
+  final idMap = ref.watch(idMapProvider);
+  final settings = ref.watch(browseManagerProvider);
+
+  // 过滤标签
+  List<Essay> filtered = essays;
+  if (settings.selectedLabels.isNotEmpty) {
+    filtered = filtered.where((essay) {
+      return settings.selectedLabels.any(
+        (labelId) => essay.labels.contains(idMap[labelId]),
+      );
+    }).toList();
+  }
+
+  // 排序
+  switch (settings.sortType) {
+    case SortType.ascending:
+      filtered.sort((a, b) => a.date.compareTo(b.date));
+      break;
+    case SortType.descending:
+      filtered.sort((a, b) => b.date.compareTo(a.date));
+      break;
+    case SortType.random:
+      filtered.shuffle();
+      break;
+  }
+
+  return filtered;
+}
+
+// 指定年份的随笔列表提供者（基于筛选结果）
+@riverpod
+List<Essay> yearEssays(YearEssaysRef ref, {required String year}) {
+  // 先获取筛选后的随笔列表
+  final filteredEssays = ref.watch(filteredEssaysProvider);
+
+  // 筛选出指定年份的随笔
+  return filteredEssays
+      .where((essay) => essay.year.toString() == year)
+      .toList();
 }

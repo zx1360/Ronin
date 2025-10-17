@@ -1,8 +1,6 @@
 import 'dart:convert';
 
-import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:rxdart/transformers.dart';
 
 import 'package:torrid/features/booklet/providers/routine/box_provider.dart';
 import 'package:torrid/features/booklet/models/record.dart';
@@ -15,16 +13,6 @@ part 'state_provider.g.dart';
 // StreamProvider实现对于box内容的实时性, 普通Provider对外暴露简单的同步数据.
 // styles记录
 @riverpod
-Stream<List<Style>> styleStream(StyleStreamRef ref) {
-  final box = ref.read(styleBoxProvider);
-  // 当Box内容变化, 重新推送所有记录. (初次绑定监听时先发送一次事件触发数据发射).
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
-}
-
-@riverpod
 List<Style> styles(StylesRef ref) {
   final asyncVal = ref.watch(styleStreamProvider);
   if (asyncVal.hasError) {
@@ -34,15 +22,6 @@ List<Style> styles(StylesRef ref) {
 }
 
 // records记录.
-@riverpod
-Stream<List<Record>> recordStream(RecordStreamRef ref) {
-  final box = ref.read(recordBoxProvider);
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
-}
-
 @riverpod
 List<Record> records(RecordsRef ref) {
   final asyncVal = ref.watch(recordStreamProvider);
