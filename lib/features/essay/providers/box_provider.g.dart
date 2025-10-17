@@ -6,6 +6,36 @@ part of 'box_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+String _$summaryBoxHash() => r'd7e8ce5f2521feb256c8eb5d32b3df344f3a7c4d';
+
+/// See also [summaryBox].
+@ProviderFor(summaryBox)
+final summaryBoxProvider = AutoDisposeProvider<Box<YearSummary>>.internal(
+  summaryBox,
+  name: r'summaryBoxProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$summaryBoxHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef SummaryBoxRef = AutoDisposeProviderRef<Box<YearSummary>>;
+String _$summaryStreamHash() => r'd53226b4b525d2e69859a3a643b5769a367a5c2d';
+
+/// See also [summaryStream].
+@ProviderFor(summaryStream)
+final summaryStreamProvider =
+    AutoDisposeStreamProvider<List<YearSummary>>.internal(
+  summaryStream,
+  name: r'summaryStreamProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$summaryStreamHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef SummaryStreamRef = AutoDisposeStreamProviderRef<List<YearSummary>>;
 String _$essayBoxHash() => r'b073b1be5f244f9a6daa90c8d63607fd53122f13';
 
 /// See also [essayBox].
@@ -20,6 +50,20 @@ final essayBoxProvider = AutoDisposeProvider<Box<Essay>>.internal(
 );
 
 typedef EssayBoxRef = AutoDisposeProviderRef<Box<Essay>>;
+String _$essayStreamHash() => r'a52946d2000a93bebd5cb06b145493ddb6e93be1';
+
+/// See also [essayStream].
+@ProviderFor(essayStream)
+final essayStreamProvider = AutoDisposeStreamProvider<List<Essay>>.internal(
+  essayStream,
+  name: r'essayStreamProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$essayStreamHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef EssayStreamRef = AutoDisposeStreamProviderRef<List<Essay>>;
 String _$labelBoxHash() => r'f5001c737d05f71c0824b7d2c493663177e0b8d6';
 
 /// See also [labelBox].
@@ -34,5 +78,19 @@ final labelBoxProvider = AutoDisposeProvider<Box<Label>>.internal(
 );
 
 typedef LabelBoxRef = AutoDisposeProviderRef<Box<Label>>;
+String _$labelStreamHash() => r'ebddccb7e37b16828a601bc936b7128afda6877f';
+
+/// See also [labelStream].
+@ProviderFor(labelStream)
+final labelStreamProvider = AutoDisposeStreamProvider<List<Label>>.internal(
+  labelStream,
+  name: r'labelStreamProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$labelStreamHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef LabelStreamRef = AutoDisposeStreamProviderRef<List<Label>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

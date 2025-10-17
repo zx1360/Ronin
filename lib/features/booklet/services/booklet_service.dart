@@ -29,9 +29,6 @@ class BookletService {
       final data = BookletHiveService.packUp();
       // 获取外部存储目录
       final externalDir = await IoService.externalStorageDir;
-      if (externalDir == null) {
-        throw Exception("无法获取外部存储目录");
-      }
       final files = BookletHiveService.getImgsPath()
           .map((path) => File("${externalDir.path}/$path"))
           .toList();

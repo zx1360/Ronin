@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
-import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/shared/models/message.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 

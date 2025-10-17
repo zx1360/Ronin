@@ -1,63 +1,8 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/essay/providers/status_provider.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../models/essay.dart';
-import '../models/year_summary.dart';
+part 'notifier_provider.g.dart';
 
-// TODO: 此处还是一堆get的数据, 此处应该放对数据修改的代码逻辑.
-// 随笔总览数据提供者
-final yearSummariesProvider = FutureProvider<List<YearSummary>>((ref) async {
-  final essays = ref.watch(essaysProvider);
-  
-  // 按年份分组
-  final Map<String, Map<int, MonthSummary>> yearMap = {};
-  
-  for (final essay in essays) {
-    final yearKey = essay.year.toString();
-    final monthKey = essay.month;
-    
-    // 初始化年份和月份数据
-    if (!yearMap.containsKey(yearKey)) {
-      yearMap[yearKey] = {};
-    }
-    
-    if (!yearMap[yearKey]!.containsKey(monthKey)) {
-      yearMap[yearKey]![monthKey] = MonthSummary(month: monthKey.toString());
-    }
-    
-    // 更新月份数据
-    final monthSummary = yearMap[yearKey]![monthKey]!;
-    yearMap[yearKey]![monthKey] = MonthSummary(
-      month: monthKey.toString(),
-      essayCount: monthSummary.essayCount + 1,
-      wordCount: monthSummary.wordCount + essay.wordCount,
-    );
-  }
-  
-  // 转换为 YearSummary 列表
-  return yearMap.entries.map((yearEntry) {
-    final year = yearEntry.key;
-    final monthSummaries = yearEntry.value.values.toList()
-      ..sort((a, b) => int.parse(a.month).compareTo(int.parse(b.month)));
-    
-    final totalEssayCount = monthSummaries.fold(0, (sum, month) => sum + month.essayCount);
-    final totalWordCount = monthSummaries.fold(0, (sum, month) => sum + month.wordCount);
-    
-    return YearSummary(
-      year: year,
-      essayCount: totalEssayCount,
-      wordCount: totalWordCount,
-      monthSummaries: monthSummaries,
-    );
-  }).toList()
-    ..sort((a, b) => int.parse(b.year).compareTo(int.parse(a.year)));
-});
-
-// 浏览设置提供者
-final browseSettingsProvider = StateNotifierProvider<BrowseSettingsNotifier, BrowseSettings>((ref) {
-  return BrowseSettingsNotifier();
-});
-
+// 浏览设置类.
 class BrowseSettings {
   final SortType sortType;
   final List<String> selectedLabels;
@@ -84,9 +29,14 @@ enum SortType {
   random,
 }
 
-class BrowseSettingsNotifier extends StateNotifier<BrowseSettings> {
-  BrowseSettingsNotifier() : super(BrowseSettings());
-  
+// 浏览设置提供者
+@riverpod
+class BrowseManager extends _$BrowseManager{
+  @override
+  BrowseSettings build(){
+    return BrowseSettings();
+  }
+
   void setSortType(SortType sortType) {
     state = state.copyWith(sortType: sortType);
   }
@@ -98,7 +48,6 @@ class BrowseSettingsNotifier extends StateNotifier<BrowseSettings> {
     } else {
       selectedLabels.add(labelId);
     }
-    print(selectedLabels);
     state = state.copyWith(selectedLabels: selectedLabels);
   }
   
@@ -106,43 +55,3 @@ class BrowseSettingsNotifier extends StateNotifier<BrowseSettings> {
     state = BrowseSettings();
   }
 }
-
-// 过滤后的随笔列表提供者
-final filteredEssaysProvider = FutureProvider<List<Essay>>((ref) async {
-  final essays = ref.watch(essaysProvider);
-  final settings = ref.watch(browseSettingsProvider);
-  
-  // 过滤标签
-  List<Essay> filtered = essays;
-  if (settings.selectedLabels.isNotEmpty) {
-    filtered = filtered.where((essay) {
-      return essay.labels.any((labelId) => settings.selectedLabels.contains(labelId));
-    }).toList();
-  }
-  
-  // 排序
-  switch (settings.sortType) {
-    case SortType.ascending:
-      filtered.sort((a, b) => a.date.compareTo(b.date));
-      break;
-    case SortType.descending:
-      filtered.sort((a, b) => b.date.compareTo(a.date));
-      break;
-    case SortType.random:
-      filtered.shuffle();
-      break;
-  }
-  
-  return filtered;
-});
-
-// 指定年份的随笔列表提供者（基于筛选结果）
-final yearEssaysProvider = FutureProvider.family<List<Essay>, String>((ref, year) async {
-  // 先获取筛选后的随笔列表
-  final filteredEssays = await ref.watch(filteredEssaysProvider.future);
-
-  // 筛选出指定年份的随笔
-  return filteredEssays
-      .where((essay) => essay.year.toString() == year)
-      .toList();
-});

@@ -6,20 +6,6 @@ part of 'state_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$styleStreamHash() => r'b49238f28b67da248f3d6bc7ba30cc47be00ea0c';
-
-/// See also [styleStream].
-@ProviderFor(styleStream)
-final styleStreamProvider = AutoDisposeStreamProvider<List<Style>>.internal(
-  styleStream,
-  name: r'styleStreamProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$styleStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef StyleStreamRef = AutoDisposeStreamProviderRef<List<Style>>;
 String _$stylesHash() => r'9b9c875963eb2edcb01413700bce6a873421d681';
 
 /// See also [styles].
@@ -34,20 +20,6 @@ final stylesProvider = AutoDisposeProvider<List<Style>>.internal(
 );
 
 typedef StylesRef = AutoDisposeProviderRef<List<Style>>;
-String _$recordStreamHash() => r'2804565cfdd95b58ae43a8c4cd7baef0a3ab2b36';
-
-/// See also [recordStream].
-@ProviderFor(recordStream)
-final recordStreamProvider = AutoDisposeStreamProvider<List<Record>>.internal(
-  recordStream,
-  name: r'recordStreamProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$recordStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef RecordStreamRef = AutoDisposeStreamProviderRef<List<Record>>;
 String _$recordsHash() => r'3b4cb3e3f61374fb40e011172745974b2270b2b6';
 
 /// See also [records].

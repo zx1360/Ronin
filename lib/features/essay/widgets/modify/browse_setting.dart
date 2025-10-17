@@ -15,7 +15,7 @@ class _BrowseSettingsBottomSheetState
     extends ConsumerState<BrowseSettingsBottomSheet> {
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(browseSettingsProvider);
+    final settings = ref.watch(browseManagerProvider);
     final labels = ref.watch(labelsProvider);
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
@@ -41,7 +41,7 @@ class _BrowseSettingsBottomSheetState
             groupValue: settings.sortType,
             onChanged: (value) {
               if (value != null) {
-                ref.read(browseSettingsProvider.notifier).setSortType(value);
+                ref.read(browseManagerProvider.notifier).setSortType(value);
               }
             },
           ),
@@ -51,7 +51,7 @@ class _BrowseSettingsBottomSheetState
             groupValue: settings.sortType,
             onChanged: (value) {
               if (value != null) {
-                ref.read(browseSettingsProvider.notifier).setSortType(value);
+                ref.read(browseManagerProvider.notifier).setSortType(value);
               }
             },
           ),
@@ -61,7 +61,7 @@ class _BrowseSettingsBottomSheetState
             groupValue: settings.sortType,
             onChanged: (value) {
               if (value != null) {
-                ref.read(browseSettingsProvider.notifier).setSortType(value);
+                ref.read(browseManagerProvider.notifier).setSortType(value);
               }
             },
           ),
@@ -81,7 +81,7 @@ class _BrowseSettingsBottomSheetState
                 label: Text(label.name),
                 selected: isSelected,
                 onSelected: (_) => ref
-                    .read(browseSettingsProvider.notifier)
+                    .read(browseManagerProvider.notifier)
                     .toggleLabel(label.id),
               );
             }).toList(),
@@ -92,7 +92,7 @@ class _BrowseSettingsBottomSheetState
           // 重置按钮
           ElevatedButton(
             onPressed: () {
-              ref.read(browseSettingsProvider.notifier).clearFilters();
+              ref.read(browseManagerProvider.notifier).clearFilters();
               Navigator.pop(context);
             },
             child: const Text('重置筛选'),
