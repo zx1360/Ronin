@@ -105,27 +105,27 @@ class EssayServer extends _$EssayServer {
   }
 
   // 对某篇随笔的标签重选
-  Future<void> retag(String essayId, Label label) async {
+  Future<void> retag(String essayId, String labelId) async {
     final originalEssay = state.essayBox.get(essayId)!;
 
-    final originalLabel = state.labelBox.get(label.id)!;
-    if (originalEssay.labels.contains(label.id)) {
+    final originalLabel = state.labelBox.get(labelId)!;
+    if (originalEssay.labels.contains(labelId)) {
       if (originalEssay.labels.length <= 1) return;
       await state.essayBox.put(
         originalEssay.id,
-        originalEssay.copyWith(labels: originalEssay.labels..remove(label.id)),
+        originalEssay.copyWith(labels: originalEssay.labels..remove(labelId)),
       );
       await state.labelBox.put(
-        label.id,
+        labelId,
         originalLabel.copyWith(essayCount: originalLabel.essayCount - 1),
       );
     } else {
       await state.essayBox.put(
         originalEssay.id,
-        originalEssay.copyWith(labels: originalEssay.labels..add(label.id)),
+        originalEssay.copyWith(labels: originalEssay.labels..add(labelId)),
       );
       await state.labelBox.put(
-        label.id,
+        labelId,
         originalLabel.copyWith(essayCount: originalLabel.essayCount + 1),
       );
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
+import 'package:torrid/features/essay/widgets/label_selector.dart';
 
 class RetagWidget extends ConsumerWidget {
   const RetagWidget({super.key});
@@ -9,6 +10,15 @@ class RetagWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final labels = ref.watch(labelsProvider);
+    final selectedLabels = labels
+        .where((l) => ref.watch(contentServerProvider)!.labels.contains(l.id))
+        .map((l) => l.id)
+        .toList();
+    void onToggle(String labelId) {
+      ref
+          .read(essayServerProvider.notifier)
+          .retag(ref.watch(contentServerProvider)!.id, labelId);
+    }
 
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
     final minWidth = MediaQuery.of(context).size.width;
@@ -24,26 +34,10 @@ class RetagWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          SingleChildScrollView(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: labels.map((label) {
-                final isSelected = ref
-                    .watch(contentServerProvider)!
-                    .labels
-                    .contains(label.id);
-                return FilterChip(
-                  label: Text(label.name),
-                  selected: isSelected,
-                  onSelected: (_) {
-                    ref
-                        .read(essayServerProvider.notifier)
-                        .retag(ref.watch(contentServerProvider)!.id, label);
-                  },
-                );
-              }).toList(),
-            ),
+          LabelSelector(
+            labels: labels,
+            selectedLabels: selectedLabels,
+            onToggleLabel: onToggle,
           ),
         ],
       ),

@@ -77,7 +77,7 @@ final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
 );
 
 typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'737957d67773a026a61d1e79803453fa8eb87a49';
+String _$filteredEssaysHash() => r'47c6ba3797a15dc982655fec6ce57449f2162c00';
 
 /// See also [filteredEssays].
 @ProviderFor(filteredEssays)
