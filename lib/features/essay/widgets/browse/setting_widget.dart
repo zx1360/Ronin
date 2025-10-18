@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
+import 'package:torrid/features/essay/widgets/label_selector.dart';
 
 class SettingWidget extends ConsumerWidget {
   const SettingWidget({super.key});
@@ -9,7 +10,16 @@ class SettingWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(browseManagerProvider);
+
     final labels = ref.watch(labelsProvider);
+    final selectedLabels = labels
+        .where((l) => settings.selectedLabels.contains(l.id))
+        .map((l) => l.id)
+        .toList();
+    void onToggle(String labelId) {
+      ref.read(browseManagerProvider.notifier).toggleLabel(labelId);
+    }
+
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
     return Container(
@@ -65,21 +75,10 @@ class SettingWidget extends ConsumerWidget {
           const Text('标签筛选:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
 
-          SingleChildScrollView(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: labels.map((label) {
-                final isSelected = settings.selectedLabels.contains(label.id);
-                return FilterChip(
-                  label: Text(label.name),
-                  selected: isSelected,
-                  onSelected: (_) => ref
-                      .read(browseManagerProvider.notifier)
-                      .toggleLabel(label.id),
-                );
-              }).toList(),
-            ),
+          LabelSelector(
+            labels: labels,
+            selectedLabels: selectedLabels,
+            onToggleLabel: onToggle,
           ),
 
           const SizedBox(height: 16),

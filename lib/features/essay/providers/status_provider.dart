@@ -85,7 +85,7 @@ List<Essay> filteredEssays(FilteredEssaysRef ref) {
   if (settings.selectedLabels.isNotEmpty) {
     filtered = filtered.where((essay) {
       return settings.selectedLabels.any(
-        (labelId) => essay.labels.contains(idMap[labelId]),
+        (labelId) => essay.labels.contains(labelId),
       );
     }).toList();
   }
