@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/profile/second_page/data/models/action_info.dart';
 import 'package:torrid/features/profile/second_page/data/providers/status_provider.dart';
 import 'package:torrid/features/profile/second_page/data/widgets/network_config_widget.dart';
-import 'package:torrid/features/profile/datas/___action_datas.dart';
+import 'package:torrid/features/profile/second_page/data/providers/action_info_provider.dart';
 
 class ProfileData extends ConsumerWidget {
   const ProfileData({super.key});
@@ -94,7 +95,7 @@ class ProfileData extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final List<ActionInfo> infos = actionInfos;
+    final List<ActionInfo> infos = ref.watch(actionInfosProvider);
 
     return Container(
       child: ref.watch(loadingStateProvider)
