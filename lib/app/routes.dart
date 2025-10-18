@@ -10,8 +10,8 @@ import 'package:torrid/features/others/pages/others_page.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
 import 'package:torrid/features/profile/pages/profile_page.dart';
-import 'package:torrid/features/profile/pages/profile_detail_shell.dart';
-import 'package:torrid/features/profile/detail_pages/profile_user.dart';
+import 'package:torrid/features/profile/pages/profile_second_shell.dart';
+import 'package:torrid/features/profile/second_page/user/profile_user.dart';
 
 // 页面路径声明文件.
 final List<RouteBase> routes = [

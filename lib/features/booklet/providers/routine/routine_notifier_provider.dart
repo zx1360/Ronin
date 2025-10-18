@@ -12,7 +12,7 @@ import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 
 import 'package:torrid/shared/utils/util.dart';
 
-part 'notifier_provider.g.dart';
+part 'routine_notifier_provider.g.dart';
 
 // --------------业务相关的数据操作
 class Cashier {
@@ -24,7 +24,7 @@ class Cashier {
 
 // 核心业务操作, 管理所有的数据修改.
 @riverpod
-class Server extends _$Server {
+class RoutineServer extends _$RoutineServer {
   @override
   Cashier build() {
     return Cashier(

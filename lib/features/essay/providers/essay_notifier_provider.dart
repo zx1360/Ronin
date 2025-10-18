@@ -6,7 +6,7 @@ import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/shared/models/message.dart';
 
-part 'notifier_provider.g.dart';
+part 'essay_notifier_provider.g.dart';
 
 // ----浏览设置类----
 class BrowseSettings {

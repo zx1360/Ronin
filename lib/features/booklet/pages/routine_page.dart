@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:torrid/features/booklet/providers/routine/notifier_provider.dart';
+import 'package:torrid/features/booklet/providers/routine/routine_notifier_provider.dart';
 import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_detail_sheet.dart';
@@ -32,7 +32,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
   late TextEditingController _messageController;
   late FocusNode _focusNode;
   // routine的数据操作Notifier
-  Server? _server;
+  RoutineServer? _server;
 
   // # record变动(任务完成情况, 标题/描述, 留言)
   Future<void> toggleCompletion(String taskId, bool completed) async {
@@ -58,7 +58,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
 
   @override
   Widget build(BuildContext context) {
-    _server = ref.watch(serverProvider.notifier);
+    _server = ref.watch(routineServerProvider.notifier);
     // 响应式数据获取.
     _latestStyle = ref.watch(latestStyleProvider);
     // 如果有style记录或变动, 则(重新)绑定一系列数据监听.

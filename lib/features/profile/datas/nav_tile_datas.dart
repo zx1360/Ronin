@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/features/profile/detail_pages/profile_about.dart';
-import 'package:torrid/features/profile/detail_pages/profile_account.dart';
-import 'package:torrid/features/profile/detail_pages/profile_data.dart';
-import 'package:torrid/features/profile/detail_pages/profile_preferences.dart';
+import 'package:torrid/features/profile/second_page/about/profile_about.dart';
+import 'package:torrid/features/profile/second_page/account/profile_account.dart';
+import 'package:torrid/features/profile/second_page/data/page/profile_data.dart';
+import 'package:torrid/features/profile/second_page/preferences/profile_preferences.dart';
 
 
 // 页面配置模型：统一管理页面元信息
