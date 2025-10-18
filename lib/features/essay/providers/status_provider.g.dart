@@ -6,7 +6,7 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$essaysHash() => r'ede9c9bce90c2cde8724df5d44e71f6defb6fe01';
+String _$essaysHash() => r'4ee4f4733e8d37c6738c616ce0639512061be9b4';
 
 /// See also [essays].
 @ProviderFor(essays)
@@ -20,7 +20,22 @@ final essaysProvider = AutoDisposeProvider<List<Essay>>.internal(
 );
 
 typedef EssaysRef = AutoDisposeProviderRef<List<Essay>>;
-String _$labelsHash() => r'673c7042469a20fa2380257b040ecbd63bbb8918';
+String _$essaysWithLabelIdHash() => r'd1f47db9caaf80f087486cf9874aac1803a3642b';
+
+/// See also [essaysWithLabelId].
+@ProviderFor(essaysWithLabelId)
+final essaysWithLabelIdProvider = AutoDisposeProvider<List<Essay>>.internal(
+  essaysWithLabelId,
+  name: r'essaysWithLabelIdProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$essaysWithLabelIdHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef EssaysWithLabelIdRef = AutoDisposeProviderRef<List<Essay>>;
+String _$labelsHash() => r'a4807c62a23711524f0da9764bfef6308d265b10';
 
 /// See also [labels].
 @ProviderFor(labels)
@@ -48,7 +63,7 @@ final idMapProvider = AutoDisposeProvider<Map<String, String>>.internal(
 );
 
 typedef IdMapRef = AutoDisposeProviderRef<Map<String, String>>;
-String _$summariesHash() => r'37cefd1711d7e0783c6c64fcdf3a4a53b1b45919';
+String _$summariesHash() => r'59992ea03bca0de1ae15ab1c66b342d633756521';
 
 /// See also [summaries].
 @ProviderFor(summaries)
@@ -62,7 +77,7 @@ final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
 );
 
 typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'dae2ded57e5ee22c60a98ab7a1f7c6eedbf38d3f';
+String _$filteredEssaysHash() => r'737957d67773a026a61d1e79803453fa8eb87a49';
 
 /// See also [filteredEssays].
 @ProviderFor(filteredEssays)

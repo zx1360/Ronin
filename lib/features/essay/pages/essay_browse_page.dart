@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/app/theme_light.dart';
 import 'package:torrid/features/essay/pages/essay_browse_part.dart';
+import 'package:torrid/features/essay/pages/essay_write_page.dart';
 
 import 'package:torrid/features/essay/providers/status_provider.dart';
-import 'package:torrid/features/essay/widgets/browse/floating_dial_btn.dart';
-import 'package:torrid/features/essay/widgets/modify/browse_setting.dart';
+import 'package:torrid/features/essay/widgets/browse/setting_widget.dart';
 
 class EssayBrowsePage extends ConsumerWidget {
   EssayBrowsePage({super.key});
@@ -32,7 +33,20 @@ class EssayBrowsePage extends ConsumerWidget {
             .map((year) => EssayBrowsePart(yearSummary: year))
             .toList(),
       ),
-      floatingActionButton: FloatingDialBtn(),
+      floatingActionButton: FloatingActionButton(
+        elevation: 6,
+        highlightElevation: 10,
+        backgroundColor: AppTheme.primary,
+        foregroundColor: AppTheme.onPrimary,
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const EssayWritePage()),
+        ),
+        child: const Icon(
+          Icons.edit,
+          size: 24,
+        ),
+      ),
     );
   }
 
@@ -43,7 +57,7 @@ class EssayBrowsePage extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => BrowseSettingsBottomSheet(),
+      builder: (context) => SettingWidget(),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
+import 'package:torrid/shared/models/message.dart';
 
 class EssayHiveService {
   // 表名
@@ -19,6 +20,8 @@ class EssayHiveService {
     Hive.registerAdapter(YearSummaryAdapter());
     Hive.registerAdapter(LabelAdapter());
     Hive.registerAdapter(EssayAdapter());
+    
+    Hive.registerAdapter(MessageAdapter());
 
     // 打开(创建)箱
     await Hive.openBox<YearSummary>(yearSummaryBoxName);
