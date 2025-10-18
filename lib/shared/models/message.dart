@@ -1,6 +1,8 @@
 // 追加留言的数据类, 对于以前的日记/大任务的中途留言. 似乎也只需要时间和内容两项.
 import 'package:hive/hive.dart';
 
+part 'message.g.dart';
+
 @HiveType(typeId: 9)
 class Message {
   @HiveField(0)

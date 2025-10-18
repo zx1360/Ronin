@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/pages/essay_detail_page.dart';
+import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
 import 'package:torrid/features/essay/widgets/browse/year_summary_card.dart';
@@ -23,6 +24,7 @@ class _EssayBrowsePartState extends ConsumerState<EssayBrowsePart>
   @override
   Widget build(BuildContext context) {
     final essays = ref.watch(yearEssaysProvider(year: widget.yearSummary.year));
+    final essay = ref.watch(contentServerProvider);
 
     super.build(context);
     return SingleChildScrollView(
@@ -47,12 +49,15 @@ class _EssayBrowsePartState extends ConsumerState<EssayBrowsePart>
                 ),
                 child: EssayCard(
                   essay: essay,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EssayDetailPage(essay: essay),
-                    ),
-                  ),
+                  onTap: () {
+                    ref.read(contentServerProvider.notifier).switchEssay(essay);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EssayDetailPage(),
+                      ),
+                    );
+                  },
                 ),
               );
             },

@@ -3,18 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 
-class BrowseSettingsBottomSheet extends ConsumerStatefulWidget {
-  const BrowseSettingsBottomSheet({super.key});
+class SettingWidget extends ConsumerWidget {
+  const SettingWidget({super.key});
 
   @override
-  ConsumerState<BrowseSettingsBottomSheet> createState() =>
-      _BrowseSettingsBottomSheetState();
-}
-
-class _BrowseSettingsBottomSheetState
-    extends ConsumerState<BrowseSettingsBottomSheet> {
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(browseManagerProvider);
     final labels = ref.watch(labelsProvider);
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
@@ -72,19 +65,21 @@ class _BrowseSettingsBottomSheetState
           const Text('标签筛选:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
 
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: labels.map((label) {
-              final isSelected = settings.selectedLabels.contains(label.id);
-              return FilterChip(
-                label: Text(label.name),
-                selected: isSelected,
-                onSelected: (_) => ref
-                    .read(browseManagerProvider.notifier)
-                    .toggleLabel(label.id),
-              );
-            }).toList(),
+          SingleChildScrollView(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: labels.map((label) {
+                final isSelected = settings.selectedLabels.contains(label.id);
+                return FilterChip(
+                  label: Text(label.name),
+                  selected: isSelected,
+                  onSelected: (_) => ref
+                      .read(browseManagerProvider.notifier)
+                      .toggleLabel(label.id),
+                );
+              }).toList(),
+            ),
           ),
 
           const SizedBox(height: 16),

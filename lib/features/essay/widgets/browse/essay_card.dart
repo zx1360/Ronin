@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/essay.dart';
+import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 
-class EssayCard extends StatelessWidget {
+class EssayCard extends ConsumerWidget {
   final Essay essay;
   final VoidCallback onTap;
 
   const EssayCard({super.key, required this.essay, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final idMap = ref.watch(idMapProvider);
+    
     final dateFormat = DateFormat('MM月dd日');
-    final labelNames = essay.labels;
+    final labelNames = essay.labels.map((l)=>idMap[l]!).toList();
 
     // 内容预览（最多显示3行）
     String previewText = essay.content.replaceAll('\n', ' ');

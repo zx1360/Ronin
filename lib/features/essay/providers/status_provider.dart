@@ -9,7 +9,7 @@ import 'package:torrid/features/essay/providers/notifier_provider.dart';
 part 'status_provider.g.dart';
 
 // ----Stream响应每次的box内容修改, List暴露简单的同步数据.
-// essays数据
+// essays数据 (labels为name)
 @riverpod
 List<Essay> essays(EssaysRef ref) {
   final idMaps = ref.watch(idMapProvider);
@@ -18,7 +18,6 @@ List<Essay> essays(EssaysRef ref) {
     throw asyncVal.error!;
   }
   final essays = asyncVal.asData?.value ?? [];
-  if (essays.isEmpty) return essays;
   // 根据idMap的id获取label的name.
   return essays
       .map(
@@ -29,13 +28,24 @@ List<Essay> essays(EssaysRef ref) {
       .toList();
 }
 
+// essays数据  (labels为id)
+@riverpod
+List<Essay> essaysWithLabelId(EssaysWithLabelIdRef ref) {
+  final asyncVal = ref.watch(essayStreamProvider);
+  if (asyncVal.hasError) {
+    throw asyncVal.error!;
+  }
+  return asyncVal.asData?.value ?? [];
+}
+
 @riverpod
 List<Label> labels(LabelsRef ref) {
   final asyncVal = ref.watch(labelStreamProvider);
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  return asyncVal.asData?.value ?? [];
+  final labels = asyncVal.asData?.value ?? [];
+  return labels..sort((a,b)=>b.essayCount.compareTo(a.essayCount));
 }
 
 @riverpod
@@ -52,7 +62,6 @@ List<YearSummary> summaries(SummariesRef ref) {
     throw asyncVal.error!;
   }
   final summaries = asyncVal.asData?.value ?? [];
-  if (summaries.isEmpty) return summaries;
   // 按时间降序.
   for (final summary in summaries) {
     summary.monthSummaries.sort(
@@ -67,7 +76,7 @@ List<YearSummary> summaries(SummariesRef ref) {
 // 过滤后的随笔列表提供者
 @riverpod
 List<Essay> filteredEssays(FilteredEssaysRef ref) {
-  final essays = ref.watch(essaysProvider);
+  final essays = ref.watch(essaysWithLabelIdProvider);
   final idMap = ref.watch(idMapProvider);
   final settings = ref.watch(browseManagerProvider);
 

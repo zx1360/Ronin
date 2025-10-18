@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/write/image_preview.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
@@ -19,8 +20,12 @@ class EssayWritePage extends ConsumerStatefulWidget {
 }
 
 class _EssayWritePageState extends ConsumerState<EssayWritePage> {
+  // 文本输入相关
   final TextEditingController _contentController = TextEditingController();
+  final _contentFucusNode = FocusNode();
   final TextEditingController _newLabelController = TextEditingController();
+  final _labelFucusNode = FocusNode();
+  // 内容相关
   final List<String> _selectedLabels = [];
   final List<File> _selectedImages = [];
 
@@ -44,26 +49,9 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
   void _addNewLabel() {
     final labelName = _newLabelController.text.trim();
     if (labelName.isEmpty) return;
+    _newLabelController.clear();
 
-    final newLabel = Label(id: generateId(), name: labelName, essayCount: 0);
-
-    // 保存新标签到 Hive
-    final labelsBox = ref.read(labelBoxProvider);
-    labelsBox.put(newLabel.id, newLabel);
-
-    // 添加到已选标签
-    setState(() {
-      _selectedLabels.add(newLabel.id);
-      _newLabelController.clear();
-    });
-
-    // 刷新标签列表
-    ref.invalidate(labelsProvider);
-
-    // 显示成功提示
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('已添加新标签: $labelName')));
+    ref.watch(essayServerProvider.notifier).addLabel(labelName);
   }
 
   Future<void> _pickImage() async {
@@ -157,6 +145,9 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
             // 内容输入
             TextField(
               controller: _contentController,
+              focusNode: _contentFucusNode,
+              onTapOutside: (event) => _contentFucusNode.unfocus(),
+              minLines: 6,
               maxLines: null,
               decoration: const InputDecoration(
                 hintText: '请输入随笔内容...',
@@ -204,6 +195,8 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
                 Expanded(
                   child: TextField(
                     controller: _newLabelController,
+                    focusNode: _labelFucusNode,
+                    onTapOutside: (event) => _labelFucusNode.unfocus(),
                     decoration: const InputDecoration(
                       hintText: '添加新标签...',
                       border: OutlineInputBorder(),

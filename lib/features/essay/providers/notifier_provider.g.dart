@@ -22,5 +22,36 @@ final browseManagerProvider =
 );
 
 typedef _$BrowseManager = AutoDisposeNotifier<BrowseSettings>;
+String _$contentServerHash() => r'34eb93eacce6caf6c301cafe81b79f2c7f5df5d5';
+
+/// See also [ContentServer].
+@ProviderFor(ContentServer)
+final contentServerProvider =
+    AutoDisposeNotifierProvider<ContentServer, Essay?>.internal(
+  ContentServer.new,
+  name: r'contentServerProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$contentServerHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$ContentServer = AutoDisposeNotifier<Essay?>;
+String _$essayServerHash() => r'1339a1db0c5499786508071743b3c9293456f80b';
+
+/// See also [EssayServer].
+@ProviderFor(EssayServer)
+final essayServerProvider =
+    AutoDisposeNotifierProvider<EssayServer, Cashier>.internal(
+  EssayServer.new,
+  name: r'essayServerProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$essayServerHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$EssayServer = AutoDisposeNotifier<Cashier>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

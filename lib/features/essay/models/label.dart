@@ -16,12 +16,24 @@ class Label {
 
   Label({required this.id, required this.name, required this.essayCount});
 
+  Label copyWith({String? id, String? name, int? essayCount}) {
+    return Label(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      essayCount: essayCount ?? this.essayCount,
+    );
+  }
+
+  factory Label.newOne(String name) {
+    return Label(id: generateId(), name: name, essayCount: 0);
+  }
+
   factory Label.fromJson(Map<String, dynamic> json) {
     // TODO: 等待格式统一.
-    print((json['id']as String).length<17);
+    print((json['id'] as String).length < 17);
     print(json['id']);
     return Label(
-      id: (json['id']as String).length<17? generateId(): json['id'],
+      id: (json['id'] as String).length < 17 ? generateId() : json['id'],
       name: json['name'],
       essayCount: json['essayCount'],
     );
