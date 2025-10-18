@@ -7,15 +7,11 @@ import 'package:torrid/features/essay/pages/essay_browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
 import 'package:torrid/features/news/news_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
+import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
 import 'package:torrid/features/profile/pages/profile_page.dart';
-import 'package:torrid/features/profile/pages/profile_detail_page.dart';
+import 'package:torrid/features/profile/pages/profile_detail_shell.dart';
 import 'package:torrid/features/profile/detail_pages/profile_user.dart';
-import 'package:torrid/features/profile/detail_pages/profile_preferences.dart';
-import 'package:torrid/features/profile/detail_pages/profile_data.dart';
-import 'package:torrid/features/profile/detail_pages/profile_account.dart';
-import 'package:torrid/features/profile/detail_pages/profile_about.dart';
-import 'package:torrid/features/profile/detail_pages/profile_help.dart';
 
 // 页面路径声明文件.
 final List<RouteBase> routes = [
@@ -73,44 +69,23 @@ final List<RouteBase> routes = [
     name: 'profile',
     builder: (context, state) => const ProfilePage(),
     routes: [
-      // 个人二级页
-      ShellRoute(
-        builder: (context, state, child) {
-          final params = state.extra as Map<String, dynamic>?;
-          return ProfileDetailPage(title: params?['title'] ?? '', child: child);
-        },
-        routes: [
-          GoRoute(
-            path: 'user',
-            name: 'profile_user',
-            builder: (context, state) => const ProfileUser(),
-          ),
-          GoRoute(
-            path: 'preferences',
-            name: 'profile_preferences',
-            builder: (context, state) => const ProfilePreferences(),
-          ),
-          GoRoute(
-            path: 'data',
-            name: 'profile_data',
-            builder: (context, state) => const ProfileData(),
-          ),
-          GoRoute(
-            path: 'account',
-            name: 'profile_account',
-            builder: (context, state) => const ProfileAccount(),
-          ),
-          GoRoute(
-            path: 'help',
-            name: 'profile_help',
-            builder: (context, state) => const ProfileHelp(),
-          ),
-          GoRoute(
-            path: 'about',
-            name: 'profile_about',
-            builder: (context, state) => const ProfileAbout(),
-          ),
-        ],
+      GoRoute(
+        path: 'user',
+        name: 'profile_user',
+        builder: (context, state) => const ProfileUser(),
+      ),
+      ...profilePages.map(
+        (config) => GoRoute(
+          path: config.path,
+          name: config.name,
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return ProfileDetailShell(
+              title: extra?['title'] ?? config.title,
+              child: config.builder(context),
+            );
+          },
+        ),
       ),
     ],
   ),
