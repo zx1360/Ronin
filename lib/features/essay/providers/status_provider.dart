@@ -4,7 +4,7 @@ import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
-import 'package:torrid/features/essay/providers/notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 
 part 'status_provider.g.dart';
 

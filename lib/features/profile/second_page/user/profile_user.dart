@@ -5,8 +5,8 @@ class ProfileUser extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      child: Center(
+    return Scaffold(
+      body: Center(
         child: Text("用户页详情"),
       ),
     );

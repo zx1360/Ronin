@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
-import 'package:torrid/features/booklet/providers/routine/notifier_provider.dart';
+import 'package:torrid/features/booklet/providers/routine/routine_notifier_provider.dart';
 import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/checkin_calendar.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/newtask_inputitem.dart';
@@ -38,7 +38,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
   final ImagePicker _imagePicker = ImagePicker(); // 图片选择器
   final List<TextEditingController> _titleControllers = []; // 新建样式时的任务标题控制器
 
-  late Server _server;
+  late RoutineServer _server;
 
   @override
   void initState() {
@@ -340,7 +340,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    _server = ref.watch(serverProvider.notifier);
+    _server = ref.watch(routineServerProvider.notifier);
     // 响应式数据
     if (_currentStyle != null) {
       _relatedRecords = ref.watch(
