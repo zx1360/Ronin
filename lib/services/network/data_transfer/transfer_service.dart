@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
 
+// TODO: 之后改成使用这个, 请求多个图片保存到本地.
 Future<void> saveFromRelativeUrls(List<String> urls, String relativeDir) async {
   try {
     await IoService.clearSpecificDirectory(relativeDir);

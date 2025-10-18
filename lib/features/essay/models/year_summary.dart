@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:torrid/features/essay/models/essay.dart';
 
 part 'year_summary.g.dart';
 
@@ -23,6 +24,31 @@ class YearSummary {
     this.wordCount = 0,
     List<MonthSummary>? monthSummaries,
   }) : monthSummaries = monthSummaries ?? [];
+
+  YearSummary copyWith({
+    String? year,
+    int? essayCount,
+    int? wordCount,
+    List<MonthSummary>? monthSummaries,
+  }) {
+    return YearSummary(
+      year: year ?? this.year,
+      essayCount: essayCount ?? this.essayCount,
+      wordCount: wordCount ?? this.wordCount,
+      monthSummaries: monthSummaries ?? this.monthSummaries,
+    );
+  }
+
+  YearSummary append({
+    required Essay essay,
+  }) {
+    return YearSummary(
+      year: year,
+      essayCount: essayCount+1,
+      wordCount: wordCount+essay.wordCount,
+      monthSummaries: monthSummaries,
+    );
+  }
 
   factory YearSummary.fromJson(Map<String, dynamic> json) {
     return YearSummary(
@@ -62,6 +88,28 @@ class MonthSummary {
   final int wordCount;
 
   MonthSummary({required this.month, this.essayCount = 0, this.wordCount = 0});
+
+  MonthSummary copyWith({
+    String? month,
+    int? essayCount,
+    int? wordCount,
+  }) {
+    return MonthSummary(
+      month: month ?? this.month,
+      essayCount: essayCount ?? this.essayCount,
+      wordCount: wordCount ?? this.wordCount,
+    );
+  }
+
+  MonthSummary append({
+    required Essay essay,
+  }) {
+    return MonthSummary(
+      month: month,
+      essayCount: essayCount+1,
+      wordCount: wordCount+essay.wordCount,
+    );
+  }
 
   factory MonthSummary.fromJson(Map<String, dynamic> json) {
     return MonthSummary(

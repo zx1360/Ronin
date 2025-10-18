@@ -100,8 +100,35 @@ class EssayServer extends _$EssayServer {
 
   // 写随笔 $$$$: 对随笔的删改在northstar中实现吧, torrid就纯净简单的呈现和产生数据.
   Future<void> writeEssay(Essay essay) async {
-    // TODO: 搞清楚本地时间和全球时间, 确保正确.
-    // TODO: 图片文件的保存.
+    state.essayBox.put(essay.id, essay);
+    for (final labelId in essay.labels) {
+      final label_ = state.labelBox.get(labelId)!;
+      state.labelBox.put(
+        labelId,
+        label_.copyWith(essayCount: label_.essayCount + 1),
+      );
+    }
+    // 更新summary.
+    final summaryBox = state.summaryBox;
+    final yearSummary = summaryBox.get(essay.date.year.toString())!;
+    final monthSummaries = List.of(yearSummary.monthSummaries);
+    final currentMonthSummaries = yearSummary.monthSummaries
+        .where((m) => m.month == essay.date.month.toString())
+        .toList();
+
+    late final MonthSummary monthSummary;
+    if (currentMonthSummaries.isEmpty) {
+      monthSummary = MonthSummary(month: essay.date.month.toString());
+    } else {
+      monthSummary = currentMonthSummaries.first;
+      monthSummaries.remove(monthSummary);
+    }
+    summaryBox.put(
+      yearSummary.year,
+      yearSummary.copyWith(
+        monthSummaries: monthSummaries..add(monthSummary.append(essay: essay)),
+      ).append(essay: essay),
+    );
   }
 
   // 对某篇随笔的标签重选
@@ -147,13 +174,18 @@ class EssayServer extends _$EssayServer {
 
   // 新增标签名
   Future<void> addLabel(String name) async {
+    await deleteZeroLabels();
+    final label = Label.newOne(name);
+    await state.labelBox.put(label.id, label);
+  }
+
+  // 删除所有对应随笔数为0的标签.
+  Future<void> deleteZeroLabels() async {
     // 删除所有对应随笔数为0的标签.
-    state.labelBox.deleteAll(
+    await state.labelBox.deleteAll(
       state.labelBox.values
           .where((label) => label.essayCount == 0)
           .map((l) => l.id),
     );
-    final label = Label.newOne(name);
-    await state.labelBox.put(label.id, label);
   }
 }

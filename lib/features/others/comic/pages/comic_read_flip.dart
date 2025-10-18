@@ -185,7 +185,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
           "第${_chapterInfo.chapterNumber}章_"
           "第${_currentIndex + 1}页."
           "$fileExtension";
-      IoService.saveThisImage(_imagePaths[_currentIndex], fileName);
+      IoService.saveImageToPublic(_imagePaths[_currentIndex], fileName);
 
       _showSnackBar(context, "图片已保存: $fileName");
     } catch (e) {
