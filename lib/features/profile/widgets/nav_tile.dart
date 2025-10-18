@@ -1,23 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-class NavInfo {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final String childRouteName;
-
-  NavInfo({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.childRouteName,
-  });
-}
+import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
 class NavTile extends StatelessWidget {
-  final NavInfo info;
-  const NavTile({super.key, required this.info});
+  final BuildContext context;
+  final ProfilePageConfig config;
+  const NavTile({super.key, required this.context, required this.config});
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +14,10 @@ class NavTile extends StatelessWidget {
         border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE), width: 1)),
       ),
       child: ListTile(
-        leading: Icon(info.icon, color: Colors.grey[600]),
-        title: Text(info.title, style: const TextStyle(fontSize: 16)),
+        leading: Icon(config.icon, color: Colors.grey[600]),
+        title: Text(config.title, style: const TextStyle(fontSize: 16)),
         subtitle: Text(
-          info.subtitle,
+          config.subtitle,
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
         trailing: const Icon(
@@ -37,10 +25,8 @@ class NavTile extends StatelessWidget {
           size: 18,
           color: Colors.grey,
         ),
-        onTap: () => context.pushNamed(
-          info.childRouteName,
-          extra: {"title": info.title},
-        ),
+        onTap: () =>
+            context.pushNamed(config.name, extra: {'title': config.title}),
         minLeadingWidth: 24,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       ),

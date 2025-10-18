@@ -12,6 +12,7 @@ class Server extends _$Server{
 
   // 网络请求测试方法.
   Future<void> testNetwork()async{
+    print("__1");
     bool connected_ = false;
     final resp = await ApiclientHandler.fetch(path: "/util/test");
     if(resp!=null && resp.statusCode==200){
