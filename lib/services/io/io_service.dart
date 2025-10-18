@@ -84,8 +84,35 @@ class IoService {
     }
   }
 
+  static Future<void> saveImageFiles(
+    List<File> files,
+    String relativeDir,
+  ) async {
+    try {
+      final directory = await IoService.externalStorageDir;
+
+      for (int i = 0; i < files.length; i++) {
+        final originalFileName = path.basename(files[i].path);
+        final fileExtension = path.extension(originalFileName);
+        final newFileName = '${i+1}_$fileExtension';
+
+        // 目标保存路径
+        final targetPath = path.join(
+          directory.path,
+          relativeDir,
+          newFileName,
+        );
+
+        File(targetPath).writeAsBytes(await files[i].readAsBytes());
+      }
+    } catch (e) {
+      AppLogger().error('保存图片失败: $e');
+      return;
+    }
+  }
+
   // 将本地图片保存到外部共有空间
-  static Future<bool> saveThisImage(
+  static Future<bool> saveImageToPublic(
     String privateImagePath,
     String? filename,
   ) async {

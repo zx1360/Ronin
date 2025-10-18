@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
+import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 class EssayContentWidget extends ConsumerWidget {
@@ -87,17 +88,20 @@ class EssayContentWidget extends ConsumerWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
+                  crossAxisCount: 3,
                   crossAxisSpacing: 8.0,
                   mainAxisSpacing: 8.0,
                   childAspectRatio: 1.0,
                 ),
                 itemCount: essay.imgs.length,
                 itemBuilder: (context, index) {
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: FileImageBuilder(
-                      relativeImagePath: essay.imgs[index],
+                  return GestureDetector(
+                    onDoubleTap: () => showBigScaledImage(context, essay.imgs[index]),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: FileImageBuilder(
+                        relativeImagePath: essay.imgs[index],
+                      ),
                     ),
                   );
                 },

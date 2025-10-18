@@ -14,9 +14,9 @@ class EssayCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final idMap = ref.watch(idMapProvider);
-    
+
     final dateFormat = DateFormat('MM月dd日');
-    final labelNames = essay.labels.map((l)=>idMap[l]!).toList();
+    final labelNames = essay.labels.map((l) => idMap[l] ?? "").toList();
 
     // 内容预览（最多显示3行）
     String previewText = essay.content.replaceAll('\n', ' ');
@@ -91,11 +91,15 @@ class EssayCard extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Row(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: FileImageBuilder(relativeImagePath: essay.imgs[0]),
-                    ),
-                    if (essay.imgs.length > 1)
+                    ...essay.imgs
+                        .take(3)
+                        .map(
+                          (i) => ClipRRect(
+                            borderRadius: BorderRadius.circular(8.0),
+                            child: FileImageBuilder(relativeImagePath: i),
+                          ),
+                        ),
+                    if (essay.imgs.length > 3)
                       Container(
                         width: 60,
                         height: 60,
@@ -109,7 +113,7 @@ class EssayCard extends ConsumerWidget {
                         ),
                         child: Center(
                           child: Text(
-                            '+${essay.imgs.length - 1}',
+                            '+${essay.imgs.length - 3}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,

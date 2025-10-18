@@ -6,7 +6,7 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$essaysHash() => r'4ee4f4733e8d37c6738c616ce0639512061be9b4';
+String _$essaysHash() => r'8ff79b4e68a3ab673a6645e80fb41cca8e418d7e';
 
 /// See also [essays].
 @ProviderFor(essays)
@@ -20,21 +20,6 @@ final essaysProvider = AutoDisposeProvider<List<Essay>>.internal(
 );
 
 typedef EssaysRef = AutoDisposeProviderRef<List<Essay>>;
-String _$essaysWithLabelIdHash() => r'd1f47db9caaf80f087486cf9874aac1803a3642b';
-
-/// See also [essaysWithLabelId].
-@ProviderFor(essaysWithLabelId)
-final essaysWithLabelIdProvider = AutoDisposeProvider<List<Essay>>.internal(
-  essaysWithLabelId,
-  name: r'essaysWithLabelIdProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$essaysWithLabelIdHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef EssaysWithLabelIdRef = AutoDisposeProviderRef<List<Essay>>;
 String _$labelsHash() => r'a4807c62a23711524f0da9764bfef6308d265b10';
 
 /// See also [labels].
@@ -77,7 +62,7 @@ final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
 );
 
 typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'47c6ba3797a15dc982655fec6ce57449f2162c00';
+String _$filteredEssaysHash() => r'a90bc62557ca51b928d2759581615a098a26da77';
 
 /// See also [filteredEssays].
 @ProviderFor(filteredEssays)

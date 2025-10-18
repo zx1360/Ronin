@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/booklet/providers/routine/notifier_provider.dart';
 import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
-import 'package:torrid/features/booklet/widgets/routine/widget/bottom_sheet.dart';
+import 'package:torrid/features/booklet/widgets/routine/widget/task_detail_sheet.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
 
 import 'package:torrid/features/booklet/models/style.dart';

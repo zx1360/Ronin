@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/app/theme_light.dart';
 import 'package:torrid/features/essay/providers/notifier_provider.dart';
-import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/essay_content_widget.dart';
 import 'package:torrid/features/essay/widgets/modify/retag_widget.dart';
 import 'package:torrid/shared/models/message.dart';

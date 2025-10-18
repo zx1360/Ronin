@@ -3,13 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:torrid/app/theme_light.dart';
 import 'package:torrid/features/essay/models/essay.dart';
-import 'package:torrid/features/essay/models/label.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/write/image_preview.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 class EssayWritePage extends ConsumerStatefulWidget {
@@ -28,13 +29,6 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
   // 内容相关
   final List<String> _selectedLabels = [];
   final List<File> _selectedImages = [];
-
-  @override
-  void dispose() {
-    _contentController.dispose();
-    _newLabelController.dispose();
-    super.dispose();
-  }
 
   void _toggleLabel(String labelId) {
     setState(() {
@@ -56,10 +50,13 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFiles = await picker.pickMultiImage();
+    List pickedFiles = (await picker.pickMultiImage());
 
     if (pickedFiles.isNotEmpty) {
       setState(() {
+        if (_selectedImages.length + pickedFiles.length > 9) {
+          pickedFiles = pickedFiles.sublist(0, 9 - _selectedImages.length);
+        }
         _selectedImages.addAll(pickedFiles.map((file) => File(file.path)));
       });
     }
@@ -72,52 +69,36 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
   }
 
   void _saveEssay() {
-    // 验证内容
+    // 验证内容和标签
     final content = _contentController.text.trim();
-    if (content.isEmpty) {
+    if (content.isEmpty ||
+        _selectedLabels.isEmpty ||
+        _selectedLabels.length >= 5) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('随笔内容不能为空')));
+      ).showSnackBar(const SnackBar(content: Text('随笔内容不能为空\n标签数应大于等于1小于等于4')));
       return;
     }
 
-    // 验证标签
-    if (_selectedLabels.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请至少选择一个标签')));
-      return;
-    }
+    // 保存图片.
+    IoService.saveImageFiles(_selectedImages, "img_storage/essay");
 
-    // 创建随笔对象
+    // 写入随笔并更新相关数据.
+    final imgs = <String>[];
+    for (int i = 0; i < _selectedImages.length; i++) {
+      imgs.add(
+        "img_storage/essay/${i+1}_${path.extension(_selectedImages[i].path)}",
+      );
+    }
     final essay = Essay(
       id: generateId(),
       date: DateTime.now(),
       wordCount: content.length,
       content: content,
-      imgs: _selectedImages.map((file) => file.path).toList(),
+      imgs: imgs,
       labels: _selectedLabels,
     );
-
-    // 保存到 Hive
-    final essaysBox = ref.read(essayBoxProvider);
-    essaysBox.put(essay.id, essay);
-
-    // 更新标签计数
-    final labelsBox = ref.read(labelBoxProvider);
-    for (final labelId in _selectedLabels) {
-      final label = labelsBox.get(labelId);
-      if (label != null) {
-        labelsBox.put(
-          labelId,
-          Label(
-            id: label.id,
-            name: label.name,
-            essayCount: label.essayCount + 1,
-          ),
-        );
-      }
-    }
+    ref.watch(essayServerProvider.notifier).writeEssay(essay);
 
     // 返回上一页
     Navigator.pop(context);
@@ -125,7 +106,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     // 显示成功提示
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('随笔保存成功')));
+    ).showSnackBar(const SnackBar(content: Text('随笔已记录.')));
   }
 
   @override
@@ -135,7 +116,17 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('写随笔'),
-        actions: [TextButton(onPressed: _saveEssay, child: const Text('保存'))],
+        actions: [
+          TextButton(
+            onPressed: _saveEssay,
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.onPrimary,
+              minimumSize: const Size(64, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            child: const Text('保存'),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -214,5 +205,14 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    _contentFucusNode.dispose();
+    _newLabelController.dispose();
+    _labelFucusNode.dispose();
+    super.dispose();
   }
 }

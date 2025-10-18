@@ -1,25 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/services/debug/logging_service.dart';
-import 'package:torrid/services/network/apiclient_handler.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/profile/providers/notifier_provider.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
 import 'package:torrid/features/profile/datas/action_datas.dart';
 
 
-// TODO: riverpod重构, 本页面似乎无需管理私有状态, 改为ConsumerWidget吧.
-// 七七八八的感觉都能用riverpod替代.
-class ProfileData extends StatefulWidget {
+class ProfileData extends ConsumerStatefulWidget {
   const ProfileData({super.key});
 
   @override
-  State<ProfileData> createState() => _ProfileDataState();
+  ConsumerState<ProfileData> createState() => _ProfileDataState();
 }
 
-class _ProfileDataState extends State<ProfileData> {
+class _ProfileDataState extends ConsumerState<ProfileData> {
   final List<ActionInfo> infos = InfoDatas.infos;
 
   bool isLoading = false;
-  bool hasConnected = false;
 
+  Map networkConfig = {};
   final TextEditingController _ipController = TextEditingController();
   final TextEditingController _portController = TextEditingController();
 
@@ -27,7 +25,9 @@ class _ProfileDataState extends State<ProfileData> {
   void initState() {
     super.initState();
     _loadAddress();
-    _testRequest();
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      ref.read(serverProvider.notifier).testNetwork();
+    });
   }
 
   @override
@@ -35,24 +35,6 @@ class _ProfileDataState extends State<ProfileData> {
     _ipController.dispose();
     _portController.dispose();
     super.dispose();
-  }
-
-  // 网络请求测试方法.
-  Future<void> _testRequest() async {
-    bool hasConnected_ = false;
-    try {
-      final resp = await ApiclientHandler.fetch(path: "/util/test");
-      if (resp!.statusCode == 200) {
-        hasConnected_ = true;
-      }
-    } catch (e) {
-      AppLogger().info("_testRequest: 当前地址无web服务连接.");
-    }
-    if (hasConnected_ != hasConnected) {
-      setState(() {
-        hasConnected = hasConnected_;
-      });
-    }
   }
 
   // 加载保存的IP地址
@@ -75,7 +57,7 @@ class _ProfileDataState extends State<ProfileData> {
 
     await prefs.setString('PC_IP', ip);
     await prefs.setString('PC_PORT', port);
-    _testRequest();
+    ref.read(serverProvider.notifier).testNetwork();
     // 显示保存成功提示
     if (mounted) {
       ScaffoldMessenger.of(
@@ -208,7 +190,7 @@ class _ProfileDataState extends State<ProfileData> {
                                     Text("连接状态: "),
                                     Icon(
                                       Icons.circle,
-                                      color: hasConnected
+                                      color: ref.watch(serverProvider)['connected']
                                           ? Colors.lightGreenAccent
                                           : Colors.amber,
                                     ),

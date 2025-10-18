@@ -9,28 +9,9 @@ import 'package:torrid/features/essay/providers/notifier_provider.dart';
 part 'status_provider.g.dart';
 
 // ----Stream响应每次的box内容修改, List暴露简单的同步数据.
-// essays数据 (labels为name)
-@riverpod
-List<Essay> essays(EssaysRef ref) {
-  final idMaps = ref.watch(idMapProvider);
-  final asyncVal = ref.watch(essayStreamProvider);
-  if (asyncVal.hasError) {
-    throw asyncVal.error!;
-  }
-  final essays = asyncVal.asData?.value ?? [];
-  // 根据idMap的id获取label的name.
-  return essays
-      .map(
-        (essay) => essay.copyWith(
-          labels: essay.labels.map((label) => idMaps[label] ?? "").toList(),
-        ),
-      )
-      .toList();
-}
-
 // essays数据  (labels为id)
 @riverpod
-List<Essay> essaysWithLabelId(EssaysWithLabelIdRef ref) {
+List<Essay> essays(EssaysRef ref) {
   final asyncVal = ref.watch(essayStreamProvider);
   if (asyncVal.hasError) {
     throw asyncVal.error!;
@@ -76,8 +57,7 @@ List<YearSummary> summaries(SummariesRef ref) {
 // 过滤后的随笔列表提供者
 @riverpod
 List<Essay> filteredEssays(FilteredEssaysRef ref) {
-  final essays = ref.watch(essaysWithLabelIdProvider);
-  final idMap = ref.watch(idMapProvider);
+  final essays = ref.watch(essaysProvider);
   final settings = ref.watch(browseManagerProvider);
 
   // 过滤标签
