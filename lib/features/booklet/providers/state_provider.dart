@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import 'package:torrid/features/booklet/providers/routine/box_provider.dart';
+import 'package:torrid/features/booklet/providers/box_provider.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/shared/utils/util.dart';

@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
-import 'package:torrid/features/booklet/providers/routine/routine_notifier_provider.dart';
-import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
+import 'package:torrid/features/booklet/providers/routine_notifier_provider.dart';
+import 'package:torrid/features/booklet/providers/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/checkin_calendar.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/newtask_inputitem.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
@@ -349,9 +349,8 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
     }
 
     // UI
-    return ConstrainedBox(
-      constraints: const BoxConstraints.expand(),
-      child: Container(
+    return Scaffold(
+      body: Container(
         color: const Color(0xFFF5F0E1),
         child: Container(
           decoration: BoxDecoration(
