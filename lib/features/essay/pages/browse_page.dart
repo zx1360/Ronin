@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme_light.dart';
-import 'package:torrid/features/essay/pages/essay_browse_part.dart';
-import 'package:torrid/features/essay/pages/essay_write_page.dart';
+import 'package:torrid/features/essay/pages/browse_body.dart';
+import 'package:torrid/features/essay/pages/write_page.dart';
 
-import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/setting_widget.dart';
 
-class EssayBrowsePage extends ConsumerWidget {
-  EssayBrowsePage({super.key});
-
-  final PageController controller = PageController();
+class EssayBrowsePage extends StatelessWidget {
+  const EssayBrowsePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final yearSummaries = ref.watch(summariesProvider);
+  Widget build(BuildContext context) {
 
     return Scaffold(
       appBar: AppBar(
@@ -22,17 +17,12 @@ class EssayBrowsePage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => _showBrowseSettings(context, ref),
+            onPressed: () => _showBrowseSettings(context),
           ),
         ],
       ),
       // 获取到yearSummaries数据之后, 构建PageView, 左右切换不同年份的随笔.
-      body: PageView(
-        controller: controller,
-        children: yearSummaries
-            .map((year) => EssayBrowsePart(yearSummary: year))
-            .toList(),
-      ),
+      body: BrowseBody(),
       floatingActionButton: FloatingActionButton(
         elevation: 6,
         highlightElevation: 10,
@@ -50,7 +40,7 @@ class EssayBrowsePage extends ConsumerWidget {
     );
   }
 
-  void _showBrowseSettings(BuildContext context, WidgetRef ref) {
+  void _showBrowseSettings(BuildContext context) {
     showModalBottomSheet(
       isScrollControlled: true,
       context: context,

@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:torrid/features/home/pages/home_page.dart';
 
 import 'package:torrid/features/booklet/pages/booklet_page.dart';
-import 'package:torrid/features/essay/pages/essay_browse_page.dart';
+import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
 import 'package:torrid/features/news/news_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
@@ -12,6 +12,7 @@ import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 import 'package:torrid/features/profile/pages/profile_page.dart';
 import 'package:torrid/features/profile/pages/profile_second_shell.dart';
 import 'package:torrid/features/profile/second_page/user/profile_user.dart';
+import 'package:torrid/features/todo/pages/todo_page.dart';
 
 // 页面路径声明文件.
 final List<RouteBase> routes = [
@@ -46,7 +47,14 @@ final List<RouteBase> routes = [
   GoRoute(
     path: "/essay",
     name: "essay",
-    builder: (context, state) => EssayBrowsePage(),
+    builder: (context, state) => const EssayBrowsePage(),
+  ),
+
+  // 早报页,
+  GoRoute(
+    path: "/todo",
+    name: "todo",
+    builder: (context, state) => const TodoPage(),
   ),
 
   // 早报页,
@@ -63,7 +71,7 @@ final List<RouteBase> routes = [
     builder: (context, state) => const OthersPage(),
   ),
 
-  // #### 个人页
+  // #### 个人页(偏好设置及数据相关)
   GoRoute(
     path: '/profile',
     name: 'profile',
