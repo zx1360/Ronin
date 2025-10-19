@@ -10,4 +10,9 @@ class LoadingState extends _$LoadingState{
     return false;
   }
 
+  Future<void> loadWithFunc(Function func)async{
+    state = true;
+    await func();
+    state = false;
+  }
 }

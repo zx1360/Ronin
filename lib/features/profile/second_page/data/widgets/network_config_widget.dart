@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/profile/second_page/data/providers/data_notifier_provider.dart';
-import 'package:torrid/services/storage/prefs_service.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class NetworkConfigWidget extends ConsumerStatefulWidget {
   const NetworkConfigWidget({super.key});
@@ -14,25 +14,16 @@ class NetworkConfigWidget extends ConsumerStatefulWidget {
 class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
   final _ipController = TextEditingController();
   final _portController = TextEditingController();
-  
+
   @override
   void initState() {
     super.initState();
-    _loadAddress();
-    WidgetsBinding.instance.addPostFrameCallback((_){
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ip = ref.watch(apiClientManagerProvider.notifier).ip;
+      final port = ref.watch(apiClientManagerProvider.notifier).port;
+      _ipController.text = ip;
+      _portController.text = port;
       ref.read(dataServerProvider.notifier).testNetwork();
-    });
-  }
-  
-  // 加载保存的IP地址
-  Future<void> _loadAddress() async {
-    final prefs = PrefsService().prefs;
-    final ip = prefs.getString('PC_IP');
-    final port = prefs.getString("PC_PORT");
-
-    setState(() {
-      _ipController.text = ip ?? '';
-      _portController.text = port ?? '';
     });
   }
 
@@ -40,10 +31,9 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
   Future<void> _saveAddress() async {
     final ip = _ipController.text.trim();
     final port = _portController.text.trim();
-    final prefs = PrefsService().prefs;
 
-    await prefs.setString('PC_IP', ip);
-    await prefs.setString('PC_PORT', port);
+    ref.watch(apiClientManagerProvider.notifier).setAddress(ip, port);
+    // TODO:👇
     ref.read(dataServerProvider.notifier).testNetwork();
     // 显示保存成功提示
     if (mounted) {
@@ -52,7 +42,7 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
       ).showSnackBar(const SnackBar(content: Text('地址已保存.')));
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

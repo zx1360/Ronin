@@ -1,6 +1,11 @@
-import 'package:json_annotation/json_annotation.dart';
+import 'dart:convert';
 
-part 'app_setting.g.dart';
+import 'package:json_annotation/json_annotation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:torrid/services/storage/prefs_service.dart';
+
+part 'app_settings_provider.g.dart';
+
 
 // 偏好设置数据类.
 @JsonSerializable()
@@ -46,4 +51,26 @@ class AppSettings {
   // json序列化/反序列化.
   factory AppSettings.fromJson(dynamic json) => _$AppSettingsFromJson(json);
   Map<String, dynamic> toJson() => _$AppSettingsToJson(this);
+}
+
+@riverpod
+class AppSettingsProvider extends _$AppSettingsProvider {
+  @override
+  AppSettings build() {
+    final prefs = PrefsService().prefs;
+    final stringPrefs = prefs.getString("preferences");
+    return AppSettings.fromJson(jsonDecode(stringPrefs!));
+  }
+
+  // 存/读
+  void loadSettings() {
+    final prefs = PrefsService().prefs;
+    final stringPrefs = prefs.getString("preferences");
+    state = AppSettings.fromJson(jsonDecode(stringPrefs!));
+  }
+
+  Future<void> saveSettings() async {
+    final prefs = PrefsService().prefs;
+    await prefs.setString("preferences", jsonEncode(state.toJson()));
+  }
 }
