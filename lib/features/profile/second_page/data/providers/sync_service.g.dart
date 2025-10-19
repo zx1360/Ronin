@@ -6,7 +6,7 @@ part of 'sync_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$syncBookletHash() => r'a17c23134604b1f5572d9b5988528d0c7b30b47d';
+String _$syncBookletHash() => r'e6d634167d6e3309a974e145ffcce52067cf349b';
 
 /// See also [syncBooklet].
 @ProviderFor(syncBooklet)
@@ -20,19 +20,19 @@ final syncBookletProvider = AutoDisposeFutureProvider<void>.internal(
 );
 
 typedef SyncBookletRef = AutoDisposeFutureProviderRef<void>;
-String _$backupEssayHash() => r'7db9755e9bdc1e6d656f342991f5b4b7a246a686';
+String _$syncEssayHash() => r'3baf29c4dd0debd2f345c1fc50ab5781b80a72cf';
 
-/// See also [backupEssay].
-@ProviderFor(backupEssay)
-final backupEssayProvider = AutoDisposeFutureProvider<void>.internal(
-  backupEssay,
-  name: r'backupEssayProvider',
+/// See also [syncEssay].
+@ProviderFor(syncEssay)
+final syncEssayProvider = AutoDisposeFutureProvider<void>.internal(
+  syncEssay,
+  name: r'syncEssayProvider',
   debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$backupEssayHash,
+      const bool.fromEnvironment('dart.vm.product') ? null : _$syncEssayHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef BackupEssayRef = AutoDisposeFutureProviderRef<void>;
+typedef SyncEssayRef = AutoDisposeFutureProviderRef<void>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

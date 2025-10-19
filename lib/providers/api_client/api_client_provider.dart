@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/providers/api_client/api_client.dart';
@@ -29,7 +31,6 @@ class ApiClientManager extends _$ApiClientManager {
     final prefs = PrefsService().prefs;
     await prefs.setString("PC_IP", ip);
     await prefs.setString("PC_PORT", port);
-    ref.invalidate(apiClientManagerProvider);
   }
 }
 
@@ -39,16 +40,16 @@ Future<Response?> fetcher(
   FetcherRef ref, {
   required String path,
   Map<String, dynamic>? params,
+  CancelToken? cancelToken,
+  ProgressCallback? onReceiveProgress,
 }) async {
-  final cancelToken = CancelToken();
-  ref.onDispose(() => cancelToken.cancel());
-
   final apiClient = ref.watch(apiClientManagerProvider);
   try {
     final resp = await apiClient.get(
       path,
       queryParams: params,
       cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
     );
     return resp;
   } catch (e) {
@@ -62,17 +63,19 @@ Future<Response?> fetcher(
 Future<Response?> sender(
   SenderRef ref, {
   required String path,
-  Map<String, dynamic>? params,
+  Map<String, dynamic>? jsonData,
+  List<File>? files,
+  CancelToken? cancelToken,
+  ProgressCallback? onSendProgress,
 }) async {
-  final cancelToken = CancelToken();
-  ref.onDispose(() => cancelToken.cancel());
-
   final apiClient = ref.watch(apiClientManagerProvider);
   try {
-    final resp = await apiClient.get(
+    final resp = await apiClient.post(
       path,
-      queryParams: params,
+      jsonData: jsonData,
+      files: files,
       cancelToken: cancelToken,
+      onSendProgress: onSendProgress,
     );
     return resp;
   } catch (e) {

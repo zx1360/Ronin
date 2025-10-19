@@ -6,7 +6,7 @@ part of 'api_client_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$fetcherHash() => r'a26c2f2a68e7248dbd3aec19655fe5569ebbfe91';
+String _$fetcherHash() => r'b351e0590270c8f560e4658392091daa7b19bccc';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -42,10 +42,14 @@ class FetcherFamily extends Family<AsyncValue<Response?>> {
   FetcherProvider call({
     required String path,
     Map<String, dynamic>? params,
+    CancelToken? cancelToken,
+    void Function(int, int)? onReceiveProgress,
   }) {
     return FetcherProvider(
       path: path,
       params: params,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
     );
   }
 
@@ -56,6 +60,8 @@ class FetcherFamily extends Family<AsyncValue<Response?>> {
     return call(
       path: provider.path,
       params: provider.params,
+      cancelToken: provider.cancelToken,
+      onReceiveProgress: provider.onReceiveProgress,
     );
   }
 
@@ -80,11 +86,15 @@ class FetcherProvider extends AutoDisposeFutureProvider<Response?> {
   FetcherProvider({
     required String path,
     Map<String, dynamic>? params,
+    CancelToken? cancelToken,
+    void Function(int, int)? onReceiveProgress,
   }) : this._internal(
           (ref) => fetcher(
             ref as FetcherRef,
             path: path,
             params: params,
+            cancelToken: cancelToken,
+            onReceiveProgress: onReceiveProgress,
           ),
           from: fetcherProvider,
           name: r'fetcherProvider',
@@ -96,6 +106,8 @@ class FetcherProvider extends AutoDisposeFutureProvider<Response?> {
           allTransitiveDependencies: FetcherFamily._allTransitiveDependencies,
           path: path,
           params: params,
+          cancelToken: cancelToken,
+          onReceiveProgress: onReceiveProgress,
         );
 
   FetcherProvider._internal(
@@ -107,10 +119,14 @@ class FetcherProvider extends AutoDisposeFutureProvider<Response?> {
     required super.from,
     required this.path,
     required this.params,
+    required this.cancelToken,
+    required this.onReceiveProgress,
   }) : super.internal();
 
   final String path;
   final Map<String, dynamic>? params;
+  final CancelToken? cancelToken;
+  final void Function(int, int)? onReceiveProgress;
 
   @override
   Override overrideWith(
@@ -127,6 +143,8 @@ class FetcherProvider extends AutoDisposeFutureProvider<Response?> {
         debugGetCreateSourceHash: null,
         path: path,
         params: params,
+        cancelToken: cancelToken,
+        onReceiveProgress: onReceiveProgress,
       ),
     );
   }
@@ -140,7 +158,9 @@ class FetcherProvider extends AutoDisposeFutureProvider<Response?> {
   bool operator ==(Object other) {
     return other is FetcherProvider &&
         other.path == path &&
-        other.params == params;
+        other.params == params &&
+        other.cancelToken == cancelToken &&
+        other.onReceiveProgress == onReceiveProgress;
   }
 
   @override
@@ -148,6 +168,8 @@ class FetcherProvider extends AutoDisposeFutureProvider<Response?> {
     var hash = _SystemHash.combine(0, runtimeType.hashCode);
     hash = _SystemHash.combine(hash, path.hashCode);
     hash = _SystemHash.combine(hash, params.hashCode);
+    hash = _SystemHash.combine(hash, cancelToken.hashCode);
+    hash = _SystemHash.combine(hash, onReceiveProgress.hashCode);
 
     return _SystemHash.finish(hash);
   }
@@ -159,6 +181,12 @@ mixin FetcherRef on AutoDisposeFutureProviderRef<Response?> {
 
   /// The parameter `params` of this provider.
   Map<String, dynamic>? get params;
+
+  /// The parameter `cancelToken` of this provider.
+  CancelToken? get cancelToken;
+
+  /// The parameter `onReceiveProgress` of this provider.
+  void Function(int, int)? get onReceiveProgress;
 }
 
 class _FetcherProviderElement
@@ -169,9 +197,14 @@ class _FetcherProviderElement
   String get path => (origin as FetcherProvider).path;
   @override
   Map<String, dynamic>? get params => (origin as FetcherProvider).params;
+  @override
+  CancelToken? get cancelToken => (origin as FetcherProvider).cancelToken;
+  @override
+  void Function(int, int)? get onReceiveProgress =>
+      (origin as FetcherProvider).onReceiveProgress;
 }
 
-String _$senderHash() => r'9ec8ceba825a5448fb346771713a43ec1bec8df2';
+String _$senderHash() => r'95d5c4e4225269bd2e243fb1b5ede9b4021e9d9b';
 
 /// See also [sender].
 @ProviderFor(sender)
@@ -185,11 +218,17 @@ class SenderFamily extends Family<AsyncValue<Response?>> {
   /// See also [sender].
   SenderProvider call({
     required String path,
-    Map<String, dynamic>? params,
+    Map<String, dynamic>? jsonData,
+    List<File>? files,
+    CancelToken? cancelToken,
+    void Function(int, int)? onSendProgress,
   }) {
     return SenderProvider(
       path: path,
-      params: params,
+      jsonData: jsonData,
+      files: files,
+      cancelToken: cancelToken,
+      onSendProgress: onSendProgress,
     );
   }
 
@@ -199,7 +238,10 @@ class SenderFamily extends Family<AsyncValue<Response?>> {
   ) {
     return call(
       path: provider.path,
-      params: provider.params,
+      jsonData: provider.jsonData,
+      files: provider.files,
+      cancelToken: provider.cancelToken,
+      onSendProgress: provider.onSendProgress,
     );
   }
 
@@ -223,12 +265,18 @@ class SenderProvider extends AutoDisposeFutureProvider<Response?> {
   /// See also [sender].
   SenderProvider({
     required String path,
-    Map<String, dynamic>? params,
+    Map<String, dynamic>? jsonData,
+    List<File>? files,
+    CancelToken? cancelToken,
+    void Function(int, int)? onSendProgress,
   }) : this._internal(
           (ref) => sender(
             ref as SenderRef,
             path: path,
-            params: params,
+            jsonData: jsonData,
+            files: files,
+            cancelToken: cancelToken,
+            onSendProgress: onSendProgress,
           ),
           from: senderProvider,
           name: r'senderProvider',
@@ -239,7 +287,10 @@ class SenderProvider extends AutoDisposeFutureProvider<Response?> {
           dependencies: SenderFamily._dependencies,
           allTransitiveDependencies: SenderFamily._allTransitiveDependencies,
           path: path,
-          params: params,
+          jsonData: jsonData,
+          files: files,
+          cancelToken: cancelToken,
+          onSendProgress: onSendProgress,
         );
 
   SenderProvider._internal(
@@ -250,11 +301,17 @@ class SenderProvider extends AutoDisposeFutureProvider<Response?> {
     required super.debugGetCreateSourceHash,
     required super.from,
     required this.path,
-    required this.params,
+    required this.jsonData,
+    required this.files,
+    required this.cancelToken,
+    required this.onSendProgress,
   }) : super.internal();
 
   final String path;
-  final Map<String, dynamic>? params;
+  final Map<String, dynamic>? jsonData;
+  final List<File>? files;
+  final CancelToken? cancelToken;
+  final void Function(int, int)? onSendProgress;
 
   @override
   Override overrideWith(
@@ -270,7 +327,10 @@ class SenderProvider extends AutoDisposeFutureProvider<Response?> {
         allTransitiveDependencies: null,
         debugGetCreateSourceHash: null,
         path: path,
-        params: params,
+        jsonData: jsonData,
+        files: files,
+        cancelToken: cancelToken,
+        onSendProgress: onSendProgress,
       ),
     );
   }
@@ -284,14 +344,20 @@ class SenderProvider extends AutoDisposeFutureProvider<Response?> {
   bool operator ==(Object other) {
     return other is SenderProvider &&
         other.path == path &&
-        other.params == params;
+        other.jsonData == jsonData &&
+        other.files == files &&
+        other.cancelToken == cancelToken &&
+        other.onSendProgress == onSendProgress;
   }
 
   @override
   int get hashCode {
     var hash = _SystemHash.combine(0, runtimeType.hashCode);
     hash = _SystemHash.combine(hash, path.hashCode);
-    hash = _SystemHash.combine(hash, params.hashCode);
+    hash = _SystemHash.combine(hash, jsonData.hashCode);
+    hash = _SystemHash.combine(hash, files.hashCode);
+    hash = _SystemHash.combine(hash, cancelToken.hashCode);
+    hash = _SystemHash.combine(hash, onSendProgress.hashCode);
 
     return _SystemHash.finish(hash);
   }
@@ -301,8 +367,17 @@ mixin SenderRef on AutoDisposeFutureProviderRef<Response?> {
   /// The parameter `path` of this provider.
   String get path;
 
-  /// The parameter `params` of this provider.
-  Map<String, dynamic>? get params;
+  /// The parameter `jsonData` of this provider.
+  Map<String, dynamic>? get jsonData;
+
+  /// The parameter `files` of this provider.
+  List<File>? get files;
+
+  /// The parameter `cancelToken` of this provider.
+  CancelToken? get cancelToken;
+
+  /// The parameter `onSendProgress` of this provider.
+  void Function(int, int)? get onSendProgress;
 }
 
 class _SenderProviderElement extends AutoDisposeFutureProviderElement<Response?>
@@ -312,10 +387,17 @@ class _SenderProviderElement extends AutoDisposeFutureProviderElement<Response?>
   @override
   String get path => (origin as SenderProvider).path;
   @override
-  Map<String, dynamic>? get params => (origin as SenderProvider).params;
+  Map<String, dynamic>? get jsonData => (origin as SenderProvider).jsonData;
+  @override
+  List<File>? get files => (origin as SenderProvider).files;
+  @override
+  CancelToken? get cancelToken => (origin as SenderProvider).cancelToken;
+  @override
+  void Function(int, int)? get onSendProgress =>
+      (origin as SenderProvider).onSendProgress;
 }
 
-String _$apiClientManagerHash() => r'07c9d984069edb8f8396db8f11da08fa20b6f2a0';
+String _$apiClientManagerHash() => r'fe9ad335dc099c63a517846857ef6d25b96bc76d';
 
 /// See also [ApiClientManager].
 @ProviderFor(ApiClientManager)

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/profile/second_page/data/providers/data_notifier_provider.dart';
+import 'package:torrid/features/profile/second_page/data/providers/status_provider.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class NetworkConfigWidget extends ConsumerStatefulWidget {
@@ -18,12 +18,13 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
   @override
   void initState() {
     super.initState();
+    // 读取ip, port存的值并test网络.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ip = ref.watch(apiClientManagerProvider.notifier).ip;
       final port = ref.watch(apiClientManagerProvider.notifier).port;
       _ipController.text = ip;
       _portController.text = port;
-      ref.read(dataServerProvider.notifier).testNetwork();
+      ref.read(dataServiceProvider.notifier).testNetwork();
     });
   }
 
@@ -32,9 +33,9 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
     final ip = _ipController.text.trim();
     final port = _portController.text.trim();
 
-    ref.watch(apiClientManagerProvider.notifier).setAddress(ip, port);
-    // TODO:👇
-    ref.read(dataServerProvider.notifier).testNetwork();
+    await ref.watch(apiClientManagerProvider.notifier).setAddress(ip, port);
+    ref.invalidate(apiClientManagerProvider);
+    ref.read(dataServiceProvider.notifier).testNetwork();
     // 显示保存成功提示
     if (mounted) {
       ScaffoldMessenger.of(
@@ -98,7 +99,7 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
                     Text("连接状态: "),
                     Icon(
                       Icons.circle,
-                      color: ref.watch(dataServerProvider)['connected']
+                      color: ref.watch(dataServiceProvider)['connected']
                           ? Colors.lightGreenAccent
                           : Colors.amber,
                     ),

@@ -32,7 +32,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
   late TextEditingController _messageController;
   late FocusNode _focusNode;
   // routine的数据操作Notifier
-  RoutineServer? _server;
+  RoutineService? _server;
 
   // # record变动(任务完成情况, 标题/描述, 留言)
   Future<void> toggleCompletion(String taskId, bool completed) async {
@@ -58,7 +58,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
 
   @override
   Widget build(BuildContext context) {
-    _server = ref.watch(routineServerProvider.notifier);
+    _server = ref.watch(routineServiceProvider.notifier);
     // 响应式数据获取.
     _latestStyle = ref.watch(latestStyleProvider);
     // 如果有style记录或变动, 则(重新)绑定一系列数据监听.

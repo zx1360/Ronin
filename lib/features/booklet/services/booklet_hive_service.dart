@@ -39,66 +39,66 @@ class BookletHiveService {
     return _recordBox.values.toList();
   }
 
-  // # 根据传入的数据覆盖本地的booklet存储数据.
-  static Future<void> syncData(dynamic json) async {
-    await _styleBox.clear();
-    await _recordBox.clear();
+  // // # 根据传入的数据覆盖本地的booklet存储数据.
+  // static Future<void> syncData(dynamic json) async {
+  //   await _styleBox.clear();
+  //   await _recordBox.clear();
 
-    // 存储json数据到Hive.
-    List jsonStyles = json['styles'];
-    List jsonRecords = json['records'];
-    for (dynamic style in jsonStyles) {
-      Style style_ = Style.fromJson(style);
-      await _styleBox.put(style_.id, style_);
-    }
-    for (dynamic record in jsonRecords) {
-      Record record_ = Record.fromJson(record);
-      await _recordBox.put(record_.id, record_);
-    }
-    // 将其中的task图片文件同时保存到本地.
-    final List<String> urls = [];
-    for (var style in _styleBox.values) {
-      style.tasks.where((task) => task.image.isNotEmpty).forEach((task) {
-        urls.add(task.image);
-      });
-    }
-    if (urls.isNotEmpty) {
-      await IoService.saveFromRelativeUrls(urls, "img_storage/booklet");
-    }
-  }
+  //   // 存储json数据到Hive.
+  //   List jsonStyles = json['styles'];
+  //   List jsonRecords = json['records'];
+  //   for (dynamic style in jsonStyles) {
+  //     Style style_ = Style.fromJson(style);
+  //     await _styleBox.put(style_.id, style_);
+  //   }
+  //   for (dynamic record in jsonRecords) {
+  //     Record record_ = Record.fromJson(record);
+  //     await _recordBox.put(record_.id, record_);
+  //   }
+  //   // 将其中的task图片文件同时保存到本地.
+  //   final List<String> urls = [];
+  //   for (var style in _styleBox.values) {
+  //     style.tasks.where((task) => task.image.isNotEmpty).forEach((task) {
+  //       urls.add(task.image);
+  //     });
+  //   }
+  //   if (urls.isNotEmpty) {
+  //     await IoService.saveFromRelativeUrls(urls, "img_storage/booklet");
+  //   }
+  // }
 
-  // # 打包本地Booklet数据
-  static Map<String, dynamic> packUp() {
-    try {
-      List styles = BookletHiveService.getAllStyles().toList()
-        ..sort((a, b) => b.startDate.compareTo(a.startDate));
-      styles = styles.map((item) => item.toJson()).toList();
+  // // # 打包本地Booklet数据
+  // static Map<String, dynamic> packUp() {
+  //   try {
+  //     List styles = BookletHiveService.getAllStyles().toList()
+  //       ..sort((a, b) => b.startDate.compareTo(a.startDate));
+  //     styles = styles.map((item) => item.toJson()).toList();
 
-      List records = BookletHiveService.getAllRecords().toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
-      records = records.map((item) => item.toJson()).toList();
+  //     List records = BookletHiveService.getAllRecords().toList()
+  //       ..sort((a, b) => b.date.compareTo(a.date));
+  //     records = records.map((item) => item.toJson()).toList();
 
-      return {
-        "jsonData": jsonEncode({"styles": styles, "records": records}),
-      };
-    } catch (err) {
-      throw Exception(err);
-    }
-  }
+  //     return {
+  //       "jsonData": jsonEncode({"styles": styles, "records": records}),
+  //     };
+  //   } catch (err) {
+  //     throw Exception(err);
+  //   }
+  // }
 
-  // 打包task图片路径.
-  static List<String> getImgsPath() {
-    List<String> urls = [];
-    _styleBox.values.toList().forEach((style) {
-      style.tasks
-          .where((task) => task.image.isNotEmpty && task.image != '')
-          .forEach((task) {
-            final relativePath = task.image.startsWith("/")
-                ? task.image.replaceFirst("/", "")
-                : task.image;
-            urls.add(relativePath);
-          });
-    });
-    return urls;
-  }
+  // // 打包task图片路径.
+  // static List<String> getImgsPath() {
+  //   List<String> urls = [];
+  //   _styleBox.values.toList().forEach((style) {
+  //     style.tasks
+  //         .where((task) => task.image.isNotEmpty && task.image != '')
+  //         .forEach((task) {
+  //           final relativePath = task.image.startsWith("/")
+  //               ? task.image.replaceFirst("/", "")
+  //               : task.image;
+  //           urls.add(relativePath);
+  //         });
+  //   });
+  //   return urls;
+  // }
 }

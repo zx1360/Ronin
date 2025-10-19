@@ -38,20 +38,20 @@ final contentServerProvider =
 );
 
 typedef _$ContentServer = AutoDisposeNotifier<Essay?>;
-String _$essayServerHash() => r'046995a2a0be55572cc044ea4c5e7a5b96faa21e';
+String _$essayServiceHash() => r'70a503ae8b66ce8057fcada805f76c06604e5094';
 
-/// See also [EssayServer].
-@ProviderFor(EssayServer)
-final essayServerProvider =
-    AutoDisposeNotifierProvider<EssayServer, Cashier>.internal(
-  EssayServer.new,
-  name: r'essayServerProvider',
+/// See also [EssayService].
+@ProviderFor(EssayService)
+final essayServiceProvider =
+    AutoDisposeNotifierProvider<EssayService, Cashier>.internal(
+  EssayService.new,
+  name: r'essayServiceProvider',
   debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$essayServerHash,
+      const bool.fromEnvironment('dart.vm.product') ? null : _$essayServiceHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef _$EssayServer = AutoDisposeNotifier<Cashier>;
+typedef _$EssayService = AutoDisposeNotifier<Cashier>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -24,7 +25,7 @@ class Cashier {
 
 // 核心业务操作, 管理所有的数据修改.
 @riverpod
-class RoutineServer extends _$RoutineServer {
+class RoutineService extends _$RoutineService {
   @override
   Cashier build() {
     return Cashier(
@@ -169,5 +170,35 @@ class RoutineServer extends _$RoutineServer {
     if (urls.isNotEmpty) {
       await IoService.saveFromRelativeUrls(urls, "img_storage/booklet");
     }
+  }
+
+  // 备份数据, 打包json、获取所有相关的图片的本地路径.
+  Map<String, dynamic> packUp() {
+    final styles = (state.styleBox.values.toList()
+      ..sort((a, b) => b.startDate.compareTo(a.startDate)))
+      ..map((item) => item.toJson()).toList();
+
+    final records = (state.recordBox.values.toList()
+      ..sort((a, b) => b.date.compareTo(a.date)))
+      .map((item) => item.toJson()).toList();
+    // TODO: 我记得这是之前的妥协做法, 但忘了原因, 此处为什么最外层套个jsonData呢.
+    return {
+      "jsonData": jsonEncode({"styles": styles, "records": records}),
+    };
+  }
+
+  List<String> getImgsPath() {
+    List<String> urls = [];
+    for (var style in state.styleBox.values) {
+      style.tasks
+          .where((task) => task.image.isNotEmpty && task.image != '')
+          .forEach((task) {
+            final relativePath = task.image.startsWith("/")
+                ? task.image.replaceFirst("/", "")
+                : task.image;
+            urls.add(relativePath);
+          });
+    }
+    return urls;
   }
 }
