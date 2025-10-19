@@ -38,7 +38,7 @@ class _EssayDetailPageState extends ConsumerState<EssayDetailPage> {
     if (content.isEmpty) return;
 
     ref
-        .watch(essayServerProvider.notifier)
+        .watch(essayServiceProvider.notifier)
         .appendMessage(
           ref.watch(contentServerProvider)!.id,
           Message(timestamp: DateTime.now(), content: content),

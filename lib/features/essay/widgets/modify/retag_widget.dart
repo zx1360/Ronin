@@ -16,7 +16,7 @@ class RetagWidget extends ConsumerWidget {
         .toList();
     void onToggle(String labelId) {
       ref
-          .read(essayServerProvider.notifier)
+          .read(essayServiceProvider.notifier)
           .retag(ref.watch(contentServerProvider)!.id, labelId);
     }
 

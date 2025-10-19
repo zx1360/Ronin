@@ -38,7 +38,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
   final ImagePicker _imagePicker = ImagePicker(); // 图片选择器
   final List<TextEditingController> _titleControllers = []; // 新建样式时的任务标题控制器
 
-  late RoutineServer _server;
+  late RoutineService _server;
 
   @override
   void initState() {
@@ -340,7 +340,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    _server = ref.watch(routineServerProvider.notifier);
+    _server = ref.watch(routineServiceProvider.notifier);
     // 响应式数据
     if (_currentStyle != null) {
       _relatedRecords = ref.watch(

@@ -45,7 +45,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     if (labelName.isEmpty) return;
     _newLabelController.clear();
 
-    ref.watch(essayServerProvider.notifier).addLabel(labelName);
+    ref.watch(essayServiceProvider.notifier).addLabel(labelName);
   }
 
   Future<void> _pickImage() async {
@@ -98,7 +98,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
       imgs: imgs,
       labels: _selectedLabels,
     );
-    ref.watch(essayServerProvider.notifier).writeEssay(essay);
+    ref.watch(essayServiceProvider.notifier).writeEssay(essay);
 
     // 返回上一页
     Navigator.pop(context);

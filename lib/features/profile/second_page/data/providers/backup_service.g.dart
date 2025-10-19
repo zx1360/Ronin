@@ -6,7 +6,7 @@ part of 'backup_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$backupBookletHash() => r'17530d0e8cd3a808fa913e69a12c03d21a4786f3';
+String _$backupBookletHash() => r'26c68c6eab4810810188572597df076c1a16f1fb';
 
 /// See also [backupBooklet].
 @ProviderFor(backupBooklet)
@@ -21,7 +21,7 @@ final backupBookletProvider = AutoDisposeFutureProvider<void>.internal(
 );
 
 typedef BackupBookletRef = AutoDisposeFutureProviderRef<void>;
-String _$backupEssayHash() => r'7db9755e9bdc1e6d656f342991f5b4b7a246a686';
+String _$backupEssayHash() => r'be8e4764460745d6029f5de4c27a4cafc35b3663';
 
 /// See also [backupEssay].
 @ProviderFor(backupEssay)

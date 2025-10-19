@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
-// TODO: 单例或依赖注入避免频繁创销, (注意baseUrl也许会变的问题.)
+// 通过riverpod提供此实例以使同一时间只有一个Dio实例.
 class ApiClient {  
   final Dio _dio = Dio();
   final String baseUrl;
