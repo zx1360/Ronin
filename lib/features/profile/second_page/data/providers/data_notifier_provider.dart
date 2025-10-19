@@ -1,5 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:torrid/services/network/apiclient_handler.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'data_notifier_provider.g.dart';
 
@@ -15,7 +15,7 @@ class DataServer extends _$DataServer {
   Future<void> testNetwork() async {
     print("__1");
     bool connected_ = false;
-    final resp = await ApiclientHandler.fetch(path: "/util/test");
+    final resp = await ref.read(fetcherProvider(path: "/util/test").future);
     if (resp != null && resp.statusCode == 200) {
       connected_ = true;
     }

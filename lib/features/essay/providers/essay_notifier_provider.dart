@@ -111,23 +111,9 @@ class EssayServer extends _$EssayServer {
     // 更新summary.
     final summaryBox = state.summaryBox;
     final yearSummary = summaryBox.get(essay.date.year.toString())!;
-    final monthSummaries = List.of(yearSummary.monthSummaries);
-    final currentMonthSummaries = yearSummary.monthSummaries
-        .where((m) => m.month == essay.date.month.toString())
-        .toList();
-
-    late final MonthSummary monthSummary;
-    if (currentMonthSummaries.isEmpty) {
-      monthSummary = MonthSummary(month: essay.date.month.toString());
-    } else {
-      monthSummary = currentMonthSummaries.first;
-      monthSummaries.remove(monthSummary);
-    }
     summaryBox.put(
       yearSummary.year,
-      yearSummary.copyWith(
-        monthSummaries: monthSummaries..add(monthSummary.append(essay: essay)),
-      ).append(essay: essay),
+      yearSummary.edit(essay: essay, isAppend: true),
     );
   }
 

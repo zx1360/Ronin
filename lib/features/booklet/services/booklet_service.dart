@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/io/io_service.dart';
-import 'package:torrid/services/network/apiclient_handler.dart';
+import 'package:torrid/providers/api_client/apiclient_handler.dart';
 
 import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
 import 'package:torrid/shared/models/network_status.dart';

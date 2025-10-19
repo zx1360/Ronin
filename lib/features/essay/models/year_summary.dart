@@ -3,7 +3,7 @@ import 'package:torrid/features/essay/models/essay.dart';
 
 part 'year_summary.g.dart';
 
-// 随笔年度信息类
+// ----随笔年度信息类
 @HiveType(typeId: 0)
 class YearSummary {
   @HiveField(0)
@@ -39,22 +39,36 @@ class YearSummary {
     );
   }
 
-  YearSummary append({
-    required Essay essay,
-  }) {
+  // 增/删随笔时. 更新信息.
+  YearSummary edit({required Essay essay, bool isAppend = true}) {
+    int flag = isAppend ? 1 : -1;
+    final monthSummaries = List.of(this.monthSummaries);
+    final currentMonthSummaries = monthSummaries
+        .where((m) => m.month == essay.date.month.toString())
+        .toList();
+
+    late final MonthSummary monthSummary;
+    if (currentMonthSummaries.isEmpty) {
+      monthSummary = MonthSummary(month: essay.date.month.toString());
+    } else {
+      monthSummary = currentMonthSummaries.first;
+      monthSummaries.remove(monthSummary);
+    }
+
     return YearSummary(
       year: year,
-      essayCount: essayCount+1,
-      wordCount: wordCount+essay.wordCount,
-      monthSummaries: monthSummaries,
+      essayCount: essayCount + 1 * flag,
+      wordCount: wordCount + essay.wordCount * flag,
+      monthSummaries: monthSummaries
+        ..add(monthSummary.edit(essay: essay, isAppend: isAppend)),
     );
   }
 
   factory YearSummary.fromJson(Map<String, dynamic> json) {
     return YearSummary(
       year: json['year'],
-      essayCount: json['essayCount']??0,
-      wordCount: json['wordCount']??0,
+      essayCount: json['essayCount'] ?? 0,
+      wordCount: json['wordCount'] ?? 0,
       monthSummaries: json.containsKey('monthSummaries')
           ? (json['monthSummaries'] as List)
                 .map((item) => MonthSummary.fromJson(item))
@@ -75,7 +89,7 @@ class YearSummary {
   }
 }
 
-// 随笔月度信息类
+// ----随笔月度信息类
 @HiveType(typeId: 3)
 class MonthSummary {
   @HiveField(0)
@@ -89,11 +103,7 @@ class MonthSummary {
 
   MonthSummary({required this.month, this.essayCount = 0, this.wordCount = 0});
 
-  MonthSummary copyWith({
-    String? month,
-    int? essayCount,
-    int? wordCount,
-  }) {
+  MonthSummary copyWith({String? month, int? essayCount, int? wordCount}) {
     return MonthSummary(
       month: month ?? this.month,
       essayCount: essayCount ?? this.essayCount,
@@ -101,21 +111,20 @@ class MonthSummary {
     );
   }
 
-  MonthSummary append({
-    required Essay essay,
-  }) {
+  MonthSummary edit({required Essay essay, required bool isAppend}) {
+    int flag = isAppend ? 1 : -1;
     return MonthSummary(
       month: month,
-      essayCount: essayCount+1,
-      wordCount: wordCount+essay.wordCount,
+      essayCount: essayCount + flag,
+      wordCount: wordCount + essay.wordCount * flag,
     );
   }
 
   factory MonthSummary.fromJson(Map<String, dynamic> json) {
     return MonthSummary(
       month: json['month'],
-      essayCount: json['essayCount']??0,
-      wordCount: json['wordCount']??0,
+      essayCount: json['essayCount'] ?? 0,
+      wordCount: json['wordCount'] ?? 0,
     );
   }
   Map<String, dynamic> toJson() {
