@@ -8,8 +8,8 @@ import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 
-import 'package:torrid/features/booklet/providers/routine/box_provider.dart';
-import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
+import 'package:torrid/features/booklet/providers/box_provider.dart';
+import 'package:torrid/features/booklet/providers/state_provider.dart';
 
 import 'package:torrid/shared/utils/util.dart';
 

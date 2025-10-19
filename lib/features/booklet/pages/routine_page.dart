@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/booklet/pages/routine_overview.dart';
 
-import 'package:torrid/features/booklet/providers/routine/routine_notifier_provider.dart';
-import 'package:torrid/features/booklet/providers/routine/state_provider.dart';
+import 'package:torrid/features/booklet/providers/routine_notifier_provider.dart';
+import 'package:torrid/features/booklet/providers/state_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_detail_sheet.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
@@ -10,7 +11,6 @@ import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart'
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/booklet/models/record.dart';
-import 'package:torrid/features/booklet/pages/booklet_overview_page.dart';
 
 
 // TODO: 引入riverpod重构本模块, 拆分组件!  (近800行的routine_overview.dart怪吓人的).
@@ -90,7 +90,7 @@ class _RoutinePageState extends ConsumerState<RoutinePage> {
             onTap: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => OverviewPage()),
+                MaterialPageRoute(builder: (context) => RoutineOverviewPage()),
               );
             },
             child: Topbar(stats: _stats),
