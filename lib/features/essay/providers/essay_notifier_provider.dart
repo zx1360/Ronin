@@ -146,7 +146,6 @@ class EssayService extends _$EssayService {
 
   // 对某篇随笔的标签重选
   Future<void> retag(String essayId, String labelId) async {
-    print("__1");
     final originalEssay = state.essayBox.get(essayId)!;
 
     final originalLabel = state.labelBox.get(labelId)!;
@@ -179,7 +178,6 @@ class EssayService extends _$EssayService {
 
   // 对某篇随笔追加留言
   Future<void> appendMessage(String essayId, Message message) async {
-    // TODO: ⭐here!
     final originalEssay = state.essayBox.get(essayId);
     final essay = originalEssay!.copyWith(
       messages: originalEssay.messages..add(message),
