@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:torrid/app/theme_light.dart';
+import 'package:torrid/features/essay/models/essay.dart';
+import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
+import 'package:torrid/shared/utils/util.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 class EssayContentWidget extends ConsumerWidget {
@@ -11,10 +16,16 @@ class EssayContentWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final dateFormat = DateFormat('yyyy年MM月dd日 HH:mm');
+
+    // 内容数据
     final essay = ref.watch(contentServerProvider)!;
     final idMap = ref.watch(idMapProvider);
-    final labelNames = essay.labels.map((l)=>idMap[l]!);
-    final dateFormat = DateFormat('yyyy年MM月dd日 HH:mm');
+    final labelNames = essay.labels.map((l) => idMap[l]!);
+
+    // 对于当天的随笔提供删除功能.
+    final isToday = isSameDay(essay.date, DateTime.now());
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,33 +52,51 @@ class EssayContentWidget extends ConsumerWidget {
         const SizedBox(height: 16),
 
         // 标签
-        if (labelNames.isNotEmpty)
-          Wrap(
-            spacing: 8.0,
-            runSpacing: 4.0,
-            children: labelNames
-                .map(
-                  (name) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0,
-                      vertical: 4.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    child: Text(
-                      name,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).primaryColor,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 8.0,
+                runSpacing: 4.0,
+                children: labelNames
+                    .map(
+                      (name) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8.0,
+                          vertical: 4.0,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        child: Text(
+                          name,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.primaryColor,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-
+                    )
+                    .toList(),
+              ),
+            ),
+            if (isToday)
+              IconButton(
+                onPressed: () => _showDeleteConfirmDialog(context, ref, essay),
+                icon: Icon(
+                  IconData(0xe649, fontFamily: "iconfont"),
+                  color: isToday ? AppTheme.outline : Colors.transparent,
+                ),
+                padding: EdgeInsets.zero,
+                splashRadius: 16,
+                tooltip: "删除随笔(当天可用)",
+              ),
+          ],
+        ),
         const SizedBox(height: 20),
+
+        // 是否展示可编辑.
 
         // 内容
         Text(
@@ -96,7 +125,8 @@ class EssayContentWidget extends ConsumerWidget {
                 itemCount: essay.imgs.length,
                 itemBuilder: (context, index) {
                   return GestureDetector(
-                    onDoubleTap: () => showBigScaledImage(context, essay.imgs[index]),
+                    onDoubleTap: () =>
+                        showBigScaledImage(context, essay.imgs[index]),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8.0),
                       child: FileImageBuilder(
@@ -140,7 +170,9 @@ class EssayContentWidget extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      DateFormat('yyyy年-MM月dd日 HH:mm').format(message.timestamp),
+                      DateFormat(
+                        'yyyy年-MM月dd日 HH:mm',
+                      ).format(message.timestamp),
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
@@ -154,7 +186,7 @@ class EssayContentWidget extends ConsumerWidget {
                       ),
                       child: Text(
                         message.content,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: theme.textTheme.bodyMedium,
                       ),
                     ),
                   ],
@@ -164,5 +196,47 @@ class EssayContentWidget extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  /// 弹出删除确认框，点击确定后执行删除逻辑
+  Future<void> _showDeleteConfirmDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Essay essay,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text("确认删除", style: Theme.of(context).textTheme.titleMedium),
+        content: Text(
+          "删除后随笔将无法恢复, 是否继续?",
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppTheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, false);
+            },
+            child: Text("取消", style: TextStyle(color: AppTheme.outline)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, true);
+            },
+            child: Text("确定", style: TextStyle(color: AppTheme.error)),
+          ),
+        ],
+      ),
+    );
+    if(confirm==true){
+      await ref.read(essayServiceProvider.notifier).deleteEssay(essay);
+      if(context.mounted){
+        context.pop();
+      }
+    }
   }
 }
