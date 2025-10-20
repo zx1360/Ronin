@@ -26,7 +26,7 @@ class _HomePageState extends State<HomePage>
   final List<ButtonInfo> _buttonInfos = [
     const ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
     const ButtonInfo(name: "随笔", icon: Icons.description, route: "essay"),
-    const ButtonInfo(name: "待办", icon: IconData(0x10191, fontFamily: "iconfont"), route: "todo"),
+    const ButtonInfo(name: "待办", icon: IconData(0xe62e, fontFamily: "iconfont"), route: "todo"),
     const ButtonInfo(name: "早报", icon: Icons.newspaper, route: "news"),
     const ButtonInfo(name: "其他", icon: Icons.account_tree_rounded, route: "others"),
     const ButtonInfo(name: "个人", icon: Icons.person, route: "profile"),
