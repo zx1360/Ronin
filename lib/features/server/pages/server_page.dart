@@ -15,6 +15,7 @@ class _ServerPageState extends ConsumerState<ServerPage> {
   String _statusMessage = "Web服务尚未启动...";
   final _portController = TextEditingController(text: "4215");
   final List<String> _logMessages = [];
+  MyServer? _server;
 
   // 切换服务器运行状态
   Future<void> _toggleServer() async {
@@ -32,7 +33,9 @@ class _ServerPageState extends ConsumerState<ServerPage> {
       }
     }
     setState(() {
-      _statusMessage = serverNotifier.isServerRunning ? "服务器运行中" : "Web服务尚未启动";
+      _statusMessage = serverNotifier.isServerRunning
+          ? "服务器运行中: ${_server?.address}"
+          : "Web服务尚未启动";
     });
   }
 
@@ -63,10 +66,7 @@ class _ServerPageState extends ConsumerState<ServerPage> {
   @override
   Widget build(BuildContext context) {
     final colorTheme = Theme.of(context).colorScheme;
-    // 响应式数据
-    final MyServer server = ref.watch(
-      appStatusProvider.select((p) => p.server),
-    );
+    _server ??= ref.watch(appStatusProvider.select((p) => p.server));
 
     // UI
     return Container(
@@ -94,7 +94,7 @@ class _ServerPageState extends ConsumerState<ServerPage> {
                               hintText: "输入端口号(1-65535)",
                               border: OutlineInputBorder(),
                             ),
-                            enabled: !server.isRunning,
+                            enabled: !_server!.isRunning,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -105,12 +105,12 @@ class _ServerPageState extends ConsumerState<ServerPage> {
                               horizontal: 24,
                               vertical: 16,
                             ),
-                            backgroundColor: server.isRunning
+                            backgroundColor: _server!.isRunning
                                 ? colorTheme.onSecondary
                                 : Theme.of(context).primaryColor,
                           ),
                           child: Text(
-                            server.isRunning ? "停止服务器" : "启动服务器",
+                            _server!.isRunning ? "停止服务器" : "启动服务器",
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.amber,
@@ -127,12 +127,12 @@ class _ServerPageState extends ConsumerState<ServerPage> {
                           _statusMessage,
                           style: TextStyle(
                             fontSize: 16,
-                            color: server.isRunning
+                            color: _server!.isRunning
                                 ? Colors.green
                                 : Colors.grey,
                           ),
                         ),
-                        if (server.isRunning)
+                        if (_server!.isRunning)
                           TextButton.icon(
                             onPressed: _copyServerAddress,
                             icon: const Icon(Icons.copy),
