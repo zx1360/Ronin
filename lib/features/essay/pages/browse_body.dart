@@ -21,7 +21,7 @@ class _BrowseBodyState extends ConsumerState<BrowseBody> {
     return PageView(
       controller: controller,
       children: yearSummaries
-          .map((year) => EssayBrowsePart(yearSummary: year))
+          .map((year) => BrowsePart(yearSummary: year))
           .toList(),
     );
   }

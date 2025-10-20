@@ -6,70 +6,11 @@ import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/shared/models/message.dart';
 
 part 'essay_notifier_provider.g.dart';
-
-// ----浏览设置类----
-class BrowseSettings {
-  final SortType sortType;
-  final List<String> selectedLabels;
-
-  BrowseSettings({
-    this.sortType = SortType.descending,
-    this.selectedLabels = const [],
-  });
-
-  BrowseSettings copyWith({SortType? sortType, List<String>? selectedLabels}) {
-    return BrowseSettings(
-      sortType: sortType ?? this.sortType,
-      selectedLabels: selectedLabels ?? this.selectedLabels,
-    );
-  }
-}
-
-enum SortType { ascending, descending, random }
-
-// 浏览设置提供者
-@riverpod
-class BrowseManager extends _$BrowseManager {
-  @override
-  BrowseSettings build() {
-    return BrowseSettings();
-  }
-
-  void setSortType(SortType sortType) {
-    state = state.copyWith(sortType: sortType);
-  }
-
-  void toggleLabel(String labelId) {
-    final selectedLabels = List<String>.from(state.selectedLabels);
-    if (selectedLabels.contains(labelId)) {
-      selectedLabels.remove(labelId);
-    } else {
-      selectedLabels.add(labelId);
-    }
-    state = state.copyWith(selectedLabels: selectedLabels);
-  }
-
-  void clearFilters() {
-    state = BrowseSettings();
-  }
-}
-
-// ----方便呈现的当前浏览essay----
-@riverpod
-class ContentServer extends _$ContentServer {
-  @override
-  Essay? build() {
-    return null;
-  }
-
-  void switchEssay(Essay essay) {
-    state = essay.copyWith();
-  }
-}
 
 // ----修改执行者----
 class Cashier {
@@ -96,13 +37,61 @@ class EssayService extends _$EssayService {
   }
 
   // 刷新summary的信息
-  Future<void> refreshYear() async {}
+  // TODO: 提取一部分逻辑放到数据类的方法中吧
+  Future<void> refreshYear() async {
+    for (final yearSummary in state.summaryBox.values) {
+      final essaysInTheYear = state.essayBox.values.where(
+        (essay) => essay.date.year.toString() == yearSummary.year,
+      );
+      final essayCount = essaysInTheYear.length;
+      final wordCount = essaysInTheYear
+          .map((essay) => essay.wordCount)
+          .fold(0, (prev, curr) => prev + curr);
+
+      // 遍历每个月份, 该月有信息则写入.
+      final monthSummaries = <MonthSummary>[];
+      for(int i=1; i<=12; i++){
+        final essaysInTheMonth = essaysInTheYear.where(
+          (essay) => essay.date.month == i,
+        );
+        final essayCount_1 = essaysInTheMonth.length;
+        final wordCount_1 = essaysInTheMonth
+            .map((essay) => essay.wordCount)
+            .fold(0, (prev, curr) => prev + curr);
+        if(essayCount_1>0){
+          monthSummaries.add(MonthSummary(month: i.toString(), essayCount: essayCount_1, wordCount: wordCount_1));
+        }
+      }
+      yearSummary.monthSummaries = monthSummaries;
+      if (essayCount > 0) {
+        await state.summaryBox.put(
+          yearSummary.year,
+          yearSummary.copyWith(essayCount: essayCount, wordCount: wordCount),
+        );
+      }else{
+        state.summaryBox.delete(yearSummary.year);
+      }
+    }
+  }
 
   // 刷新labels信息.
-  Future<void> refreshLabel() async {}
+  Future<void> refreshLabel() async {
+    for (final label in state.labelBox.values) {
+      final essayCount = state.essayBox.values
+          .where((essay) => essay.labels.contains(label.id))
+          .length;
+      if (label.essayCount > 0) {
+        await state.labelBox.put(
+          label.id,
+          label.copyWith(essayCount: essayCount),
+        );
+      }
+    }
+  }
 
-  // 写随笔 $$$$: 对随笔的删改在northstar中实现吧, torrid就纯净简单的呈现和产生数据.
-  Future<void> writeEssay(Essay essay) async {
+  // 写随笔 torrid专注随笔的内容呈现和数据生成, 对当天的随笔提供修改和删除.
+  // $$$$ 由于增/删时, essayId不同强行合并感觉会很麻烦, 分开写了.
+  Future<void> writeEssay({required Essay essay}) async {
     state.essayBox.put(essay.id, essay);
     for (final labelId in essay.labels) {
       final label_ = state.labelBox.get(labelId)!;
@@ -113,15 +102,51 @@ class EssayService extends _$EssayService {
     }
     // 更新summary.
     final summaryBox = state.summaryBox;
+    final yearSummary = summaryBox.get(essay.date.year.toString());
+    if (yearSummary == null) {
+      final newYearSummary = YearSummary(
+        year: essay.date.year.toString(),
+        essayCount: 1,
+        wordCount: essay.wordCount,
+        monthSummaries: [
+          MonthSummary(
+            month: essay.date.month.toString(),
+            essayCount: 1,
+            wordCount: essay.wordCount,
+          ),
+        ],
+      );
+      summaryBox.put(newYearSummary.year, newYearSummary);
+    } else {
+      summaryBox.put(
+        yearSummary.year,
+        yearSummary.edit(essay: essay, isAppend: true),
+      );
+    }
+  }
+
+  // 删随笔
+  Future<void> deleteEssay(Essay essay) async {
+    state.essayBox.delete(essay.id);
+    for (final labelId in essay.labels) {
+      final label_ = state.labelBox.get(labelId)!;
+      state.labelBox.put(
+        labelId,
+        label_.copyWith(essayCount: label_.essayCount - 1),
+      );
+    }
+    // 更新summary.
+    final summaryBox = state.summaryBox;
     final yearSummary = summaryBox.get(essay.date.year.toString())!;
     summaryBox.put(
       yearSummary.year,
-      yearSummary.edit(essay: essay, isAppend: true),
+      yearSummary.edit(essay: essay, isAppend: false),
     );
   }
 
   // 对某篇随笔的标签重选
   Future<void> retag(String essayId, String labelId) async {
+    print("__1");
     final originalEssay = state.essayBox.get(essayId)!;
 
     final originalLabel = state.labelBox.get(labelId)!;
@@ -154,6 +179,7 @@ class EssayService extends _$EssayService {
 
   // 对某篇随笔追加留言
   Future<void> appendMessage(String essayId, Message message) async {
+    // TODO: ⭐here!
     final originalEssay = state.essayBox.get(essayId);
     final essay = originalEssay!.copyWith(
       messages: originalEssay.messages..add(message),
@@ -190,51 +216,54 @@ class EssayService extends _$EssayService {
         yearSummary['year'],
         YearSummary.fromJson(yearSummary),
       );
-      final Map<String, String> labelIdMap = {};
-
-      // 标签信息
-      for (Map<String, dynamic> label in (json['labels'] as List)) {
-        final label_ = Label.fromJson(label);
-        labelIdMap.addAll({label['id']: label_.id});
-        await state.labelBox.put(label_.id, label_);
-      }
-      // 随笔内容
-      for (Map<String, dynamic> essay in (json['essays'] as List)) {
-        var essay_ = Essay.fromJson(essay);
-        essay_ = essay_.copyWith(
-          labels: essay_.labels.map((label) => labelIdMap[label]!).toList(),
-        );
-        await state.essayBox.put(essay_.id, essay_);
-      }
-      // 一并保存图片文件
-      List<String> urls = [];
-      state.essayBox.values
-          .where((essay) => essay.imgs.isNotEmpty)
-          .toList()
-          .forEach((essay) {
-            for (var img in essay.imgs) {
-              urls.add(img);
-            }
-          });
-      if (urls.isNotEmpty) {
-        await IoService.saveFromRelativeUrls(urls, "img_storage/essay");
-      }
+    }
+    final Map<String, String> labelIdMap = {};
+    // 标签信息
+    for (Map<String, dynamic> label in (json['labels'] as List)) {
+      final label_ = Label.fromJson(label);
+      labelIdMap.addAll({label['id']: label_.id});
+      await state.labelBox.put(label_.id, label_);
+    }
+    // 随笔内容
+    for (Map<String, dynamic> essay in (json['essays'] as List)) {
+      var essay_ = Essay.fromJson(essay);
+      essay_ = essay_.copyWith(
+        labels: essay_.labels.map((label) => labelIdMap[label]!).toList(),
+      );
+      await state.essayBox.put(essay_.id, essay_);
+    }
+    // 一并保存图片文件
+    List<String> urls = [];
+    state.essayBox.values
+        .where((essay) => essay.imgs.isNotEmpty)
+        .toList()
+        .forEach((essay) {
+          for (var img in essay.imgs) {
+            urls.add(img);
+          }
+        });
+    if (urls.isNotEmpty) {
+      await IoService.saveFromRelativeUrls(urls, "img_storage/essay");
     }
   }
 
   // 打包essay本地数据
   Map<String, dynamic> packUp() {
-    final yearSummaries = (state.summaryBox.values.toList()
-      ..sort((a, b) => b.year.compareTo(a.year)))
-      .map((item) => item.toJson()).toList();
-    final labels = (state.labelBox.values.toList()
-        ..sort((a, b) => b.essayCount.compareTo(a.essayCount)))
-        .map((item) => item.toJson())
-        .toList();
-    final essays = (state.essayBox.values.toList()
-        ..sort((a, b) => b.date.compareTo(a.date)))
-        .map((item) => item.toJson())
-        .toList();
+    final yearSummaries =
+        (state.summaryBox.values.toList()
+              ..sort((a, b) => b.year.compareTo(a.year)))
+            .map((item) => item.toJson())
+            .toList();
+    final labels =
+        (state.labelBox.values.toList()
+              ..sort((a, b) => b.essayCount.compareTo(a.essayCount)))
+            .map((item) => item.toJson())
+            .toList();
+    final essays =
+        (state.essayBox.values.toList()
+              ..sort((a, b) => b.date.compareTo(a.date)))
+            .map((item) => item.toJson())
+            .toList();
     return {
       "jsonData": jsonEncode({
         "year_summaries": yearSummaries,

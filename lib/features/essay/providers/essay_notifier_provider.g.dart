@@ -6,39 +6,7 @@ part of 'essay_notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$browseManagerHash() => r'82b7f6aa5d645499e278c563ff86ffa7866d20ca';
-
-/// See also [BrowseManager].
-@ProviderFor(BrowseManager)
-final browseManagerProvider =
-    AutoDisposeNotifierProvider<BrowseManager, BrowseSettings>.internal(
-  BrowseManager.new,
-  name: r'browseManagerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$browseManagerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$BrowseManager = AutoDisposeNotifier<BrowseSettings>;
-String _$contentServerHash() => r'34eb93eacce6caf6c301cafe81b79f2c7f5df5d5';
-
-/// See also [ContentServer].
-@ProviderFor(ContentServer)
-final contentServerProvider =
-    AutoDisposeNotifierProvider<ContentServer, Essay?>.internal(
-  ContentServer.new,
-  name: r'contentServerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$contentServerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$ContentServer = AutoDisposeNotifier<Essay?>;
-String _$essayServiceHash() => r'70a503ae8b66ce8057fcada805f76c06604e5094';
+String _$essayServiceHash() => r'ec972195f1e18cb57a26c4d692d7ba837b4e76d8';
 
 /// See also [EssayService].
 @ProviderFor(EssayService)

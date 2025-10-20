@@ -40,7 +40,7 @@ class YearSummary {
   }
 
   // 增/删随笔时. 更新信息.
-  YearSummary edit({required Essay essay, bool isAppend = true}) {
+  YearSummary edit({required Essay essay, required bool isAppend}) {
     int flag = isAppend ? 1 : -1;
     final monthSummaries = List.of(this.monthSummaries);
     final currentMonthSummaries = monthSummaries
