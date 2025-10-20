@@ -87,7 +87,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     final imgs = <String>[];
     for (int i = 0; i < _selectedImages.length; i++) {
       imgs.add(
-        "img_storage/essay/${i+1}_${path.extension(_selectedImages[i].path)}",
+        "img_storage/essay/${i + 1}_${path.extension(_selectedImages[i].path)}",
       );
     }
     final essay = Essay(
@@ -97,8 +97,11 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
       content: content,
       imgs: imgs,
       labels: _selectedLabels,
+      messages: []
     );
-    ref.watch(essayServiceProvider.notifier).writeEssay(essay);
+    ref
+        .watch(essayServiceProvider.notifier)
+        .writeEssay(essay: essay);
 
     // 返回上一页
     Navigator.pop(context);

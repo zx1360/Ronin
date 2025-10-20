@@ -34,7 +34,7 @@ class Essay {
     required this.content,
     required this.imgs,
     required this.labels,
-    this.messages = const [],
+    required this.messages,
   });
 
   Essay copyWith({

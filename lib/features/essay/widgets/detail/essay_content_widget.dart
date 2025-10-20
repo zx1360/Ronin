@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:torrid/features/essay/models/essay.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 
 class EssayContentWidget extends ConsumerWidget {
-  final Essay essay;
-  const EssayContentWidget({super.key, required this.essay});
+  const EssayContentWidget({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final essay = ref.watch(contentServerProvider)!;
     final idMap = ref.watch(idMapProvider);
     final labelNames = essay.labels.map((l)=>idMap[l]!);
     final dateFormat = DateFormat('yyyy年MM月dd日 HH:mm');

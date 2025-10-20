@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
 
@@ -14,6 +15,7 @@ class RetagWidget extends ConsumerWidget {
         .where((l) => ref.watch(contentServerProvider)!.labels.contains(l.id))
         .map((l) => l.id)
         .toList();
+        
     void onToggle(String labelId) {
       ref
           .read(essayServiceProvider.notifier)

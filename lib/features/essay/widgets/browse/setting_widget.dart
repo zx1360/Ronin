@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
 
@@ -83,13 +84,26 @@ class SettingWidget extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          // 重置按钮
-          ElevatedButton(
-            onPressed: () {
-              ref.read(browseManagerProvider.notifier).clearFilters();
-              Navigator.pop(context);
-            },
-            child: const Text('重置筛选'),
+          // 重置按钮和刷新所有统计信息按钮.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(essayServiceProvider.notifier).refreshLabel();
+                  ref.read(essayServiceProvider.notifier).refreshYear();
+                  Navigator.pop(context);
+                },
+                child: const Text('刷新信息'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(browseManagerProvider.notifier).clearFilters();
+                  Navigator.pop(context);
+                },
+                child: const Text('重置筛选'),
+              ),
+            ],
           ),
         ],
       ),

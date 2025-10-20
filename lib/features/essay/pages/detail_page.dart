@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/app/theme_light.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/essay_content_widget.dart';
 import 'package:torrid/features/essay/widgets/modify/retag_widget.dart';
 import 'package:torrid/shared/models/message.dart';
@@ -31,6 +32,7 @@ class _EssayDetailPageState extends ConsumerState<EssayDetailPage> {
   }
 
   // 添加留言
+  // TODO: 既然内容都独立拆分了, 添加留言这一块也拆出来也不是不行
   void _addMessage() {
     final content = _messageController.text.trim();
     _messageController.clear();
@@ -76,7 +78,7 @@ class _EssayDetailPageState extends ConsumerState<EssayDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            EssayContentWidget(essay: ref.watch(contentServerProvider)!),
+            EssayContentWidget(),
 
             const SizedBox(height: 24),
 

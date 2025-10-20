@@ -4,7 +4,7 @@ import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 
 part 'status_provider.g.dart';
 
@@ -26,7 +26,7 @@ List<Label> labels(LabelsRef ref) {
     throw asyncVal.error!;
   }
   final labels = asyncVal.asData?.value ?? [];
-  return labels..sort((a,b)=>b.essayCount.compareTo(a.essayCount));
+  return labels..sort((a, b) => b.essayCount.compareTo(a.essayCount));
 }
 
 @riverpod
@@ -83,7 +83,7 @@ List<Essay> filteredEssays(FilteredEssaysRef ref) {
       break;
   }
 
-  return filtered;
+  return List.of(filtered);
 }
 
 // 指定年份的随笔列表提供者（基于筛选结果）
