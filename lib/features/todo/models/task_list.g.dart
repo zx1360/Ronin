@@ -19,7 +19,7 @@ class TaskListAdapter extends TypeAdapter<TaskList> {
     return TaskList(
       id: fields[0] as String,
       name: fields[1] as String,
-      taskIds: (fields[2] as List).cast<String>(),
+      tasks: (fields[2] as List).cast<TodoTask>(),
       isDefault: fields[3] as bool,
     );
   }
@@ -33,7 +33,7 @@ class TaskListAdapter extends TypeAdapter<TaskList> {
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.taskIds)
+      ..write(obj.tasks)
       ..writeByte(3)
       ..write(obj.isDefault);
   }
@@ -56,8 +56,8 @@ class TaskListAdapter extends TypeAdapter<TaskList> {
 TaskList _$TaskListFromJson(Map<String, dynamic> json) => TaskList(
       id: json['id'] as String,
       name: json['name'] as String,
-      taskIds: (json['taskIds'] as List<dynamic>?)
-              ?.map((e) => e as String)
+      tasks: (json['tasks'] as List<dynamic>?)
+              ?.map((e) => TodoTask.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
       isDefault: json['isDefault'] as bool? ?? false,
@@ -66,6 +66,6 @@ TaskList _$TaskListFromJson(Map<String, dynamic> json) => TaskList(
 Map<String, dynamic> _$TaskListToJson(TaskList instance) => <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
-      'taskIds': instance.taskIds,
+      'tasks': instance.tasks,
       'isDefault': instance.isDefault,
     };

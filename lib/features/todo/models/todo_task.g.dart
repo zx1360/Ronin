@@ -64,6 +64,109 @@ class TodoTaskAdapter extends TypeAdapter<TodoTask> {
           typeId == other.typeId;
 }
 
+class PriorityAdapter extends TypeAdapter<Priority> {
+  @override
+  final int typeId = 16;
+
+  @override
+  Priority read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return Priority.low;
+      case 1:
+        return Priority.medium;
+      case 2:
+        return Priority.high;
+      case 3:
+        return Priority.intensive;
+      default:
+        return Priority.low;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, Priority obj) {
+    switch (obj) {
+      case Priority.low:
+        writer.writeByte(0);
+        break;
+      case Priority.medium:
+        writer.writeByte(1);
+        break;
+      case Priority.high:
+        writer.writeByte(2);
+        break;
+      case Priority.intensive:
+        writer.writeByte(3);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PriorityAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class RepeatCycleAdapter extends TypeAdapter<RepeatCycle> {
+  @override
+  final int typeId = 17;
+
+  @override
+  RepeatCycle read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return RepeatCycle.once;
+      case 1:
+        return RepeatCycle.everyday;
+      case 2:
+        return RepeatCycle.workday;
+      case 3:
+        return RepeatCycle.weekend;
+      case 4:
+        return RepeatCycle.everyWeek;
+      default:
+        return RepeatCycle.once;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, RepeatCycle obj) {
+    switch (obj) {
+      case RepeatCycle.once:
+        writer.writeByte(0);
+        break;
+      case RepeatCycle.everyday:
+        writer.writeByte(1);
+        break;
+      case RepeatCycle.workday:
+        writer.writeByte(2);
+        break;
+      case RepeatCycle.weekend:
+        writer.writeByte(3);
+        break;
+      case RepeatCycle.everyWeek:
+        writer.writeByte(4);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RepeatCycleAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
@@ -111,5 +214,5 @@ const _$RepeatCycleEnumMap = {
   RepeatCycle.everyday: 'everyday',
   RepeatCycle.workday: 'workday',
   RepeatCycle.weekend: 'weekend',
-  RepeatCycle.everyWeek: 'everyday',
+  RepeatCycle.everyWeek: 'everyWeek',
 };
