@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:torrid/features/todo/models/todo_task.dart';
 
 part 'task_list.g.dart';
 
@@ -13,7 +14,7 @@ class TaskList {
   final String name;
 
   @HiveField(2)
-  final List<String> taskIds;
+  final List<TodoTask> tasks;
 
   @HiveField(3)
   final bool isDefault;
@@ -25,7 +26,21 @@ class TaskList {
   TaskList({
     required this.id,
     required this.name,
-    this.taskIds = const [],
+    this.tasks = const [],
     this.isDefault = false,
   });
+
+  TaskList copyWith({
+    String? id,
+    String? name,
+    List<TodoTask>? tasks,
+    bool? isDefault,
+  }) {
+    return TaskList(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      tasks: tasks ?? this.tasks,
+      isDefault: isDefault ?? this.isDefault,
+    );
+  }
 }

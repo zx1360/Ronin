@@ -27,7 +27,6 @@ class HiveService {
   static const String labelBoxName = 'labels';
   static const String essayBoxName = 'essays';
   // todo待办
-  static const String todoTasksBoxName = 'todoTasks';
   static const String taskListsBoxName = 'taskLists';
   // ----非常用
   // tuntun藏品
@@ -50,6 +49,8 @@ class HiveService {
     Hive.registerAdapter(EssayAdapter());
     Hive.registerAdapter(MessageAdapter());
     // todo待办
+    Hive.registerAdapter(PriorityAdapter());
+    Hive.registerAdapter(RepeatCycleAdapter());
     Hive.registerAdapter(TodoTaskAdapter());
     Hive.registerAdapter(TaskListAdapter());
     // tuntun藏品
@@ -65,6 +66,8 @@ class HiveService {
     await Hive.openBox<YearSummary>(yearSummaryBoxName);
     await Hive.openBox<Label>(labelBoxName);
     await Hive.openBox<Essay>(essayBoxName);
+
+    await Hive.openBox<TaskList>(taskListsBoxName);
   }
 
   // ----非常用Box----
