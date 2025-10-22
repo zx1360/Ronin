@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:torrid/services/storage/hive_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
 import 'package:torrid/features/others/comic/models/comic_progress.dart';
 
@@ -21,7 +22,7 @@ class ComicProgressNotifier extends StateNotifier<Map<String, ComicProgress>> {
   late final Box<ComicProgress> _progressBox;
 
   ComicProgressNotifier() : super({}) {
-    _progressBox = Hive.box<ComicProgress>('comicProgress');
+    _progressBox = Hive.box<ComicProgress>(HiveService.progressBoxName);
     _loadProgressFromHive();
   }
 

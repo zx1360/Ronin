@@ -2,6 +2,8 @@
 import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:rxdart/transformers.dart';
+
+import 'package:torrid/services/storage/hive_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
@@ -11,7 +13,7 @@ part 'box_provider.g.dart';
 // yearSummaries流
 @riverpod
 Box<YearSummary> summaryBox(SummaryBoxRef ref){
-  return Hive.box<YearSummary>('year_summaries');
+  return Hive.box<YearSummary>(HiveService.yearSummaryBoxName);
 }
 
 @riverpod
@@ -26,7 +28,7 @@ Stream<List<YearSummary>> summaryStream(SummaryStreamRef ref) {
 // essays流
 @riverpod
 Box<Essay> essayBox(EssayBoxRef ref){
-  return Hive.box<Essay>('essays');
+  return Hive.box<Essay>(HiveService.essayBoxName);
 }
 
 @riverpod
@@ -41,7 +43,7 @@ Stream<List<Essay>> essayStream(EssayStreamRef ref) {
 // labels流
 @riverpod
 Box<Label> labelBox(LabelBoxRef ref){
-  return Hive.box<Label>('labels');
+  return Hive.box<Label>(HiveService.labelBoxName);
 }
 
 @riverpod

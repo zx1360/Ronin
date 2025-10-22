@@ -6,7 +6,7 @@ part of 'box_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$summaryBoxHash() => r'd7e8ce5f2521feb256c8eb5d32b3df344f3a7c4d';
+String _$summaryBoxHash() => r'43b7f357b01ac8e090c1b3c0e7b38be52fcb2796';
 
 /// See also [summaryBox].
 @ProviderFor(summaryBox)
@@ -36,7 +36,7 @@ final summaryStreamProvider =
 );
 
 typedef SummaryStreamRef = AutoDisposeStreamProviderRef<List<YearSummary>>;
-String _$essayBoxHash() => r'b073b1be5f244f9a6daa90c8d63607fd53122f13';
+String _$essayBoxHash() => r'4c04d29c307c031ea1b3063d5c519218a95d9136';
 
 /// See also [essayBox].
 @ProviderFor(essayBox)
@@ -64,7 +64,7 @@ final essayStreamProvider = AutoDisposeStreamProvider<List<Essay>>.internal(
 );
 
 typedef EssayStreamRef = AutoDisposeStreamProviderRef<List<Essay>>;
-String _$labelBoxHash() => r'f5001c737d05f71c0824b7d2c493663177e0b8d6';
+String _$labelBoxHash() => r'9344185ac11e932f41f54c4341dd772cdf14aa06';
 
 /// See also [labelBox].
 @ProviderFor(labelBox)
