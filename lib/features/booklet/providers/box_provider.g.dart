@@ -6,7 +6,7 @@ part of 'box_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$styleBoxHash() => r'8a1511b514be300d6260b1577f9aae83e673acd3';
+String _$styleBoxHash() => r'86f47eecfc56e0491415fcd052775a3ce09837aa';
 
 /// See also [styleBox].
 @ProviderFor(styleBox)
@@ -34,7 +34,7 @@ final styleStreamProvider = AutoDisposeStreamProvider<List<Style>>.internal(
 );
 
 typedef StyleStreamRef = AutoDisposeStreamProviderRef<List<Style>>;
-String _$recordBoxHash() => r'a5c7238767d478f70acf3b56a4a32998dd20e150';
+String _$recordBoxHash() => r'fc03ea57a54bf80295d800e2ad0aebe798e7d2fa';
 
 /// See also [recordBox].
 @ProviderFor(recordBox)

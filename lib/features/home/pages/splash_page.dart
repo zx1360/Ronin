@@ -6,11 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/services/storage/hive_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
-import 'package:torrid/features/booklet/services/booklet_hive_service.dart';
-import 'package:torrid/features/essay/services/essay_hive_service.dart';
-import 'package:torrid/features/others/comic/services/comic_hive_service.dart';
-import 'package:torrid/features/others/tuntun/services/tuntun_hive_service.dart';
 
 // 启动屏, 最快速度显示
 class SplashPage extends ConsumerStatefulWidget {
@@ -35,14 +32,13 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     // 初始化操作.
     await Hive.initFlutter();
     await PrefsService().initPrefs();
-    await PrefsService().ensureSettingsHasValue();
     await Future.wait([
       IoService.initDirs(),
 
-      BookletHiveService.init(),
-      EssayHiveService.init(),
-      TuntunHiveService.init(),
-      ComicHiveService.init(),
+      HiveService.init(),
+      // TODO: 改到特定页面再加载, 处理好时机关系.
+      HiveService.initComic(),
+      HiveService.initTuntun(),
     ]);
     if (mounted) {
       context.replaceNamed("home", queryParameters: {"bgIndex": randomIndex});

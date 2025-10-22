@@ -1,6 +1,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:rxdart/transformers.dart';
+
+import 'package:torrid/services/storage/hive_service.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 
@@ -10,9 +12,10 @@ part 'box_provider.g.dart';
 // style流
 @riverpod
 Box<Style> styleBox(StyleBoxRef ref) {
-  return Hive.box("styles");
+  return Hive.box(HiveService.styleBoxName);
 }
 
+// TODO: "Stream是Future序列", 有时间了理解一下呢.
 @riverpod
 Stream<List<Style>> styleStream(StyleStreamRef ref) {
   final box = ref.read(styleBoxProvider);
@@ -26,7 +29,7 @@ Stream<List<Style>> styleStream(StyleStreamRef ref) {
 // record流
 @riverpod
 Box<Record> recordBox(RecordBoxRef ref) {
-  return Hive.box("records");
+  return Hive.box(HiveService.recordBoxName);
 }
 
 @riverpod
