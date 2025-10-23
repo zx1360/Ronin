@@ -13,6 +13,7 @@ import 'package:torrid/features/booklet/widgets/routine/overview/constants/globa
 import 'package:torrid/features/booklet/widgets/routine/overview/style_info_widgets.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/task_simple_widget.dart';
 import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/shared/modals/confirm_modal.dart';
 
 // 工具类
 import 'package:torrid/shared/utils/util.dart';
@@ -67,35 +68,18 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
   void _openCreateStyleBottomSheet() async {
     // 检查今天是否有记录，有则弹窗确认
     if (ref.read(todayRecordProvider) != null) {
-      final confirm = await showDialog<bool>(
+      final confirm = await showConfirmDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFFF5F0E1),
-          title: Text('提示', style: noteTitle),
-          content: Text('今天已有打卡记录，继续创建新样式将删除今天所有记录，是否继续？', style: noteText),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(
-                '取消',
-                style: noteText.copyWith(color: const Color(0xFF8B7355)),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(
-                '继续',
-                style: noteText.copyWith(color: const Color(0xFFD32F2F)),
-              ),
-            ),
-          ],
-        ),
+        title: "提示",
+        content: '今天已有打卡记录, 继续创建新样式将删除今天所有记录, 是否继续?',
+        confirmFunc: () {},
       );
+
       // 除了点击"确定"以外的操作都直接返回.
       if (confirm != true) return;
+      // 新建样式前, 删除<日期为今天>的record记录和style记录
+      await _server.clearBeforeNewStyle();
     }
-    // 新建样式前, 删除<日期为今天>的record记录和style记录
-    await _server.clearBeforeNewStyle();
     // 本方法内两个setState()
     // 前者为了确保有style记录被删时, 下拉栏断言不出错.
     // 后者为了新建之后立刻显示新style的overview.

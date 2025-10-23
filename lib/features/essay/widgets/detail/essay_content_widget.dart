@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/app/theme_light.dart';
-import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
+import 'package:torrid/shared/modals/confirm_modal.dart';
 import 'package:torrid/shared/utils/util.dart';
 import 'package:torrid/shared/widgets/file_img_builder.dart';
 
@@ -98,7 +98,19 @@ class EssayContentWidget extends ConsumerWidget {
             ),
             if (isToday)
               IconButton(
-                onPressed: () => _showDeleteConfirmDialog(context, ref, essay),
+                onPressed: () => showConfirmDialog(
+                  context: context,
+                  title: "确认删除",
+                  content: "删除后随笔将无法恢复, 是否继续?",
+                  confirmFunc: () async {
+                    await ref
+                        .read(essayServiceProvider.notifier)
+                        .deleteEssay(essay);
+                    if(context.mounted){
+                      context.pop();
+                    }
+                  },
+                ),
                 icon: Icon(
                   IconData(0xe649, fontFamily: "iconfont"),
                   color: AppTheme.outline,
@@ -211,47 +223,5 @@ class EssayContentWidget extends ConsumerWidget {
           ),
       ],
     );
-  }
-
-  /// 弹出删除确认框，点击确定后执行删除逻辑
-  Future<void> _showDeleteConfirmDialog(
-    BuildContext context,
-    WidgetRef ref,
-    Essay essay,
-  ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text("确认删除", style: Theme.of(context).textTheme.titleMedium),
-        content: Text(
-          "删除后随笔将无法恢复, 是否继续?",
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppTheme.onSurfaceVariant),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, false);
-            },
-            child: Text("取消", style: TextStyle(color: AppTheme.outline)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, true);
-            },
-            child: Text("确定", style: TextStyle(color: AppTheme.error)),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      await ref.read(essayServiceProvider.notifier).deleteEssay(essay);
-      if (context.mounted) {
-        context.pop();
-      }
-    }
   }
 }

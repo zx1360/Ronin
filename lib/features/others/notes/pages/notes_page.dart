@@ -7,7 +7,8 @@ class NotesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: Text("Notes\n并非传统意义的笔记, 广纳所有有意思的东西."),
+        // child: Text("Notes\n并非传统意义的笔记, 广纳所有有意思的东西."),
+        child: Text("Notes_page"),
       ),
     );
   }
