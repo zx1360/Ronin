@@ -4,23 +4,31 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/todo/models/task_list.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/providers/box_provider.dart';
-import 'package:torrid/features/todo/providers/content_notifier.dart';
-import 'package:torrid/features/todo/providers/status_provider.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 part 'notifier_provider.g.dart';
 
 class Cashier {
+  final TaskList? currentList;
   final Box<TaskList> taskListBox;
 
-  Cashier({required this.taskListBox});
+  Cashier({this.currentList, required this.taskListBox});
+
+  Cashier copyWith({TaskList? currentList, Box<TaskList>? taskListBox}) {
+    return Cashier(
+      currentList: currentList ?? this.currentList,
+      taskListBox: taskListBox ?? this.taskListBox,
+    );
+  }
 }
 
 @riverpod
 class TodoService extends _$TodoService {
   @override
   Cashier build() {
-    initDefault();
+    Future(()async{
+      await initDefault();
+    });
     return Cashier(taskListBox: ref.read(taskListBoxProvider));
   }
 
@@ -28,7 +36,6 @@ class TodoService extends _$TodoService {
   // 如果Box中记录为空, 则创建默认taskList.
   Future<void> initDefault() async {
     final listBox = ref.read(taskListBoxProvider);
-    print(listBox.values.length);
     if (listBox.values.length < 4) {
       await listBox.clear();
       await Future.wait([
@@ -38,23 +45,16 @@ class TodoService extends _$TodoService {
         addList("任务", isDefault: true),
       ]);
     }
+    switchList(ref
+          .read(taskListBoxProvider)
+          .values
+          .where((l) => l.name == '我的一天')
+          .first);
+  }
 
-    // 操!
-    ref
-        .read(contentServiceProvider.notifier)
-        .switchList(
-          list: listBox.values.where((l) => l.name == "我的一天").first,
-        );
-    print(ref.read(contentServiceProvider));
-    // for(final a in ref.read(taskListProvider)){
-    //   print(a.name);
-    // }
-    // ref
-    //     .read(contentServiceProvider.notifier)
-    //     .switchList(
-    //       list: ref.read(taskListProvider).where((l) => l.name == "我的一天").first,
-    //     );
-    // print(ref.read(contentServiceProvider));
+  // 切换选中的任务列表.
+  void switchList(TaskList list) {
+    state = state.copyWith(currentList: list);
   }
 
   // ----任务列表CRUD----

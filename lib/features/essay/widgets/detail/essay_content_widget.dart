@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -30,7 +31,7 @@ class EssayContentWidget extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 日期和字数
+        // 日期和字数, 赋值文本内容按钮
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -40,11 +41,25 @@ class EssayContentWidget extends ConsumerWidget {
                 context,
               ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
             ),
-            Text(
-              '${essay.wordCount} 字',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            Row(
+              children: [
+                Text(
+                  '${essay.wordCount} 字',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                ),
+                // 复制文本按钮.
+                IconButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: essay.content));
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text("已复制随笔内容.")));
+                  },
+                  icon: Icon(Icons.copy),
+                ),
+              ],
             ),
           ],
         ),
@@ -86,7 +101,7 @@ class EssayContentWidget extends ConsumerWidget {
                 onPressed: () => _showDeleteConfirmDialog(context, ref, essay),
                 icon: Icon(
                   IconData(0xe649, fontFamily: "iconfont"),
-                  color: isToday ? AppTheme.outline : Colors.transparent,
+                  color: AppTheme.outline,
                 ),
                 padding: EdgeInsets.zero,
                 splashRadius: 16,
@@ -232,9 +247,9 @@ class EssayContentWidget extends ConsumerWidget {
         ],
       ),
     );
-    if(confirm==true){
+    if (confirm == true) {
       await ref.read(essayServiceProvider.notifier).deleteEssay(essay);
-      if(context.mounted){
+      if (context.mounted) {
         context.pop();
       }
     }

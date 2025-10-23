@@ -56,10 +56,7 @@ class _TaskDetailSheetState extends ConsumerState<TaskDetailSheet> {
     _reminder = task.reminder;
     _priority = task.priority;
     _repeatCycle = task.repeatCycle;
-    _selectedListId = ref
-        .read(taskListProvider)
-        .firstWhere((l) => l.tasks.contains(task))
-        .id;
+    _selectedListId = widget.initialListId;
   }
 
   Future<void> _saveTask() async {
@@ -80,7 +77,9 @@ class _TaskDetailSheetState extends ConsumerState<TaskDetailSheet> {
       ),
     );
 
-    ref.invalidate(taskListProvider);
+    ref
+        .read(todoServiceProvider.notifier)
+        .switchList(ref.read(listWithIdProvider(widget.initialListId)));
     if (mounted) {
       Navigator.pop(context);
     }
@@ -91,72 +90,56 @@ class _TaskDetailSheetState extends ConsumerState<TaskDetailSheet> {
     final theme = Theme.of(context);
     final taskLists = ref.watch(taskListProvider);
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 24,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '编辑任务',
-              style: theme.textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(labelText: '任务标题*'),
-              style: theme.textTheme.titleMedium,
-              autofocus: true,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _descController,
-              decoration: const InputDecoration(labelText: '任务描述'),
-              maxLines: 3,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            // 截止日期
-            _buildDatePicker(
-              theme,
-              '截止日期',
-              _dueDate,
-              (date) => setState(() => _dueDate = date),
-            ),
-            // 提醒时间
-            _buildDatePicker(
-              theme,
-              '提醒时间',
-              _reminder,
-              (date) => setState(() => _reminder = date),
-            ),
-            // 优先级
-            DropdownButtonFormField<Priority>(
-              value: _priority,
-              decoration: const InputDecoration(labelText: '优先级'),
-              items: Priority.values
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e,
-                      child: Text(e.toString().split('.').last),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _priority = value!),
-            ),
-            // 重复周期
-            DropdownButtonFormField<RepeatCycle?>(
-              value: _repeatCycle,
-              decoration: const InputDecoration(labelText: '重复周期'),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('不重复')),
-                ...RepeatCycle.values
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('编辑任务', style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: '任务标题*'),
+                style: theme.textTheme.titleMedium,
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descController,
+                decoration: const InputDecoration(labelText: '任务描述'),
+                maxLines: 3,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              // 截止日期
+              _buildDatePicker(
+                theme,
+                '截止日期',
+                _dueDate,
+                (date) => setState(() => _dueDate = date),
+              ),
+              // 提醒时间
+              _buildDatePicker(
+                theme,
+                '提醒时间',
+                _reminder,
+                (date) => setState(() => _reminder = date),
+              ),
+              // 优先级
+              DropdownButtonFormField<Priority>(
+                value: _priority,
+                decoration: const InputDecoration(labelText: '优先级'),
+                items: Priority.values
                     .map(
                       (e) => DropdownMenuItem(
                         value: e,
@@ -164,33 +147,50 @@ class _TaskDetailSheetState extends ConsumerState<TaskDetailSheet> {
                       ),
                     )
                     .toList(),
-              ],
-              onChanged: (value) => setState(() => _repeatCycle = value),
-            ),
-            // 所属列表
-            DropdownButtonFormField<String>(
-              value: _selectedListId,
-              decoration: const InputDecoration(labelText: '所属列表'),
-              items: taskLists
-                  .map(
-                    (list) => DropdownMenuItem(
-                      value: list.id,
-                      child: Text(list.name),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _selectedListId = value!),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _saveTask,
-                child: const Text('保存'),
+                onChanged: (value) => setState(() => _priority = value!),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
+              // 重复周期
+              DropdownButtonFormField<RepeatCycle?>(
+                value: _repeatCycle,
+                decoration: const InputDecoration(labelText: '重复周期'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('不重复')),
+                  ...RepeatCycle.values
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e.toString().split('.').last),
+                        ),
+                      )
+                      .toList(),
+                ],
+                onChanged: (value) => setState(() => _repeatCycle = value),
+              ),
+              // 所属列表
+              DropdownButtonFormField<String>(
+                value: _selectedListId,
+                decoration: const InputDecoration(labelText: '所属列表'),
+                items: taskLists
+                    .map(
+                      (list) => DropdownMenuItem(
+                        value: list.id,
+                        child: Text(list.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedListId = value!),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saveTask,
+                  child: const Text('保存'),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -214,6 +214,7 @@ class _TaskDetailSheetState extends ConsumerState<TaskDetailSheet> {
             lastDate: DateTime(2100),
           );
           if (picked != null) onSelected(picked);
+          FocusManager.instance.primaryFocus?.unfocus();
         },
         child: InputDecorator(
           decoration: InputDecoration(labelText: label),

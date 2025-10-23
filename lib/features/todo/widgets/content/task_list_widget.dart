@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
-import 'package:torrid/features/todo/providers/content_notifier.dart';
 import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/widgets/edit_sheet/edit_task_sheet.dart';
 import 'package:torrid/features/todo/widgets/indicators/priority_indicator.dart';
@@ -14,9 +13,7 @@ class TaskListWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final list = ref.watch(contentServiceProvider);
-    // TODO: 
-    final notifier = ref.watch(todoServiceProvider.notifier);
+    final list = ref.watch(todoServiceProvider).currentList;
 
     if (list == null || list.tasks.isEmpty) {
       return Center(
