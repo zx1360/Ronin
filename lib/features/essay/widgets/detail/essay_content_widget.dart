@@ -112,7 +112,7 @@ class EssayContentWidget extends ConsumerWidget {
                   },
                 ),
                 icon: Icon(
-                  IconData(0xe649, fontFamily: "iconfont"),
+                  const IconData(0xe649, fontFamily: "iconfont"),
                   color: AppTheme.outline,
                 ),
                 padding: EdgeInsets.zero,
