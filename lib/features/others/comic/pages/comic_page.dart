@@ -101,13 +101,14 @@ class _ComicPageState extends State<ComicPage> {
         _errorMessage = null;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "加载漫画失败: ${e.toString()}";
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "加载漫画失败: ${e.toString()}";
+        });
+      }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
