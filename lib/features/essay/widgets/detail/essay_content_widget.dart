@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:torrid/app/theme_light.dart';
+import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';

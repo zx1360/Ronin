@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:torrid/app/theme_light.dart';
+import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/app/router.dart';
 
 class MyApp extends StatelessWidget {
@@ -11,7 +11,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: "torrid",
-      theme: AppTheme.lightTheme(),
+      theme: AppTheme.bookTheme(),
 
       // 关联路由配置
       routerDelegate: router.routerDelegate,

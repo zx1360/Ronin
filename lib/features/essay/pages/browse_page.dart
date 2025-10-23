@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/app/theme_light.dart';
+import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/features/essay/pages/browse_body.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
 

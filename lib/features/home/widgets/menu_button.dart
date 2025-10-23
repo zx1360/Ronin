@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/app/theme_light.dart';
+import 'package:torrid/app/theme_book.dart';
 
 // 按钮数据模型
 class ButtonInfo {

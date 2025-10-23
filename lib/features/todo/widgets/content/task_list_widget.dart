@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
-import 'package:torrid/app/theme_light.dart';
+import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
+import 'package:torrid/features/todo/pages/task_detail_page.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
 import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/widgets/edit_sheet/edit_task_sheet.dart';
@@ -82,7 +83,8 @@ class TaskItem extends ConsumerWidget {
         extentRatio: 0.35,
         children: [
           SlidableAction(
-            onPressed: (context) {},
+            onPressed: (context) =>
+                openTaskModal(context, initialListId: listId, task: task),
             icon: Icons.edit,
             foregroundColor: AppTheme.secondary,
             borderRadius: const BorderRadius.horizontal(
@@ -139,12 +141,12 @@ class TaskItem extends ConsumerWidget {
               : null,
           // 重要度颜色指示.
           trailing: PriorityIndicator(priority: task.priority),
-          // TODO: 改为任务内容详情展示, 在其中另设修改按钮.
-          onTap: () =>
-              openTaskModal(context, initialListId: listId, task: task),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => TaskDetailPage(task: task)),
+          ),
         ),
       ),
     );
   }
 }
-

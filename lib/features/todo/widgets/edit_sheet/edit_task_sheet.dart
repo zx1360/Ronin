@@ -145,6 +145,7 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
               const SizedBox(height: 16),
               // 任务标题
               TextField(
+                maxLength: 20,
                 controller: _titleController,
                 decoration: const InputDecoration(
                   labelText: '任务标题*',
@@ -161,7 +162,8 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
                   labelText: '任务描述',
                   hintText: '请输入任务详情（可选）',
                 ),
-                maxLines: 3,
+                minLines: 3,
+                maxLines: null,
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
@@ -181,7 +183,7 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
               ),
               // 优先级
               DropdownButtonFormField<Priority>(
-                value: _priority,
+                initialValue: _priority,
                 decoration: const InputDecoration(labelText: '优先级'),
                 items: Priority.values
                     .map(
@@ -195,7 +197,7 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
               ),
               // 重复周期
               DropdownButtonFormField<RepeatCycle?>(
-                value: _repeatCycle,
+                initialValue: _repeatCycle,
                 decoration: const InputDecoration(labelText: '重复周期'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('不重复')),
@@ -206,13 +208,13 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
                           child: Text(e.toString().split('.').last),
                         ),
                       )
-                      .toList(),
+                      ,
                 ],
                 onChanged: (value) => setState(() => _repeatCycle = value),
               ),
               // 所属列表
               DropdownButtonFormField<String>(
-                value: _selectedListId,
+                initialValue: _selectedListId,
                 decoration: const InputDecoration(labelText: '所属列表'),
                 items: taskLists
                     .map(

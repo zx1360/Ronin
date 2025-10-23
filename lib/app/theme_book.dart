@@ -31,7 +31,7 @@ class AppTheme {
 
   // --- 主题配置 ---
   static ThemeData bookTheme() {
-    final colorScheme = ColorScheme.dark(
+    final colorScheme = ColorScheme.light(
       primary: primary,
       onPrimary: onPrimary,
       primaryContainer: primaryContainer,
