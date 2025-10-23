@@ -5,7 +5,6 @@ import 'package:torrid/features/todo/models/task_list.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/providers/box_provider.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
-import 'package:torrid/features/todo/providers/status_provider.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 part 'notifier_provider.g.dart';
@@ -30,7 +29,7 @@ class TodoService extends _$TodoService {
   // 如果Box中记录为空, 则创建默认taskList.
   Future<void> initDefault() async {
     final listBox = state.taskListBox;
-    if (listBox.values.length < 4) {
+    if (listBox.values.isEmpty) {
       await listBox.clear();
       await Future.wait([
         addList("我的一天", isDefault: true),
@@ -66,8 +65,8 @@ class TodoService extends _$TodoService {
   }
 
   // 编辑列表
-  Future<void> editList(TaskList list) async {
-    await state.taskListBox.put(list.id, list);
+  Future<void> rename(TaskList list, String name) async {
+    await state.taskListBox.put(list.id, list.copyWith(name: name));
   }
 
   // ----任务项CRUD----
