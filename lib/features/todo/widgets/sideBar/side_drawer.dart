@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/todo/models/task_list.dart';
-import 'package:torrid/features/todo/providers/content_notifier.dart';
+import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/providers/status_provider.dart';
 import 'package:torrid/features/todo/widgets/edit_sheet/edit_list_sheet.dart';
 
@@ -57,7 +57,7 @@ class ListItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final selectedList = ref.watch(contentServiceProvider);
+    final selectedList = ref.watch(todoServiceProvider).currentList;
 
     return ListTile(
       title: Text(list.name),
@@ -68,8 +68,8 @@ class ListItem extends ConsumerWidget {
       selected: selectedList?.id == list.id,
       selectedColor: theme.colorScheme.primary,
       onTap: () {
-        if (selectedList?.id == list.id) {
-          ref.read(contentServiceProvider.notifier).switchList(list: list);
+        if (selectedList?.id != list.id) {
+          ref.read(todoServiceProvider.notifier).switchList(list);
           Navigator.pop(context);
         }
       },
