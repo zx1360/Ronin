@@ -19,22 +19,25 @@ class TaskListAdapter extends TypeAdapter<TaskList> {
     return TaskList(
       id: fields[0] as String,
       name: fields[1] as String,
-      tasks: (fields[2] as List).cast<TodoTask>(),
-      isDefault: fields[3] as bool,
+      order: fields[2] as int,
+      tasks: (fields[3] as List).cast<TodoTask>(),
+      isDefault: fields[4] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, TaskList obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.tasks)
+      ..write(obj.order)
       ..writeByte(3)
+      ..write(obj.tasks)
+      ..writeByte(4)
       ..write(obj.isDefault);
   }
 
@@ -56,6 +59,7 @@ class TaskListAdapter extends TypeAdapter<TaskList> {
 TaskList _$TaskListFromJson(Map<String, dynamic> json) => TaskList(
       id: json['id'] as String,
       name: json['name'] as String,
+      order: (json['order'] as num).toInt(),
       tasks: (json['tasks'] as List<dynamic>?)
               ?.map((e) => TodoTask.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -66,6 +70,7 @@ TaskList _$TaskListFromJson(Map<String, dynamic> json) => TaskList(
 Map<String, dynamic> _$TaskListToJson(TaskList instance) => <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
+      'order': instance.order,
       'tasks': instance.tasks,
       'isDefault': instance.isDefault,
     };

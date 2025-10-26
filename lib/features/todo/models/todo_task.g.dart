@@ -21,18 +21,19 @@ class TodoTaskAdapter extends TypeAdapter<TodoTask> {
       title: fields[1] as String,
       desc: fields[2] as String?,
       isDone: fields[3] as bool,
-      dueDate: fields[4] as DateTime?,
-      reminder: fields[5] as DateTime?,
-      priority: fields[6] as Priority,
-      repeatCycle: fields[7] as RepeatCycle?,
-      createAt: fields[8] as DateTime?,
+      isMarked: fields[4] as bool,
+      dueDate: fields[5] as DateTime?,
+      reminder: fields[6] as DateTime?,
+      priority: fields[7] as Priority,
+      repeatCycle: fields[8] as RepeatCycle?,
+      createAt: fields[9] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, TodoTask obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -42,14 +43,16 @@ class TodoTaskAdapter extends TypeAdapter<TodoTask> {
       ..writeByte(3)
       ..write(obj.isDone)
       ..writeByte(4)
-      ..write(obj.dueDate)
+      ..write(obj.isMarked)
       ..writeByte(5)
-      ..write(obj.reminder)
+      ..write(obj.dueDate)
       ..writeByte(6)
-      ..write(obj.priority)
+      ..write(obj.reminder)
       ..writeByte(7)
-      ..write(obj.repeatCycle)
+      ..write(obj.priority)
       ..writeByte(8)
+      ..write(obj.repeatCycle)
+      ..writeByte(9)
       ..write(obj.createAt);
   }
 
@@ -176,6 +179,7 @@ TodoTask _$TodoTaskFromJson(Map<String, dynamic> json) => TodoTask(
       title: json['title'] as String,
       desc: json['desc'] as String?,
       isDone: json['isDone'] as bool,
+      isMarked: json['isMarked'] as bool,
       dueDate: json['dueDate'] == null
           ? null
           : DateTime.parse(json['dueDate'] as String),
@@ -195,6 +199,7 @@ Map<String, dynamic> _$TodoTaskToJson(TodoTask instance) => <String, dynamic>{
       'title': instance.title,
       'desc': instance.desc,
       'isDone': instance.isDone,
+      'isMarked': instance.isMarked,
       'dueDate': instance.dueDate?.toIso8601String(),
       'reminder': instance.reminder?.toIso8601String(),
       'priority': _$PriorityEnumMap[instance.priority]!,

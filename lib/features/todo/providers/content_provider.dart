@@ -8,19 +8,22 @@ part 'content_provider.g.dart';
 class Content extends _$Content {
   @override
   TaskList? build() {
+    // 通过Future()延后一帧.
     Future(() async {
       initDefault();
     });
     return null;
   }
 
-  void initDefault() {
+  Future<void> initDefault() async {
+    await ref.read(todoServiceProvider.notifier).initDefault();
     switchList(
       ref
           .read(todoServiceProvider)
           .taskListBox
           .values
-          .where((l) => l.name == '我的一天')
+          // .where((l) => l.name == '我的一天')
+          .where((l) => l.name == '任务')
           .first,
     );
   }

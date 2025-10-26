@@ -101,6 +101,7 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
           title: _titleController.text,
           desc: _descController.text,
           isDone: false,
+          isMarked: false,
           dueDate: _dueDate,
           reminder: _reminder,
           priority: _priority,
@@ -119,8 +120,9 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
 
   @override
   Widget build(BuildContext context) {
+      print(_selectedListId);
     final theme = Theme.of(context);
-    final taskLists = ref.watch(taskListProvider);
+    final availableLists = ref.watch(availableListsProvider);
 
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -167,6 +169,9 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
+              // TODO: 只是用作备忘录, 待办笔记.
+              // 之后再考虑实现 截止日期, 提醒, 重复以及智能默认列表等功能呢.
+
               // 截止日期
               _buildDatePicker(
                 theme,
@@ -201,14 +206,12 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
                 decoration: const InputDecoration(labelText: '重复周期'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('不重复')),
-                  ...RepeatCycle.values
-                      .map(
-                        (e) => DropdownMenuItem(
-                          value: e,
-                          child: Text(e.toString().split('.').last),
-                        ),
-                      )
-                      ,
+                  ...RepeatCycle.values.map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(e.toString().split('.').last),
+                    ),
+                  ),
                 ],
                 onChanged: (value) => setState(() => _repeatCycle = value),
               ),
@@ -216,7 +219,7 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
               DropdownButtonFormField<String>(
                 initialValue: _selectedListId,
                 decoration: const InputDecoration(labelText: '所属列表'),
-                items: taskLists
+                items: availableLists
                     .map(
                       (list) => DropdownMenuItem(
                         value: list.id,
