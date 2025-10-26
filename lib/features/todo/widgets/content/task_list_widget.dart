@@ -123,7 +123,7 @@ class TaskItem extends ConsumerWidget {
               await ref
                   .read(todoServiceProvider.notifier)
                   .toggleTask(task, value);
-              ref.invalidate(todoServiceProvider);
+              // ref.invalidate(todoServiceProvider);
             },
           ),
           title: Text(

@@ -100,7 +100,6 @@ class _ListEditSheetState extends ConsumerState<ListEditSheet> {
               fillColor: AppTheme.surfaceContainer,
             ),
             style: theme.textTheme.titleMedium,
-            autofocus: true,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _handleAction(),
           ),

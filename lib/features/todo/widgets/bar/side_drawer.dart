@@ -17,7 +17,7 @@ class SideDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final taskLists = ref.watch(taskListProvider);
+    final taskLists = ref.watch(taskListProvider).skip(3).toList();
 
     return Drawer(
       child: Column(
@@ -68,6 +68,7 @@ class ListItem extends ConsumerWidget {
 
     return list.isDefault
         ? ListTile(
+            leading: Icon(Icons.star_border_purple500_outlined),
             title: Text(list.name),
             trailing: Text(
               list.tasks.length.toString(),
@@ -124,6 +125,7 @@ class ListItem extends ConsumerWidget {
             ),
             // 列表内容
             child: ListTile(
+              leading: Icon(Icons.toc_rounded),
               title: Text(list.name),
               trailing: Text(
                 list.tasks.length.toString(),

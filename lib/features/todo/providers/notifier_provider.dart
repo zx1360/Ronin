@@ -5,6 +5,7 @@ import 'package:torrid/features/todo/models/task_list.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/providers/box_provider.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
+import 'package:torrid/features/todo/providers/status_provider.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 part 'notifier_provider.g.dart';
@@ -19,9 +20,6 @@ class Cashier {
 class TodoService extends _$TodoService {
   @override
   Cashier build() {
-    Future(() async {
-      await initDefault();
-    });
     return Cashier(taskListBox: ref.read(taskListBoxProvider));
   }
 
@@ -31,29 +29,20 @@ class TodoService extends _$TodoService {
     final listBox = state.taskListBox;
     if (listBox.values.isEmpty) {
       await listBox.clear();
-      await Future.wait([
-        addList("我的一天", isDefault: true),
-        addList("重要", isDefault: true),
-        addList("计划内", isDefault: true),
-        addList("任务", isDefault: true),
-      ]);
+      await addList("我的一天", isDefault: true);
+      await addList("重要", isDefault: true);
+      await addList("计划内", isDefault: true);
+      await addList("任务", isDefault: true);
     }
   }
 
   // ----任务列表CRUD----
-  // 根据taskId找到list.
-  TaskList listWithTaskId(String taskId) {
-    final box = ref.read(taskListBoxProvider);
-    return box.values
-        .where((l) => l.tasks.map((t) => t.id).contains(taskId))
-        .first;
-  }
-
   // 新增任务列表
   Future<void> addList(String title, {bool isDefault = false}) async {
     final newList = TaskList(
       id: generateId(),
       name: title,
+      order: state.taskListBox.length,
       isDefault: isDefault,
     );
     await state.taskListBox.put(newList.id, newList);
@@ -62,6 +51,14 @@ class TodoService extends _$TodoService {
   // 删除任务列表
   Future<void> removeList(TaskList list) async {
     await state.taskListBox.delete(list.id);
+    for (final listToMinus in state.taskListBox.values.where(
+      (l) => l.order > list.order,
+    )) {
+      await state.taskListBox.put(
+        listToMinus.id,
+        listToMinus.copyWith(order: listToMinus.order - 1),
+      );
+    }
   }
 
   // 编辑列表
@@ -72,9 +69,19 @@ class TodoService extends _$TodoService {
   // ----任务项CRUD----
   // 切换任务完成状态
   Future<void> toggleTask(TodoTask task, bool isDone) async {
-    final list = listWithTaskId(task.id);
-    await removeTask(list.id, task);
-    await addTask(list.id, task.copyWith(isDone: isDone));
+    final list = ref.read(listWithTaskIdProvider(task.id));
+    final listBox = state.taskListBox;
+    // 找到要修改的任务索引并替换为新状态的任务
+    final updatedTasks = list.tasks.map((t) {
+      if (t.id == task.id) {
+        return t.copyWith(isDone: isDone); // 直接修改状态
+      }
+      return t;
+    }).toList();
+    await listBox.put(list.id, list.copyWith(tasks: updatedTasks));
+    ref
+        .read(contentProvider.notifier)
+        .switchList(list.copyWith(tasks: updatedTasks));
   }
 
   // 添加任务
@@ -98,9 +105,7 @@ class TodoService extends _$TodoService {
     );
 
     await state.taskListBox.put(listId, newList);
-    ref
-        .read(contentProvider.notifier)
-        .switchList(newList);
+    ref.read(contentProvider.notifier).switchList(newList);
   }
 
   // 编辑任务

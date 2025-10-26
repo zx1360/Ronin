@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
+import 'package:torrid/features/todo/providers/status_provider.dart';
 
 import 'package:torrid/features/todo/widgets/content/task_list_widget.dart';
 import 'package:torrid/features/todo/widgets/bar/side_drawer.dart';
@@ -20,7 +21,10 @@ class TodoPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
-              openTaskModal(context, initialListId: currentList!.id);
+              openTaskModal(
+                context,
+                initialListId: ref.read(listWithNameProvider("任务")).id,
+              );
             },
           ),
         ],

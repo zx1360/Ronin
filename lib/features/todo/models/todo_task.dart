@@ -55,18 +55,21 @@ class TodoTask {
   final bool isDone;
 
   @HiveField(4)
-  final DateTime? dueDate;
+  final bool isMarked;
 
   @HiveField(5)
-  final DateTime? reminder;
+  final DateTime? dueDate;
 
   @HiveField(6)
-  final Priority priority;
+  final DateTime? reminder;
 
   @HiveField(7)
-  final RepeatCycle? repeatCycle;
+  final Priority priority;
 
   @HiveField(8)
+  final RepeatCycle? repeatCycle;
+
+  @HiveField(9)
   final DateTime createAt;
 
   TodoTask({
@@ -74,6 +77,7 @@ class TodoTask {
     required this.title,
     required this.desc,
     required this.isDone,
+    required this.isMarked,
     required this.dueDate,
     required this.reminder,
     required this.priority,
@@ -86,6 +90,7 @@ class TodoTask {
     String? title,
     String? desc,
     bool? isDone,
+    bool? isMarked,
     DateTime? dueDate,
     DateTime? reminder,
     Priority? priority,
@@ -97,6 +102,7 @@ class TodoTask {
       title: title ?? this.title,
       desc: desc ?? this.desc,
       isDone: isDone ?? this.isDone,
+      isMarked: isMarked?? this.isMarked,
       dueDate: dueDate ?? this.dueDate,
       reminder: reminder ?? this.reminder,
       priority: priority ?? this.priority,
