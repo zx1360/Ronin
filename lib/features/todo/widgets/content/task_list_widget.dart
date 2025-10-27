@@ -48,7 +48,11 @@ class TaskListWidget extends ConsumerWidget {
     // 有任务信息时显示
     final tasks = List.of(list.tasks);
     tasks.sort((a, b) {
-      // 1. 先按优先级降序比较
+      // 已完成任务置于最后
+      if (a.isDone!=b.isDone) {
+        return a.isDone?1:-1;
+      }
+      // 按优先级降序比较
       final priorityCompare = b.priority.index.compareTo(a.priority.index);
       if (priorityCompare != 0) {
         return priorityCompare;
