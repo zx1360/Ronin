@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 
+// TODO: 点击可以进入概览Page, 显示更多纵览统计信息. 标签分布等.
 class YearSummaryCard extends StatelessWidget {
   final YearSummary summary;
 

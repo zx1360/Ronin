@@ -11,6 +11,7 @@ import 'package:torrid/features/todo/widgets/edit_sheet/edit_list_sheet.dart';
 import 'package:torrid/shared/modals/confirm_modal.dart';
 
 // 左侧抽屉
+// TODO: 拖动调整列表顺序, (非智能列表之间)
 class SideDrawer extends ConsumerWidget {
   const SideDrawer({super.key});
 

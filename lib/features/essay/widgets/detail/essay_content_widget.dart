@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/app/theme_book.dart';
+import 'package:torrid/features/essay/pages/write_page.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
@@ -25,7 +26,7 @@ class EssayContentWidget extends ConsumerWidget {
     final idMap = ref.watch(idMapProvider);
     final labelNames = essay.labels.map((l) => idMap[l]!);
 
-    // 对于当天的随笔提供删除功能.
+    // 对于当天的随笔提供删除/重写功能.
     final isToday = isSameDay(essay.date, DateTime.now());
 
     return Column(
@@ -106,7 +107,7 @@ class EssayContentWidget extends ConsumerWidget {
                     await ref
                         .read(essayServiceProvider.notifier)
                         .deleteEssay(essay);
-                    if(context.mounted){
+                    if (context.mounted) {
                       context.pop();
                     }
                   },
@@ -118,6 +119,39 @@ class EssayContentWidget extends ConsumerWidget {
                 padding: EdgeInsets.zero,
                 splashRadius: 16,
                 tooltip: "删除随笔(当天可用)",
+              ),
+            if (isToday)
+              IconButton(
+                onPressed: () => showConfirmDialog(
+                  context: context,
+                  title: "确认重写",
+                  content: "如果继续, 将首先删除本随笔, 请确保妥善处理新随笔!",
+                  confirmFunc: () async {
+                    await ref
+                        .read(essayServiceProvider.notifier)
+                        .deleteEssay(essay);
+                    if (context.mounted) {
+                      context.pop();
+                      // 前往write页.
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EssayWritePage(
+                            initialContent: essay.content,
+                            initialLabels: essay.labels,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                icon: Icon(
+                  const IconData(0xe60c, fontFamily: "iconfont"),
+                  color: AppTheme.outline,
+                ),
+                padding: EdgeInsets.zero,
+                splashRadius: 16,
+                tooltip: "重写随笔(当天可用)",
               ),
           ],
         ),
