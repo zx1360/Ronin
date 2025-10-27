@@ -23,7 +23,21 @@ class LabelSelector extends StatelessWidget {
         children: labels.map((label) {
           final isSelected = selectedLabels.contains(label.id);
           return FilterChip(
-            label: Text(label.name),
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label.name),
+                const SizedBox(width: 2),
+                Text(
+                  label.essayCount.toString(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: isSelected 
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                ),
+              ],
+            ),
             selected: isSelected,
             onSelected: (_) => onToggleLabel(label.id),
             selectedColor: Theme.of(context).colorScheme.primaryContainer,

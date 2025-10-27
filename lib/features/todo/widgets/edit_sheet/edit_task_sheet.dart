@@ -7,6 +7,7 @@ import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/providers/status_provider.dart';
 import 'package:torrid/shared/utils/util.dart';
 
+// TODO: 目前只有基础功能, 智能列表和更多功能待做.
 // 统一打开任务弹窗(新增/编辑)
 void openTaskModal(
   BuildContext context, {
@@ -120,7 +121,6 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
 
   @override
   Widget build(BuildContext context) {
-      print(_selectedListId);
     final theme = Theme.of(context);
     final availableLists = ref.watch(availableListsProvider);
 
@@ -147,7 +147,6 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
               const SizedBox(height: 16),
               // 任务标题
               TextField(
-                maxLength: 20,
                 controller: _titleController,
                 decoration: const InputDecoration(
                   labelText: '任务标题*',
@@ -172,20 +171,20 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
               // TODO: 只是用作备忘录, 待办笔记.
               // 之后再考虑实现 截止日期, 提醒, 重复以及智能默认列表等功能呢.
 
-              // 截止日期
-              _buildDatePicker(
-                theme,
-                '截止日期',
-                _dueDate,
-                (date) => setState(() => _dueDate = date),
-              ),
-              // 提醒时间
-              _buildDatePicker(
-                theme,
-                '提醒时间',
-                _reminder,
-                (date) => setState(() => _reminder = date),
-              ),
+              // // 截止日期
+              // _buildDatePicker(
+              //   theme,
+              //   '截止日期',
+              //   _dueDate,
+              //   (date) => setState(() => _dueDate = date),
+              // ),
+              // // 提醒时间
+              // _buildDatePicker(
+              //   theme,
+              //   '提醒时间',
+              //   _reminder,
+              //   (date) => setState(() => _reminder = date),
+              // ),
               // 优先级
               DropdownButtonFormField<Priority>(
                 initialValue: _priority,
@@ -200,21 +199,21 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
                     .toList(),
                 onChanged: (value) => setState(() => _priority = value!),
               ),
-              // 重复周期
-              DropdownButtonFormField<RepeatCycle?>(
-                initialValue: _repeatCycle,
-                decoration: const InputDecoration(labelText: '重复周期'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('不重复')),
-                  ...RepeatCycle.values.map(
-                    (e) => DropdownMenuItem(
-                      value: e,
-                      child: Text(e.toString().split('.').last),
-                    ),
-                  ),
-                ],
-                onChanged: (value) => setState(() => _repeatCycle = value),
-              ),
+              // // 重复周期
+              // DropdownButtonFormField<RepeatCycle?>(
+              //   initialValue: _repeatCycle,
+              //   decoration: const InputDecoration(labelText: '重复周期'),
+              //   items: [
+              //     const DropdownMenuItem(value: null, child: Text('不重复')),
+              //     ...RepeatCycle.values.map(
+              //       (e) => DropdownMenuItem(
+              //         value: e,
+              //         child: Text(e.toString().split('.').last),
+              //       ),
+              //     ),
+              //   ],
+              //   onChanged: (value) => setState(() => _repeatCycle = value),
+              // ),
               // 所属列表
               DropdownButtonFormField<String>(
                 initialValue: _selectedListId,

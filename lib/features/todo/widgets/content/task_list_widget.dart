@@ -123,7 +123,6 @@ class TaskItem extends ConsumerWidget {
               await ref
                   .read(todoServiceProvider.notifier)
                   .toggleTask(task, value);
-              // ref.invalidate(todoServiceProvider);
             },
           ),
           title: Text(
@@ -133,12 +132,26 @@ class TaskItem extends ConsumerWidget {
               color: task.isDone ? theme.colorScheme.onSurfaceVariant : null,
             ),
           ),
-          subtitle: task.dueDate != null
-              ? Text(
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (task.dueDate != null)
+                Text(
                   DateFormat.yMd().format(task.dueDate!),
                   style: theme.textTheme.bodySmall,
-                )
-              : null,
+                ),
+              if (task.desc != null && task.desc!.isNotEmpty)
+                Text(
+                  task.desc!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
           // 重要度颜色指示.
           trailing: PriorityIndicator(priority: task.priority),
           onTap: () => Navigator.push(

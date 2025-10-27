@@ -14,7 +14,9 @@ import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 class EssayWritePage extends ConsumerStatefulWidget {
-  const EssayWritePage({super.key});
+  final String? initialContent;
+  final List<String>? initialLabels;
+  const EssayWritePage({super.key, this.initialContent, this.initialLabels});
 
   @override
   ConsumerState<EssayWritePage> createState() => _EssayWritePageState();
@@ -29,6 +31,13 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
   // 内容相关
   final List<String> _selectedLabels = [];
   final List<File> _selectedImages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _contentController.text = widget.initialContent??"";
+    _selectedLabels.addAll(widget.initialLabels??[]);
+  }
 
   void _toggleLabel(String labelId) {
     setState(() {
