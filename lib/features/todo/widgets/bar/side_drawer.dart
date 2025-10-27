@@ -18,7 +18,7 @@ class SideDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final taskLists = ref.watch(taskListProvider).skip(3).toList();
+    final taskLists = ref.watch(availableListsProvider);
 
     return Drawer(
       child: Column(
@@ -111,7 +111,7 @@ class ListItem extends ConsumerWidget {
                         ref.read(todoServiceProvider.notifier).removeList(list);
                       },
                     );
-                    if(list.id==selectedList?.id){
+                    if (list.id == selectedList?.id) {
                       ref.read(contentProvider.notifier).initDefault();
                     }
                   },

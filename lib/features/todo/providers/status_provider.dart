@@ -13,7 +13,7 @@ List<TaskList> taskList(TaskListRef ref) {
     throw asyncVal.error!;
   }
   final vals = asyncVal.asData?.value ?? [];
-  return vals..sort((a,b)=>a.order.compareTo(b.order));
+  return vals..sort((a, b) => a.order.compareTo(b.order));
 }
 
 // ----业务相关数据----
@@ -40,7 +40,13 @@ TaskList listWithTaskId(ListWithTaskIdRef ref, String taskId) {
 
 // 新增task时, 可供作为'所属列表'的list.
 @riverpod
-List<TaskList> availableLists(AvailableListsRef ref){
+List<TaskList> availableLists(AvailableListsRef ref) {
   final lists = ref.watch(taskListProvider);
-  return lists.where((l)=>l.isDefault&&l.name=="任务" || !l.isDefault).toList();
+  return (lists
+        .where((l) => l.isDefault && l.name == "任务" || !l.isDefault)
+        .toList()
+    ..sort((a, b) {
+      if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+      return 0;
+    })).toList();
 }

@@ -114,9 +114,8 @@ class TodoService extends _$TodoService {
     required String selectedListId,
     required TodoTask task,
   }) async {
-    final listBox = state.taskListBox;
     if (initialListId != selectedListId) {
-      await listBox.delete(initialListId);
+      await removeTask(initialListId, task);
     }
 
     await addTask(selectedListId, task);
