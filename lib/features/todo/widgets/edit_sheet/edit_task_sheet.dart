@@ -47,7 +47,6 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
   DateTime? _dueDate;
   DateTime? _reminder;
   late Priority _priority;
-  RepeatCycle? _repeatCycle;
   late String _selectedListId;
 
   // 判断是否为编辑模式
@@ -64,7 +63,6 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
       _dueDate = task.dueDate;
       _reminder = task.reminder;
       _priority = task.priority;
-      _repeatCycle = task.repeatCycle;
       _selectedListId = widget.initialListId;
     } else {
       // 新增模式：初始化默认值
@@ -91,7 +89,6 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
           dueDate: _dueDate,
           reminder: _reminder,
           priority: _priority,
-          repeatCycle: _repeatCycle,
         ),
       );
     } else {
@@ -102,11 +99,9 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
           title: _titleController.text,
           desc: _descController.text,
           isDone: false,
-          isMarked: false,
           dueDate: _dueDate,
           reminder: _reminder,
           priority: _priority,
-          repeatCycle: _repeatCycle,
         ),
       );
     }
@@ -199,21 +194,6 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
                     .toList(),
                 onChanged: (value) => setState(() => _priority = value!),
               ),
-              // // 重复周期
-              // DropdownButtonFormField<RepeatCycle?>(
-              //   initialValue: _repeatCycle,
-              //   decoration: const InputDecoration(labelText: '重复周期'),
-              //   items: [
-              //     const DropdownMenuItem(value: null, child: Text('不重复')),
-              //     ...RepeatCycle.values.map(
-              //       (e) => DropdownMenuItem(
-              //         value: e,
-              //         child: Text(e.toString().split('.').last),
-              //       ),
-              //     ),
-              //   ],
-              //   onChanged: (value) => setState(() => _repeatCycle = value),
-              // ),
               // 所属列表
               DropdownButtonFormField<String>(
                 initialValue: _selectedListId,

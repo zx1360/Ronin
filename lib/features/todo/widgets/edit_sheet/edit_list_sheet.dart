@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/models/task_list.dart';
+import 'package:torrid/features/todo/providers/status_provider.dart';
 
 // 打开列表编辑弹窗（支持新建和重命名）
 void openListEditSheet(BuildContext context, {TaskList? list}) {
@@ -33,11 +34,13 @@ class ListEditSheet extends ConsumerStatefulWidget {
 
 class _ListEditSheetState extends ConsumerState<ListEditSheet> {
   late final TextEditingController _nameController;
+  late int _currentOrder;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.list?.name ?? '');
+    _currentOrder = widget.list?.order ?? 0;
   }
 
   @override
@@ -62,6 +65,7 @@ class _ListEditSheetState extends ConsumerState<ListEditSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isEditing = widget.list != null;
+    final allLists = ref.watch(taskListProvider); // 获取所有列表
 
     return Padding(
       padding: EdgeInsets.only(
@@ -76,7 +80,7 @@ class _ListEditSheetState extends ConsumerState<ListEditSheet> {
         children: [
           // 标题（新建/编辑）
           Text(
-            isEditing ? '重命名列表' : '新建列表',
+            isEditing ? '编辑列表' : '新建列表',
             style: theme.textTheme.headlineSmall,
           ),
           const SizedBox(height: 16),
@@ -104,6 +108,44 @@ class _ListEditSheetState extends ConsumerState<ListEditSheet> {
             onSubmitted: (_) => _handleAction(),
           ),
           const SizedBox(height: 24),
+
+          // 顺序调整控件（仅编辑状态显示）
+          if (isEditing) ...[
+            const SizedBox(height: 16),
+            Text(
+              '列表顺序',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_upward_rounded),
+                  onPressed: _currentOrder > 0
+                      ? () => setState(() => _currentOrder--)
+                      : null,
+                ),
+                Expanded(
+                  child: Slider(
+                    value: _currentOrder.toDouble(),
+                    min: 0,
+                    max: (allLists.length - 1).toDouble(),
+                    divisions: allLists.length - 1,
+                    label: '第${_currentOrder + 1}位',
+                    onChanged: (value) => setState(
+                      () => _currentOrder = value.toInt(),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_downward_rounded),
+                  onPressed: _currentOrder < allLists.length - 1
+                      ? () => setState(() => _currentOrder++)
+                      : null,
+                ),
+              ],
+            ),
+          ],
 
           // 操作按钮（创建/确认）
           SizedBox(
