@@ -14,19 +14,14 @@ void openListEditSheet(BuildContext context, {TaskList? list}) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     backgroundColor: AppTheme.surfaceContainer,
-    builder: (context) => ListEditSheet(
-      list: list,
-    ),
+    builder: (context) => ListEditSheet(list: list),
   );
 }
 
 class ListEditSheet extends ConsumerStatefulWidget {
   final TaskList? list;
 
-  const ListEditSheet({
-    super.key,
-    this.list,
-  });
+  const ListEditSheet({super.key, this.list});
 
   @override
   ConsumerState createState() => _ListEditSheetState();
@@ -49,23 +44,30 @@ class _ListEditSheetState extends ConsumerState<ListEditSheet> {
     super.dispose();
   }
 
-  void _handleAction() {
+  void _handleAction() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
     if (widget.list != null) {
-      ref.read(todoServiceProvider.notifier).rename(widget.list!, name);
+      if (widget.list!.order != _currentOrder) {
+        await (ref
+            .read(todoServiceProvider.notifier)
+            .editList(widget.list!, name: name, newOrder: _currentOrder));
+      }
     } else {
       ref.read(todoServiceProvider.notifier).addList(name);
     }
-    Navigator.pop(context);
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isEditing = widget.list != null;
-    final allLists = ref.watch(taskListProvider); // 获取所有列表
+    final allLists = ref.watch(taskListProvider);
+    final modifiableStart = allLists.where((list) => list.isDefault).length;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -99,23 +101,22 @@ class _ListEditSheetState extends ConsumerState<ListEditSheet> {
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: AppTheme.primary, width: 2),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
               filled: true,
               fillColor: AppTheme.surfaceContainer,
             ),
             style: theme.textTheme.titleMedium,
             textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _handleAction(),
           ),
           const SizedBox(height: 24),
 
           // 顺序调整控件（仅编辑状态显示）
-          if (isEditing) ...[
+          if (isEditing && !widget.list!.isDefault) ...[
             const SizedBox(height: 16),
-            Text(
-              '列表顺序',
-              style: theme.textTheme.titleMedium,
-            ),
+            Text('列表顺序', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -128,13 +129,13 @@ class _ListEditSheetState extends ConsumerState<ListEditSheet> {
                 Expanded(
                   child: Slider(
                     value: _currentOrder.toDouble(),
-                    min: 0,
+                    min: modifiableStart.toDouble(),
                     max: (allLists.length - 1).toDouble(),
-                    divisions: allLists.length - 1,
+                    divisions: allLists.length - modifiableStart - 1,
                     label: '第${_currentOrder + 1}位',
-                    onChanged: (value) => setState(
-                      () => _currentOrder = value.toInt(),
-                    ),
+                    onChanged: (value) {
+                      setState(() => _currentOrder = value.toInt());
+                    },
                   ),
                 ),
                 IconButton(
