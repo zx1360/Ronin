@@ -14,48 +14,54 @@ class BrowsePart extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final essays = ref.watch(yearEssaysProvider(year: yearSummary.year));
+    final essaysAsync = ref.watch(yearEssaysProvider(year: yearSummary.year));
     // TODO: 此处需要.watch()防止contentServerProvider销毁而在detail_page获取不到当前随笔.
     final essay = ref.watch(contentServerProvider);
 
-    return SingleChildScrollView(
-      child: Column(
+    return essaysAsync.when(
+      error: (error, stack) => Center(child: Text('加载失败：$error')),
+      loading: () => Column(
         children: [
-          // 年度总结部分
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: YearSummaryCard(summary: yearSummary),
           ),
-          // 随笔内容浏览
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: essays.length,
-            itemBuilder: (context, index) {
-              final essay = essays[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
-                ),
-                child: EssayCard(
-                  essay: essay,
-                  onTap: () {
-                    ref.read(contentServerProvider.notifier).switchEssay(essay);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => EssayDetailPage(),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          // 给右下角floating_btn留空.
-          SizedBox(height: 80),
+          const Center(child: CircularProgressIndicator()),
         ],
+      ),
+      data: (essays) => ListView.builder(
+        shrinkWrap: true,
+        itemCount: essays.length + 2,
+        itemBuilder: (context, index) {
+          // 年度概览
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: YearSummaryCard(summary: yearSummary),
+            );
+          }
+          // 给右下角floating_btn留空.
+          if (index == essays.length + 1) {
+            return SizedBox(height: 80);
+          }
+          final essay = essays[index - 1];
+          return Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: EssayCard(
+              essay: essay,
+              onTap: () {
+                ref.read(contentServerProvider.notifier).switchEssay(essay);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => EssayDetailPage()),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }

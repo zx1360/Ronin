@@ -20,7 +20,7 @@ final taskListBoxProvider = AutoDisposeProvider<Box<TaskList>>.internal(
 );
 
 typedef TaskListBoxRef = AutoDisposeProviderRef<Box<TaskList>>;
-String _$taskListStreamHash() => r'2afc87c2767676ab7e29048c327b6ec61fc3b50e';
+String _$taskListStreamHash() => r'f900836febfee8c40f515781a29e63fba7660cdb';
 
 /// See also [taskListStream].
 @ProviderFor(taskListStream)
