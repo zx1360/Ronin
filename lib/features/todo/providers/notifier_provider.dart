@@ -37,9 +37,9 @@ class TodoService extends _$TodoService {
   // ----任务列表CRUD----
   // 新增任务列表
   Future<void> addList(String title, {bool isDefault = false}) async {
-    title=title.trim();
+    title = title.trim();
     final lists = ref.read(taskListProvider);
-    if(lists.any((list)=>list.name==title)){
+    if (lists.any((list) => list.name == title)) {
       return;
     }
     final newList = TaskList(
@@ -51,7 +51,36 @@ class TodoService extends _$TodoService {
     await state.taskListBox.put(newList.id, newList);
   }
 
-  // 删除任务列表
+  /// 调整列表顺序
+  /// [list] - 要调整的列表
+  /// [newOrder] - 新的顺序值
+  Future<void> editList(
+    TaskList list, {
+    required String name,
+    required int newOrder,
+  }) async {
+    final listBox = state.taskListBox;
+    final lists = listBox.values.toList();
+
+    // 调整受影响的列表顺序
+    if (list.order < newOrder) {
+      for (final l in lists) {
+        if (l.order > list.order && l.order <= newOrder) {
+          await listBox.put(l.id, l.copyWith(order: l.order - 1));
+        }
+      }
+    } else {
+      for (final l in lists) {
+        if (l.order < list.order && l.order >= newOrder) {
+          await listBox.put(l.id, l.copyWith(order: l.order + 1));
+        }
+      }
+    }
+
+    await listBox.put(list.id, list.copyWith(order: newOrder, name: name));
+  }
+
+  // 删除列表
   Future<void> removeList(TaskList list) async {
     await state.taskListBox.delete(list.id);
     for (final listToMinus in state.taskListBox.values.where(
@@ -77,7 +106,10 @@ class TodoService extends _$TodoService {
     // 找到要修改的任务索引并替换为新状态的任务
     final updatedTasks = list.tasks.map((t) {
       if (t.id == task.id) {
-        return t.copyWith(isDone: isDone, doneAt: isDone? DateTime.now(): null);
+        return t.copyWith(
+          isDone: isDone,
+          doneAt: isDone ? DateTime.now() : null,
+        );
       }
       return t;
     }).toList();
