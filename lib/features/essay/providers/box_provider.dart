@@ -1,7 +1,6 @@
 // Hive 盒子提供者
 import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:rxdart/transformers.dart';
 
 import 'package:torrid/services/storage/hive_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
@@ -16,13 +15,16 @@ Box<YearSummary> summaryBox(SummaryBoxRef ref){
   return Hive.box<YearSummary>(HiveService.yearSummaryBoxName);
 }
 
+// 使用.startWith手动触发一次, 读取到原先的数据.
 @riverpod
-Stream<List<YearSummary>> summaryStream(SummaryStreamRef ref) {
+Stream<List<YearSummary>> summaryStream(SummaryStreamRef ref) async* {
   final box = ref.read(summaryBoxProvider);
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
+  yield box.values.toList();
+  await for(final event in box.watch()){
+    if(event.deleted||event.value!=null){
+      yield box.values.toList();
+    }
+  }
 }
 
 // essays流
@@ -32,12 +34,14 @@ Box<Essay> essayBox(EssayBoxRef ref){
 }
 
 @riverpod
-Stream<List<Essay>> essayStream(EssayStreamRef ref) {
+Stream<List<Essay>> essayStream(EssayStreamRef ref) async* {
   final box = ref.read(essayBoxProvider);
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
+  yield box.values.toList();
+  await for(final event in box.watch()){
+    if(event.deleted||event.value!=null){
+      yield box.values.toList();
+    }
+  }
 }
 
 // labels流
@@ -47,10 +51,12 @@ Box<Label> labelBox(LabelBoxRef ref){
 }
 
 @riverpod
-Stream<List<Label>> labelStream(LabelStreamRef ref) {
+Stream<List<Label>> labelStream(LabelStreamRef ref) async* {
   final box = ref.read(labelBoxProvider);
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
+  yield box.values.toList();
+  await for(final event in box.watch()){
+    if(event.deleted||event.value!=null){
+      yield box.values.toList();
+    }
+  }
 }

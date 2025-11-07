@@ -11,15 +11,6 @@ part 'status_provider.g.dart';
 // ----Stream响应每次的box内容修改, List暴露简单的同步数据.
 // essays数据  (labels为id)
 @riverpod
-List<Essay> essays(EssaysRef ref) {
-  final asyncVal = ref.watch(essayStreamProvider);
-  if (asyncVal.hasError) {
-    throw asyncVal.error!;
-  }
-  return asyncVal.asData?.value ?? [];
-}
-
-@riverpod
 List<Label> labels(LabelsRef ref) {
   final asyncVal = ref.watch(labelStreamProvider);
   if (asyncVal.hasError) {
@@ -56,8 +47,8 @@ List<YearSummary> summaries(SummariesRef ref) {
 
 // 过滤后的随笔列表提供者
 @riverpod
-List<Essay> filteredEssays(FilteredEssaysRef ref) {
-  final essays = ref.watch(essaysProvider);
+Future<List<Essay>> filteredEssays(FilteredEssaysRef ref) async {
+  final essays = await ref.watch(essayStreamProvider.future);
   final settings = ref.watch(browseManagerProvider);
 
   // 过滤标签
@@ -83,17 +74,24 @@ List<Essay> filteredEssays(FilteredEssaysRef ref) {
       break;
   }
 
-  return List.of(filtered);
+  return filtered;
 }
 
 // 指定年份的随笔列表提供者（基于筛选结果）
 @riverpod
-List<Essay> yearEssays(YearEssaysRef ref, {required String year}) {
+Future<List<Essay>> yearEssays(YearEssaysRef ref, {required String year}) async {
   // 先获取筛选后的随笔列表
-  final filteredEssays = ref.watch(filteredEssaysProvider);
+  final filteredEssays = await ref.watch(filteredEssaysProvider.future);
 
   // 筛选出指定年份的随笔
   return filteredEssays
       .where((essay) => essay.year.toString() == year)
       .toList();
 }
+
+// @riverpod
+// Future<List<Essay>> essays(EssaysRef ref, {required int year})async{
+//   final essays = await ref.watch(essayStreamProvider.future);
+//   final settings = ref.watch(browseManagerProvider);
+
+// }

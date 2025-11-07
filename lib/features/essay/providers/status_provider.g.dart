@@ -6,20 +6,6 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$essaysHash() => r'8ff79b4e68a3ab673a6645e80fb41cca8e418d7e';
-
-/// See also [essays].
-@ProviderFor(essays)
-final essaysProvider = AutoDisposeProvider<List<Essay>>.internal(
-  essays,
-  name: r'essaysProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$essaysHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef EssaysRef = AutoDisposeProviderRef<List<Essay>>;
 String _$labelsHash() => r'a4807c62a23711524f0da9764bfef6308d265b10';
 
 /// See also [labels].
@@ -62,11 +48,11 @@ final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
 );
 
 typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'a054c611ad02e5635e9f3c7b059799b62339e9fe';
+String _$filteredEssaysHash() => r'901bebba6f82082fe585667e01e22323dbe01c54';
 
 /// See also [filteredEssays].
 @ProviderFor(filteredEssays)
-final filteredEssaysProvider = AutoDisposeProvider<List<Essay>>.internal(
+final filteredEssaysProvider = AutoDisposeFutureProvider<List<Essay>>.internal(
   filteredEssays,
   name: r'filteredEssaysProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -76,8 +62,8 @@ final filteredEssaysProvider = AutoDisposeProvider<List<Essay>>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef FilteredEssaysRef = AutoDisposeProviderRef<List<Essay>>;
-String _$yearEssaysHash() => r'ee418f185798e1c482777f2407f02b67d8dfa2dd';
+typedef FilteredEssaysRef = AutoDisposeFutureProviderRef<List<Essay>>;
+String _$yearEssaysHash() => r'4ebd558a69783101aaf7f4b346826f0b6f9666c9';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -105,7 +91,7 @@ class _SystemHash {
 const yearEssaysProvider = YearEssaysFamily();
 
 /// See also [yearEssays].
-class YearEssaysFamily extends Family<List<Essay>> {
+class YearEssaysFamily extends Family<AsyncValue<List<Essay>>> {
   /// See also [yearEssays].
   const YearEssaysFamily();
 
@@ -143,7 +129,7 @@ class YearEssaysFamily extends Family<List<Essay>> {
 }
 
 /// See also [yearEssays].
-class YearEssaysProvider extends AutoDisposeProvider<List<Essay>> {
+class YearEssaysProvider extends AutoDisposeFutureProvider<List<Essay>> {
   /// See also [yearEssays].
   YearEssaysProvider({
     required String year,
@@ -178,7 +164,7 @@ class YearEssaysProvider extends AutoDisposeProvider<List<Essay>> {
 
   @override
   Override overrideWith(
-    List<Essay> Function(YearEssaysRef provider) create,
+    FutureOr<List<Essay>> Function(YearEssaysRef provider) create,
   ) {
     return ProviderOverride(
       origin: this,
@@ -195,7 +181,7 @@ class YearEssaysProvider extends AutoDisposeProvider<List<Essay>> {
   }
 
   @override
-  AutoDisposeProviderElement<List<Essay>> createElement() {
+  AutoDisposeFutureProviderElement<List<Essay>> createElement() {
     return _YearEssaysProviderElement(this);
   }
 
@@ -213,13 +199,13 @@ class YearEssaysProvider extends AutoDisposeProvider<List<Essay>> {
   }
 }
 
-mixin YearEssaysRef on AutoDisposeProviderRef<List<Essay>> {
+mixin YearEssaysRef on AutoDisposeFutureProviderRef<List<Essay>> {
   /// The parameter `year` of this provider.
   String get year;
 }
 
-class _YearEssaysProviderElement extends AutoDisposeProviderElement<List<Essay>>
-    with YearEssaysRef {
+class _YearEssaysProviderElement
+    extends AutoDisposeFutureProviderElement<List<Essay>> with YearEssaysRef {
   _YearEssaysProviderElement(super.provider);
 
   @override

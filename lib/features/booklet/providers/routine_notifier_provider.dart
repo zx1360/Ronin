@@ -40,13 +40,20 @@ class RoutineService extends _$RoutineService {
     await styleBox.put(style.id, style);
   }
 
-  // 更新Record, 并更新对应的style信息.
+  // 更新Record, 并更新对应的style信息. (如果完成情况和留言都为空, 那么删除作为未打卡.
   Future<void> putRecord({
     required String styleId,
     required Record record,
   }) async {
     final recordBox = state.recordBox;
-    await recordBox.put(record.id, record);
+    
+    bool shouldDelete = record.message.isEmpty && 
+      record.taskCompletion.values.every((isCompleted) => !isCompleted);
+    if(shouldDelete){
+      await recordBox.delete(record.id);
+    }else{
+      await recordBox.put(record.id, record);
+    }
     await refreshOne(styleId);
   }
 

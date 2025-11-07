@@ -1,6 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:rxdart/transformers.dart';
 
 import 'package:torrid/features/todo/models/task_list.dart';
 import 'package:torrid/services/storage/hive_service.dart';
@@ -13,10 +12,12 @@ Box<TaskList> taskListBox(TaskListBoxRef ref) {
 }
 
 @riverpod
-Stream<List<TaskList>> taskListStream(TaskListStreamRef ref) {
+Stream<List<TaskList>> taskListStream(TaskListStreamRef ref) async* {
   final box = ref.read(taskListBoxProvider);
-  return box
-      .watch()
-      .startWith(BoxEvent(box.name, null, false))
-      .map((_) => box.values.toList());
+  yield box.values.toList();
+  await for(final event in box.watch()){
+    if(event.deleted||event.value!=null){
+      yield box.values.toList();
+    }
+  }
 }

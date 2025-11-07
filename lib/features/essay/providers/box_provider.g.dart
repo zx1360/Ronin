@@ -20,7 +20,7 @@ final summaryBoxProvider = AutoDisposeProvider<Box<YearSummary>>.internal(
 );
 
 typedef SummaryBoxRef = AutoDisposeProviderRef<Box<YearSummary>>;
-String _$summaryStreamHash() => r'd53226b4b525d2e69859a3a643b5769a367a5c2d';
+String _$summaryStreamHash() => r'3309d339208ff008234699b0983f68469b46a414';
 
 /// See also [summaryStream].
 @ProviderFor(summaryStream)
@@ -50,7 +50,7 @@ final essayBoxProvider = AutoDisposeProvider<Box<Essay>>.internal(
 );
 
 typedef EssayBoxRef = AutoDisposeProviderRef<Box<Essay>>;
-String _$essayStreamHash() => r'a52946d2000a93bebd5cb06b145493ddb6e93be1';
+String _$essayStreamHash() => r'f3ec87b2c434c806c378da17b5fd9dceb4b6631e';
 
 /// See also [essayStream].
 @ProviderFor(essayStream)
@@ -78,7 +78,7 @@ final labelBoxProvider = AutoDisposeProvider<Box<Label>>.internal(
 );
 
 typedef LabelBoxRef = AutoDisposeProviderRef<Box<Label>>;
-String _$labelStreamHash() => r'ebddccb7e37b16828a601bc936b7128afda6877f';
+String _$labelStreamHash() => r'08feaadbca6daacf039c17048c856f1e4b0b4499';
 
 /// See also [labelStream].
 @ProviderFor(labelStream)

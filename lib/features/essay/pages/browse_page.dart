@@ -21,7 +21,6 @@ class EssayBrowsePage extends StatelessWidget {
           ),
         ],
       ),
-      // 获取到yearSummaries数据之后, 构建PageView, 左右切换不同年份的随笔.
       body: BrowseBody(),
       floatingActionButton: FloatingActionButton(
         elevation: 6,
