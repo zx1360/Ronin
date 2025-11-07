@@ -64,7 +64,7 @@ List<ActionInfo> actionInfos(ActionInfosRef ref) {
         await ref.refresh(syncEssayProvider.future);
       },
     ),
-    ActionInfo(icon: Icons.label, label: "同步藏品", action: () async {}),
+    // ActionInfo(icon: Icons.label, label: "同步藏品", action: () async {}),
 
     // 备份到PC
     ActionInfo(
@@ -90,6 +90,6 @@ List<ActionInfo> actionInfos(ActionInfosRef ref) {
         await ref.refresh(backupEssayProvider.future);
       },
     ),
-    ActionInfo(icon: Icons.label, label: "备份藏品", action: () async {}),
+    // ActionInfo(icon: Icons.label, label: "备份藏品", action: () async {}),
   ];
 }

@@ -425,7 +425,7 @@ class _ListWithTaskIdProviderElement
   String get taskId => (origin as ListWithTaskIdProvider).taskId;
 }
 
-String _$availableListsHash() => r'bd98f709167211e281ef7aec66321fedc9d81269';
+String _$availableListsHash() => r'0c619cf2199cf166775e198023617ec0f8d0c467';
 
 /// See also [availableLists].
 @ProviderFor(availableLists)

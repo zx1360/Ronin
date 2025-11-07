@@ -6,7 +6,7 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$actionInfosHash() => r'19a3a7cb25503dcb6651c54d5c80f42549641f4d';
+String _$actionInfosHash() => r'ca897c8694aebf94529f3ec4c5e879d1c388a635';
 
 /// See also [actionInfos].
 @ProviderFor(actionInfos)

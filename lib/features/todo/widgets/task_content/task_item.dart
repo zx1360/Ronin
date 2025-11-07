@@ -1,3 +1,4 @@
+// 单个任务项
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -5,73 +6,11 @@ import 'package:intl/intl.dart';
 import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/pages/task_detail_page.dart';
-import 'package:torrid/features/todo/providers/content_provider.dart';
 import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/widgets/edit_sheet/edit_task_sheet.dart';
-import 'package:torrid/features/todo/widgets/content/priority_indicator.dart';
+import 'package:torrid/features/todo/widgets/non_content_widget/priority_indicator.dart';
 import 'package:torrid/shared/modals/confirm_modal.dart';
 
-// 任务列表主体
-class TaskListWidget extends ConsumerWidget {
-  const TaskListWidget({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final list = ref.watch(contentProvider);
-
-    // 无列表信息或无任务信息时显示.
-    if (list == null || list.tasks.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: 64,
-              color: theme.colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text('还没有任务', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              '点击"+"添加任务',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 有任务信息时显示
-    final tasks = List.of(list.tasks);
-    tasks.sort((a, b) {
-      // 已完成任务置于最后
-      if (a.isDone!=b.isDone) {
-        return a.isDone?1:-1;
-      }
-      // 按优先级降序比较
-      final priorityCompare = b.priority.index.compareTo(a.priority.index);
-      if (priorityCompare != 0) {
-        return priorityCompare;
-      }
-
-      return b.createAt.compareTo(a.createAt); // 正常时间降序
-    });
-    return SlidableAutoCloseBehavior(
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: tasks.length,
-        itemBuilder: (context, index) =>
-            TaskItem(task: tasks[index], listId: list.id),
-      ),
-    );
-  }
-}
-
-// 单个任务项
 class TaskItem extends ConsumerWidget {
   final TodoTask task;
   final String listId;
@@ -124,9 +63,16 @@ class TaskItem extends ConsumerWidget {
             value: task.isDone,
             onChanged: (value) async {
               if (value == null) return;
-              await ref
-                  .read(todoServiceProvider.notifier)
-                  .toggleTask(task, value);
+              showConfirmDialog(
+                context: context,
+                title: "任务状态切换",
+                content: '确认将任务: \n"${task.title}"\n切换为${value ? "完成" : "未完成"}状态吗?',
+                confirmFunc: () {
+                  ref
+                      .read(todoServiceProvider.notifier)
+                      .toggleTask(task, value);
+                },
+              );
             },
           ),
           title: Text(

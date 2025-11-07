@@ -50,7 +50,6 @@ class HiveService {
     Hive.registerAdapter(MessageAdapter());
     // todo待办
     Hive.registerAdapter(PriorityAdapter());
-    Hive.registerAdapter(RepeatCycleAdapter());
     Hive.registerAdapter(TodoTaskAdapter());
     Hive.registerAdapter(TaskListAdapter());
     // tuntun藏品
@@ -79,7 +78,7 @@ class HiveService {
       await Hive.openBox<Status>(statusBoxName);
     }
 
-    // TODO: 之前想的是用shared_preferences存储元数据, 现在感觉用Hive的List<Map>或Map格式也行.
+    // TODO: 之前想的是用shared_preferences存储元数据比如漫画信息, 现在感觉用Hive的List<Map>或Map格式也行.
   }
 
   static Future<void> initComic() async {

@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 
-/// TodoTask详情底部弹窗组件，高度为设备高度85%，内容可滚动，遵循AppTheme样式
+/// TodoTask详情底部弹窗组件, 高度为设备高度85%, 内容可滚动.
 class TaskDetailPage extends StatelessWidget {
   final TodoTask task;
 
@@ -68,6 +68,17 @@ class TaskDetailPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
+                  // 完成时间（仅已完成任务且有完成时间时显示）
+                  if (task.isDone && task.doneAt != null) ...[
+                    _buildDetailItem(
+                      label: '完成时间',
+                      value: dateFormatter.format(task.doneAt!),
+                      valueColor: AppTheme.secondary,
+                      theme: theme,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
                   // 截止日期（可选）
                   if (task.dueDate != null) ...[
                     _buildDetailItem(
@@ -96,16 +107,6 @@ class TaskDetailPage extends StatelessWidget {
                     theme: theme,
                   ),
                   const SizedBox(height: 12),
-
-                  // 重复周期（可选）
-                  if (task.repeatCycle != null) ...[
-                    _buildDetailItem(
-                      label: '重复周期',
-                      value: _getRepeatCycleText(task.repeatCycle!),
-                      theme: theme,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
 
                   // 创建时间
                   _buildDetailItem(
@@ -167,16 +168,6 @@ class TaskDetailPage extends StatelessWidget {
       case Priority.medium: return AppTheme.primary;
       case Priority.high: return Colors.orange;
       case Priority.intensive: return AppTheme.errorVivid;
-    }
-  }
-
-  String _getRepeatCycleText(RepeatCycle cycle) {
-    switch (cycle) {
-      case RepeatCycle.once: return '仅一次';
-      case RepeatCycle.everyday: return '每天';
-      case RepeatCycle.workday: return '工作日';
-      case RepeatCycle.weekend: return '周末';
-      case RepeatCycle.everyWeek: return '每周';
     }
   }
 }

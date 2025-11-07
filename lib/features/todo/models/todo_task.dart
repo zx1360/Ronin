@@ -19,26 +19,9 @@ enum Priority {
   intensive,
 }
 
-@HiveType(typeId: 17)
-enum RepeatCycle {
-  @HiveField(0)
-  @JsonValue('once')
-  once,
-  @HiveField(1)
-  @JsonValue('everyday')
-  everyday,
-  @HiveField(2)
-  @JsonValue('workday')
-  workday,
-  @HiveField(3)
-  @JsonValue('weekend')
-  weekend,
-  @HiveField(4)
-  @JsonValue('everyWeek')
-  everyWeek,
-}
-
 // todo页的任务数据类.
+// TODO: 目前仅当作备忘录记录接下来需要做的事, 
+// 后续要实现'ms todo'那样的加上循环, 事件提醒啥的话后续再说.
 @JsonSerializable()
 @HiveType(typeId: 19)
 class TodoTask {
@@ -55,34 +38,30 @@ class TodoTask {
   final bool isDone;
 
   @HiveField(4)
-  final bool isMarked;
-
-  @HiveField(5)
   final DateTime? dueDate;
 
-  @HiveField(6)
+  @HiveField(5)
   final DateTime? reminder;
 
-  @HiveField(7)
+  @HiveField(6)
   final Priority priority;
 
-  @HiveField(8)
-  final RepeatCycle? repeatCycle;
-
-  @HiveField(9)
+  @HiveField(7)
   final DateTime createAt;
+
+  @HiveField(8)
+  final DateTime? doneAt;
 
   TodoTask({
     required this.id,
     required this.title,
     required this.desc,
     required this.isDone,
-    required this.isMarked,
     required this.dueDate,
     required this.reminder,
     required this.priority,
-    required this.repeatCycle,
     DateTime? createAt,
+    this.doneAt
   }) : createAt = createAt ?? DateTime.now();
 
   TodoTask copyWith({
@@ -94,20 +73,19 @@ class TodoTask {
     DateTime? dueDate,
     DateTime? reminder,
     Priority? priority,
-    RepeatCycle? repeatCycle,
     DateTime? createAt,
+    DateTime? doneAt
   }) {
     return TodoTask(
       id: id ?? this.id,
       title: title ?? this.title,
       desc: desc ?? this.desc,
       isDone: isDone ?? this.isDone,
-      isMarked: isMarked?? this.isMarked,
       dueDate: dueDate ?? this.dueDate,
       reminder: reminder ?? this.reminder,
       priority: priority ?? this.priority,
-      repeatCycle: repeatCycle ?? this.repeatCycle,
       createAt: createAt ?? this.createAt,
+      doneAt: doneAt ?? this.doneAt,
     );
   }
 

@@ -68,25 +68,45 @@ class ListItem extends ConsumerWidget {
     final selectedList = ref.watch(contentProvider);
 
     return list.isDefault
-        ? ListTile(
-            leading: Icon(Icons.star_border_purple500_outlined),
-            title: Text(list.name),
-            trailing: Text(
-              list.tasks.length.toString(),
-              style: theme.textTheme.bodySmall,
+        ? Slidable(
+            key: Key(list.id),
+            // 左划内容
+            endActionPane: ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.35,
+              children: [
+                SlidableAction(
+                  onPressed: (context) =>
+                      openListEditSheet(context, list: list),
+                  icon: Icons.edit,
+                  foregroundColor: AppTheme.secondary,
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(12),
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+              ],
             ),
-            selected: selectedList?.id == list.id,
-            selectedColor: theme.colorScheme.primary,
-            onTap: () {
-              if (selectedList?.id != list.id) {
-                ref.read(contentProvider.notifier).switchList(list);
-                Navigator.pop(context);
-              }
-            },
+            child: ListTile(
+              leading: Icon(Icons.star_border_purple500_outlined),
+              title: Text(list.name),
+              trailing: Text(
+                list.tasks.where((task) => !task.isDone).length.toString(),
+                style: theme.textTheme.bodySmall,
+              ),
+              selected: selectedList?.id == list.id,
+              selectedColor: theme.colorScheme.primary,
+              onTap: () {
+                if (selectedList?.id != list.id) {
+                  ref.read(contentProvider.notifier).switchList(list);
+                  Navigator.pop(context);
+                }
+              },
+            ),
           )
         : Slidable(
             key: Key(list.id),
-            // 右划内容
+            // 左划内容
             endActionPane: ActionPane(
               motion: const DrawerMotion(),
               extentRatio: 0.35,
@@ -129,7 +149,7 @@ class ListItem extends ConsumerWidget {
               leading: Icon(Icons.toc_rounded),
               title: Text(list.name),
               trailing: Text(
-                list.tasks.length.toString(),
+                list.tasks.where((task) => !task.isDone).length.toString(),
                 style: theme.textTheme.bodySmall,
               ),
               selected: selectedList?.id == list.id,

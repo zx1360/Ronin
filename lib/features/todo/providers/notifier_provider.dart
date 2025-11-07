@@ -29,8 +29,6 @@ class TodoService extends _$TodoService {
     final listBox = state.taskListBox;
     if (listBox.values.isEmpty) {
       await listBox.clear();
-      await addList("我的一天", isDefault: true);
-      await addList("重要", isDefault: true);
       await addList("计划内", isDefault: true);
       await addList("任务", isDefault: true);
     }
@@ -39,6 +37,11 @@ class TodoService extends _$TodoService {
   // ----任务列表CRUD----
   // 新增任务列表
   Future<void> addList(String title, {bool isDefault = false}) async {
+    title=title.trim();
+    final lists = ref.read(taskListProvider);
+    if(lists.any((list)=>list.name==title)){
+      return;
+    }
     final newList = TaskList(
       id: generateId(),
       name: title,
@@ -74,7 +77,7 @@ class TodoService extends _$TodoService {
     // 找到要修改的任务索引并替换为新状态的任务
     final updatedTasks = list.tasks.map((t) {
       if (t.id == task.id) {
-        return t.copyWith(isDone: isDone); // 直接修改状态
+        return t.copyWith(isDone: isDone, doneAt: isDone? DateTime.now(): null);
       }
       return t;
     }).toList();

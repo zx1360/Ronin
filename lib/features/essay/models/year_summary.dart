@@ -68,7 +68,7 @@ class YearSummary {
     return YearSummary(
       year: json['year'],
       essayCount: json['essayCount'] ?? 0,
-      wordCount: json['wordCount'] ?? 0,
+      wordCount: json['totalWordCount'] ?? 0,
       monthSummaries: json.containsKey('monthSummaries')
           ? (json['monthSummaries'] as List)
                 .map((item) => MonthSummary.fromJson(item))
@@ -80,10 +80,7 @@ class YearSummary {
     return {
       'year': year,
       'essayCount': essayCount,
-      // TODO: 数据格式统一后, 改用这个字段名
-      // 'totalWordCount': wordCount,
-      // 'months': monthSummaries.map((month) => month.toJson()).toList(),
-      'wordCount': wordCount,
+      'totalWordCount': wordCount,
       'monthSummaries': monthSummaries.map((month) => month.toJson()).toList(),
     };
   }
@@ -124,10 +121,10 @@ class MonthSummary {
     return MonthSummary(
       month: json['month'],
       essayCount: json['essayCount'] ?? 0,
-      wordCount: json['wordCount'] ?? 0,
+      wordCount: json['monthWordCount'] ?? 0,
     );
   }
   Map<String, dynamic> toJson() {
-    return {"month": month, "essayCount": essayCount, "wordCount": wordCount};
+    return {"month": month, "essayCount": essayCount, "monthWordCount": wordCount};
   }
 }

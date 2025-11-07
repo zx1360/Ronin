@@ -47,6 +47,6 @@ List<TaskList> availableLists(AvailableListsRef ref) {
         .toList()
     ..sort((a, b) {
       if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
-      return 0;
+      return a.order.compareTo(b.order);
     })).toList();
 }
