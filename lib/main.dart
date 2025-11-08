@@ -1,12 +1,12 @@
 // web服务器.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:northstar/_server/myserver.dart';
-import 'package:northstar/_server/services/io/io_service.dart';
+import 'package:northstar/services/io/io_service.dart';
 // 应用配置 (窗口, 托盘等)
 // ui相关.
 import 'package:flutter/material.dart';
 import 'package:northstar/app/app.dart';
-import 'package:northstar/services/window_service.dart';
+import 'package:northstar/services/app_service/window_service.dart';
 
 
 void main(List<String> args) async {

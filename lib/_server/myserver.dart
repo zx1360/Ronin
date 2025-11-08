@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:northstar/_server/services/debug/logging_service.dart';
-import 'package:northstar/_server/services/network/network_service.dart';
+import 'package:northstar/services/debug/logging_service.dart';
+import 'package:northstar/services/network/network_service.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:northstar/_server/router/_root_router.dart';

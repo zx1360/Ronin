@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:northstar/_server/services/io/io_service.dart';
+import 'package:northstar/services/io/io_service.dart';
 import 'package:path/path.dart'as path;
 import 'package:shelf/shelf.dart';
 

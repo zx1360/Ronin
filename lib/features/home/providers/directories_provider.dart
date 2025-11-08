@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:northstar/_server/services/io/io_service.dart';
+import 'package:northstar/services/io/io_service.dart';
 import 'package:northstar/features/home/models/directory_item.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod_annotation/riverpod_annotation.dart';

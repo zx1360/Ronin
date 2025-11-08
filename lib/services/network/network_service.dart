@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:northstar/_server/services/debug/logging_service.dart';
+import 'package:northstar/services/debug/logging_service.dart';
 
 Future<String> getLocalIps() async {
   List<String> ips = [];

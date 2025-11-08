@@ -1,4 +1,4 @@
-import 'package:northstar/_server/services/io/io_service.dart';
+import 'package:northstar/services/io/io_service.dart';
 
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_static/shelf_static.dart';
