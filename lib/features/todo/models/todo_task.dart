@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:torrid/shared/utils/util.dart';
 
 part 'todo_task.g.dart';
 
@@ -62,7 +63,7 @@ class TodoTask {
     required this.priority,
     DateTime? createAt,
     this.doneAt
-  }) : createAt = createAt ?? DateTime.now();
+  }) :createAt = createAt ?? DateTime.now();
 
   TodoTask copyWith({
     String? id,
@@ -77,7 +78,7 @@ class TodoTask {
     DateTime? doneAt
   }) {
     return TodoTask(
-      id: id ?? this.id,
+      id: id??this.id,
       title: title ?? this.title,
       desc: desc ?? this.desc,
       isDone: isDone ?? this.isDone,

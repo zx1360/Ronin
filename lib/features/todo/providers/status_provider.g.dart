@@ -20,7 +20,7 @@ final taskListProvider = AutoDisposeProvider<List<TaskList>>.internal(
 );
 
 typedef TaskListRef = AutoDisposeProviderRef<List<TaskList>>;
-String _$listWithIdHash() => r'510eac64f33a50ecaa2d0b69381dab46647ebb40';
+String _$listWithIdHash() => r'57c0c57149f12101a9247cf36be534fda7b50654';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -297,7 +297,7 @@ class _ListWithNameProviderElement extends AutoDisposeProviderElement<TaskList>
   String get listName => (origin as ListWithNameProvider).listName;
 }
 
-String _$listWithTaskIdHash() => r'1efc685316f6ae5f5e03e8fd41c2aac5a918c560';
+String _$listWithTaskIdHash() => r'032eec20e72edd922463e5da05356f64b7968558';
 
 /// See also [listWithTaskId].
 @ProviderFor(listWithTaskId)

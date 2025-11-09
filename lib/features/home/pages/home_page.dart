@@ -31,7 +31,7 @@ class _HomePageState extends State<HomePage>
       icon: IconData(0xe62e, fontFamily: "iconfont"),
       route: "todo",
     ),
-    const ButtonInfo(name: "早报", icon: Icons.newspaper, route: "news"),
+    const ButtonInfo(name: "阅读", icon: Icons.newspaper, route: "news"),
     const ButtonInfo(
       name: "其他",
       icon: Icons.account_tree_rounded,

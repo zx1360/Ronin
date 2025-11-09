@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
+import 'package:torrid/shared/utils/util.dart';
 
 part 'task_list.g.dart';
 
@@ -42,7 +43,7 @@ class TaskList {
     bool? isDefault,
   }) {
     return TaskList(
-      id: id ?? this.id,
+      id: id??this.id,
       name: name ?? this.name,
       order: order ?? this.order,
       tasks: tasks ?? this.tasks,

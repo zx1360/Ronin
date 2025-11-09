@@ -5,7 +5,7 @@ import 'package:torrid/features/home/pages/home_page.dart';
 import 'package:torrid/features/booklet/pages/booklet_page.dart';
 import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
-import 'package:torrid/features/news/news_page.dart';
+import 'package:torrid/features/read/pages/read_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
@@ -50,18 +50,18 @@ final List<RouteBase> routes = [
     builder: (context, state) => const EssayBrowsePage(),
   ),
 
-  // 早报页,
+  // 待办页,
   GoRoute(
     path: "/todo",
     name: "todo",
     builder: (context, state) => const TodoPage(),
   ),
 
-  // 早报页,
+  // 阅读页,
   GoRoute(
     path: "/news",
     name: "news",
-    builder: (context, state) => const NewsPage(),
+    builder: (context, state) => const ReadPage(),
   ),
 
   // 其他页.

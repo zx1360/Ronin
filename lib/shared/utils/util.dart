@@ -1,4 +1,11 @@
-import 'dart:math';
+import 'package:uuid/uuid.dart';
+
+final uuid=Uuid();
+// ----其他----
+// 生成随机id
+String generateId() {
+  return uuid.v4();
+}
 
 // ----DateTime相关----
 // 判断两个日期是否为同一天
@@ -10,14 +17,6 @@ bool isSameDay(DateTime a, DateTime b) {
 DateTime getTodayDate() {
   final today = DateTime.now();
   return DateTime(today.year, today.month, today.day);
-}
-
-// ----其他----
-// 生成随机id
-String generateId() {
-  final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-  final random = Random().nextInt(9000) + 1000;
-  return '$timestamp$random';
 }
 
 // ----文件相关----

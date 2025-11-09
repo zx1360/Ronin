@@ -19,6 +19,8 @@ List<TaskList> taskList(TaskListRef ref) {
 // ----业务相关数据----
 @riverpod
 TaskList listWithId(ListWithIdRef ref, String listId) {
+  print(listId);
+  print(ref.read(taskListProvider).where((l) => l.id == listId).length);
   return ref.read(taskListProvider).where((l) => l.id == listId).first;
 }
 
@@ -33,6 +35,7 @@ TaskList listWithName(ListWithNameRef ref, String listName) {
 @riverpod
 TaskList listWithTaskId(ListWithTaskIdRef ref, String taskId) {
   final box = ref.read(taskListBoxProvider);
+  print(box.values.toList());
   return box.values
       .where((l) => l.tasks.map((t) => t.id).contains(taskId))
       .first;
