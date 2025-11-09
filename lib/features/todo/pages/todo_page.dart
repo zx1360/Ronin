@@ -12,6 +12,8 @@ class TodoPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final lists=ref.watch(taskListProvider);
+    lists.map((list)=>print(list.id)).toList();
     final currentList = ref.watch(contentProvider);
 
     return Scaffold(
