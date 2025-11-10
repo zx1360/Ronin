@@ -27,7 +27,7 @@ class ApiClientManager extends _$ApiClientManager {
   String get port => _currentPort;
   String get address => "http://$_currentIp:$_currentPort";
 
-  Future<void> setAddress(String ip, String port) async {
+  Future<void> setAddress({required String ip, required String port}) async {
     final prefs = PrefsService().prefs;
     await prefs.setString("PC_IP", ip);
     await prefs.setString("PC_PORT", port);

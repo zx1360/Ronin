@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/profile/second_page/data/models/action_info.dart';
-import 'package:torrid/features/profile/second_page/data/providers/status_provider.dart';
+import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
 // 构建带样式的操作按钮
 class ActionButton extends ConsumerWidget {
@@ -32,7 +32,7 @@ class ActionButton extends ConsumerWidget {
             info.action,
           );
           if (result) {
-            ref.read(dataServiceProvider.notifier).loadWithFunc(info.action);
+            ref.read(serverConnectorProvider.notifier).loadWithFunc(info.action);
           }
         },
         icon: Icon(info.icon, color: Theme.of(context).colorScheme.primary),

@@ -397,7 +397,7 @@ class _SenderProviderElement extends AutoDisposeFutureProviderElement<Response?>
       (origin as SenderProvider).onSendProgress;
 }
 
-String _$apiClientManagerHash() => r'fe9ad335dc099c63a517846857ef6d25b96bc76d';
+String _$apiClientManagerHash() => r'0e1f0c5ae6a7fe2979d56729264c4f5101c41ab2';
 
 /// See also [ApiClientManager].
 @ProviderFor(ApiClientManager)

@@ -4,6 +4,7 @@ import 'package:torrid/features/profile/second_page/data/models/action_info.dart
 import 'package:torrid/features/profile/second_page/data/providers/status_provider.dart';
 import 'package:torrid/features/profile/second_page/data/widgets/action_button.dart';
 import 'package:torrid/features/profile/second_page/data/widgets/network_config_widget.dart';
+import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
 class ProfileData extends ConsumerWidget {
   const ProfileData({super.key});
@@ -14,7 +15,7 @@ class ProfileData extends ConsumerWidget {
     final List<ActionInfo> infos = ref.read(actionInfosProvider);
 
     return Container(
-      child: ref.watch(dataServiceProvider)['isLoading']
+      child: ref.watch(serverConnectorProvider)['isLoading']
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

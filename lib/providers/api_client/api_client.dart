@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 // 通过riverpod提供此实例以使同一时间只有一个Dio实例.
-class ApiClient {  
+class ApiClient {
   final Dio _dio = Dio();
   final String baseUrl;
 
@@ -11,6 +11,10 @@ class ApiClient {
     _dio.options.baseUrl = baseUrl;
     _dio.options.connectTimeout = const Duration(seconds: 4);
     _dio.options.receiveTimeout = const Duration(seconds: 6);
+
+    _dio.options.validateStatus = (status) {
+      return status != null; // 不拦截任何状态码，便于查看原始响应
+    };
   }
 
   // GET请求
@@ -65,5 +69,4 @@ class ApiClient {
       onSendProgress: onSendProgress,
     );
   }
-  
 }
