@@ -29,10 +29,8 @@ class Label {
   }
 
   factory Label.fromJson(Map<String, dynamic> json) {
-    // TODO: 等待格式统一.
-    print("id.length<17: ${(json['id'] as String).length < 17}");
     return Label(
-      id: (json['id'] as String).length < 17 ? generateId() : json['id'],
+      id: json['id'],
       name: json['name'],
       essayCount: json['essayCount'],
     );

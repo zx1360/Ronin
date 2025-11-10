@@ -160,8 +160,7 @@ class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
           // 生成唯一文件名（使用时间戳+原文件扩展名）
           final originalFileName = path.basename(imagePaths[i]);
           final fileExtension = path.extension(originalFileName);
-          final timestamp = DateTime.now().millisecondsSinceEpoch;
-          final newFileName = 'task_$timestamp$fileExtension';
+          final newFileName = 'task_${generateFileName()}$fileExtension';
 
           // 目标保存路径
           final targetPath = path.join(

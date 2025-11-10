@@ -1,6 +1,5 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:torrid/shared/utils/util.dart';
 
 part 'todo_task.g.dart';
 

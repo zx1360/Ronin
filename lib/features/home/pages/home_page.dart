@@ -3,6 +3,19 @@ import 'package:go_router/go_router.dart';
 import 'package:torrid/app/theme_book.dart';
 import 'package:torrid/features/home/widgets/menu_button.dart';
 
+// 将魔法数字提取为常量，提高可维护性
+const double _menuWidthRatio = 0.7;
+const Duration _animationDuration = Duration(milliseconds: 250);
+const double _largeSpacing = 60.0;
+const double _mediumSpacing = 30.0;
+const double _smallSpacing = 8.0;
+const double _buttonVerticalPadding = 3.0;
+const double _dividerThickness = 1.2;
+const double _boxShadowBlurRadius = 14.0;
+const double _boxShadowSpreadRadius = 1.0;
+const Offset _boxShadowOffset = Offset(4, 0);
+const double _imageOpacity = 0.28; // 对应 Color(0x47FFFFFF)
+
 class HomePage extends StatefulWidget {
   final int bgIndex;
   const HomePage({super.key, required this.bgIndex});
@@ -13,16 +26,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
-  // 动画控制器，用于管理菜单滑入滑出动画
   late AnimationController _controller;
-  // 侧边菜单滑行动画
   late Animation<Offset> _slideAnimation;
-  // 背景遮罩透明度动画
   late Animation<double> _opacityAnimation;
-  // 菜单是否打开的状态
+
+  // _isMenuOpen 布尔变量来控制
   bool _isMenuOpen = false;
 
-  // 菜单按钮数据列表
   final List<ButtonInfo> _buttonInfos = [
     const ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
     const ButtonInfo(name: "随笔", icon: Icons.description, route: "essay"),
@@ -43,19 +53,16 @@ class _HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
-    // 初始化动画控制器，时长300毫秒
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: _animationDuration,
     );
 
-    // 侧边菜单滑入动画：从左侧屏幕外滑到屏幕内
     _slideAnimation = Tween<Offset>(
       begin: const Offset(-1, 0),
       end: const Offset(0, 0),
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
-    // 背景遮罩动画：从完全透明到半透明
     _opacityAnimation = Tween<double>(
       begin: 0,
       end: 0.5,
@@ -64,47 +71,37 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
-    // 释放动画控制器资源
     _controller.dispose();
     super.dispose();
   }
 
-  // 切换菜单显示/隐藏状态
+  /// 切换菜单的显示与隐藏，并控制动画播放
   void _toggleMenu() {
     setState(() {
       _isMenuOpen = !_isMenuOpen;
-      // 根据菜单状态控制动画播放方向
       _isMenuOpen ? _controller.forward() : _controller.reverse();
     });
   }
 
-  // 导航到指定路由
+  /// 根据路由名称导航，并在导航后关闭菜单
   void _navigateTo(String route) {
-    try {
-      // 使用go_router进行路由跳转
-      context.pushNamed(route);
-      // 导航后关闭菜单
-      if (_isMenuOpen) {
-        _toggleMenu();
-      }
-    } catch (e) {
-      throw Exception("err: $e");
+    context.pushNamed(route);
+    if (_isMenuOpen) {
+      _toggleMenu();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    // 侧边菜单宽度为屏幕宽度的70%
-    final menuWidth = size.width * 0.7;
+    final menuWidth = size.width * _menuWidthRatio;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: Stack(
         children: [
-          // 1. 主内容区域 - 点击任意位置触发菜单
+          // 1. 主内容区域
           GestureDetector(
-            // 只有当菜单关闭时，点击主区域才会打开菜单
             onTap: !_isMenuOpen ? _toggleMenu : null,
             child: Container(
               constraints: BoxConstraints.expand(),
@@ -115,16 +112,14 @@ class _HomePageState extends State<HomePage>
             ),
           ),
 
-          // 2. 背景遮罩 - 只在菜单打开时显示，点击遮罩关闭菜单
-          if (_isMenuOpen)
-            FadeTransition(
-              opacity: _opacityAnimation,
-              child: GestureDetector(
-                onTap: _toggleMenu,
-                // 遮罩只覆盖菜单以外的区域
-                child: Container(color: Colors.black),
-              ),
+          // 2. 背景遮罩
+          FadeTransition(
+            opacity: _opacityAnimation,
+            child: GestureDetector(
+              onTap: _toggleMenu,
+              child: Container(color: Colors.black),
             ),
+          ),
 
           // 3. 侧边菜单
           SlideTransition(
@@ -133,96 +128,100 @@ class _HomePageState extends State<HomePage>
               width: menuWidth,
               height: size.height,
               decoration: BoxDecoration(
-                image: const DecorationImage(
-                  image: AssetImage("assets/images/soldier.png"),
+                image: DecorationImage(
+                  image: const AssetImage("assets/images/soldier.png"),
                   fit: BoxFit.cover,
-                  opacity: 0.28,
+                  opacity: _imageOpacity,
                 ),
                 color: AppTheme.surfaceContainer,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.12),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                    offset: const Offset(4, 0),
+                    color: Colors.black.withAlpha(
+                      30,
+                    ), // 0.12 opacity -> 30 alpha
+                    blurRadius: _boxShadowBlurRadius,
+                    spreadRadius: _boxShadowSpreadRadius,
+                    offset: _boxShadowOffset,
                   ),
                 ],
               ),
-              child: AbsorbPointer(
-                absorbing: false,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 60),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "理想如星\n虽不能及,吾心往之",
-                          style: TextStyle(
-                            fontFamily: "kaiti",
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.primary,
-                            letterSpacing: 0.8,
-                          ),
+              child: Column(
+                children: [
+                  const SizedBox(height: _largeSpacing),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _mediumSpacing,
+                      vertical: _smallSpacing,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "理想如星\n虽不能及,吾心往之",
+                        style: TextStyle(
+                          fontFamily: "kaiti",
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primary,
+                          letterSpacing: 0.8,
                         ),
                       ),
                     ),
-                    Divider(
-                      height: 30,
-                      thickness: 1.2,
-                      color: AppTheme.primaryContainer.withOpacity(0.4),
-                      indent: 20,
-                      endIndent: 20,
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        itemCount: _buttonInfos.length - 1,
-                        itemBuilder: (context, index) {
-                          final button = _buttonInfos[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: MenuButton(
-                              info: button,
-                              func: _navigateTo,
-                              textColor: AppTheme.onSurface,
-                              highlightColor: AppTheme.primaryContainer
-                                  .withOpacity(0.3),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          color: AppTheme.surfaceContainerHighest.withOpacity(
-                            0.3,
+                  ),
+                  Divider(
+                    height: _mediumSpacing,
+                    thickness: _dividerThickness,
+                    color: AppTheme.primaryContainer.withAlpha(
+                      102,
+                    ), // 0.4 opacity -> 102 alpha
+                    indent: _mediumSpacing,
+                    endIndent: _mediumSpacing,
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemCount: _buttonInfos.length - 1,
+                      itemBuilder: (context, index) {
+                        final button = _buttonInfos[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: _buttonVerticalPadding,
                           ),
-                        ),
-                        child: MenuButton(
-                          info: _buttonInfos.last,
-                          func: _navigateTo,
-                          textColor: AppTheme.primary,
-                          highlightColor: AppTheme.primaryContainer.withOpacity(
-                            0.25,
+                          child: MenuButton(
+                            info: button,
+                            func: _navigateTo,
+                            textColor: AppTheme.onSurface,
+                            highlightColor: AppTheme.primaryContainer.withAlpha(
+                              77,
+                            ), // 0.3 opacity -> 77 alpha
                           ),
-                        ),
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _mediumSpacing,
+                      vertical: _smallSpacing,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: AppTheme.surfaceContainerHighest.withAlpha(
+                          77,
+                        ), // 0.3 opacity -> 77 alpha
+                      ),
+                      child: MenuButton(
+                        info: _buttonInfos.last,
+                        func: _navigateTo,
+                        textColor: AppTheme.primary,
+                        highlightColor: AppTheme.primaryContainer.withAlpha(
+                          64,
+                        ), // 0.25 opacity -> 64 alpha
                       ),
                     ),
-                    const SizedBox(height: 60),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: _largeSpacing),
+                ],
               ),
             ),
           ),

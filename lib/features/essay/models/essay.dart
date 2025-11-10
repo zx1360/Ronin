@@ -1,6 +1,5 @@
 import 'package:hive/hive.dart';
 import 'package:torrid/shared/models/message.dart';
-import 'package:torrid/shared/utils/util.dart';
 
 part 'essay.g.dart';
 
@@ -59,7 +58,7 @@ class Essay {
 
   factory Essay.fromJson(Map<String, dynamic> json) {
     return Essay(
-      id: (json['id'] as String).length < 17 ? generateId() : json['id'],
+      id: json['id'],
       date: DateTime.parse(json['date']),
       wordCount: json['wordCount'],
       content: json['content'],

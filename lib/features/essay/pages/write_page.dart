@@ -35,8 +35,8 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
   @override
   void initState() {
     super.initState();
-    _contentController.text = widget.initialContent??"";
-    _selectedLabels.addAll(widget.initialLabels??[]);
+    _contentController.text = widget.initialContent ?? "";
+    _selectedLabels.addAll(widget.initialLabels ?? []);
   }
 
   void _toggleLabel(String labelId) {
@@ -77,7 +77,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     });
   }
 
-  void _saveEssay() {
+  void _saveEssay() async {
     // 验证内容和标签
     final content = _contentController.text.trim();
     if (content.isEmpty ||
@@ -90,14 +90,24 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
     }
 
     // 保存图片.
-    IoService.saveImageFiles(_selectedImages, "img_storage/essay");
 
     // 写入随笔并更新相关数据.
     final imgs = <String>[];
+    final directory = await IoService.externalStorageDir;
+    await directory.create(recursive: true);
     for (int i = 0; i < _selectedImages.length; i++) {
-      imgs.add(
-        "img_storage/essay/${i + 1}_${path.extension(_selectedImages[i].path)}",
+      final originalFileName = path.basename(_selectedImages[i].path);
+      final fileExtension = path.extension(originalFileName);
+      final newFileName = 'essay_${generateFileName()}$fileExtension';
+
+      final targetPath = path.join(
+        directory.path,
+        "img_storage/essay",
+        newFileName,
       );
+
+      imgs.add("img_storage/essay/$newFileName");
+      File(targetPath).writeAsBytes(await _selectedImages[i].readAsBytes());
     }
     final essay = Essay(
       id: generateId(),
@@ -106,11 +116,9 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
       content: content,
       imgs: imgs,
       labels: _selectedLabels,
-      messages: []
+      messages: [],
     );
-    ref
-        .watch(essayServiceProvider.notifier)
-        .writeEssay(essay: essay);
+    ref.watch(essayServiceProvider.notifier).writeEssay(essay: essay);
 
     // 返回上一页
     Navigator.pop(context);
