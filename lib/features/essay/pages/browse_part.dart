@@ -15,8 +15,7 @@ class BrowsePart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final essaysAsync = ref.watch(yearEssaysProvider(year: yearSummary.year));
-    // TODO: 此处需要.watch()防止contentServerProvider销毁而在detail_page获取不到当前随笔.
-    final essay = ref.watch(contentServerProvider);
+    ref.watch(contentServerProvider); //防止contentServerProvider被销毁.
 
     return essaysAsync.when(
       error: (error, stack) => Center(child: Text('加载失败：$error')),

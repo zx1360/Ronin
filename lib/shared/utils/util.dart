@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:uuid/uuid.dart';
 
 final uuid=Uuid();
@@ -5,6 +7,12 @@ final uuid=Uuid();
 // 生成随机id
 String generateId() {
   return uuid.v4();
+}
+
+String generateFileName() {
+  final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
+  final random = Random().nextInt(0x10000).toRadixString(16).padLeft(4, '0');
+  return timestamp + random;
 }
 
 // ----DateTime相关----

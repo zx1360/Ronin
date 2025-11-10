@@ -3,7 +3,6 @@ import 'package:torrid/features/essay/models/essay.dart';
 
 part 'setting_provider.g.dart';
 
-
 // ----浏览设置类----
 class BrowseSettings {
   final SortType sortType;

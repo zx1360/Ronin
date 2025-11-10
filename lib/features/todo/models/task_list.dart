@@ -1,7 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
-import 'package:torrid/shared/utils/util.dart';
 
 part 'task_list.g.dart';
 
@@ -22,10 +21,6 @@ class TaskList {
 
   @HiveField(4)
   final bool isDefault;
-
-  // TODO: 开放图标emoj作为列表图标.
-  // @HiveField(4)
-  // final String? icon;
 
   TaskList({
     required this.id,

@@ -114,7 +114,7 @@ class IoService {
           Uri.parse("http://$pcIp:$pcPort/static/$url"),
         );
         if (response.statusCode != 200) {
-          throw Exception('图片请求失败，状态码: ${response.statusCode}');
+          throw Exception('图片请求失败:\nurl: $url\n状态码: ${response.statusCode}');
         }
 
         // 获取图片数据
@@ -128,34 +128,6 @@ class IoService {
       }
     } catch (e) {
       throw Exception("保存到应用外部私有空间失败\n$e");
-    }
-  }
-  
-  // 将List<File> 写入私有空间.
-  static Future<void> saveImageFiles(
-    List<File> files,
-    String relativeDir,
-  ) async {
-    try {
-      final directory = await IoService.externalStorageDir;
-
-      for (int i = 0; i < files.length; i++) {
-        final originalFileName = path.basename(files[i].path);
-        final fileExtension = path.extension(originalFileName);
-        final newFileName = '${i+1}_$fileExtension';
-
-        // 目标保存路径
-        final targetPath = path.join(
-          directory.path,
-          relativeDir,
-          newFileName,
-        );
-
-        File(targetPath).writeAsBytes(await files[i].readAsBytes());
-      }
-    } catch (e) {
-      AppLogger().error('保存图片失败: $e');
-      return;
     }
   }
 
