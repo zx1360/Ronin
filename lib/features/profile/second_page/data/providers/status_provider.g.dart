@@ -20,20 +20,5 @@ final actionInfosProvider = AutoDisposeProvider<List<ActionInfo>>.internal(
 );
 
 typedef ActionInfosRef = AutoDisposeProviderRef<List<ActionInfo>>;
-String _$dataServiceHash() => r'fc725827e34398f8f1fbc57153c9eaa6ed3e79be';
-
-/// See also [DataService].
-@ProviderFor(DataService)
-final dataServiceProvider =
-    AutoDisposeNotifierProvider<DataService, Map>.internal(
-  DataService.new,
-  name: r'dataServiceProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$dataServiceHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$DataService = AutoDisposeNotifier<Map>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

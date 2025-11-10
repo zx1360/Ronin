@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/profile/second_page/data/providers/status_provider.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
+import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
 class NetworkConfigWidget extends ConsumerStatefulWidget {
   const NetworkConfigWidget({super.key});
@@ -20,11 +20,12 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
     super.initState();
     // 读取ip, port存的值并test网络.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ip = ref.watch(apiClientManagerProvider.notifier).ip;
-      final port = ref.watch(apiClientManagerProvider.notifier).port;
+      final clientManagerNotifier = ref.watch(apiClientManagerProvider.notifier);
+      final ip = clientManagerNotifier.ip;
+      final port = clientManagerNotifier.port;
       _ipController.text = ip;
       _portController.text = port;
-      ref.read(dataServiceProvider.notifier).testNetwork();
+      ref.read(serverConnectorProvider.notifier).test();
     });
   }
 
@@ -33,9 +34,8 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
     final ip = _ipController.text.trim();
     final port = _portController.text.trim();
 
-    await ref.watch(apiClientManagerProvider.notifier).setAddress(ip, port);
-    ref.invalidate(apiClientManagerProvider);
-    ref.read(dataServiceProvider.notifier).testNetwork();
+    await ref.refresh(apiClientManagerProvider.notifier).setAddress(ip: ip, port: port);
+    ref.read(serverConnectorProvider.notifier).test();
     // 显示保存成功提示
     if (mounted) {
       ScaffoldMessenger.of(
@@ -99,7 +99,7 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
                     Text("连接状态: "),
                     Icon(
                       Icons.circle,
-                      color: ref.watch(dataServiceProvider)['connected']
+                      color: ref.watch(serverConnectorProvider)['connected']
                           ? Colors.lightGreenAccent
                           : Colors.amber,
                     ),
