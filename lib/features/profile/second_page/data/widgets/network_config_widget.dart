@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
 class NetworkConfigWidget extends ConsumerStatefulWidget {
@@ -12,6 +11,7 @@ class NetworkConfigWidget extends ConsumerStatefulWidget {
 }
 
 class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
+  // TODO: 之后有了NAS使用家里的公网ip+DDNS, 省去"IP_"这一中间人.
   final _ipController = TextEditingController();
   final _portController = TextEditingController();
 
@@ -20,28 +20,11 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
     super.initState();
     // 读取ip, port存的值并test网络.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final clientManagerNotifier = ref.watch(apiClientManagerProvider.notifier);
-      final ip = clientManagerNotifier.ip;
-      final port = clientManagerNotifier.port;
-      _ipController.text = ip;
-      _portController.text = port;
-      ref.read(serverConnectorProvider.notifier).test();
+      final conf = ref.read(serverConnectorProvider);
+      _ipController.text=conf['host_']!;
+      _portController.text=conf['port_']!;
     });
-  }
-
-  // 保存IP地址
-  Future<void> _saveAddress() async {
-    final ip = _ipController.text.trim();
-    final port = _portController.text.trim();
-
-    await ref.refresh(apiClientManagerProvider.notifier).setAddress(ip: ip, port: port);
     ref.read(serverConnectorProvider.notifier).test();
-    // 显示保存成功提示
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('地址已保存.')));
-    }
   }
 
   @override
@@ -69,9 +52,9 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
             child: Column(
               children: [
                 TextField(
+                  readOnly: true,
                   controller: _ipController,
                   decoration: const InputDecoration(
-                    hintText: '请输入IP地址(IPV4)...',
                     border: InputBorder.none,
                     hintStyle: TextStyle(color: Colors.grey),
                     contentPadding: EdgeInsets.symmetric(vertical: 16),
@@ -79,9 +62,9 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
                   keyboardType: TextInputType.url,
                 ),
                 TextField(
+                  readOnly: true,
                   controller: _portController,
                   decoration: const InputDecoration(
-                    hintText: '请输入端口...',
                     border: InputBorder.none,
                     hintStyle: TextStyle(color: Colors.grey),
                     contentPadding: EdgeInsets.symmetric(vertical: 16),
@@ -106,14 +89,14 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
                   ],
                 ),
                 ElevatedButton(
-                  onPressed: _saveAddress,
+                  onPressed: ref.read(serverConnectorProvider.notifier).test,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
-                  child: const Text('保存'),
+                  child: const Text('测试'),
                 ),
               ],
             ),
