@@ -104,7 +104,7 @@ class IoService {
       }
 
       // TODO: 此处网络相关之后分离到transfer_service.dart中.
-      // TODO: 在ApiHandler改为单例模式之后, 用它发送请求, 省去获重复取ip,port.
+      // TODO: 本文件重构, 状态相关使用riverpod实现, 结合apiCliantManagerProvider.
       final prefs = PrefsService().prefs;
       final pcIp = prefs.getString("PC_IP");
       final pcPort = prefs.getString("PC_PORT");

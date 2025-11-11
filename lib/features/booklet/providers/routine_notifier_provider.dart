@@ -188,7 +188,7 @@ class RoutineService extends _$RoutineService {
     final records = (state.recordBox.values.toList()
       ..sort((a, b) => b.date.compareTo(a.date)))
       .map((item) => item.toJson()).toList();
-    // TODO: 我记得这是之前的妥协做法, 但忘了原因, 此处为什么最外层套个jsonData呢.
+    // TODO: 为使northstar的multipart文件解析方便的权宜之策.
     return {
       "jsonData": jsonEncode({"styles": styles, "records": records}),
     };

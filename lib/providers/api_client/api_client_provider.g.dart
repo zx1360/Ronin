@@ -6,7 +6,7 @@ part of 'api_client_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$fetcherHash() => r'b351e0590270c8f560e4658392091daa7b19bccc';
+String _$fetcherHash() => r'b422c7cf8c84793fb95106cd730031b93533772b';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -204,7 +204,7 @@ class _FetcherProviderElement
       (origin as FetcherProvider).onReceiveProgress;
 }
 
-String _$senderHash() => r'95d5c4e4225269bd2e243fb1b5ede9b4021e9d9b';
+String _$senderHash() => r'f95211c35826786501c04e9cf54c8ebf044c596f';
 
 /// See also [sender].
 @ProviderFor(sender)
@@ -397,12 +397,12 @@ class _SenderProviderElement extends AutoDisposeFutureProviderElement<Response?>
       (origin as SenderProvider).onSendProgress;
 }
 
-String _$apiClientManagerHash() => r'0e1f0c5ae6a7fe2979d56729264c4f5101c41ab2';
+String _$apiClientManagerHash() => r'6e9a8a41ac6fd810a11e9ab381634e2792adf9ef';
 
 /// See also [ApiClientManager].
 @ProviderFor(ApiClientManager)
 final apiClientManagerProvider =
-    AutoDisposeNotifierProvider<ApiClientManager, ApiClient>.internal(
+    NotifierProvider<ApiClientManager, ApiClient>.internal(
   ApiClientManager.new,
   name: r'apiClientManagerProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -412,6 +412,6 @@ final apiClientManagerProvider =
   allTransitiveDependencies: null,
 );
 
-typedef _$ApiClientManager = AutoDisposeNotifier<ApiClient>;
+typedef _$ApiClientManager = Notifier<ApiClient>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
