@@ -41,7 +41,6 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       HiveService.initComic(),
       HiveService.initTuntun(),
     ]);
-    ref.watch(serverConnectorProvider.notifier).getPcAddr();
     if (mounted) {
       context.replaceNamed("home", queryParameters: {"bgIndex": randomIndex});
     }
