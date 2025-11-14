@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/providers/api_client/api_client.dart';
 import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/services/storage/prefs_service.dart';
 
 part 'api_client_provider.g.dart';
 
@@ -13,26 +14,19 @@ part 'api_client_provider.g.dart';
 class ApiClientManager extends _$ApiClientManager {
   @override
   ApiClient build() {
-    final conf = ref.read(serverConnectorProvider);
-    print(conf);
-    return ApiClient(baseUrl: "http://${conf['host_']}:${conf['port_']}");
+    final prefs=PrefsService().prefs;
+    final host=prefs.getString("PC_HOST");
+    final port=prefs.getString("PC_PORT");
+    return ApiClient(baseUrl: "http://$host:$port");
   }
 
   String get address => state.baseUrl;
-  // 切换baseUrl为云服务器地址.
-  void switchToNetServer() {
-    final conf = ref.read(serverConnectorProvider);
-    print("__TONet, http://${conf['host_']}:${conf['port_']}");
-    state = ApiClient(baseUrl: "http://${conf['host_']}:${conf['port_']}");
-    print(state.baseUrl);
-  }
 
-  // 切换baseUrl为PC地址.
-  void switchToPCServer() {
-    final conf = ref.read(serverConnectorProvider);
-    print("__TOPC, http://${conf['host']}:${conf['port']}");
-    state = ApiClient(baseUrl: "http://${conf['host']}:${conf['port']}");
-    print(state.baseUrl);
+  Future<void> setAddr({required String host, required String port}) async {
+    final prefs=PrefsService().prefs;
+    await prefs.setString("PC_HOST", host);
+    await prefs.setString("PC_PORT", port);
+    state = ApiClient(baseUrl: "http://$host:$port");
   }
 }
 
@@ -46,8 +40,6 @@ Future<Response?> fetcher(
   ProgressCallback? onReceiveProgress,
 }) async {
   final apiClient = ref.watch(apiClientManagerProvider);
-  print("__fetcher: ${path}");
-  print(apiClient.baseUrl);
   try {
     final resp = await apiClient.get(
       path,
@@ -58,7 +50,6 @@ Future<Response?> fetcher(
     return resp;
   } catch (e) {
     AppLogger().error("fetch出错: $e");
-    ref.read(apiClientManagerProvider.notifier).switchToNetServer();
     return null;
   }
 }
@@ -85,7 +76,6 @@ Future<Response?> sender(
     return resp;
   } catch (e) {
     AppLogger().error("send出错: $e");
-    ref.read(apiClientManagerProvider.notifier).switchToNetServer();
     return null;
   }
 }
