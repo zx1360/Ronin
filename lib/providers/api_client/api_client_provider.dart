@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/providers/api_client/api_client.dart';
-import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
 
