@@ -105,7 +105,6 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
         ),
       );
     }
-    print(_selectedListId);
     ref
         .read(contentProvider.notifier)
         .switchList(ref.read(listWithIdProvider(_selectedListId)));

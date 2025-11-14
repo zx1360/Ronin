@@ -187,7 +187,6 @@ class EssayService extends _$EssayService {
 
   // 新增标签名
   Future<void> addLabel(String name) async {
-    await deleteZeroLabels();
     final label = Label.newOne(name);
     await state.labelBox.put(label.id, label);
   }

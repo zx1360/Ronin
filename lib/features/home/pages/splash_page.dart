@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
 import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/services/storage/hive_service.dart';

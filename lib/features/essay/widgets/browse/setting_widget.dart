@@ -90,16 +90,16 @@ class SettingWidget extends ConsumerWidget {
             children: [
               ElevatedButton(
                 onPressed: () {
-                  ref.read(essayServiceProvider.notifier).refreshLabel();
-                  ref.read(essayServiceProvider.notifier).refreshYear();
-                  Navigator.pop(context);
+                  final notifier=ref.read(essayServiceProvider.notifier);
+                  notifier.refreshLabel();
+                  notifier.refreshYear();
+                  notifier.deleteZeroLabels();
                 },
                 child: const Text('刷新信息'),
               ),
               ElevatedButton(
                 onPressed: () {
                   ref.read(browseManagerProvider.notifier).clearFilters();
-                  Navigator.pop(context);
                 },
                 child: const Text('重置筛选'),
               ),

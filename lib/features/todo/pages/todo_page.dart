@@ -13,7 +13,6 @@ class TodoPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lists=ref.watch(taskListProvider);
-    lists.map((list)=>print(list.id)).toList();
     final currentList = ref.watch(contentProvider);
 
     return Scaffold(
@@ -25,7 +24,8 @@ class TodoPage extends ConsumerWidget {
             onPressed: () {
               openTaskModal(
                 context,
-                initialListId: ref.read(listWithNameProvider("任务")).id,
+                // initialListId: ref.read(listWithNameProvider("任务")).id,
+                initialListId: ref.read(contentProvider)!.id,
               );
             },
           ),
