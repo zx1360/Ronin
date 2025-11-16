@@ -1,9 +1,9 @@
-// 获取所有图片文件的path
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:torrid/services/io/io_service.dart';
 
+// 获取所有图片文件的path
 // 将目标目录下的所有图片文件按名称升序返回.
 Future<List<String>> loadChapterImages(String comicName) async {
   try {

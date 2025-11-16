@@ -6,21 +6,20 @@ part of 'content_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$contentServiceHash() => r'a7de20749ea4eaa47759ad2a6db9767e67ade86d';
+String _$comicContentHash() => r'9b592efbe22568e0d3ae371a1960389145df19ec';
 
-/// See also [ContentService].
-@ProviderFor(ContentService)
-final contentServiceProvider =
-    AutoDisposeNotifierProvider<ContentService, void>.internal(
-  ContentService.new,
-  name: r'contentServiceProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$contentServiceHash,
+/// See also [ComicContent].
+@ProviderFor(ComicContent)
+final comicContentProvider =
+    AutoDisposeNotifierProvider<ComicContent, Map<String, dynamic>>.internal(
+  ComicContent.new,
+  name: r'comicContentProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$comicContentHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef _$ContentService = AutoDisposeNotifier<void>;
+typedef _$ComicContent = AutoDisposeNotifier<Map<String, dynamic>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

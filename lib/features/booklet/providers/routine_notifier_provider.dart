@@ -46,12 +46,13 @@ class RoutineService extends _$RoutineService {
     required Record record,
   }) async {
     final recordBox = state.recordBox;
-    
-    bool shouldDelete = record.message.isEmpty && 
-      record.taskCompletion.values.every((isCompleted) => !isCompleted);
-    if(shouldDelete){
+
+    bool shouldDelete =
+        record.message.isEmpty &&
+        record.taskCompletion.values.every((isCompleted) => !isCompleted);
+    if (shouldDelete) {
       await recordBox.delete(record.id);
-    }else{
+    } else {
       await recordBox.put(record.id, record);
     }
     await refreshOne(styleId);
@@ -181,13 +182,16 @@ class RoutineService extends _$RoutineService {
 
   // 备份数据, 打包json、获取所有相关的图片的本地路径.
   Map<String, dynamic> packUp() {
-    final styles = (state.styleBox.values.toList()
-      ..sort((a, b) => b.startDate.compareTo(a.startDate)))
-      ..map((item) => item.toJson()).toList();
+    final styles =
+        (state.styleBox.values.toList()
+            ..sort((a, b) => b.startDate.compareTo(a.startDate)))
+          ..map((item) => item.toJson()).toList();
 
-    final records = (state.recordBox.values.toList()
-      ..sort((a, b) => b.date.compareTo(a.date)))
-      .map((item) => item.toJson()).toList();
+    final records =
+        (state.recordBox.values.toList()
+              ..sort((a, b) => b.date.compareTo(a.date)))
+            .map((item) => item.toJson())
+            .toList();
     // TODO: 为使northstar的multipart文件解析方便的权宜之策.
     return {
       "jsonData": jsonEncode({"styles": styles, "records": records}),
