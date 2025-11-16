@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/booklet/models/style.dart';
-import 'package:torrid/features/booklet/providers/state_provider.dart';
+import 'package:torrid/features/booklet/providers/status_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
 
 /// 构建Style下拉选择框（支持滚动，按创建时间倒序）

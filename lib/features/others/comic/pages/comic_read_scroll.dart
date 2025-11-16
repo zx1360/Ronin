@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.dart';
@@ -84,7 +84,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   // 加载所有图片并获取其长宽用作获取当前阅读页数.
   Future<void> _loadChapterImages() async {
     try {
-      final paths = await loadChapterImages(_chapterInfo);
+      final paths = await loadChapterImages(_chapterInfo.dirName);
       setState(() {
         _imagePaths = paths;
         _isLoading = false;
@@ -181,7 +181,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               ref
-                  .read(comicProgressProvider.notifier)
+                  .read(comicPreferenceProvider.notifier)
                   .updateProgress(
                     comicName: widget.comicName,
                     chapterIndex: _currentChapter,
@@ -243,7 +243,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
             if (_showControls)
               TopBar(
                 comicName: widget.comicName,
-                chapterName: _chapterInfo.title,
+                chapterName: _chapterInfo.dirName,
                 currentNum: _currentImageIndex,
                 totalNum: _imagePaths.length,
               ),

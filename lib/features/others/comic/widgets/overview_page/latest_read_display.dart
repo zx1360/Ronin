@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/comic/models/comic_progress.dart';
+import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 
 // TODO: 有问题待修正未加入.
@@ -11,7 +11,7 @@ class LatestReadDisplay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final latestComicName = ref.watch(latestReadComicProvider);
-    final progressNotifier = ref.watch(comicProgressProvider.notifier);
+    final progressNotifier = ref.watch(comicPreferenceProvider.notifier);
 
     return latestComicName.when(
       loading: () => _buildLoadingState(context),
@@ -90,7 +90,7 @@ class LatestReadDisplay extends ConsumerWidget {
   Widget _buildLatestReadCard(
     BuildContext context, {
     required String comicName,
-    required ComicProgress? progress,
+    required ComicPreference? progress,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -99,10 +99,7 @@ class LatestReadDisplay extends ConsumerWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          // color: AppTheme.colors.surface,
           borderRadius: BorderRadius.circular(12),
-          // boxShadow: [AppTheme.shadows.small],
-          // border: Border(left: BorderSide(color: AppTheme.colors.primary, width: 4)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,14 +108,12 @@ class LatestReadDisplay extends ConsumerWidget {
             // 标题
             Text(
               '最近阅读',
-              // style: AppTheme.textStyles.subtitle1.copyWith(color: AppTheme.colors.primary),
             ),
             const SizedBox(height: 8),
 
             // 漫画名
             Text(
               comicName,
-              // style: AppTheme.textStyles.title2,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -129,7 +124,6 @@ class LatestReadDisplay extends ConsumerWidget {
               progress != null
                   ? '进度：第${progress.chapterIndex + 1}章 第${progress.pageIndex + 1}页'
                   : '未记录进度',
-              // style: AppTheme.textStyles.body2.copyWith(color: AppTheme.colors.secondaryText),
             ),
             const SizedBox(height: 12),
 
@@ -139,7 +133,6 @@ class LatestReadDisplay extends ConsumerWidget {
               child: TextButton(
                 onPressed: onTap,
                 style: TextButton.styleFrom(
-                  // foregroundColor: AppTheme.colors.primary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 4,

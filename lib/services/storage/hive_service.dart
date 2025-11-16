@@ -7,6 +7,8 @@ import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
+import 'package:torrid/features/others/comic/models/chapter_info.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/models/task_list.dart';
 import 'package:torrid/shared/models/message.dart';
@@ -14,7 +16,7 @@ import 'package:torrid/shared/models/message.dart';
 import 'package:torrid/features/others/tuntun/models/info.dart';
 import 'package:torrid/features/others/tuntun/models/status.dart';
 // comic漫画
-import 'package:torrid/features/others/comic/models/comic_progress.dart';
+import 'package:torrid/features/others/comic/models/comic_preference.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {
@@ -33,7 +35,9 @@ class HiveService {
   static const String infoBoxName = "mediaInfo";
   static const String statusBoxName = "mediaStatus";
   // comic漫画
-  static const String progressBoxName = "comicProgress";
+  static const String comicPrefBoxName = "comicPreference";
+  static const String comicBoxName = "comicInfo";
+  static const String chapterBoxName = "chapterInfo";
 
   // ----常用Box----
   static Future<void> init() async {
@@ -56,7 +60,9 @@ class HiveService {
     Hive.registerAdapter(InfoAdapter());
     Hive.registerAdapter(StatusAdapter());
     // comic漫画
-    Hive.registerAdapter(ComicProgressAdapter());
+    Hive.registerAdapter(ComicInfoAdapter());
+    Hive.registerAdapter(ChapterInfoAdapter());
+    Hive.registerAdapter(ComicPreferenceAdapter());
 
     // 打开(创建)箱
     await Hive.openBox<Style>(styleBoxName);
@@ -71,21 +77,23 @@ class HiveService {
 
   // ----非常用Box----
   static Future<void> initTuntun() async {
-    if (!Hive.isBoxOpen(infoBoxName)) {
-      await Hive.openBox<Info>(infoBoxName);
-    }
-    if (!Hive.isBoxOpen(statusBoxName)) {
-      await Hive.openBox<Status>(statusBoxName);
-    }
-
-    // TODO: 之前想的是用shared_preferences存储元数据比如漫画信息, 现在感觉用Hive的List<Map>或Map格式也行.
+    // if (!Hive.isBoxOpen(infoBoxName)) {
+    //   await Hive.openBox<Info>(infoBoxName);
+    // }
+    // if (!Hive.isBoxOpen(statusBoxName)) {
+    //   await Hive.openBox<Status>(statusBoxName);
+    // }
   }
 
   static Future<void> initComic() async {
-    if (!Hive.isBoxOpen(progressBoxName)) {
-      await Hive.openBox<ComicProgress>(progressBoxName);
+    if (!Hive.isBoxOpen(comicPrefBoxName)) {
+      await Hive.openBox<ComicPreference>(comicPrefBoxName);
+    }
+    if (!Hive.isBoxOpen(comicBoxName)) {
+      await Hive.openBox<ComicPreference>(comicBoxName);
+    }
+    if (!Hive.isBoxOpen(chapterBoxName)) {
+      await Hive.openBox<ComicPreference>(chapterBoxName);
     }
   }
-
-  //
 }

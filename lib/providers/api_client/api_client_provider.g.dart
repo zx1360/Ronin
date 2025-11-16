@@ -6,7 +6,7 @@ part of 'api_client_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$fetcherHash() => r'b422c7cf8c84793fb95106cd730031b93533772b';
+String _$fetcherHash() => r'b351e0590270c8f560e4658392091daa7b19bccc';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -204,7 +204,7 @@ class _FetcherProviderElement
       (origin as FetcherProvider).onReceiveProgress;
 }
 
-String _$senderHash() => r'f95211c35826786501c04e9cf54c8ebf044c596f';
+String _$senderHash() => r'95d5c4e4225269bd2e243fb1b5ede9b4021e9d9b';
 
 /// See also [sender].
 @ProviderFor(sender)
@@ -397,7 +397,7 @@ class _SenderProviderElement extends AutoDisposeFutureProviderElement<Response?>
       (origin as SenderProvider).onSendProgress;
 }
 
-String _$apiClientManagerHash() => r'6e9a8a41ac6fd810a11e9ab381634e2792adf9ef';
+String _$apiClientManagerHash() => r'f8257c3a9cac885975e56451619b341b82511048';
 
 /// See also [ApiClientManager].
 @ProviderFor(ApiClientManager)
