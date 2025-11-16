@@ -22,6 +22,20 @@ class ComicPreference {
     required this.comicId,
     required this.chapterIndex,
     required this.pageIndex,
-    this.flipReading=true,
+    this.flipReading = true,
   });
+
+  ComicPreference copyWith({
+    String? comicId,
+    int? chapterIndex,
+    int? pageIndex,
+    bool? flipReading,
+  }) {
+    return ComicPreference(
+      comicId: comicId ?? this.comicId,
+      chapterIndex: chapterIndex ?? this.chapterIndex,
+      pageIndex: pageIndex ?? this.pageIndex,
+      flipReading: flipReading ?? this.flipReading,
+    );
+  }
 }

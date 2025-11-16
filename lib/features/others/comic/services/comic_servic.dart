@@ -15,3 +15,5 @@ String getChapterTitle(String chapterName){
   }
   return "";
 }
+
+// TODO: 获取图片宽高.
