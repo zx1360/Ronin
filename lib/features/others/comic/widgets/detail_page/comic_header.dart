@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
 
 class ComicHeader extends StatelessWidget {
   final ComicInfo info;
@@ -17,21 +17,12 @@ class ComicHeader extends StatelessWidget {
           // 封面图
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: info.coverImage != null
-                ? Image.file(
-                    File(info.coverImage!),
+            child: Image.file(
+                    File(info.coverImage),
                     width: 120,
                     height: 180,
                     fit: BoxFit.cover,
                   )
-                : Container(
-                    width: 120,
-                    height: 180,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(Icons.book, color: Colors.grey, size: 40),
-                    ),
-                  ),
           ),
 
           const SizedBox(width: 16),
@@ -42,7 +33,7 @@ class ComicHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  info.name,
+                  info.comicName,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -52,11 +43,7 @@ class ComicHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 _buildInfoRow('章节数', '${info.chapterCount} 章'),
-                _buildInfoRow('总图片数', '${info.totalImages} 张'),
-                _buildInfoRow(
-                  '存储路径',
-                  info.path.split(Platform.pathSeparator).last,
-                ),
+                _buildInfoRow('总图片数', '${info.imageCount} 张'),
               ],
             ),
           ),

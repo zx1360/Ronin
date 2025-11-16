@@ -2,12 +2,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/services/io/io_service.dart';
 
 // 将目标目录下的所有图片文件按名称升序返回.
-Future<List<String>> loadChapterImages(ChapterInfo info) async {
+Future<List<String>> loadChapterImages(String comicName) async {
   try {
-    final chapterDir = Directory(info.path);
+    final externalDir = await IoService.externalStorageDir;
+    final chapterDir = Directory("$externalDir/$comicName");
 
     // 获取所有图片并按名称排序
     final imageFiles = await chapterDir

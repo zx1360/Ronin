@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
 
 class ComicItem extends StatelessWidget {
@@ -26,21 +26,19 @@ class ComicItem extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: comic.coverImage != null
-                  ? Image.file(
-                      File(comic.coverImage!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildPlaceholder();
-                      },
-                    )
-                  : _buildPlaceholder(),
+              child: Image.file(
+                File(comic.coverImage),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildPlaceholder();
+                },
+              ),
             ),
           ),
           const SizedBox(height: 5),
           // 漫画标题（自动换行）
           Text(
-            comic.name,
+            comic.comicName,
             style: const TextStyle(fontSize: 12),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,

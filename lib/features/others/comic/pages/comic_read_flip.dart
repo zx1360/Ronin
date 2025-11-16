@@ -7,7 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
-import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/models/chapter_info.dart';
+import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/io/io_service.dart';
@@ -84,7 +85,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 获取所有图片文件的path
   Future<void> _loadChapterImages() async {
-    final paths = await loadChapterImages(_chapterInfo);
+    final paths = await loadChapterImages(_chapterInfo.dirName);
     setState(() {
       _imagePaths = paths;
       _isLoading = false;
@@ -95,7 +96,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref
-            .read(comicProgressProvider.notifier)
+            .read(comicPreferenceProvider.notifier)
             .updateProgress(
               comicName: widget.comicName, // 漫画名作为唯一key
               chapterIndex: _currentChapter, // 当前章节索引
@@ -182,7 +183,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       final fileExtension = sourceFile.path.split('.').last;
       final fileName =
           "${widget.comicName}_"
-          "第${_chapterInfo.chapterNumber}章_"
+          "第${_chapterInfo.chapterIndex}章_"
           "第${_currentIndex + 1}页."
           "$fileExtension";
       IoService.saveImageToPublic(_imagePaths[_currentIndex], fileName);
@@ -283,7 +284,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                               ),
                             ),
                             Text(
-                              '${_chapterInfo.name} (${_currentIndex + 1}/${_imagePaths.length})',
+                              '${getChapterTitle(_chapterInfo.dirName)} (${_currentIndex + 1}/${_imagePaths.length})',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,

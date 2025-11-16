@@ -7,7 +7,7 @@ import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/shared/utils/util.dart';
 
-part 'state_provider.g.dart';
+part 'status_provider.g.dart';
 
 // 监听Hive数据变化, 对外提供'即拿即用'的响应式数据.
 // StreamProvider实现对于box内容的实时性, 普通Provider对外暴露简单的同步数据.

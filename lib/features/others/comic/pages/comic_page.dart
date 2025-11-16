@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/services/io_comic_service.dart';
 import 'package:torrid/features/others/comic/widgets/overview_page/comic_item.dart';
 import 'package:torrid/services/io/io_service.dart';
@@ -74,26 +74,20 @@ class _ComicPageState extends State<ComicPage> {
 
         // TODO: 查找封面图（第一个找到的图片）
         File? coverImage = await findFirstImage(dir);
-
         // 获取章节数
         final chapters = await countChapters(dir);
-
         // 获取总图片数
         final totalImages = await countTotalImages(dir);
 
         comics.add(
-          ComicInfo(
-            name: comicName,
-            path: dir.path,
-            coverImage: coverImage?.path,
+          ComicInfo.newOne(
+            comicName: comicName,
+            coverImage: coverImage?.path??"",
             chapterCount: chapters,
-            totalImages: totalImages,
+            imageCount: totalImages,
           ),
         );
       }
-
-      // 按名称排序
-      comics.sort((a, b) => a.name.compareTo(b.name));
 
       setState(() {
         _comics = comics;

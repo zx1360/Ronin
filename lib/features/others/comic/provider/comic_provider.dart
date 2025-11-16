@@ -4,13 +4,14 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:torrid/services/storage/hive_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
-import 'package:torrid/features/others/comic/models/comic_progress.dart';
+import 'package:torrid/features/others/comic/models/comic_preference.dart';
 
 // 漫画进度Provider（全局唯一）
-final comicProgressProvider =
-    StateNotifierProvider<ComicProgressNotifier, Map<String, ComicProgress>>(
-      (ref) => ComicProgressNotifier(),
-    );
+final comicPreferenceProvider =
+    StateNotifierProvider<
+      ComicPreferenceNotifier,
+      Map<String, ComicPreference>
+    >((ref) => ComicPreferenceNotifier());
 
 // 最近阅读漫画名Provider
 final latestReadComicProvider = FutureProvider<String?>((ref) async {
@@ -18,11 +19,12 @@ final latestReadComicProvider = FutureProvider<String?>((ref) async {
   return prefs.getString('latest_read_comic');
 });
 
-class ComicProgressNotifier extends StateNotifier<Map<String, ComicProgress>> {
-  late final Box<ComicProgress> _progressBox;
+class ComicPreferenceNotifier
+    extends StateNotifier<Map<String, ComicPreference>> {
+  late final Box<ComicPreference> _progressBox;
 
-  ComicProgressNotifier() : super({}) {
-    _progressBox = Hive.box<ComicProgress>(HiveService.progressBoxName);
+  ComicPreferenceNotifier() : super({}) {
+    _progressBox = Hive.box<ComicPreference>(HiveService.comicPrefBoxName);
     _loadProgressFromHive();
   }
 
@@ -38,8 +40,9 @@ class ComicProgressNotifier extends StateNotifier<Map<String, ComicProgress>> {
     if (chapterIndex < 0 || pageIndex < 0) return;
 
     // 1. 更新内存与Hive进度
-    final newProgress = ComicProgress(
-      name: comicName,
+    // TODO:
+    final newProgress = ComicPreference(
+      comicId: "TODO",
       chapterIndex: chapterIndex,
       pageIndex: pageIndex,
     );
@@ -52,13 +55,13 @@ class ComicProgressNotifier extends StateNotifier<Map<String, ComicProgress>> {
 
   /// 根据漫画名获取阅读进度
   /// 返回null表示无历史进度
-  ComicProgress? getProgress(String comicName) {
+  ComicPreference? getProgress(String comicName) {
     return state[comicName] ?? _progressBox.get(comicName);
   }
 
   /// 从Hive加载历史进度到内存
   void _loadProgressFromHive() {
-    final progressMap = <String, ComicProgress>{};
+    final progressMap = <String, ComicPreference>{};
     try {
       for (final key in _progressBox.keys) {
         if (key is String) {

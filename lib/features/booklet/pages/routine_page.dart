@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/booklet/pages/routine_overview.dart';
 
 import 'package:torrid/features/booklet/providers/routine_notifier_provider.dart';
-import 'package:torrid/features/booklet/providers/state_provider.dart';
+import 'package:torrid/features/booklet/providers/status_provider.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_detail_sheet.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';

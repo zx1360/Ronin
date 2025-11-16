@@ -53,17 +53,6 @@ Future<int> countTotalImages(Directory comicDir) async {
   return count;
 }
 
-// comic_detail.dart
-// 从章节名称中提取章节号
-int extractChapterNumber(String chapterName) {
-  // 确保章节名格式为 "数字_章节名"
-  final parts = chapterName.split('_');
-  if (parts.isNotEmpty) {
-    return int.tryParse(parts[0]) ?? 0;
-  }
-  return 0;
-}
-
 // 计算章节图片数量
 Future<int> countChapterImages(Directory chapterDir) async {
   int count = 0;

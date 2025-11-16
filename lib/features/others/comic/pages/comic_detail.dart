@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:torrid/features/others/comic/models/data_class.dart';
+import 'package:torrid/features/others/comic/models/chapter_info.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/io_comic_service.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/comic_header.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/continue_read_btn.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 
@@ -30,7 +33,8 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
 
   Future<void> _loadChapters() async {
     try {
-      final comicDir = Directory(widget.comicInfo.path);
+      final externalDir=await IoService.externalStorageDir;
+      final comicDir = Directory("$externalDir/${widget.comicInfo.comicName}");
 
       // 列出所有章节文件夹并排序
       final chapterDirs = await comicDir
@@ -42,9 +46,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       chapterDirs.sort((a, b) {
         final aName = (a as Directory).path.split(Platform.pathSeparator).last;
         final bName = (b as Directory).path.split(Platform.pathSeparator).last;
-        return extractChapterNumber(
+        return getChapterIndex(
           aName,
-        ).compareTo(extractChapterNumber(bName));
+        ).compareTo(getChapterIndex(bName));
       });
 
       List<ChapterInfo> chapters = [];
@@ -57,15 +61,8 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         final imageCount = await countChapterImages(chapterDir);
 
         chapters.add(
-          ChapterInfo(
-            title: chapterName.split('_').isEmpty
-                ? ""
-                : chapterName.split('_').last,
-            name: chapterName,
-            path: chapterDir.path,
-            imageCount: imageCount,
-            chapterNumber: extractChapterNumber(chapterName),
-          ),
+          // TODO: image: 参数待办.
+          ChapterInfo.newOne(comicId: widget.comicInfo.id, chapterIndex: getChapterIndex(chapterName), dirName: chapterName, images: [])
         );
       }
 
@@ -86,7 +83,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.comicInfo.name, overflow: TextOverflow.ellipsis),
+        title: Text(widget.comicInfo.comicName, overflow: TextOverflow.ellipsis),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -102,7 +99,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
               child: Column(
                 children: [
                   ContinueReadingButton(
-                    comicName: widget.comicInfo.name,
+                    comicName: widget.comicInfo.comicName,
                     chapters: _chapters,
                   ),
                   Row(
@@ -202,9 +199,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
             context,
             MaterialPageRoute(
               builder: (context) => ComicScrollPage(
-                comicName: widget.comicInfo.name,
+                comicName: widget.comicInfo.comicName,
                 chapters: _chapters,
-                currentChapter: chapter.chapterNumber - 1,
+                currentChapter: chapter.chapterIndex - 1,
               ),
             ),
           );
@@ -213,9 +210,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
             context,
             MaterialPageRoute(
               builder: (context) => ComicReadPage(
-                comicName: widget.comicInfo.name,
+                comicName: widget.comicInfo.comicName,
                 chapters: _chapters,
-                currentChapter: chapter.chapterNumber - 1,
+                currentChapter: chapter.chapterIndex - 1,
               ),
             ),
           );
@@ -225,7 +222,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            chapter.title,
+            getChapterTitle(chapter.dirName),
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -236,7 +233,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                '第 ${chapter.chapterNumber} 章',
+                '第 ${chapter.chapterIndex} 章',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -247,7 +244,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
               ),
               const SizedBox(width: 8),
               Text(
-                '${chapter.imageCount} 页',
+                '${chapter.images.length} 页',
                 style: const TextStyle(fontSize: 10, color: Colors.grey),
               ),
             ],
