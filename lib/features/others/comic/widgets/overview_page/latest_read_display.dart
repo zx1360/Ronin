@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
-import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 
 // TODO: 有问题待修正未加入.
 /// 最近阅读展示组件
@@ -10,28 +9,29 @@ class LatestReadDisplay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final latestComicName = ref.watch(latestReadComicProvider);
-    final progressNotifier = ref.watch(comicPreferenceProvider.notifier);
+    // final latestComicName = ref.watch(latestReadComicProvider);
+    // final progressNotifier = ref.watch(comicPreferenceProvider.notifier);
 
-    return latestComicName.when(
-      loading: () => _buildLoadingState(context),
-      error: (e, _) => _buildErrorState(context),
-      data: (comicName) {
-        if (comicName == null) return _buildEmptyState(context);
+    // return latestComicName.when(
+    //   loading: () => _buildLoadingState(context),
+    //   error: (e, _) => _buildErrorState(context),
+    //   data: (comicName) {
+    //     if (comicName == null) return _buildEmptyState(context);
 
-        // 获取该漫画的进度
-        final progress = progressNotifier.getProgress(comicName);
-        return _buildLatestReadCard(
-          context,
-          comicName: comicName,
-          progress: progress,
-          onTap: () {
-            // TODO: 后续添加跳转逻辑（打开漫画上次阅读记录）
-            // Navigator.push(context, MaterialPageRoute(builder: (_) => ComicScrollPage(...)));
-          },
-        );
-      },
-    );
+    //     // 获取该漫画的进度
+    //     final progress = progressNotifier.getProgress(comicName);
+    //     return _buildLatestReadCard(
+    //       context,
+    //       comicName: comicName,
+    //       progress: progress,
+    //       onTap: () {
+    //         // TODO: 后续添加跳转逻辑（打开漫画上次阅读记录）
+    //         // Navigator.push(context, MaterialPageRoute(builder: (_) => ComicScrollPage(...)));
+    //       },
+    //     );
+    //   },
+    // );
+    return Placeholder();
   }
 
   /// 加载中状态
@@ -40,9 +40,7 @@ class LatestReadDisplay extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
-        // color: AppTheme.colors.surface,
         borderRadius: BorderRadius.circular(12),
-        // boxShadow: [AppTheme.shadows.small],
       ),
       child: const Center(child: CircularProgressIndicator()),
     );
@@ -54,14 +52,11 @@ class LatestReadDisplay extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
-        // color: AppTheme.colors.surface,
         borderRadius: BorderRadius.circular(12),
-        // boxShadow: [AppTheme.shadows.small],
       ),
       child: Center(
         child: Text(
           '获取最近阅读失败',
-          // style: AppTheme.textStyles.body1.copyWith(color: AppTheme.colors.error),
         ),
       ),
     );
@@ -73,14 +68,11 @@ class LatestReadDisplay extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
-        // color: AppTheme.colors.surface,
         borderRadius: BorderRadius.circular(12),
-        // boxShadow: [AppTheme.shadows.small],
       ),
       child: Center(
         child: Text(
           '暂无阅读记录',
-          // style: AppTheme.textStyles.body1.copyWith(color: AppTheme.colors.secondaryText),
         ),
       ),
     );

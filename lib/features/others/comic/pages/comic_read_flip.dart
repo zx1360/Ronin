@@ -12,7 +12,6 @@ import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/io/io_service.dart';
-import 'package:torrid/features/others/comic/provider/comic_provider.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final List<ChapterInfo> chapters;
@@ -95,13 +94,13 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   void updateRecord(index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref
-            .read(comicPreferenceProvider.notifier)
-            .updateProgress(
-              comicName: widget.comicName, // 漫画名作为唯一key
-              chapterIndex: _currentChapter, // 当前章节索引
-              pageIndex: index, // 当前图片索引
-            );
+        // ref
+        //     .read(comicPreferenceProvider.notifier)
+        //     .updateProgress(
+        //       comicName: widget.comicName, // 漫画名作为唯一key
+        //       chapterIndex: _currentChapter, // 当前章节索引
+        //       pageIndex: index, // 当前图片索引
+        //     );
       }
     });
   }
