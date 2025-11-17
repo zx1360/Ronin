@@ -9,6 +9,7 @@ import 'package:torrid/services/io/io_service.dart';
 
 part 'service_provider.g.dart';
 
+// 读取本地目录, 初始化漫画、章节、图片信息.
 @riverpod
 Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref) async {
   final List<ComicInfo> comicInfos = [];

@@ -35,6 +35,7 @@ Future<int> countChapters(Directory comicDir) async {
   }
 }
 
+// TODO: 确定正确吗, 怎么感觉两个一样.
 // 计算总图片数量
 Future<int> countTotalImages(Directory comicDir) async {
   int count = 0;
