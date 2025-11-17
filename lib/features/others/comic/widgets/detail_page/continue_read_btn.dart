@@ -23,7 +23,6 @@ class ContinueReadingButton extends ConsumerWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              // TODO: 两种方式(读取shared_preference).
               builder: (_) => ComicScrollPage(
                 chapters: chapterInfos,
                 currentChapter: targetChapter,

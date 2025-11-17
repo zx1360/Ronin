@@ -82,7 +82,7 @@ final chapterInfoBoxProvider = AutoDisposeProvider<Box<ChapterInfo>>.internal(
 );
 
 typedef ChapterInfoBoxRef = AutoDisposeProviderRef<Box<ChapterInfo>>;
-String _$chapterInfoStreamHash() => r'f66f7c7b48ebd2dd286805bbb3f3df1a8fdc63a8';
+String _$chapterInfoStreamHash() => r'ddc2ca7ba80abee38a6146970e12d1763d3b856d';
 
 /// See also [chapterInfoStream].
 @ProviderFor(chapterInfoStream)

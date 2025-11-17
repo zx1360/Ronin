@@ -15,7 +15,7 @@ class ComicDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chapters = ref.read(
+    final chapters = ref.watch(
       chaptersWithComicIdProvider(comicId: comicInfo.id),
     );
     final comicPref=ref.watch(comicPrefWithComicIdProvider(comicId: comicInfo.id));

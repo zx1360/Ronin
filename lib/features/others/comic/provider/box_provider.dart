@@ -9,15 +9,16 @@ part 'box_provider.g.dart';
 
 // comicPreference  漫画阅读偏好
 @riverpod
-Box<ComicPreference> comicPrefBox(ComicPrefBoxRef ref){
+Box<ComicPreference> comicPrefBox(ComicPrefBoxRef ref) {
   return Hive.box(HiveService.comicPrefBoxName);
 }
+
 @riverpod
-Stream<List<ComicPreference>> comicPrefStream(ComicPrefStreamRef ref)async*{
+Stream<List<ComicPreference>> comicPrefStream(ComicPrefStreamRef ref) async* {
   final box = ref.read(comicPrefBoxProvider);
   yield box.values.toList();
-  await for(final event in box.watch()){
-    if(event.deleted||event.value!=null){
+  await for (final event in box.watch()) {
+    if (event.deleted || event.value != null) {
       yield box.values.toList();
     }
   }
@@ -25,15 +26,16 @@ Stream<List<ComicPreference>> comicPrefStream(ComicPrefStreamRef ref)async*{
 
 // comicInfo  漫画信息
 @riverpod
-Box<ComicInfo> comicInfoBox(ComicInfoBoxRef ref){
+Box<ComicInfo> comicInfoBox(ComicInfoBoxRef ref) {
   return Hive.box(HiveService.comicBoxName);
 }
+
 @riverpod
-Stream<List<ComicInfo>> comicInfoStream(ComicInfoStreamRef ref)async*{
+Stream<List<ComicInfo>> comicInfoStream(ComicInfoStreamRef ref) async* {
   final box = ref.read(comicInfoBoxProvider);
   yield box.values.toList();
-  await for(final event in box.watch()){
-    if(event.deleted||event.value!=null){
+  await for (final event in box.watch()) {
+    if (event.deleted || event.value != null) {
       yield box.values.toList();
     }
   }
@@ -41,15 +43,16 @@ Stream<List<ComicInfo>> comicInfoStream(ComicInfoStreamRef ref)async*{
 
 // chapterInfo  章节信息
 @riverpod
-Box<ChapterInfo> chapterInfoBox(ChapterInfoBoxRef ref){
+Box<ChapterInfo> chapterInfoBox(ChapterInfoBoxRef ref) {
   return Hive.box(HiveService.chapterBoxName);
 }
+
 @riverpod
-Stream<List<ChapterInfo>> chapterInfoStream(ChapterInfoStreamRef ref)async*{
-  final box = ref.read(chapterInfoBoxProvider);
+Stream<List<ChapterInfo>> chapterInfoStream(ChapterInfoStreamRef ref) async* {
+  final box = ref.watch(chapterInfoBoxProvider);
   yield box.values.toList();
-  await for(final event in box.watch()){
-    if(event.deleted||event.value!=null){
+  await for (final event in box.watch()) {
+    if (event.deleted || event.value != null) {
       yield box.values.toList();
     }
   }
