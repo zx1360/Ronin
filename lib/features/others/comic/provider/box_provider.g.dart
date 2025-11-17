@@ -37,7 +37,7 @@ final comicPrefStreamProvider =
 
 typedef ComicPrefStreamRef
     = AutoDisposeStreamProviderRef<List<ComicPreference>>;
-String _$comicInfoBoxHash() => r'22d0eb79417941da4f32401cbb73dee050e7ff30';
+String _$comicInfoBoxHash() => r'9fe4133955c8a2583108903f3af2b3b8335f3ba1';
 
 /// See also [comicInfoBox].
 @ProviderFor(comicInfoBox)

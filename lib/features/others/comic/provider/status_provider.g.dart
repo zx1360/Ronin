@@ -20,7 +20,7 @@ final comicPrefsProvider = AutoDisposeProvider<List<ComicPreference>>.internal(
 );
 
 typedef ComicPrefsRef = AutoDisposeProviderRef<List<ComicPreference>>;
-String _$comicInfosHash() => r'345ef6e1c5575425e2f33079b8b53f44dc29019d';
+String _$comicInfosHash() => r'82eae5d4f68dce760a3bab7fb67555f403732655';
 
 /// See also [comicInfos].
 @ProviderFor(comicInfos)
@@ -49,7 +49,7 @@ final chapterInfosProvider = AutoDisposeProvider<List<ChapterInfo>>.internal(
 
 typedef ChapterInfosRef = AutoDisposeProviderRef<List<ChapterInfo>>;
 String _$comicPrefWithComicIdHash() =>
-    r'c10d31d2db9236970d6c9d0b2aab38e9e2c8823a';
+    r'736cccf8254439070d41a733bd17b0f748209aa3';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -77,7 +77,7 @@ class _SystemHash {
 const comicPrefWithComicIdProvider = ComicPrefWithComicIdFamily();
 
 /// See also [comicPrefWithComicId].
-class ComicPrefWithComicIdFamily extends Family<ComicPreference?> {
+class ComicPrefWithComicIdFamily extends Family<ComicPreference> {
   /// See also [comicPrefWithComicId].
   const ComicPrefWithComicIdFamily();
 
@@ -116,7 +116,7 @@ class ComicPrefWithComicIdFamily extends Family<ComicPreference?> {
 
 /// See also [comicPrefWithComicId].
 class ComicPrefWithComicIdProvider
-    extends AutoDisposeProvider<ComicPreference?> {
+    extends AutoDisposeProvider<ComicPreference> {
   /// See also [comicPrefWithComicId].
   ComicPrefWithComicIdProvider({
     required String comicId,
@@ -151,7 +151,7 @@ class ComicPrefWithComicIdProvider
 
   @override
   Override overrideWith(
-    ComicPreference? Function(ComicPrefWithComicIdRef provider) create,
+    ComicPreference Function(ComicPrefWithComicIdRef provider) create,
   ) {
     return ProviderOverride(
       origin: this,
@@ -168,7 +168,7 @@ class ComicPrefWithComicIdProvider
   }
 
   @override
-  AutoDisposeProviderElement<ComicPreference?> createElement() {
+  AutoDisposeProviderElement<ComicPreference> createElement() {
     return _ComicPrefWithComicIdProviderElement(this);
   }
 
@@ -186,13 +186,13 @@ class ComicPrefWithComicIdProvider
   }
 }
 
-mixin ComicPrefWithComicIdRef on AutoDisposeProviderRef<ComicPreference?> {
+mixin ComicPrefWithComicIdRef on AutoDisposeProviderRef<ComicPreference> {
   /// The parameter `comicId` of this provider.
   String get comicId;
 }
 
 class _ComicPrefWithComicIdProviderElement
-    extends AutoDisposeProviderElement<ComicPreference?>
+    extends AutoDisposeProviderElement<ComicPreference>
     with ComicPrefWithComicIdRef {
   _ComicPrefWithComicIdProviderElement(super.provider);
 

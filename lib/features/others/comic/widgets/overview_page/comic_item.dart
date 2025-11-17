@@ -1,21 +1,22 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
 
-class ComicItem extends StatelessWidget {
-  final ComicInfo comic;
-  const ComicItem({super.key, required this.comic});
+class ComicItem extends ConsumerWidget {
+  final ComicInfo comicInfo;
+  const ComicItem({super.key, required this.comicInfo});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onTap: () {
+      onTap: (){
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ComicDetailPage(comicInfo: comic),
+            builder: (context) => ComicDetailPage(comicInfo: comicInfo),
           ),
         );
       },
@@ -27,7 +28,7 @@ class ComicItem extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.file(
-                File(comic.coverImage),
+                File(comicInfo.coverImage),
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return _buildPlaceholder();
@@ -38,7 +39,7 @@ class ComicItem extends StatelessWidget {
           const SizedBox(height: 5),
           // 漫画标题（自动换行）
           Text(
-            comic.comicName,
+            comicInfo.comicName,
             style: const TextStyle(fontSize: 12),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -46,7 +47,7 @@ class ComicItem extends StatelessWidget {
           ),
           // 章节数
           Text(
-            '${comic.chapterCount} 章',
+            '${comicInfo.chapterCount} 章',
             style: const TextStyle(fontSize: 10, color: Colors.grey),
             textAlign: TextAlign.center,
           ),

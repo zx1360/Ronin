@@ -1,3 +1,4 @@
+import 'package:pinyin/pinyin.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
@@ -17,14 +18,19 @@ List<ComicPreference> comicPrefs(ComicPrefsRef ref) {
   return asyncVal.asData?.value ?? [];
 }
 
-// comicInfo
+// comicInfo  对于含有中文的, 按拼音升序.
 @riverpod
 List<ComicInfo> comicInfos(ComicInfosRef ref) {
   final asyncVal = ref.watch(comicInfoStreamProvider);
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  return asyncVal.asData?.value ?? [];
+  final data = asyncVal.asData?.value ?? [];
+  return data..sort((a,b){
+    final pinyinA = PinyinHelper.getPinyin(a.comicName).toLowerCase();
+    final pinyinB = PinyinHelper.getPinyin(b.comicName).toLowerCase();
+    return pinyinA.compareTo(pinyinB);
+  });
 }
 
 // chapterInfo
@@ -40,15 +46,11 @@ List<ChapterInfo> chapterInfos(ChapterInfosRef ref) {
 // ----带有业务逻辑的数据源----
 // 获取某个漫画的偏好信息
 @riverpod
-ComicPreference? comicPrefWithComicId(
+ComicPreference comicPrefWithComicId(
   ComicPrefWithComicIdRef ref, {
   required String comicId,
 }) {
-  final comicPrefs = ref.read(comicPrefsProvider);
-  final targetComicPrefs = comicPrefs.where(
-    (comicPref) => comicPref.comicId == comicId,
-  );
-  return targetComicPrefs.isEmpty ? null : targetComicPrefs.first;
+  return ref.read(comicPrefBoxProvider).get(comicId)??ComicPreference(comicId: comicId, chapterIndex: 0, pageIndex: 0);
 }
 
 // 获取某个漫画的所有章节信息.

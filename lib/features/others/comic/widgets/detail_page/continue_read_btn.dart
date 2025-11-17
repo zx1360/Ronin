@@ -1,22 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/others/comic/pages/comic_read_scroll.dart';
-import 'package:torrid/features/others/comic/provider/content_provider.dart';
-import 'package:torrid/features/todo/providers/content_provider.dart';
+import 'package:torrid/features/others/comic/provider/status_provider.dart';
 
 /// 漫画详情页 - 继续阅读按钮组件
 class ContinueReadingButton extends ConsumerWidget {
-  const ContinueReadingButton({super.key});
+  final ComicInfo comicInfo;
+  const ContinueReadingButton({super.key, required this.comicInfo});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final content = ref.watch(comicContentProvider);
-    final comicInfo = content['comicInfo'] as ComicInfo;
-    final chapterInfos = content['chapterInfos']as List<ChapterInfo>;
-    final comicPref = content['comicPref']as ComicPreference;
+    final chapterInfos = ref.read(chaptersWithComicIdProvider(comicId: comicInfo.id));
+    final comicPref = ref.watch(comicPrefWithComicIdProvider(comicId: comicInfo.id));
 
     return Container(
       width: double.infinity,

@@ -42,6 +42,8 @@ dependencies:
   # ----更好的显示----
   # 时间格式化
   intl: ^0.20.2
+  # 拼音排序支持
+  pinyin: ^3.3.0
   # markdown渲染
   flutter_markdown_plus: ^1.0.5
   # TODO: 代码高亮.

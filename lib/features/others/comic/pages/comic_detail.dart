@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/comic/models/comic_preference.dart';
-import 'package:torrid/features/others/comic/provider/content_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/comic_header.dart';
@@ -20,9 +18,7 @@ class ComicDetailPage extends ConsumerWidget {
     final chapters = ref.read(
       chaptersWithComicIdProvider(comicId: comicInfo.id),
     );
-    ref
-        .read(comicContentProvider.notifier)
-        .switchContent(comicInfo: comicInfo, chapterInfos: chapters);
+    final comicPref=ref.watch(comicPrefWithComicIdProvider(comicId: comicInfo.id));
     return Scaffold(
       appBar: AppBar(
         title: Text(comicInfo.comicName, overflow: TextOverflow.ellipsis),
@@ -40,7 +36,7 @@ class ComicDetailPage extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  ContinueReadingButton(),
+                  ContinueReadingButton(comicInfo: comicInfo,),
                   RowInfoWidget(comicId: comicInfo.id),
                 ],
               ),
@@ -90,7 +86,7 @@ class ComicDetailPage extends ConsumerWidget {
                     ),
                     // 根据切换按钮的状态, 选择翻页阅读页面或下拉阅读页面.
                     onPressed: () {
-                      final isScrollMode=(ref.read(comicContentProvider)['comicPref']as ComicPreference).flipReading;
+                      final isScrollMode=comicPref.flipReading;
                       if (isScrollMode) {
                         Navigator.push(
                           context,
