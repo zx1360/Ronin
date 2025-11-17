@@ -66,7 +66,6 @@ class ComicService extends _$ComicService {
         chapterCount: chapterCount,
         imageCount: imageCount,
       );
-      // TODO: 后续改为.putAll(), 优化下.
       await state.comicInfoBox.put(comicInfo.id, comicInfo);
 
       // # 获取chapterInfo信息
