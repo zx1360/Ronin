@@ -102,6 +102,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
       _updateImagePositions();
     } catch (e) {
+      // 报错.
       if (mounted) {
         ScaffoldMessenger.of(
           context,

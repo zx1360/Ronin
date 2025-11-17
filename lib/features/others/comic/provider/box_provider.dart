@@ -26,7 +26,7 @@ Stream<List<ComicPreference>> comicPrefStream(ComicPrefStreamRef ref)async*{
 // comicInfo  漫画信息
 @riverpod
 Box<ComicInfo> comicInfoBox(ComicInfoBoxRef ref){
-  return Hive.box(HiveService.chapterBoxName);
+  return Hive.box(HiveService.comicBoxName);
 }
 @riverpod
 Stream<List<ComicInfo>> comicInfoStream(ComicInfoStreamRef ref)async*{

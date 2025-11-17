@@ -90,10 +90,10 @@ class HiveService {
       await Hive.openBox<ComicPreference>(comicPrefBoxName);
     }
     if (!Hive.isBoxOpen(comicBoxName)) {
-      await Hive.openBox<ComicPreference>(comicBoxName);
+      await Hive.openBox<ComicInfo>(comicBoxName);
     }
     if (!Hive.isBoxOpen(chapterBoxName)) {
-      await Hive.openBox<ComicPreference>(chapterBoxName);
+      await Hive.openBox<ChapterInfo>(chapterBoxName);
     }
   }
 }

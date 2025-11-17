@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/comic/models/comic_preference.dart';
-import 'package:torrid/features/others/comic/provider/content_provider.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
+import 'package:torrid/features/others/comic/provider/status_provider.dart';
 
 class RowInfoWidget extends ConsumerWidget {
   final String comicId;
@@ -10,8 +9,7 @@ class RowInfoWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final comicPref =
-        ref.watch(comicContentProvider)['comicPref']as ComicPreference;
+    final comicPref = ref.watch(comicPrefWithComicIdProvider(comicId: comicId));
     final isFlipMode = comicPref.flipReading;
     return Row(
       children: [
