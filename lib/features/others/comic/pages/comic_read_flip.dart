@@ -7,8 +7,10 @@ import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
-import 'package:torrid/features/others/comic/services/comic_servic.dart';
+import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
+import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/io/io_service.dart';
 
@@ -34,7 +36,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   // 是否展示操作栏
   bool _showControls = true;
   // 图片加载相关
-  int _currentIndex = 0;
+  int _currentImageIndex = 0;
   late PageController _pageController;
   // 自动关闭操作栏计时器
   late Timer _controlsTimer;
@@ -54,10 +56,16 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         images = currentChapter!.images;
       });
     });
-    _pageController = PageController(initialPage: _currentIndex);
+    _pageController = PageController(initialPage: _currentImageIndex);
   }
 
   void init() {
+    ref
+        .read(comicServiceProvider.notifier)
+        .modifyComicPref(
+          comicId: widget.comicInfo.id,
+          chapterIndex: chapterIndex,
+        );
     _initializeControlsTimer();
   }
 
@@ -87,28 +95,13 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     _initializeControlsTimer();
   }
 
-  void updateRecord(index) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        // ref
-        //     .read(comicPreferenceProvider.notifier)
-        //     .updateProgress(
-        //       comicName: widget.comicName, // 漫画名作为唯一key
-        //       chapterIndex: currentChapter, // 当前章节索引
-        //       pageIndex: index, // 当前图片索引
-        //     );
-      }
-    });
-  }
-
   // 导航到上一页
   void _prevImage() {
-    if (_currentIndex > 0) {
+    if (_currentImageIndex > 0) {
       _pageController.previousPage(
         duration: switchImgDuration,
         curve: Curves.easeInOut,
       );
-      updateRecord(_currentIndex - 1);
     } else {
       _prevChapter();
     }
@@ -116,12 +109,11 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 导航到下一页
   void _nextImage() {
-    if (_currentIndex < images.length - 1) {
+    if (_currentImageIndex < images.length - 1) {
       _pageController.nextPage(
         duration: switchImgDuration,
         curve: Curves.easeInOut,
       );
-      updateRecord(_currentIndex + 1);
     } else {
       _nextChapter();
     }
@@ -130,44 +122,38 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   // 上一章节
   void _prevChapter() {
     if (chapterIndex > 0) {
+      chapterIndex--;
+      currentChapter = chapterInfos[chapterIndex];
+      _currentImageIndex = 0;
       setState(() {
-        chapterIndex--;
-        currentChapter = chapterInfos[chapterIndex];
-        _currentIndex = 0;
-
-        _controlsTimer.cancel();
-        init();
-        _pageController.jumpToPage(0);
+        images = currentChapter!.images;
       });
+      _controlsTimer.cancel();
+      init();
+      _pageController.jumpToPage(0);
     }
   }
 
   // 下一章节
   void _nextChapter() {
     if (chapterIndex < chapterInfos.length - 1) {
+      chapterIndex++;
+      currentChapter = chapterInfos[chapterIndex];
+      _currentImageIndex = 0;
       setState(() {
-        chapterIndex++;
-        currentChapter = chapterInfos[chapterIndex];
-        _currentIndex = 0;
-
-        _controlsTimer.cancel();
-        init();
-        _pageController.jumpToPage(0);
+        images = currentChapter!.images;
       });
+      _controlsTimer.cancel();
+      init();
+      _pageController.jumpToPage(0);
     }
   }
 
   // TODO: 提取, 分离.
   Future<void> _saveThisImage(BuildContext context) async {
-    // 检查是否有可保存的图片
-    if (images.isEmpty || _currentIndex < 0 || _currentIndex >= images.length) {
-      _showSnackBar(context, "没有可保存的图片");
-      return;
-    }
-
     try {
       // 获取当前图片文件
-      final sourceFile = File(images[_currentIndex]['path']);
+      final sourceFile = File(images[_currentImageIndex]['path']);
       if (!await sourceFile.exists()) {
         _showSnackBar(context, "图片文件不存在");
         return;
@@ -178,9 +164,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       final fileName =
           "${widget.comicInfo.comicName}_"
           "第${currentChapter!.chapterIndex}章_"
-          "第${_currentIndex + 1}页."
+          "第${_currentImageIndex + 1}页."
           "$fileExtension";
-      IoService.saveImageToPublic(images[_currentIndex]['path'], fileName);
+      IoService.saveImageToPublic(images[_currentImageIndex]['path'], fileName);
 
       _showSnackBar(context, "图片已保存: $fileName");
     } catch (e) {
@@ -244,134 +230,30 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
             // 顶部控制栏
             if (_showControls)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top,
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
-                  ),
-                  color: Colors.black54,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // 返回按钮
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-
-                      // 标题信息
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.comicInfo.comicName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Text(
-                              currentChapter == null
-                                  ? ""
-                                  : '${getChapterTitle(currentChapter!.dirName)} (${_currentIndex + 1}/${images.length})',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // 保存当前图片按钮
-                      IconButton(
-                        icon: Icon(Icons.save_alt_rounded, color: Colors.white),
-                        onPressed: () {
-                          _saveThisImage(context);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+              TopControllBar(
+                comicName: widget.comicInfo.comicName,
+                chapterName: currentChapter?.dirName??"",
+                currentNum: _currentImageIndex,
+                totalNum: currentChapter?.images.length??1,
+                saveFunc: () {
+                  _saveThisImage(context);
+                },
               ),
 
-            // TODO: 也许以后重构下, 把更多的状态使用riverpod管理.
             // 底部控制栏 - 只有当图片数量大于1时才显示进度条和翻页按钮
-            if (_showControls && images.length > 1)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).padding.bottom,
-                    left: 12,
-                    right: 12,
-                    top: 16,
-                  ),
-                  color: Colors.black54,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.skip_previous,
-                          color: Colors.white,
-                        ),
-                        onPressed: _prevChapter,
-                        disabledColor: Colors.grey,
-                      ),
-                      // 进度条
-                      Expanded(
-                        child: Slider(
-                          value: _getSliderValue(),
-                          onChanged: (value) {
-                            if (currentChapter!.images.isNotEmpty) {
-                              // 比较来看, 还是直接无动画的跳转比较好.
-                              _pageController.jumpToPage(
-                                (value * (images.length - 1)).round(),
-                              );
-                            }
-                            _resetControlsTimer();
-                          },
-                          activeColor: Colors.white,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next, color: Colors.white),
-                        onPressed: _nextChapter,
-                        disabledColor: Colors.grey,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            // 当只有一张图片时，简化控制栏
-            if (_showControls && images.length == 1)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).padding.bottom,
-                    top: 16,
-                  ),
-                  color: Colors.black54,
-                  child: const Center(
-                    child: Text('1/1', style: TextStyle(color: Colors.white)),
-                  ),
-                ),
+            if (_showControls)
+              BottomControllBar(
+                prevFunc: _prevChapter,
+                nextFunc: _nextChapter,
+                slideVal: _getSliderValue(),
+                onSlideFunc: (value) {
+                  if (currentChapter!.images.isNotEmpty) {
+                    _pageController.jumpToPage(
+                      (value * (images.length - 1)).round(),
+                    );
+                  }
+                  _resetControlsTimer();
+                },
               ),
           ],
         ),
@@ -382,9 +264,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   // 获取滑块进度条.
   double _getSliderValue() {
     if (images.length <= 1) {
-      return 0.0;
+      return -1;
     }
-    return _currentIndex / (images.length - 1);
+    return _currentImageIndex / (images.length - 1);
   }
 
   Widget _buildGallery() {
@@ -407,8 +289,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
       onPageChanged: (index) {
         setState(() {
-          _currentIndex = index;
-          updateRecord(index);
+          _currentImageIndex = index;
         });
       },
       pageController: _pageController,

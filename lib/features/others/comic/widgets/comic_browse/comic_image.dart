@@ -18,7 +18,7 @@ class ComicImage extends StatelessWidget {
           height: 64,
           color: Colors.black12,
           child: const Center(
-            child: Icon(Icons.error, color: Colors.red, size: 40),
+            child: Icon(Icons.error, color: Colors.grey, size: 40),
           ),
         );
       },

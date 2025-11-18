@@ -19,8 +19,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
     setState(() {
       isLoading = true;
     });
-    // await ref.read(comicServiceProvider.notifier).refreshInfo();
-    await Future.delayed(Duration(seconds: 4));
+    await ref.read(comicServiceProvider.notifier).refreshInfo();
     setState(() {
       isLoading = false;
     });
