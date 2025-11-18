@@ -5,6 +5,7 @@ import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/io_comic_service.dart';
+import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/services/io/io_service.dart';
 
 part 'service_provider.g.dart';
@@ -53,12 +54,14 @@ Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref) async {
     for (var dir in chapterDirs) {
       final chapterDir = dir as Directory;
       final chapterName = chapterDir.path.split(Platform.pathSeparator).last;
+      final imagesInChapter = await scanImages(chapterDir);
+      print(imagesInChapter.length);
 
       final chapterInfo = ChapterInfo.newOne(
         comicId: comicInfo.id,
         chapterIndex: getChapterIndex(chapterName),
         dirName: chapterName,
-        images: [],
+        images: imagesInChapter,
       );
       chapterInfos.add(chapterInfo);
     }

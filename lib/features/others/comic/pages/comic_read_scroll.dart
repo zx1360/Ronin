@@ -3,21 +3,20 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
-import 'package:torrid/features/others/comic/services/io_image_service.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 
 // TODO: 有奇怪的表现: 滑动时某些情况下会一下子往顶上滚到最开始.
 class ComicScrollPage extends ConsumerStatefulWidget {
-  final List<ChapterInfo> chapters;
-  final int currentChapter;
-  final String comicName;
+  final ComicInfo comicInfo;
+  final int chapterIndex;
 
   const ComicScrollPage({
     super.key,
-    required this.chapters,
-    required this.currentChapter,
-    required this.comicName,
+    required this.comicInfo,
+    required this.chapterIndex,
   });
 
   @override
@@ -26,14 +25,14 @@ class ComicScrollPage extends ConsumerStatefulWidget {
 
 class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   // comic信息相关
-  late int _currentChapter = widget.currentChapter;
-  late ChapterInfo _chapterInfo = widget.chapters[_currentChapter];
-  List<String> _imagePaths = [];
+  late int chapterIndex = widget.chapterIndex;
+  List<ChapterInfo> chapterInfos = [];
+  ChapterInfo? currentChapter;
+  List<Map<String, dynamic>> images = [];
 
   // 状态量
   int _currentImageIndex = 0;
   bool _showControls = true;
-  bool _isLoading = true;
 
   // 实现交互界面
   final ScrollController _scrollController = ScrollController();
@@ -47,6 +46,16 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   void initState() {
     super.initState();
     init();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      chapterInfos = ref.read(
+        chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
+      );
+      currentChapter = chapterInfos[chapterIndex];
+      setState(() {
+        images = currentChapter!.images;
+        print(images.length);
+      });
+    });
     _scrollController.addListener(_onScroll);
   }
 
@@ -58,7 +67,6 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   }
 
   void init() {
-    _loadChapterImages();
     _initializeControlsTimer();
   }
 
@@ -80,47 +88,12 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     _initializeControlsTimer();
   }
 
-  // 加载所有图片并获取其长宽用作获取当前阅读页数.
-  Future<void> _loadChapterImages() async {
-    try {
-      final paths = await loadChapterImages(_chapterInfo.dirName);
-      setState(() {
-        _imagePaths = paths;
-        _isLoading = false;
-        _imageOffsets.clear();
-        _imageHeights.clear();
-      });
-      // 预计算所有图片尺寸
-      for (int i = 0; i < _imagePaths.length; i++) {
-        final size = await getImageSize(_imagePaths[i]);
-        final screenWidth = MediaQuery.of(context).size.width;
-        final imageHeight = (screenWidth / size.width) * size.height;
-
-        _imageHeights[i] = imageHeight;
-      }
-      setState(() {});
-
-      _updateImagePositions();
-    } catch (e) {
-      // 报错.
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('加载图片失败: ${e.toString()}')));
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   void _prevChapter() {
-    if (_currentChapter > 0) {
+    if (chapterIndex > 0) {
       setState(() {
-        _currentChapter--;
-        _chapterInfo = widget.chapters[_currentChapter];
+        chapterIndex--;
+        currentChapter = chapterInfos[chapterIndex];
         _currentImageIndex = 0;
-        _isLoading = true;
 
         _controlsTimer.cancel();
         init();
@@ -130,12 +103,11 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   }
 
   void _nextChapter() {
-    if (_currentChapter < widget.chapters.length - 1) {
+    if (chapterIndex < chapterInfos.length - 1) {
       setState(() {
-        _currentChapter++;
-        _chapterInfo = widget.chapters[_currentChapter];
+        chapterIndex++;
+        currentChapter = chapterInfos[chapterIndex];
         _currentImageIndex = 0;
-        _isLoading = true;
 
         _controlsTimer.cancel();
         init();
@@ -145,7 +117,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   }
 
   void _onScroll() {
-    if (_isDraggingSlider || _imagePaths.isEmpty) return;
+    if (_isDraggingSlider || images.isEmpty) return;
 
     _updateCurrentImageIndex();
   }
@@ -160,7 +132,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     final currentPosition = _scrollController.position.pixels;
     double cumulativeOffset = 0.0;
 
-    for (int i = 0; i < _imagePaths.length; i++) {
+    for (int i = 0; i < images.length; i++) {
       final imageHeight = _imageHeights[i] ?? 0.0;
 
       // 计算图片可见比例
@@ -184,7 +156,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
               //     .read(comicPreferenceProvider.notifier)
               //     .updateProgress(
               //       comicName: widget.comicName,
-              //       chapterIndex: _currentChapter,
+              //       chapterIndex: chapterIndex,
               //       pageIndex: i,
               //     );
             }
@@ -198,7 +170,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   }
 
   void _jumpToImage(int index) {
-    if (index < 0 || index >= _imagePaths.length || _imageOffsets.isEmpty) {
+    if (index < 0 || index >= images.length || _imageOffsets.isEmpty) {
       return;
     }
 
@@ -242,14 +214,14 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
             // 顶部控制栏
             if (_showControls)
               TopBar(
-                comicName: widget.comicName,
-                chapterName: _chapterInfo.dirName,
+                comicName: widget.comicInfo.comicName,
+                chapterName: currentChapter?.dirName ?? "",
                 currentNum: _currentImageIndex,
-                totalNum: _imagePaths.length,
+                totalNum: images.length,
               ),
 
             // 底部控制栏
-            if (_showControls && _imagePaths.length > 1)
+            if (_showControls && images.length > 1)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -278,8 +250,8 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
                         child: Slider(
                           value: _currentImageIndex.toDouble(),
                           min: 0,
-                          max: (_imagePaths.length - 1).toDouble(),
-                          divisions: _imagePaths.length - 1,
+                          max: (images.length - 1).toDouble(),
+                          divisions: images.length - 1,
                           activeColor: Colors.white,
                           inactiveColor: Colors.white38,
                           onChanged: (value) {
@@ -307,7 +279,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
                   ),
                 ),
               ),
-            if (_showControls && _imagePaths.length == 1)
+            if (_showControls && images.length == 1)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -331,26 +303,17 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
   // 漫画内容部分构建
   Widget _buildScrollGallery() {
-    if (_isLoading) {
+    if (images.isEmpty) {
       return const Center(
         child: CircularProgressIndicator(color: Colors.white),
-      );
-    }
-
-    if (_imagePaths.isEmpty) {
-      return const Center(
-        child: Text(
-          '该章节没有找到图片',
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
       );
     }
     return ListView.builder(
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
-      itemCount: _imagePaths.length,
+      itemCount: images.length,
       itemBuilder: (context, index) {
-        return ComicImage(path: _imagePaths[index]);
+        return ComicImage(path: images[index]['path']);
       },
     );
   }
@@ -361,7 +324,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     double totalHeight = 0.0;
 
     // 先计算所有图片高度总和
-    for (int i = 0; i < _imagePaths.length; i++) {
+    for (int i = 0; i < images.length; i++) {
       totalHeight += _imageHeights[i] ?? 0.0;
     }
 
@@ -380,7 +343,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
     // 重新计算偏移量
     offset = 0.0;
-    for (int i = 0; i < _imagePaths.length; i++) {
+    for (int i = 0; i < images.length; i++) {
       _imageOffsets[i] = offset;
       offset += _imageHeights[i] ?? 0.0;
     }

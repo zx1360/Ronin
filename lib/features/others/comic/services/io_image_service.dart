@@ -1,54 +1,46 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
-import 'package:torrid/services/io/io_service.dart';
+import 'package:image_size_getter/file_input.dart';
+import 'package:image_size_getter/image_size_getter.dart';
 
-// 获取所有图片文件的path
-// 将目标目录下的所有图片文件按名称升序返回.
-Future<List<String>> loadChapterImages(String comicName) async {
-  try {
-    final externalDir = await IoService.externalStorageDir;
-    final chapterDir = Directory("$externalDir/$comicName");
-
-    // 获取所有图片并按名称排序
-    final imageFiles = await chapterDir
-        .list()
-        .where(
-          (entity) =>
-              entity is File &&
-              [
-                'jpg',
-                'jpeg',
-                'png',
-                'gif',
-              ].contains((entity).path.split('.').last.toLowerCase()),
-        )
-        .toList();
-
-    // 按文件名排序（假设文件名是数字）
-    imageFiles.sort((a, b) {
-      final aName = (a as File).path
-          .split(Platform.pathSeparator)
-          .last
-          .split('.')
-          .first;
-      final bName = (b as File).path
-          .split(Platform.pathSeparator)
-          .last
-          .split('.')
-          .first;
-      return int.tryParse(aName)?.compareTo(int.tryParse(bName) ?? 0) ?? 0;
-    });
-
-    return imageFiles.map((file) => (file as File).path).toList();
-  } catch (e) {
-    throw Exception('加载图片失败: ${e.toString()}');
+// 按序获取该目录下所有图片路径和宽高信息.
+Future<List<Map<String, dynamic>>> scanImages(Directory chapterDir) async {
+  final imageFiles = <(int index, File file)>[];
+  // 1. 遍历目录下一层文件，筛选图片并解析序号
+  await for (final entity in chapterDir.list(followLinks: false)) {
+    if (entity is File) {
+      final name = entity.path.split(Platform.pathSeparator).last;
+      final match = RegExp(
+        r'^(\d+)\.(jpg|jpeg|png|gif|bmp|webp)$',
+        caseSensitive: false,
+      ).firstMatch(name);
+      if (match != null) {
+        imageFiles.add((int.parse(match.group(1)!), entity));
+      }
+    }
   }
+
+  // 2. 按序号升序排序
+  imageFiles.sort((a, b) => a.$1.compareTo(b.$1));
+
+  // 3. 并行获取图片宽高（提升性能）
+  final List<Map<String, dynamic>> result = [];
+    for (final item in imageFiles) {
+      final (_, file) = item;
+      try {
+        // 使用 image_size_getter 高效获取尺寸
+        // 它会自动识别文件类型并只读取头部信息
+        final size = ImageSizeGetter.getSizeResult(FileInput(file)).size;
+        result.add({
+          'path': file.path,
+          'width': size.width,
+          'height': size.height,
+        });
+      } catch (e) {
+        // 如果文件损坏或格式不支持，会抛出异常，这里选择忽略
+        // print('Failed to get size for ${file.path}: $e');
+      }
+    }
+
+    return result;
 }
-
-// 获取图片尺寸
-  Future<Size> getImageSize(String path) async {
-    final bytes = await File(path).readAsBytes();
-    final decodedImage = await decodeImageFromList(bytes);
-    return Size(decodedImage.width.toDouble(), decodedImage.height.toDouble());
-  }
