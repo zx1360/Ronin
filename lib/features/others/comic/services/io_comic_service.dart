@@ -35,7 +35,7 @@ Future<int> countChapters(Directory comicDir) async {
   }
 }
 
-// TODO: 确定正确吗, 怎么感觉两个一样.
+// TODO: 现在是先后两次获取, 之后用一个, comic级的数量用chapter的和.
 // 计算总图片数量
 Future<int> countTotalImages(Directory comicDir) async {
   int count = 0;

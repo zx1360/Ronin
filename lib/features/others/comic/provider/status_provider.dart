@@ -26,7 +26,7 @@ List<ComicInfo> comicInfos(ComicInfosRef ref) {
     throw asyncVal.error!;
   }
   final data = asyncVal.asData?.value ?? [];
-  return data..sort((a,b){
+  return data..sort((a, b) {
     final pinyinA = PinyinHelper.getPinyin(a.comicName).toLowerCase();
     final pinyinB = PinyinHelper.getPinyin(b.comicName).toLowerCase();
     return pinyinA.compareTo(pinyinB);
@@ -50,7 +50,8 @@ ComicPreference comicPrefWithComicId(
   ComicPrefWithComicIdRef ref, {
   required String comicId,
 }) {
-  return ref.read(comicPrefBoxProvider).get(comicId)??ComicPreference(comicId: comicId, chapterIndex: 0, pageIndex: 0);
+  return ref.read(comicPrefBoxProvider).get(comicId) ??
+      ComicPreference(comicId: comicId, chapterIndex: 0, pageIndex: 0);
 }
 
 // 获取某个漫画的所有章节信息.

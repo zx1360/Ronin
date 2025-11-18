@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -8,21 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
-import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/io/io_service.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
-  final List<ChapterInfo> chapters;
-  final int currentChapter;
-  final String comicName;
+  final ComicInfo comicInfo;
+  final int chapterIndex;
 
   const ComicReadPage({
     super.key,
-    required this.chapters,
-    required this.currentChapter,
-    required this.comicName,
+    required this.comicInfo,
+    required this.chapterIndex,
   });
 
   @override
@@ -30,13 +27,13 @@ class ComicReadPage extends ConsumerStatefulWidget {
 }
 
 class _ComicReadPageState extends ConsumerState<ComicReadPage> {
-  late int _currentChapter = widget.currentChapter;
-  late ChapterInfo _chapterInfo = widget.chapters[_currentChapter];
+  late List<ChapterInfo> chapterInfos;
+  late int chapterIndex = widget.chapterIndex;
+  ChapterInfo? currentChapter;
+  List<Map<String, dynamic>> images = [];
   // 是否展示操作栏
   bool _showControls = true;
   // 图片加载相关
-  bool _isLoading = true;
-  List<String> _imagePaths = [];
   int _currentIndex = 0;
   late PageController _pageController;
   // 自动关闭操作栏计时器
@@ -48,7 +45,20 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   void initState() {
     super.initState();
     init();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      chapterInfos = ref.read(
+        chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
+      );
+      currentChapter = chapterInfos[chapterIndex];
+      setState(() {
+        images = currentChapter!.images;
+      });
+    });
     _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  void init() {
+    _initializeControlsTimer();
   }
 
   @override
@@ -57,11 +67,6 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     // 退出时恢复系统UI
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
-  }
-
-  void init() {
-    _loadChapterImages();
-    _initializeControlsTimer();
   }
 
   void _initializeControlsTimer() {
@@ -82,15 +87,6 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     _initializeControlsTimer();
   }
 
-  // 获取所有图片文件的path
-  Future<void> _loadChapterImages() async {
-    final paths = await loadChapterImages(_chapterInfo.dirName);
-    setState(() {
-      _imagePaths = paths;
-      _isLoading = false;
-    });
-  }
-
   void updateRecord(index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -98,7 +94,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         //     .read(comicPreferenceProvider.notifier)
         //     .updateProgress(
         //       comicName: widget.comicName, // 漫画名作为唯一key
-        //       chapterIndex: _currentChapter, // 当前章节索引
+        //       chapterIndex: currentChapter, // 当前章节索引
         //       pageIndex: index, // 当前图片索引
         //     );
       }
@@ -120,7 +116,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 导航到下一页
   void _nextImage() {
-    if (_currentIndex < _imagePaths.length - 1) {
+    if (_currentIndex < images.length - 1) {
       _pageController.nextPage(
         duration: switchImgDuration,
         curve: Curves.easeInOut,
@@ -133,10 +129,10 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 上一章节
   void _prevChapter() {
-    if (_currentChapter > 0) {
+    if (chapterIndex > 0) {
       setState(() {
-        _currentChapter--;
-        _chapterInfo = widget.chapters[_currentChapter];
+        chapterIndex--;
+        currentChapter = chapterInfos[chapterIndex];
         _currentIndex = 0;
 
         _controlsTimer.cancel();
@@ -148,10 +144,10 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 下一章节
   void _nextChapter() {
-    if (_currentChapter < widget.chapters.length - 1) {
+    if (chapterIndex < chapterInfos.length - 1) {
       setState(() {
-        _currentChapter++;
-        _chapterInfo = widget.chapters[_currentChapter];
+        chapterIndex++;
+        currentChapter = chapterInfos[chapterIndex];
         _currentIndex = 0;
 
         _controlsTimer.cancel();
@@ -161,18 +157,17 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     }
   }
 
+  // TODO: 提取, 分离.
   Future<void> _saveThisImage(BuildContext context) async {
     // 检查是否有可保存的图片
-    if (_imagePaths.isEmpty ||
-        _currentIndex < 0 ||
-        _currentIndex >= _imagePaths.length) {
+    if (images.isEmpty || _currentIndex < 0 || _currentIndex >= images.length) {
       _showSnackBar(context, "没有可保存的图片");
       return;
     }
 
     try {
       // 获取当前图片文件
-      final sourceFile = File(_imagePaths[_currentIndex]);
+      final sourceFile = File(images[_currentIndex]['path']);
       if (!await sourceFile.exists()) {
         _showSnackBar(context, "图片文件不存在");
         return;
@@ -181,11 +176,11 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       // 生成保存的文件名（漫画名_章节号_页码.扩展名）
       final fileExtension = sourceFile.path.split('.').last;
       final fileName =
-          "${widget.comicName}_"
-          "第${_chapterInfo.chapterIndex}章_"
+          "${widget.comicInfo.comicName}_"
+          "第${currentChapter!.chapterIndex}章_"
           "第${_currentIndex + 1}页."
           "$fileExtension";
-      IoService.saveImageToPublic(_imagePaths[_currentIndex], fileName);
+      IoService.saveImageToPublic(images[_currentIndex]['path'], fileName);
 
       _showSnackBar(context, "图片已保存: $fileName");
     } catch (e) {
@@ -206,6 +201,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: () {
           if (_showControls) {
@@ -275,7 +271,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              widget.comicName,
+                              widget.comicInfo.comicName,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
@@ -283,7 +279,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                               ),
                             ),
                             Text(
-                              '${getChapterTitle(_chapterInfo.dirName)} (${_currentIndex + 1}/${_imagePaths.length})',
+                              currentChapter == null
+                                  ? ""
+                                  : '${getChapterTitle(currentChapter!.dirName)} (${_currentIndex + 1}/${images.length})',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -308,7 +306,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
             // TODO: 也许以后重构下, 把更多的状态使用riverpod管理.
             // 底部控制栏 - 只有当图片数量大于1时才显示进度条和翻页按钮
-            if (_showControls && _imagePaths.length > 1)
+            if (_showControls && images.length > 1)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -338,10 +336,10 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                         child: Slider(
                           value: _getSliderValue(),
                           onChanged: (value) {
-                            if (_imagePaths.isNotEmpty) {
+                            if (currentChapter!.images.isNotEmpty) {
                               // 比较来看, 还是直接无动画的跳转比较好.
                               _pageController.jumpToPage(
-                                (value * (_imagePaths.length - 1)).round(),
+                                (value * (images.length - 1)).round(),
                               );
                             }
                             _resetControlsTimer();
@@ -359,7 +357,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                 ),
               ),
             // 当只有一张图片时，简化控制栏
-            if (_showControls && _imagePaths.length == 1)
+            if (_showControls && images.length == 1)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -383,26 +381,23 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 获取滑块进度条.
   double _getSliderValue() {
-    if (_imagePaths.length <= 1) {
+    if (images.length <= 1) {
       return 0.0;
     }
-    return _currentIndex / (_imagePaths.length - 1);
+    return _currentIndex / (images.length - 1);
   }
 
   Widget _buildGallery() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_imagePaths.isEmpty) {
+    if (images.isEmpty) {
       return const Center(child: Text('该章节没有找到图片'));
     }
 
+    // TODO: 图片预加载前后一张图片防止短暂空白.
     return PhotoViewGallery.builder(
-      itemCount: _imagePaths.length,
+      itemCount: images.length,
       builder: (context, index) {
         return PhotoViewGalleryPageOptions(
-          imageProvider: FileImage(File(_imagePaths[index])),
+          imageProvider: FileImage(File(images[index]['path'])),
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 2,
         );
@@ -410,8 +405,6 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       scrollPhysics: const ClampingScrollPhysics(),
       backgroundDecoration: const BoxDecoration(color: Colors.black),
 
-      // scrollDirection: Axis.vertical,
-      // loadingBuilder:(context, event) => Center() ,
       onPageChanged: (index) {
         setState(() {
           _currentIndex = index;

@@ -5,11 +5,29 @@ import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/widgets/overview_page/comic_item.dart';
 
-class ComicPage extends ConsumerWidget {
+class ComicPage extends ConsumerStatefulWidget {
   const ComicPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ComicPage> createState() => _ComicPageState();
+}
+
+class _ComicPageState extends ConsumerState<ComicPage> {
+  bool isLoading = false;
+
+  Future<void> initInfos() async {
+    setState(() {
+      isLoading = true;
+    });
+    // await ref.read(comicServiceProvider.notifier).refreshInfo();
+    await Future.delayed(Duration(seconds: 4));
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final comicInfos = ref.watch(comicInfosProvider);
     return Scaffold(
       appBar: AppBar(
@@ -17,12 +35,14 @@ class ComicPage extends ConsumerWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: ref.read(comicServiceProvider.notifier).refreshInfo,
+            onPressed: initInfos,
             icon: Icon(Icons.refresh),
           ),
         ],
       ),
-      body: _buildBody(comicInfos),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : _buildBody(comicInfos),
     );
   }
 

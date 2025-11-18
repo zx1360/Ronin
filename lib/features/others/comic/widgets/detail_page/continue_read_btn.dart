@@ -11,7 +11,6 @@ class ContinueReadingButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chapterInfos = ref.read(chaptersWithComicIdProvider(comicId: comicInfo.id));
     final comicPref = ref.watch(comicPrefWithComicIdProvider(comicId: comicInfo.id));
 
     return Container(
@@ -24,9 +23,8 @@ class ContinueReadingButton extends ConsumerWidget {
             context,
             MaterialPageRoute(
               builder: (_) => ComicScrollPage(
-                chapters: chapterInfos,
-                currentChapter: targetChapter,
-                comicName: comicInfo.comicName,
+                comicInfo: comicInfo,
+                chapterIndex: targetChapter,
               ),
             ),
           );

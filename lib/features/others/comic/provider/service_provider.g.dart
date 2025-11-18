@@ -6,7 +6,7 @@ part of 'service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$initialInfosHash() => r'88b6c02967b368f0595d038fc3c308e8c6a8a7d8';
+String _$initialInfosHash() => r'096c7a9c4982d89d2686704ea58f473c6770e995';
 
 /// See also [initialInfos].
 @ProviderFor(initialInfos)
