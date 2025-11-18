@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/pages/comic_read_flip.dart';
 import 'package:torrid/features/others/comic/pages/comic_read_scroll.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 
@@ -11,7 +12,9 @@ class ContinueReadingButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final comicPref = ref.watch(comicPrefWithComicIdProvider(comicId: comicInfo.id));
+    final comicPref = ref.watch(
+      comicPrefWithComicIdProvider(comicId: comicInfo.id),
+    );
 
     return Container(
       width: double.infinity,
@@ -22,10 +25,15 @@ class ContinueReadingButton extends ConsumerWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ComicScrollPage(
-                comicInfo: comicInfo,
-                chapterIndex: targetChapter,
-              ),
+              builder: (context) => comicPref.flipReading
+                  ? ComicReadPage(
+                      comicInfo: comicInfo,
+                      chapterIndex: targetChapter,
+                    )
+                  : ComicScrollPage(
+                      comicInfo: comicInfo,
+                      chapterIndex: targetChapter,
+                    ),
             ),
           );
         },
@@ -33,17 +41,18 @@ class ContinueReadingButton extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             // 按钮文本
             Text(comicPref.chapterIndex != 0 ? '继续阅读' : '开始阅读'),
-            const SizedBox(height: 4),
+            const SizedBox(width: 8),
 
             // 进度提示（有进度时展示）
             if (comicPref.chapterIndex != 0)
               Text(
-                '第${comicPref.chapterIndex + 1}章 第${comicPref.pageIndex + 1}页',
+                style: TextStyle(fontSize: 24, color: Colors.grey),
+                '第${comicPref.chapterIndex + 1}章',
               ),
           ],
         ),
