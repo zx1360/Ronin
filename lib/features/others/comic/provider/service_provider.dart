@@ -3,16 +3,19 @@ import 'dart:io';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/io_comic_service.dart';
 import 'package:torrid/features/others/comic/services/io_image_service.dart';
+import 'package:torrid/providers/progress/progress.dart';
+import 'package:torrid/providers/progress/progress_provider.dart';
 import 'package:torrid/services/io/io_service.dart';
 
 part 'service_provider.g.dart';
 
 // 读取本地目录, 初始化漫画、章节、图片信息.
 @riverpod
-Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref) async {
+Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref, {required bool onlyNew}) async {
   final List<ComicInfo> comicInfos = [];
   final List<ChapterInfo> chapterInfos = [];
   // # 获取comicInfo信息
@@ -23,10 +26,34 @@ Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref) async {
       .list()
       .where((entity) => entity is Directory)
       .toList();
+  // 是否只作增量刷新 (allIncluded)
+  final already_included_dirs = [];
+  if (onlyNew){
+    already_included_dirs.addAll(ref.read(comicInfosProvider).map((info)=>info.comicName).toList());
+  }
 
+  // 进度条provider方法.
+  final progressNotifier = ref.read(progressServiceProvider.notifier);
+  progressNotifier.setProgress(
+    Progress(
+      current: 0,
+      total: comicsFolders.length,
+      currentMessage: "",
+      message: "正在初始化所有漫画文件元数据...",
+    ),
+  );
+  int counter = 0;
   for (var folder in comicsFolders) {
     final comicDir = folder as Directory;
     final comicName = comicDir.path.split(Platform.pathSeparator).last;
+    if(onlyNew && already_included_dirs.contains(comicName)){
+      continue;
+    }
+    progressNotifier.increaseProgress(
+      current: counter,
+      currentMessage: comicName,
+    );
+    counter++;
 
     File? coverImage = await findFirstImage(comicDir);
     final chapterCount = await countChapters(comicDir);
@@ -55,7 +82,6 @@ Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref) async {
       final chapterDir = dir as Directory;
       final chapterName = chapterDir.path.split(Platform.pathSeparator).last;
       final imagesInChapter = await scanImages(chapterDir);
-      print(imagesInChapter.length);
 
       final chapterInfo = ChapterInfo.newOne(
         comicId: comicInfo.id,

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
@@ -10,7 +9,6 @@ import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dar
 import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 
-// TODO: 有奇怪的表现: 滑动时某些情况下会一下子往顶上滚到最开始.
 class ComicScrollPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
   final int chapterIndex;

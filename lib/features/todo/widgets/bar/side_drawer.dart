@@ -131,7 +131,7 @@ class ListItem extends ConsumerWidget {
                       },
                     );
                     if (list.id == selectedList?.id) {
-                      ref.read(contentProvider.notifier).initDefault();
+                      ref.read(contentProvider.notifier).switchToDefault();
                     }
                   },
                   icon: Icons.delete,

@@ -57,12 +57,14 @@ class ComicService extends _$ComicService {
   }
 
   // ----初始化漫画元数据信息----
-  Future<void> refreshInfo() async {
+  Future<void> refreshInfo(bool onlyNew) async {
     // # 获取comicInfo信息
-    final infos = await ref.read(initialInfosProvider.future);
+    final infos = await ref.read(initialInfosProvider(onlyNew: onlyNew).future);
     // 写入
-    await state.comicInfoBox.clear();
-    await state.chapterInfoBox.clear();
+    if (!onlyNew) {
+      await state.comicInfoBox.clear();
+      await state.chapterInfoBox.clear();
+    }
     await state.comicInfoBox.putAll(infos['comicInfos']);
     await state.chapterInfoBox.putAll(infos['chapterInfos']);
   }

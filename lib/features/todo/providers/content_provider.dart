@@ -31,4 +31,15 @@ class Content extends _$Content {
   void switchList(TaskList list) {
     state = list;
   }
+
+  void switchToDefault() {
+    switchList(
+      ref
+          .read(todoServiceProvider)
+          .taskListBox
+          .values
+          .where((l) => l.name == '任务')
+          .first,
+    );
+  }
 }
