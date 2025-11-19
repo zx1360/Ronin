@@ -1,9 +1,13 @@
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/widgets/overview_page/comic_item.dart';
+import 'package:torrid/shared/modals/choice_modal.dart';
+import 'package:torrid/shared/modals/dialog_option.dart';
+import 'package:torrid/shared/widgets/progress_indicator.dart';
 
 class ComicPage extends ConsumerStatefulWidget {
   const ComicPage({super.key});
@@ -16,10 +20,34 @@ class _ComicPageState extends ConsumerState<ComicPage> {
   bool isLoading = false;
 
   Future<void> initInfos() async {
+    final option = await showOptionsDialog(
+      context: context,
+      title: "初始化漫画文件元数据.",
+      content: "初始化方式:",
+      options: [
+        DialogOption(
+          text: "全部重新初始化",
+          textColor: Colors.red[300],
+          onPressed: () async {
+            await ref.read(comicServiceProvider.notifier).refreshInfo(false);
+          },
+        ),
+        DialogOption(
+          text: "仅增量更新",
+          onPressed: () async {
+            await ref.read(comicServiceProvider.notifier).refreshInfo(true);
+          },
+        ),
+      ],
+    );
+    if (option == null) {
+      return;
+    }
+
     setState(() {
       isLoading = true;
     });
-    await ref.read(comicServiceProvider.notifier).refreshInfo();
+    await option.onPressed();
     setState(() {
       isLoading = false;
     });
@@ -32,16 +60,9 @@ class _ComicPageState extends ConsumerState<ComicPage> {
       appBar: AppBar(
         title: const Text('本地漫画'),
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: initInfos,
-            icon: Icon(Icons.refresh),
-          ),
-        ],
+        actions: [IconButton(onPressed: initInfos, icon: Icon(Icons.refresh))],
       ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : _buildBody(comicInfos),
+      body: isLoading ? ProgressIndicatorWidget() : _buildBody(comicInfos),
     );
   }
 
@@ -55,8 +76,6 @@ class _ComicPageState extends ConsumerState<ComicPage> {
     // 网格布局展示漫画，使用等高等宽设置
     return Column(
       children: [
-        // TODO: 显示最近阅读的漫画, 点击直接跳转.
-        // const LatestReadDisplay(),
         Expanded(
           child: GridView.builder(
             padding: const EdgeInsets.all(10),

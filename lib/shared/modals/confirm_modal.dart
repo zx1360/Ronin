@@ -11,22 +11,22 @@ Future<bool?> showConfirmDialog({
   final confirm = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      backgroundColor: AppTheme.surfaceWarm, // 复用新增的温暖米色背景
+      backgroundColor: AppTheme.surfaceWarm,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: AppTheme.outline.withOpacity(0.3)),
+        side: BorderSide(color: AppTheme.outline.withAlpha(76)),
       ),
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppTheme.primary, // 标题色与原noteTitle一致
+              color: AppTheme.primary,
               fontWeight: FontWeight.bold,
             ),
       ),
       content: Text(
         content,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.onSurface, // 内容色与原noteText一致
+              color: AppTheme.onSurface,
             ),
       ),
       actions: [
@@ -38,7 +38,7 @@ Future<bool?> showConfirmDialog({
                   const EdgeInsets.symmetric(horizontal: 16),
                 ),
               ),
-          child: Text("取消", style: TextStyle(color: AppTheme.onSurfaceVariant)), // 取消按钮色复刻原#8B7355
+          child: Text("取消", style: TextStyle(color: AppTheme.onSurfaceVariant)),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
@@ -48,7 +48,7 @@ Future<bool?> showConfirmDialog({
                   const EdgeInsets.symmetric(horizontal: 16),
                 ),
               ),
-          child: Text("确定", style: TextStyle(color: AppTheme.errorVivid)), // 确定按钮色复刻原#D32F2F
+          child: Text("确定", style: TextStyle(color: AppTheme.errorVivid)),
         ),
       ],
     ),
