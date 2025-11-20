@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
 
@@ -9,6 +10,7 @@ import 'package:torrid/shared/utils/util.dart';
 
 class ComicSaverService {
   static String publicPath = '/storage/emulated/0/Pictures/torrid';
+
   // # 翻页漫画的某页保存到外部空间
   static Future<bool> saveFlipImageToPublic(
     String privateImagePath,
@@ -19,7 +21,7 @@ class ComicSaverService {
       File sourceFile = File(privateImagePath);
 
       // 获取外部公共图片目录
-      Directory publicDir = Directory(publicPath);
+      Directory? publicDir = Directory(publicPath);
 
       if (!await publicDir.exists()) {
         try {
@@ -59,14 +61,12 @@ class ComicSaverService {
     }
   }
 
-  // # 下拉漫画的某些图片合并并保存到外部空间.
-  static Future<bool> saveScrollImagesToPublic(
-    List<String> imagePaths,
-    String filename,
-  ) async {
+  // # 图片合并的耗时操作
+  static Future<bool> _processAndSaveImages(Map<String, dynamic> params) async {
+    final imagePaths = params['imagePaths'];
+    final filename = params['filename'];
     // 获取外部公共图片目录
-    Directory publicDir = Directory(publicPath);
-
+    Directory? publicDir = Directory(publicPath);
     if (!await publicDir.exists()) {
       try {
         await publicDir.create(recursive: true);
@@ -102,5 +102,28 @@ class ComicSaverService {
     File outputFile = File('$publicPath/$filename.png');
     await outputFile.writeAsBytes(img.encodePng(mergedImage));
     return true;
+  }
+
+  // 下拉漫画合并保存（对外暴露的方法）
+  static Future<bool> saveScrollImagesToPublic(
+    List<String> imagePaths,
+    String filename,
+  ) async {
+    if (imagePaths.isEmpty || filename.isEmpty) return false;
+
+    try {
+      // 1. 包装需要传递给 compute 的参数（只能传1个参数，用Map包装多个值）
+      final params = {
+        'imagePaths': imagePaths,
+        'filename': filename,
+      };
+
+      // 2. 使用 compute 执行耗时操作（回调函数必须是顶级函数）
+      bool result = await compute(_processAndSaveImages, params);
+      return result;
+    } catch (e) {
+      AppLogger().error('保存图片失败: $e');
+      return false;
+    }
   }
 }
