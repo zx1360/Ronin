@@ -6,7 +6,7 @@ part of 'service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$initialInfosHash() => r'97b2fc542aae69bed26740b0d4680c48c89f876e';
+String _$initialInfosHash() => r'8aa554b3136fe1bfe513aa9a8782a018886426ef';
 
 /// Copied from Dart SDK
 class _SystemHash {

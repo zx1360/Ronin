@@ -23,7 +23,7 @@ Future<List<Map<String, dynamic>>> scanImages(Directory chapterDir) async {
   // 2. 按序号升序排序
   imageFiles.sort((a, b) => a.$1.compareTo(b.$1));
 
-  // 3. 并行获取图片宽高（提升性能）
+  // 3. 获取图片宽高
   final List<Map<String, dynamic>> result = [];
     for (final item in imageFiles) {
       final (_, file) = item;
