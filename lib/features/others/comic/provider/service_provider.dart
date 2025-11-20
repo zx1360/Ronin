@@ -17,7 +17,7 @@ part 'service_provider.g.dart';
 @riverpod
 Future<Map<String, dynamic>> initialInfos(
   InitialInfosRef ref, {
-  required bool onlyNew,
+  required bool onlyChanged,
 }) async {
   final List<ComicInfo> comicInfos = [];
   final List<ChapterInfo> chapterInfos = [];
@@ -31,7 +31,7 @@ Future<Map<String, dynamic>> initialInfos(
       .toList();
   // 是否只作增量刷新 (allIncluded)
   final alreadyIncludedDirs = [];
-  if (onlyNew) {
+  if (onlyChanged) {
     alreadyIncludedDirs.addAll(
       ref.read(comicInfosProvider).map((info) => info.comicName).toList(),
     );
@@ -40,12 +40,12 @@ Future<Map<String, dynamic>> initialInfos(
   // 进度条provider方法.
   final progressNotifier = ref.read(progressServiceProvider.notifier);
   int todoCounter = comicsFolders.length;
-  if (onlyNew) {
+  if (onlyChanged) {
     todoCounter = 0;
     for (var folder in comicsFolders) {
       final comicDir = folder as Directory;
       final comicName = comicDir.path.split(Platform.pathSeparator).last;
-      if (onlyNew && alreadyIncludedDirs.contains(comicName)) {
+      if (onlyChanged && alreadyIncludedDirs.contains(comicName)) {
         continue;
       }
       todoCounter++;
@@ -63,7 +63,7 @@ Future<Map<String, dynamic>> initialInfos(
   for (var folder in comicsFolders) {
     final comicDir = folder as Directory;
     final comicName = comicDir.path.split(Platform.pathSeparator).last;
-    if (onlyNew && alreadyIncludedDirs.contains(comicName)) {
+    if (onlyChanged && alreadyIncludedDirs.contains(comicName)) {
       continue;
     }
     progressNotifier.increaseProgress(

@@ -6,7 +6,7 @@ part of 'service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$initialInfosHash() => r'8aa554b3136fe1bfe513aa9a8782a018886426ef';
+String _$initialInfosHash() => r'4fe40f9033b5b4f806ed604fcd918fbdbf96b1a7';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -40,10 +40,10 @@ class InitialInfosFamily extends Family<AsyncValue<Map<String, dynamic>>> {
 
   /// See also [initialInfos].
   InitialInfosProvider call({
-    required bool onlyNew,
+    required bool onlyChanged,
   }) {
     return InitialInfosProvider(
-      onlyNew: onlyNew,
+      onlyChanged: onlyChanged,
     );
   }
 
@@ -52,7 +52,7 @@ class InitialInfosFamily extends Family<AsyncValue<Map<String, dynamic>>> {
     covariant InitialInfosProvider provider,
   ) {
     return call(
-      onlyNew: provider.onlyNew,
+      onlyChanged: provider.onlyChanged,
     );
   }
 
@@ -76,11 +76,11 @@ class InitialInfosProvider
     extends AutoDisposeFutureProvider<Map<String, dynamic>> {
   /// See also [initialInfos].
   InitialInfosProvider({
-    required bool onlyNew,
+    required bool onlyChanged,
   }) : this._internal(
           (ref) => initialInfos(
             ref as InitialInfosRef,
-            onlyNew: onlyNew,
+            onlyChanged: onlyChanged,
           ),
           from: initialInfosProvider,
           name: r'initialInfosProvider',
@@ -91,7 +91,7 @@ class InitialInfosProvider
           dependencies: InitialInfosFamily._dependencies,
           allTransitiveDependencies:
               InitialInfosFamily._allTransitiveDependencies,
-          onlyNew: onlyNew,
+          onlyChanged: onlyChanged,
         );
 
   InitialInfosProvider._internal(
@@ -101,10 +101,10 @@ class InitialInfosProvider
     required super.allTransitiveDependencies,
     required super.debugGetCreateSourceHash,
     required super.from,
-    required this.onlyNew,
+    required this.onlyChanged,
   }) : super.internal();
 
-  final bool onlyNew;
+  final bool onlyChanged;
 
   @override
   Override overrideWith(
@@ -119,7 +119,7 @@ class InitialInfosProvider
         dependencies: null,
         allTransitiveDependencies: null,
         debugGetCreateSourceHash: null,
-        onlyNew: onlyNew,
+        onlyChanged: onlyChanged,
       ),
     );
   }
@@ -131,21 +131,21 @@ class InitialInfosProvider
 
   @override
   bool operator ==(Object other) {
-    return other is InitialInfosProvider && other.onlyNew == onlyNew;
+    return other is InitialInfosProvider && other.onlyChanged == onlyChanged;
   }
 
   @override
   int get hashCode {
     var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, onlyNew.hashCode);
+    hash = _SystemHash.combine(hash, onlyChanged.hashCode);
 
     return _SystemHash.finish(hash);
   }
 }
 
 mixin InitialInfosRef on AutoDisposeFutureProviderRef<Map<String, dynamic>> {
-  /// The parameter `onlyNew` of this provider.
-  bool get onlyNew;
+  /// The parameter `onlyChanged` of this provider.
+  bool get onlyChanged;
 }
 
 class _InitialInfosProviderElement
@@ -154,7 +154,7 @@ class _InitialInfosProviderElement
   _InitialInfosProviderElement(super.provider);
 
   @override
-  bool get onlyNew => (origin as InitialInfosProvider).onlyNew;
+  bool get onlyChanged => (origin as InitialInfosProvider).onlyChanged;
 }
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

@@ -32,7 +32,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
           },
         ),
         DialogOption(
-          text: "仅增量更新",
+          text: "仅变动更新",
           onPressed: () async {
             await ref.read(comicServiceProvider.notifier).refreshInfo(true);
           },
