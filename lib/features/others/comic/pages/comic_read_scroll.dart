@@ -37,6 +37,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   // 状态量
   int _currentImageIndex = 0;
   bool _showControls = true;
+  bool _isMerging = false;
 
   // 实现交互界面
   final ScrollController _scrollController = ScrollController();
@@ -138,11 +139,18 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
       }
       final filename =
           "${widget.comicInfo.comicName}_第${currentChapter!.chapterIndex}章_${startIndex+1}-${endIndex+1}";
-      ComicSaverService.saveScrollImagesToPublic(imagePaths, filename);
+      setState(() {
+        _isMerging=true;
+      });
+      await ComicSaverService.saveScrollImagesToPublic(imagePaths, filename);
       showSnackBar(context, "图片已保存: $filename");
     } catch (e) {
       showSnackBar(context, "保存失败: ${e.toString()}");
       AppLogger().error("保存图片错误: $e");
+    } finally{
+      setState(() {
+        _isMerging=false;
+      });
     }
   }
 
@@ -262,6 +270,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
                 currentNum: _currentImageIndex,
                 totalNum: images.length,
                 saveFunc: _saveImage,
+                isMerging: _isMerging,
               ),
 
             // 底部控制栏

@@ -7,7 +7,8 @@ class TopControllBar extends StatelessWidget {
   final String chapterName;
   final int currentNum;
   final int totalNum;
-  
+  final bool? isMerging;
+
   final Function saveFunc;
   const TopControllBar({
     super.key,
@@ -16,6 +17,7 @@ class TopControllBar extends StatelessWidget {
     required this.currentNum,
     required this.totalNum,
     required this.saveFunc,
+    this.isMerging,
   });
 
   @override
@@ -69,8 +71,12 @@ class TopControllBar extends StatelessWidget {
 
             // 保存当前图片按钮
             IconButton(
-              icon: Icon(Icons.save_alt_rounded, color: Colors.white),
+              icon: Icon(
+                Icons.save_alt_rounded,
+                color: isMerging ?? false ? Colors.grey : Colors.white,
+              ),
               onPressed: () {
+                if (isMerging ?? false) return;
                 saveFunc();
               },
             ),
