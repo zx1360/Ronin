@@ -1,14 +1,11 @@
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:http/http.dart';
-import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/storage/prefs_service.dart';
-import 'package:torrid/shared/utils/util.dart';
 
 class IoService {
   static Directory? _externalStorageDir;
@@ -84,7 +81,7 @@ class IoService {
     }
   }
 
-  // TODO: 闲下来这部分改用riverpod管理.
+  // TODO: 闲下来这部分改用riverpod管理. 分离到其他地方.
   // GET请求图片并保存到安卓应用的外部私有空间
   static Future<void> saveFromRelativeUrls(
     List<String> urls,
@@ -109,6 +106,7 @@ class IoService {
       final pcIp = prefs.getString("PC_IP");
       final pcPort = prefs.getString("PC_PORT");
       // 请求图片
+      // TODO: 并非完全异步, 待优化.
       for (final url in urls) {
         final response = await get(
           Uri.parse("http://$pcIp:$pcPort/static/$url"),
@@ -130,77 +128,4 @@ class IoService {
       throw Exception("保存到应用外部私有空间失败\n$e");
     }
   }
-
-  // 将本地图片保存到外部共有空间
-  static Future<bool> saveImageToPublic(
-    String privateImagePath,
-    String? filename,
-  ) async {
-    try {
-      // TODO: 结合permission_handler.
-      // 检查存储权限
-      // var status = await Permission.storage.isGranted;
-      // if (!status) {
-      //   status = await Permission.storage.request().isGranted;
-      //   if (!status) {
-      //     // 权限被拒绝
-      //     return false;
-      //   }
-      // }
-
-      // 验证源文件是否存在
-      File sourceFile = File(privateImagePath);
-      if (!await sourceFile.exists()) {
-        return false;
-      }
-
-      // 获取外部公共图片目录
-      Directory? publicDir = Directory('/storage/emulated/0/Pictures/torrid');
-
-      if (!await publicDir.exists()) {
-        try {
-          await publicDir.create(recursive: true);
-        } catch (e) {
-          return false;
-        }
-      }
-
-      // 处理文件名
-      String targetFileName;
-      String fileExtension = getFileExtension(sourceFile.path);
-
-      if (filename != null && filename.isNotEmpty) {
-        // 使用传入的文件名，确保包含扩展名
-        targetFileName =
-            fileExtension.isNotEmpty && !filename.endsWith('.$fileExtension')
-            ? '$filename.$fileExtension'
-            : filename;
-      } else {
-        // 生成随机防重文件名 (时间戳+随机数+扩展名)
-        String timestamp = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
-        int randomNum = Random().nextInt(10000);
-        targetFileName =
-            'img_${timestamp}_$randomNum${fileExtension.isNotEmpty ? '.$fileExtension' : ''}';
-      }
-
-      // 生成目标文件路径
-      File targetFile = File('${publicDir.path}/$targetFileName');
-
-      // 如果目标文件已存在，先删除
-      if (await targetFile.exists()) {
-        await targetFile.delete();
-      }
-
-      // 复制文件
-      await sourceFile.copy(targetFile.path);
-
-      return true;
-    } catch (e) {
-      // 捕获所有可能的异常
-      AppLogger().error('保存图片失败: $e');
-      return false;
-    }
-  }
-
-  
 }

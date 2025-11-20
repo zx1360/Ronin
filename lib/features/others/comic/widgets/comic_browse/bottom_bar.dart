@@ -4,13 +4,17 @@ class BottomControllBar extends StatelessWidget {
   final Function prevFunc;
   final Function nextFunc;
   final double slideVal;
-  final Function(double value) onSlideFunc;
+  final Function(double) onSlideFunc;
+  final VoidCallback onSlideStart;
+  final VoidCallback onSlideEnd;
   const BottomControllBar({
     super.key,
     required this.prevFunc,
     required this.nextFunc,
     required this.slideVal,
     required this.onSlideFunc,
+    required this.onSlideStart,
+    required this.onSlideEnd,
   });
 
   @override
@@ -53,6 +57,8 @@ class BottomControllBar extends StatelessWidget {
                   onChanged: (value) {
                     onSlideFunc(value);
                   },
+                  onChangeStart: (_)=>onSlideStart(),
+                  onChangeEnd: (_)=>onSlideEnd(),
                   activeColor: Colors.white,
                 ),
               ),

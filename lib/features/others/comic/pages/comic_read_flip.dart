@@ -1,18 +1,21 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
+import 'package:torrid/features/others/comic/services/comic_servic.dart';
+import 'package:torrid/features/others/comic/services/save_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 import 'package:torrid/services/debug/logging_service.dart';
-import 'package:torrid/services/io/io_service.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
@@ -149,13 +152,13 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     }
   }
 
-  // TODO: 提取, 分离.
+  // 保存图片.
   Future<void> _saveThisImage(BuildContext context) async {
     try {
       // 获取当前图片文件
       final sourceFile = File(images[_currentImageIndex]['path']);
       if (!await sourceFile.exists()) {
-        _showSnackBar(context, "图片文件不存在");
+        showSnackBar(context, "图片文件不存在");
         return;
       }
 
@@ -166,21 +169,15 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
           "第${currentChapter!.chapterIndex}章_"
           "第${_currentImageIndex + 1}页."
           "$fileExtension";
-      IoService.saveImageToPublic(images[_currentImageIndex]['path'], fileName);
-
-      _showSnackBar(context, "图片已保存: $fileName");
-    } catch (e) {
-      _showSnackBar(context, "保存失败: ${e.toString()}");
-      AppLogger().error("保存图片错误: $e");
-    }
-  }
-
-  // 显示提示信息
-  void _showSnackBar(BuildContext context, String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      ComicSaverService.saveFlipImageToPublic(
+        images[_currentImageIndex]['path'],
+        fileName,
       );
+
+      showSnackBar(context, "图片已保存: $fileName");
+    } catch (e) {
+      showSnackBar(context, "保存失败: ${e.toString()}");
+      AppLogger().error("保存图片错误: $e");
     }
   }
 
@@ -232,9 +229,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
             if (_showControls)
               TopControllBar(
                 comicName: widget.comicInfo.comicName,
-                chapterName: currentChapter?.dirName??"",
+                chapterName: currentChapter?.dirName ?? "",
                 currentNum: _currentImageIndex,
-                totalNum: currentChapter?.images.length??1,
+                totalNum: currentChapter?.images.length ?? 1,
                 saveFunc: () {
                   _saveThisImage(context);
                 },
@@ -252,6 +249,16 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                       (value * (images.length - 1)).round(),
                     );
                   }
+                },
+                onSlideStart: () {
+                  _controlsTimer.cancel();
+                  if (!_showControls) {
+                    setState(() {
+                      _showControls = true;
+                    });
+                  }
+                },
+                onSlideEnd: () {
                   _resetControlsTimer();
                 },
               ),

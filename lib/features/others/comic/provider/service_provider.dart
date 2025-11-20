@@ -15,7 +15,10 @@ part 'service_provider.g.dart';
 
 // 读取本地目录, 初始化漫画、章节、图片信息.
 @riverpod
-Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref, {required bool onlyNew}) async {
+Future<Map<String, dynamic>> initialInfos(
+  InitialInfosRef ref, {
+  required bool onlyNew,
+}) async {
   final List<ComicInfo> comicInfos = [];
   final List<ChapterInfo> chapterInfos = [];
   // # 获取comicInfo信息
@@ -27,26 +30,40 @@ Future<Map<String, dynamic>> initialInfos(InitialInfosRef ref, {required bool on
       .where((entity) => entity is Directory)
       .toList();
   // 是否只作增量刷新 (allIncluded)
-  final already_included_dirs = [];
-  if (onlyNew){
-    already_included_dirs.addAll(ref.read(comicInfosProvider).map((info)=>info.comicName).toList());
+  final alreadyIncludedDirs = [];
+  if (onlyNew) {
+    alreadyIncludedDirs.addAll(
+      ref.read(comicInfosProvider).map((info) => info.comicName).toList(),
+    );
   }
 
   // 进度条provider方法.
   final progressNotifier = ref.read(progressServiceProvider.notifier);
+  int todoCounter = comicsFolders.length;
+  if (onlyNew) {
+    todoCounter = 0;
+    for (var folder in comicsFolders) {
+      final comicDir = folder as Directory;
+      final comicName = comicDir.path.split(Platform.pathSeparator).last;
+      if (onlyNew && alreadyIncludedDirs.contains(comicName)) {
+        continue;
+      }
+      todoCounter++;
+    }
+  }
   progressNotifier.setProgress(
     Progress(
       current: 0,
-      total: comicsFolders.length,
+      total: todoCounter,
       currentMessage: "",
-      message: "正在初始化所有漫画文件元数据...",
+      message: "正在初始化漫画文件元数据...",
     ),
   );
   int counter = 0;
   for (var folder in comicsFolders) {
     final comicDir = folder as Directory;
     final comicName = comicDir.path.split(Platform.pathSeparator).last;
-    if(onlyNew && already_included_dirs.contains(comicName)){
+    if (onlyNew && alreadyIncludedDirs.contains(comicName)) {
       continue;
     }
     progressNotifier.increaseProgress(
