@@ -6,7 +6,7 @@ part of 'notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicServiceHash() => r'e606c1ad8c65212b82a3f9800364c044768b2cdb';
+String _$comicServiceHash() => r'9847711b4f820e72a0647d4c759472ca38b46624';
 
 /// See also [ComicService].
 @ProviderFor(ComicService)

@@ -28,13 +28,13 @@ class _ComicPageState extends ConsumerState<ComicPage> {
           text: "全部重新初始化",
           textColor: Colors.red[300],
           onPressed: () async {
-            await ref.read(comicServiceProvider.notifier).refreshInfo(false);
+            await ref.read(comicServiceProvider.notifier).refreshInfosAll();
           },
         ),
         DialogOption(
           text: "仅变动更新",
           onPressed: () async {
-            await ref.read(comicServiceProvider.notifier).refreshInfo(true);
+            await ref.read(comicServiceProvider.notifier).refreshChanged();
           },
         ),
       ],

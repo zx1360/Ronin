@@ -32,25 +32,31 @@ Future<DialogOption?> showOptionsDialog({
           context,
         ).textTheme.bodyMedium?.copyWith(color: AppTheme.onSurface),
       ),
-      actions: options.map((option) {
-        return TextButton(
-          onPressed: () => Navigator.pop<DialogOption>(context, option),
-          style: Theme.of(context).textButtonTheme.style?.copyWith(
-            foregroundColor: WidgetStateProperty.all(
-              option.textColor ?? AppTheme.onSurfaceVariant,
-            ),
-            padding: WidgetStateProperty.all(
-              const EdgeInsets.symmetric(horizontal: 16),
-            ),
-          ),
-          child: Text(
-            option.text,
-            style: TextStyle(
-              color: option.textColor ?? AppTheme.onSurfaceVariant,
-            ),
-          ),
-        );
-      }).toList(),
+      actions: [
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: options.map((option) {
+            return TextButton(
+              onPressed: () => Navigator.pop<DialogOption>(context, option),
+              style: Theme.of(context).textButtonTheme.style?.copyWith(
+                foregroundColor: WidgetStateProperty.all(
+                  option.textColor ?? AppTheme.onSurfaceVariant,
+                ),
+                padding: WidgetStateProperty.all(
+                  const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+              child: Text(
+                option.text,
+                style: TextStyle(
+                  color: option.textColor ?? AppTheme.onSurfaceVariant,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     ),
   );
 }

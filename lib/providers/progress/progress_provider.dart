@@ -22,4 +22,9 @@ class ProgressService extends _$ProgressService {
   }) {
     state = state.copyWith(current: current, currentMessage: currentMessage);
   }
+
+  // 状态充值
+  void resetStatus(){
+    state=Progress.empty();
+  }
 }
