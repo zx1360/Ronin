@@ -4,13 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
+
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/save_service.dart';
+
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
+
 import 'package:torrid/services/debug/logging_service.dart';
 
 class ComicScrollPage extends ConsumerStatefulWidget {
@@ -28,6 +32,8 @@ class ComicScrollPage extends ConsumerStatefulWidget {
 }
 
 class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
+  // 为了使ListView的跳转正常.
+  Key _listviewKey = UniqueKey();
   // comic信息相关
   late int chapterIndex = widget.chapterIndex;
   List<ChapterInfo> chapterInfos = [];
@@ -40,7 +46,8 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   bool _isMerging = false;
 
   // 实现交互界面
-  final ScrollController _scrollController = ScrollController();
+  ScrollController _scrollController = ScrollController();
+  // final ScrollController _scrollController = ScrollController();
   late Timer _controlsTimer;
   final Duration closeBarDuration = const Duration(seconds: 4);
 
@@ -138,18 +145,18 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         imagePaths.add(images[i]['path']);
       }
       final filename =
-          "${widget.comicInfo.comicName}_第${currentChapter!.chapterIndex}章_${startIndex+1}-${endIndex+1}";
+          "${widget.comicInfo.comicName}_第${currentChapter!.chapterIndex}章_${startIndex + 1}-${endIndex + 1}";
       setState(() {
-        _isMerging=true;
+        _isMerging = true;
       });
       await ComicSaverService.saveScrollImagesToPublic(imagePaths, filename);
       showSnackBar(context, "图片已保存: $filename");
     } catch (e) {
       showSnackBar(context, "保存失败: ${e.toString()}");
       AppLogger().error("保存图片错误: $e");
-    } finally{
+    } finally {
       setState(() {
-        _isMerging=false;
+        _isMerging = false;
       });
     }
   }
@@ -208,40 +215,40 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
   // 上一章节
   void _prevChapter() {
-    if (chapterIndex > 0) {
-      chapterIndex--;
-      currentChapter = chapterInfos[chapterIndex];
-      _currentImageIndex = 0;
-      setState(() {
-        images = currentChapter!.images;
-      });
-      _calculateImageOffsets();
-      _scrollController.jumpTo(0);
-      _controlsTimer.cancel();
-      init();
-    }
+    if (chapterIndex <= 0) return;
+    chapterIndex--;
+    currentChapter = chapterInfos[chapterIndex];
+    _currentImageIndex = 0;
+    _listviewKey = UniqueKey();
+    setState(() {
+      images = currentChapter!.images;
+    });
+    _scrollController.jumpTo(0.0);
+    _calculateImageOffsets();
+    _controlsTimer.cancel();
+    init();
   }
 
   // 下一章节
   void _nextChapter() {
-    if (chapterIndex < chapterInfos.length - 1) {
-      chapterIndex++;
-      currentChapter = chapterInfos[chapterIndex];
-      _currentImageIndex = 0;
-      setState(() {
-        images = currentChapter!.images;
-      });
-      _calculateImageOffsets();
-      _scrollController.jumpTo(0);
-      _controlsTimer.cancel();
-      init();
-    }
+    if (chapterIndex >= chapterInfos.length - 1) return;
+    chapterIndex++;
+    currentChapter = chapterInfos[chapterIndex];
+    _currentImageIndex = 0;
+    _listviewKey = UniqueKey();
+    setState(() {
+      images = currentChapter!.images;
+    });
+    _scrollController.jumpTo(0.0);
+    _calculateImageOffsets();
+    _controlsTimer.cancel();
+    init();
   }
 
   @override
   Widget build(BuildContext context) {
     // 计算当前 Slider 的值
-    final double slideVal = images.isEmpty
+    final double slideVal = images.length <= 1
         ? -1
         : _currentImageIndex / (images.length - 1);
 
@@ -308,6 +315,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
       );
     }
     return ListView.builder(
+      key: _listviewKey,
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
       itemCount: images.length,

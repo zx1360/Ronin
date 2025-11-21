@@ -55,16 +55,21 @@ class CheckinCalendar extends StatelessWidget {
   int _getCheckInStatusIndex(DateTime date) {
     if (style == null) return 0;
 
-    final targetRecord = records.firstWhere(
-      (r) => isSameDay(r.date, date),
-      orElse: () => Record.empty(style: style!),
-    );
-
-    // 无记录或未完成任一任务
-    if (targetRecord.taskCompletion.isEmpty ||
-        targetRecord.taskCompletion.values.every((v) => !v)) {
+    // final targetRecord = records.firstWhere(
+    //   (r) => isSameDay(r.date, date),
+    //   orElse: () => Record.empty(style: style!),
+    // );
+    final targetRecords = records.where((record)=>isSameDay(record.date, date));
+    if(targetRecords.isEmpty){
       return 0;
     }
+    final targetRecord = targetRecords.first;
+
+    // // 无记录或未完成任一任务
+    // if (targetRecord.taskCompletion.isEmpty ||
+    //     targetRecord.taskCompletion.values.every((v) => !v)) {
+    //   return 0;
+    // }
 
     // 计算未完成任务数
     final totalTasks = style!.tasks.length;
