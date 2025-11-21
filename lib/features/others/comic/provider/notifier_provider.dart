@@ -38,6 +38,7 @@ class ComicService extends _$ComicService {
     ref.invalidate(comicPrefWithComicIdProvider);
   }
 
+  // 变动偏好.
   Future<void> modifyComicPref({
     required String comicId,
     int? chapterIndex,
@@ -57,14 +58,26 @@ class ComicService extends _$ComicService {
   }
 
   // ----初始化漫画元数据信息----
-  Future<void> refreshInfo(bool onlyChanged) async {
+  // 初始化所有漫画文件元数据
+  Future<void> refreshInfosAll() async {
     // # 获取comicInfo信息
-    final infos = await ref.read(initialInfosProvider(onlyChanged: onlyChanged).future);
-    // 写入
-    if (!onlyChanged) {
-      await state.comicInfoBox.clear();
-      await state.chapterInfoBox.clear();
-    }
+    final infos = await ref.read(allInfosProvider.future);
+    await state.comicInfoBox.clear();
+    await state.chapterInfoBox.clear();
+
+    await state.comicInfoBox.putAll(infos['comicInfos']);
+    await state.chapterInfoBox.putAll(infos['chapterInfos']);
+  }
+
+  // 仅变动更新(新增未记录的、删去目录不存在的)
+  Future<void> refreshChanged() async {
+    // 删去不存在的.
+    final deleted = ref.read(deletedInfosProvider);
+    await state.prefBox.deleteAll(deleted['prefs']);
+    await state.comicInfoBox.deleteAll(deleted['comics']);
+    await state.chapterInfoBox.deleteAll(deleted['chapters']);
+    // 加入未记录的.
+    final infos = await ref.read(newInfosProvider.future);
     await state.comicInfoBox.putAll(infos['comicInfos']);
     await state.chapterInfoBox.putAll(infos['chapterInfos']);
   }

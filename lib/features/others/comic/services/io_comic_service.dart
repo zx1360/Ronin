@@ -4,21 +4,21 @@ import 'package:torrid/services/debug/logging_service.dart';
 
 // ----comic_page.dart
 // 查找目录中的第一张图片
-Future<File?> findFirstImage(Directory dir) async {
+Future<String> findFirstImage(Directory dir) async {
   try {
     // 递归查找第一个图片文件
     await for (var entity in dir.list(recursive: true)) {
       if (entity is File) {
         final extension = entity.path.split('.').last.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'gif'].contains(extension)) {
-          return entity;
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension)) {
+          return entity.path;
         }
       }
     }
   } catch (e) {
     AppLogger().error("查找封面图失败: $e");
   }
-  return null;
+  return "";
 }
 
 // 计算章节数量

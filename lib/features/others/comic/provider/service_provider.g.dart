@@ -6,155 +6,49 @@ part of 'service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$initialInfosHash() => r'4fe40f9033b5b4f806ed604fcd918fbdbf96b1a7';
+String _$allInfosHash() => r'0691e6fed1414f5b793edd8325907b5e51fe2348';
 
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
+/// See also [allInfos].
+@ProviderFor(allInfos)
+final allInfosProvider =
+    AutoDisposeFutureProvider<Map<String, dynamic>>.internal(
+  allInfos,
+  name: r'allInfosProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$allInfosHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
+typedef AllInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
+String _$deletedInfosHash() => r'57be13a4d416660f07804d9399d9061b09dae1ef';
 
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
+/// See also [deletedInfos].
+@ProviderFor(deletedInfos)
+final deletedInfosProvider = AutoDisposeProvider<Map<String, dynamic>>.internal(
+  deletedInfos,
+  name: r'deletedInfosProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$deletedInfosHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
-/// See also [initialInfos].
-@ProviderFor(initialInfos)
-const initialInfosProvider = InitialInfosFamily();
+typedef DeletedInfosRef = AutoDisposeProviderRef<Map<String, dynamic>>;
+String _$newInfosHash() => r'002d6cdbdf7072f230c41c078d70cdba33050451';
 
-/// See also [initialInfos].
-class InitialInfosFamily extends Family<AsyncValue<Map<String, dynamic>>> {
-  /// See also [initialInfos].
-  const InitialInfosFamily();
+/// See also [newInfos].
+@ProviderFor(newInfos)
+final newInfosProvider =
+    AutoDisposeFutureProvider<Map<String, dynamic>>.internal(
+  newInfos,
+  name: r'newInfosProvider',
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$newInfosHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
-  /// See also [initialInfos].
-  InitialInfosProvider call({
-    required bool onlyChanged,
-  }) {
-    return InitialInfosProvider(
-      onlyChanged: onlyChanged,
-    );
-  }
-
-  @override
-  InitialInfosProvider getProviderOverride(
-    covariant InitialInfosProvider provider,
-  ) {
-    return call(
-      onlyChanged: provider.onlyChanged,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'initialInfosProvider';
-}
-
-/// See also [initialInfos].
-class InitialInfosProvider
-    extends AutoDisposeFutureProvider<Map<String, dynamic>> {
-  /// See also [initialInfos].
-  InitialInfosProvider({
-    required bool onlyChanged,
-  }) : this._internal(
-          (ref) => initialInfos(
-            ref as InitialInfosRef,
-            onlyChanged: onlyChanged,
-          ),
-          from: initialInfosProvider,
-          name: r'initialInfosProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$initialInfosHash,
-          dependencies: InitialInfosFamily._dependencies,
-          allTransitiveDependencies:
-              InitialInfosFamily._allTransitiveDependencies,
-          onlyChanged: onlyChanged,
-        );
-
-  InitialInfosProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.onlyChanged,
-  }) : super.internal();
-
-  final bool onlyChanged;
-
-  @override
-  Override overrideWith(
-    FutureOr<Map<String, dynamic>> Function(InitialInfosRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: InitialInfosProvider._internal(
-        (ref) => create(ref as InitialInfosRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        onlyChanged: onlyChanged,
-      ),
-    );
-  }
-
-  @override
-  AutoDisposeFutureProviderElement<Map<String, dynamic>> createElement() {
-    return _InitialInfosProviderElement(this);
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is InitialInfosProvider && other.onlyChanged == onlyChanged;
-  }
-
-  @override
-  int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, onlyChanged.hashCode);
-
-    return _SystemHash.finish(hash);
-  }
-}
-
-mixin InitialInfosRef on AutoDisposeFutureProviderRef<Map<String, dynamic>> {
-  /// The parameter `onlyChanged` of this provider.
-  bool get onlyChanged;
-}
-
-class _InitialInfosProviderElement
-    extends AutoDisposeFutureProviderElement<Map<String, dynamic>>
-    with InitialInfosRef {
-  _InitialInfosProviderElement(super.provider);
-
-  @override
-  bool get onlyChanged => (origin as InitialInfosProvider).onlyChanged;
-}
+typedef NewInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
