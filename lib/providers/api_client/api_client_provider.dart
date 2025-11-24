@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -49,6 +50,30 @@ Future<Response?> fetcher(
     return resp;
   } catch (e) {
     AppLogger().error("fetch出错: $e");
+    return null;
+  }
+}
+
+/// bytesFetcher方法提供者，专门用于获取二进制数据
+@riverpod
+Future<Response<Uint8List>?> bytesFetcher(
+  BytesFetcherRef ref, {
+  required String path,
+  Map<String, dynamic>? params,
+  CancelToken? cancelToken,
+  ProgressCallback? onReceiveProgress,
+}) async {
+  final apiClient = ref.watch(apiClientManagerProvider);
+  try {
+    final resp = await apiClient.getBinary( // 调用新创建的 getBinary 方法
+      path,
+      queryParams: params,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
+    );
+    return resp;
+  } catch (e) {
+    AppLogger().error("bytesFetcher出错: $e");
     return null;
   }
 }

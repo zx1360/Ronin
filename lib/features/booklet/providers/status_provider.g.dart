@@ -197,6 +197,134 @@ final latestStyleProvider = AutoDisposeProvider<Style?>.internal(
 );
 
 typedef LatestStyleRef = AutoDisposeProviderRef<Style?>;
+String _$styleDateRangeHash() => r'e79978ad6238cf04b40a4fa0ee91ef0539667500';
+
+/// See also [styleDateRange].
+@ProviderFor(styleDateRange)
+const styleDateRangeProvider = StyleDateRangeFamily();
+
+/// See also [styleDateRange].
+class StyleDateRangeFamily extends Family<DateTimeRange?> {
+  /// See also [styleDateRange].
+  const StyleDateRangeFamily();
+
+  /// See also [styleDateRange].
+  StyleDateRangeProvider call({
+    required Style? style,
+  }) {
+    return StyleDateRangeProvider(
+      style: style,
+    );
+  }
+
+  @override
+  StyleDateRangeProvider getProviderOverride(
+    covariant StyleDateRangeProvider provider,
+  ) {
+    return call(
+      style: provider.style,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'styleDateRangeProvider';
+}
+
+/// See also [styleDateRange].
+class StyleDateRangeProvider extends AutoDisposeProvider<DateTimeRange?> {
+  /// See also [styleDateRange].
+  StyleDateRangeProvider({
+    required Style? style,
+  }) : this._internal(
+          (ref) => styleDateRange(
+            ref as StyleDateRangeRef,
+            style: style,
+          ),
+          from: styleDateRangeProvider,
+          name: r'styleDateRangeProvider',
+          debugGetCreateSourceHash:
+              const bool.fromEnvironment('dart.vm.product')
+                  ? null
+                  : _$styleDateRangeHash,
+          dependencies: StyleDateRangeFamily._dependencies,
+          allTransitiveDependencies:
+              StyleDateRangeFamily._allTransitiveDependencies,
+          style: style,
+        );
+
+  StyleDateRangeProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.style,
+  }) : super.internal();
+
+  final Style? style;
+
+  @override
+  Override overrideWith(
+    DateTimeRange? Function(StyleDateRangeRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: StyleDateRangeProvider._internal(
+        (ref) => create(ref as StyleDateRangeRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        style: style,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeProviderElement<DateTimeRange?> createElement() {
+    return _StyleDateRangeProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is StyleDateRangeProvider && other.style == style;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, style.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+mixin StyleDateRangeRef on AutoDisposeProviderRef<DateTimeRange?> {
+  /// The parameter `style` of this provider.
+  Style? get style;
+}
+
+class _StyleDateRangeProviderElement
+    extends AutoDisposeProviderElement<DateTimeRange?> with StyleDateRangeRef {
+  _StyleDateRangeProviderElement(super.provider);
+
+  @override
+  Style? get style => (origin as StyleDateRangeProvider).style;
+}
+
 String _$todayRecordHash() => r'4e5a35a1336f2845b535df1b32a6cd83f054fe65';
 
 /// See also [todayRecord].
@@ -211,6 +339,134 @@ final todayRecordProvider = AutoDisposeProvider<Record?>.internal(
 );
 
 typedef TodayRecordRef = AutoDisposeProviderRef<Record?>;
+String _$recordWithDateHash() => r'6dcd7517241a3da2cf47677c3b2e0fc1fa23d694';
+
+/// See also [recordWithDate].
+@ProviderFor(recordWithDate)
+const recordWithDateProvider = RecordWithDateFamily();
+
+/// See also [recordWithDate].
+class RecordWithDateFamily extends Family<Record?> {
+  /// See also [recordWithDate].
+  const RecordWithDateFamily();
+
+  /// See also [recordWithDate].
+  RecordWithDateProvider call({
+    required DateTime targetDate,
+  }) {
+    return RecordWithDateProvider(
+      targetDate: targetDate,
+    );
+  }
+
+  @override
+  RecordWithDateProvider getProviderOverride(
+    covariant RecordWithDateProvider provider,
+  ) {
+    return call(
+      targetDate: provider.targetDate,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'recordWithDateProvider';
+}
+
+/// See also [recordWithDate].
+class RecordWithDateProvider extends AutoDisposeProvider<Record?> {
+  /// See also [recordWithDate].
+  RecordWithDateProvider({
+    required DateTime targetDate,
+  }) : this._internal(
+          (ref) => recordWithDate(
+            ref as RecordWithDateRef,
+            targetDate: targetDate,
+          ),
+          from: recordWithDateProvider,
+          name: r'recordWithDateProvider',
+          debugGetCreateSourceHash:
+              const bool.fromEnvironment('dart.vm.product')
+                  ? null
+                  : _$recordWithDateHash,
+          dependencies: RecordWithDateFamily._dependencies,
+          allTransitiveDependencies:
+              RecordWithDateFamily._allTransitiveDependencies,
+          targetDate: targetDate,
+        );
+
+  RecordWithDateProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.targetDate,
+  }) : super.internal();
+
+  final DateTime targetDate;
+
+  @override
+  Override overrideWith(
+    Record? Function(RecordWithDateRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: RecordWithDateProvider._internal(
+        (ref) => create(ref as RecordWithDateRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        targetDate: targetDate,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeProviderElement<Record?> createElement() {
+    return _RecordWithDateProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is RecordWithDateProvider && other.targetDate == targetDate;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, targetDate.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+mixin RecordWithDateRef on AutoDisposeProviderRef<Record?> {
+  /// The parameter `targetDate` of this provider.
+  DateTime get targetDate;
+}
+
+class _RecordWithDateProviderElement extends AutoDisposeProviderElement<Record?>
+    with RecordWithDateRef {
+  _RecordWithDateProviderElement(super.provider);
+
+  @override
+  DateTime get targetDate => (origin as RecordWithDateProvider).targetDate;
+}
+
 String _$recordsWithStyleidHash() =>
     r'4818c44e7053a48f7615500c0b263c52521af0c5';
 

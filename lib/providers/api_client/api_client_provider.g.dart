@@ -204,6 +204,198 @@ class _FetcherProviderElement
       (origin as FetcherProvider).onReceiveProgress;
 }
 
+String _$bytesFetcherHash() => r'fe98203086cb83862bdf3be8e876cbd4221263b3';
+
+/// bytesFetcher方法提供者，专门用于获取二进制数据
+///
+/// Copied from [bytesFetcher].
+@ProviderFor(bytesFetcher)
+const bytesFetcherProvider = BytesFetcherFamily();
+
+/// bytesFetcher方法提供者，专门用于获取二进制数据
+///
+/// Copied from [bytesFetcher].
+class BytesFetcherFamily extends Family<AsyncValue<Response<Uint8List>?>> {
+  /// bytesFetcher方法提供者，专门用于获取二进制数据
+  ///
+  /// Copied from [bytesFetcher].
+  const BytesFetcherFamily();
+
+  /// bytesFetcher方法提供者，专门用于获取二进制数据
+  ///
+  /// Copied from [bytesFetcher].
+  BytesFetcherProvider call({
+    required String path,
+    Map<String, dynamic>? params,
+    CancelToken? cancelToken,
+    void Function(int, int)? onReceiveProgress,
+  }) {
+    return BytesFetcherProvider(
+      path: path,
+      params: params,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
+    );
+  }
+
+  @override
+  BytesFetcherProvider getProviderOverride(
+    covariant BytesFetcherProvider provider,
+  ) {
+    return call(
+      path: provider.path,
+      params: provider.params,
+      cancelToken: provider.cancelToken,
+      onReceiveProgress: provider.onReceiveProgress,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'bytesFetcherProvider';
+}
+
+/// bytesFetcher方法提供者，专门用于获取二进制数据
+///
+/// Copied from [bytesFetcher].
+class BytesFetcherProvider
+    extends AutoDisposeFutureProvider<Response<Uint8List>?> {
+  /// bytesFetcher方法提供者，专门用于获取二进制数据
+  ///
+  /// Copied from [bytesFetcher].
+  BytesFetcherProvider({
+    required String path,
+    Map<String, dynamic>? params,
+    CancelToken? cancelToken,
+    void Function(int, int)? onReceiveProgress,
+  }) : this._internal(
+          (ref) => bytesFetcher(
+            ref as BytesFetcherRef,
+            path: path,
+            params: params,
+            cancelToken: cancelToken,
+            onReceiveProgress: onReceiveProgress,
+          ),
+          from: bytesFetcherProvider,
+          name: r'bytesFetcherProvider',
+          debugGetCreateSourceHash:
+              const bool.fromEnvironment('dart.vm.product')
+                  ? null
+                  : _$bytesFetcherHash,
+          dependencies: BytesFetcherFamily._dependencies,
+          allTransitiveDependencies:
+              BytesFetcherFamily._allTransitiveDependencies,
+          path: path,
+          params: params,
+          cancelToken: cancelToken,
+          onReceiveProgress: onReceiveProgress,
+        );
+
+  BytesFetcherProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.path,
+    required this.params,
+    required this.cancelToken,
+    required this.onReceiveProgress,
+  }) : super.internal();
+
+  final String path;
+  final Map<String, dynamic>? params;
+  final CancelToken? cancelToken;
+  final void Function(int, int)? onReceiveProgress;
+
+  @override
+  Override overrideWith(
+    FutureOr<Response<Uint8List>?> Function(BytesFetcherRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: BytesFetcherProvider._internal(
+        (ref) => create(ref as BytesFetcherRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        path: path,
+        params: params,
+        cancelToken: cancelToken,
+        onReceiveProgress: onReceiveProgress,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<Response<Uint8List>?> createElement() {
+    return _BytesFetcherProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is BytesFetcherProvider &&
+        other.path == path &&
+        other.params == params &&
+        other.cancelToken == cancelToken &&
+        other.onReceiveProgress == onReceiveProgress;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, path.hashCode);
+    hash = _SystemHash.combine(hash, params.hashCode);
+    hash = _SystemHash.combine(hash, cancelToken.hashCode);
+    hash = _SystemHash.combine(hash, onReceiveProgress.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+mixin BytesFetcherRef on AutoDisposeFutureProviderRef<Response<Uint8List>?> {
+  /// The parameter `path` of this provider.
+  String get path;
+
+  /// The parameter `params` of this provider.
+  Map<String, dynamic>? get params;
+
+  /// The parameter `cancelToken` of this provider.
+  CancelToken? get cancelToken;
+
+  /// The parameter `onReceiveProgress` of this provider.
+  void Function(int, int)? get onReceiveProgress;
+}
+
+class _BytesFetcherProviderElement
+    extends AutoDisposeFutureProviderElement<Response<Uint8List>?>
+    with BytesFetcherRef {
+  _BytesFetcherProviderElement(super.provider);
+
+  @override
+  String get path => (origin as BytesFetcherProvider).path;
+  @override
+  Map<String, dynamic>? get params => (origin as BytesFetcherProvider).params;
+  @override
+  CancelToken? get cancelToken => (origin as BytesFetcherProvider).cancelToken;
+  @override
+  void Function(int, int)? get onReceiveProgress =>
+      (origin as BytesFetcherProvider).onReceiveProgress;
+}
+
 String _$senderHash() => r'95d5c4e4225269bd2e243fb1b5ede9b4021e9d9b';
 
 /// See also [sender].

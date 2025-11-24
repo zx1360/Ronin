@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -25,6 +26,22 @@ class ApiClient {
       queryParameters: queryParams,
       cancelToken: cancelToken,
       onReceiveProgress: onReceiveProgress,
+    );
+  }
+
+  /// GET请求，专门用于获取二进制数据（如图片）
+  Future<Response<Uint8List>> getBinary(
+    String path, {
+    Map<String, dynamic>? queryParams,
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+  }) async {
+    return _dio.get<Uint8List>(
+      path,
+      queryParameters: queryParams,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
+      options: Options(responseType: ResponseType.bytes),
     );
   }
 

@@ -25,15 +25,15 @@ import 'package:torrid/features/booklet/models/task.dart';
 
 /// 历来打卡信息总览页面
 /// 展示当前样式的打卡统计、日历视图，支持切换样式和创建新样式
-class RoutineOverviewPage extends ConsumerStatefulWidget {
-  const RoutineOverviewPage({super.key});
+class BookletOverviewPage extends ConsumerStatefulWidget {
+  const BookletOverviewPage({super.key});
 
   @override
-  ConsumerState<RoutineOverviewPage> createState() =>
-      _RoutineOverviewPageState();
+  ConsumerState<BookletOverviewPage> createState() =>
+      _BookletOverviewPageState();
 }
 
-class _RoutineOverviewPageState extends ConsumerState<RoutineOverviewPage> {
+class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
   Style? _currentStyle; // 当前选中的打卡样式
   List<Record> _relatedRecords = []; // 当前样式的所有打卡记录（按日期倒序）
   final ImagePicker _imagePicker = ImagePicker(); // 图片选择器
