@@ -46,7 +46,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   bool _isMerging = false;
 
   // 实现交互界面
-  ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController();
   // final ScrollController _scrollController = ScrollController();
   late Timer _controlsTimer;
   final Duration closeBarDuration = const Duration(seconds: 4);

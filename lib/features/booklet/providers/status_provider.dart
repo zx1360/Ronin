@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:torrid/features/booklet/providers/box_provider.dart';
@@ -45,6 +46,30 @@ Style? latestStyle(LatestStyleRef ref) {
   if (allStyles.isEmpty) return null;
   return allStyles.reduce((a, b) => a.startDate.isAfter(b.startDate) ? a : b);
 }
+// 根据style获取该style的日期范围.
+@riverpod
+DateTimeRange? styleDateRange(StyleDateRangeRef ref, {required Style? style}){
+  if(style==null) return null;
+  final records = ref.watch(recordsWithStyleidProvider(style.id));
+  if (records.isEmpty) {
+      return DateTimeRange(
+        start: getTodayDate(),
+        end: getTodayDate(),
+      );
+    }
+    // 相关记录已按日期倒序，最早日期=最后一条记录，最晚日期=第一条记录
+    final earliestDate = DateTime(
+      records.last.date.year,
+      records.last.date.month,
+      records.last.date.day,
+    );
+    final latestDate = DateTime(
+      records.first.date.year,
+      records.first.date.month,
+      records.first.date.day,
+    );
+    return DateTimeRange(start: earliestDate, end: latestDate);
+}
 
 // 今天的record(最近的style), 无则返回null.
 @riverpod
@@ -64,6 +89,23 @@ Record? todayRecord(TodayRecordRef ref) {
       .toList();
 
   return todayRecords.isNotEmpty ? todayRecords.first : null;
+}
+
+// 根据日期获取record.
+@riverpod
+Record? recordWithDate(RecordWithDateRef ref, {required DateTime targetDate}){
+  final todayStyle = ref.watch(latestStyleProvider);
+  if (todayStyle == null) return null;
+  final allRecords = ref.watch(recordsProvider);
+
+  final targetRecords = allRecords
+      .where(
+        (item) =>
+            item.styleId == todayStyle.id &&
+            isSameDay(item.date, targetDate),
+      )
+      .toList();
+  return targetRecords.isNotEmpty ? targetRecords.first : null;
 }
 
 // 根据styleId返回关联的倒序的所有records

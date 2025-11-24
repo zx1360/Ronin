@@ -7,7 +7,7 @@ import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
-import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/providers/network_service/network_provider.dart';
 import 'package:torrid/shared/models/message.dart';
 
 part 'essay_notifier_provider.g.dart';
@@ -240,7 +240,7 @@ class EssayService extends _$EssayService {
           }
         });
     if (urls.isNotEmpty) {
-      await IoService.saveFromRelativeUrls(urls, "img_storage/essay");
+      await ref.read(saveFromRelativeUrlsProvider(urls:urls, relativeDir: "img_storage/essay").future);
     }
   }
 
