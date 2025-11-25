@@ -81,7 +81,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     _latestStyle = ref.watch(latestStyleProvider);
     // 如果有style记录或变动, 则(重新)绑定一系列数据监听.
     if (_latestStyle != null) {
-      _targetRecord = ref.watch(recordWithDateProvider(targetDate: targetDate))??Record.empty(style: _latestStyle!);
+      _targetRecord = ref.watch(recordWithDateProvider(targetDate: targetDate))??Record.empty(style: _latestStyle!, date: targetDate);
       _completions.clear();
 
       _tasks = _latestStyle!.tasks;
