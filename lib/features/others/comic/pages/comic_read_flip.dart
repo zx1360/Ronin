@@ -16,6 +16,7 @@ import 'package:torrid/features/others/comic/services/save_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/shared/bottom/snack_bar.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;

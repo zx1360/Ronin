@@ -19,13 +19,3 @@ String getChapterTitle(String chapterName) {
   return "";
 }
 
-// 显示提示信息
-void showSnackBar(BuildContext context, String message) {
-  if (context.mounted) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
-  }
-}

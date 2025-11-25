@@ -30,7 +30,7 @@ class Record {
     required this.taskCompletion,
   });
 
-  factory Record.empty({required Style style}) {
+  factory Record.empty({required Style style, required DateTime date}) {
     final Map<String, bool> taskCompletion = {};
     for (Task task in style.tasks) {
       taskCompletion.addAll({task.id: false});
@@ -38,7 +38,7 @@ class Record {
     return Record(
       id: generateId(),
       styleId: style.id,
-      date: getTodayDate(),
+      date: date,
       message: "",
       taskCompletion: taskCompletion,
     );

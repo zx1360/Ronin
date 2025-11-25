@@ -80,6 +80,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
       // 新建样式前, 删除<日期为今天>的record记录和style记录
       await _server.clearBeforeNewStyle();
     }
+    await ref.read(routineServiceProvider.notifier).refreshAll();
     // 本方法内两个setState()
     // 前者为了确保有style记录被删时, 下拉栏断言不出错.
     // 后者为了新建之后立刻显示新style的overview.

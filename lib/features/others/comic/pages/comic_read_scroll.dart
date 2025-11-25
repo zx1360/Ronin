@@ -16,6 +16,7 @@ import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.da
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 
 import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/shared/bottom/snack_bar.dart';
 
 class ComicScrollPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
