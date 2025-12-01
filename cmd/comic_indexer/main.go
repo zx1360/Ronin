@@ -376,7 +376,7 @@ func updateComicSummary(pool *pgxpool.Pool, bookCount, totalChapterCount, totalI
 
 	_, err := pool.Exec(ctx, `
 		INSERT INTO comics.comic_summary (id, title, book_count, total_chapter_count, total_image_count, updated_at)
-		VALUES ('comic_total_index', '我的所有漫画', $1, $2, $3, $4)
+		VALUES ('comic_meta_data', '漫画信息元数据', $1, $2, $3, $4)
 		ON CONFLICT (id) DO UPDATE
 		SET book_count = $1, total_chapter_count = $2, total_image_count = $3, updated_at = $4
 	`, bookCount, totalChapterCount, totalImageCount, time.Now())
