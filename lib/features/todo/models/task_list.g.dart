@@ -51,26 +51,3 @@ class TaskListAdapter extends TypeAdapter<TaskList> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
-
-// **************************************************************************
-// JsonSerializableGenerator
-// **************************************************************************
-
-TaskList _$TaskListFromJson(Map<String, dynamic> json) => TaskList(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      order: (json['order'] as num).toInt(),
-      tasks: (json['tasks'] as List<dynamic>?)
-              ?.map((e) => TodoTask.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
-      isDefault: json['isDefault'] as bool? ?? false,
-    );
-
-Map<String, dynamic> _$TaskListToJson(TaskList instance) => <String, dynamic>{
-      'id': instance.id,
-      'name': instance.name,
-      'order': instance.order,
-      'tasks': instance.tasks,
-      'isDefault': instance.isDefault,
-    };

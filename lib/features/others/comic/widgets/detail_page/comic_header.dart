@@ -1,7 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/shared/image_widget/common_image_widget.dart';
 
 class ComicHeader extends StatelessWidget {
   final ComicInfo info;
@@ -15,14 +14,10 @@ class ComicHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 封面图
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-                    File(info.coverImage),
-                    width: 120,
-                    height: 180,
-                    fit: BoxFit.cover,
-                  )
+          SizedBox(
+            width: 120,
+            height: 180,
+            child: CommonImageWidget(imageUrl: info.coverImage),
           ),
 
           const SizedBox(width: 16),

@@ -53,26 +53,3 @@ class ChapterInfoAdapter extends TypeAdapter<ChapterInfo> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
-
-// **************************************************************************
-// JsonSerializableGenerator
-// **************************************************************************
-
-ChapterInfo _$ChapterInfoFromJson(Map<String, dynamic> json) => ChapterInfo(
-      id: json['id'] as String,
-      comicId: json['comicId'] as String,
-      chapterIndex: (json['chapterIndex'] as num).toInt(),
-      dirName: json['dirName'] as String,
-      images: (json['images'] as List<dynamic>)
-          .map((e) => e as Map<String, dynamic>)
-          .toList(),
-    );
-
-Map<String, dynamic> _$ChapterInfoToJson(ChapterInfo instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'comicId': instance.comicId,
-      'chapterIndex': instance.chapterIndex,
-      'dirName': instance.dirName,
-      'images': instance.images,
-    };

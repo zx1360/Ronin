@@ -1,11 +1,9 @@
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:json_annotation/json_annotation.dart';
 
 part 'comic_preference.g.dart';
 
 // TODO: 删掉pageIndex字段, 在加入进度条Provider时候做吧.
 @HiveType(typeId: 30)
-@JsonSerializable()
 class ComicPreference {
   @HiveField(0)
   final String comicId;
