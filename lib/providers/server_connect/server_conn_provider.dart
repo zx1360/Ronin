@@ -17,7 +17,7 @@ class ServerConnector extends _$ServerConnector {
   // 网络请求测试方法.
   Future<void> test() async {
     bool connected_ = false;
-    final resp = await ref.read(fetcherProvider(path: "/util/test").future);
+    final resp = await ref.read(fetcherProvider(path: "/api/test").future);
     if (resp != null && resp.statusCode == 200) {
       connected_ = true;
     }

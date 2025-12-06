@@ -6,7 +6,7 @@ part of 'sync_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$syncBookletHash() => r'e6d634167d6e3309a974e145ffcce52067cf349b';
+String _$syncBookletHash() => r'e2a4d1dba799601e929c1e1b64e25df7c4df7504';
 
 /// See also [syncBooklet].
 @ProviderFor(syncBooklet)
@@ -20,7 +20,7 @@ final syncBookletProvider = AutoDisposeFutureProvider<void>.internal(
 );
 
 typedef SyncBookletRef = AutoDisposeFutureProviderRef<void>;
-String _$syncEssayHash() => r'3baf29c4dd0debd2f345c1fc50ab5781b80a72cf';
+String _$syncEssayHash() => r'a081924c6a78e5fb5de0a658022a0e5b0ce5f745';
 
 /// See also [syncEssay].
 @ProviderFor(syncEssay)

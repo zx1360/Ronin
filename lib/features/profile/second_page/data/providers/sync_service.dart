@@ -9,7 +9,7 @@ part 'sync_service.g.dart';
 @riverpod
 Future<void> syncBooklet(SyncBookletRef ref) async {
   try {
-    final resp = await ref.read(fetcherProvider(path: "/sync/booklet").future);
+    final resp = await ref.read(fetcherProvider(path: "/api/user-data/sync/booklet").future);
     if (resp == null || resp.statusCode != 200) {
       AppLogger().error("syncBooklet出错");
     } else {
@@ -23,7 +23,7 @@ Future<void> syncBooklet(SyncBookletRef ref) async {
 @riverpod
 Future<void> syncEssay(SyncEssayRef ref) async {
   try {
-    final resp = await ref.read(fetcherProvider(path: "/sync/essay").future);
+    final resp = await ref.read(fetcherProvider(path: "/api/user-data/sync/essay").future);
     if (resp == null || resp.statusCode != 200) {
       AppLogger().error("syncEssay失败");
     } else {

@@ -32,7 +32,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
   // routine的数据操作Notifier
   RoutineService? _server;
   // 往期打卡补签相关.
-  DateTime targetDate = DateTime.now();
+  DateTime targetDate = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
   // # record变动(任务完成情况, 标题/描述, 留言)
   Future<void> toggleCompletion(String taskId, bool completed) async {

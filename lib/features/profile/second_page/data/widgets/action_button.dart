@@ -25,7 +25,6 @@ class ActionButton extends ConsumerWidget {
       ),
       child: TextButton.icon(
         onPressed: () async {
-          // alertDialog确认执行.
           final result = await showConfirmationDialog(
             context,
             info.label,
