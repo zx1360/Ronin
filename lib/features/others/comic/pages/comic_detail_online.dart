@@ -24,8 +24,6 @@ class OnlineComicDetailPage extends ConsumerWidget {
       comicPrefWithComicIdProvider(comicId: comicInfo.id),
     );
 
-    // return Placeholder();
-
     return Scaffold(
       appBar: AppBar(
         title: Text(comicInfo.comicName, overflow: TextOverflow.ellipsis),
@@ -122,7 +120,7 @@ class OnlineComicDetailPage extends ConsumerWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${chapter.images.length} 页',
+                            '${chapter.imageCount} 页',
                             style: const TextStyle(
                               fontSize: 10,
                               color: Colors.grey,

@@ -24,13 +24,14 @@ class ChapterInfoAdapter extends TypeAdapter<ChapterInfo> {
       images: (fields[4] as List)
           .map((dynamic e) => (e as Map).cast<String, dynamic>())
           .toList(),
+      imageCount: fields[5] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChapterInfo obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -40,7 +41,9 @@ class ChapterInfoAdapter extends TypeAdapter<ChapterInfo> {
       ..writeByte(3)
       ..write(obj.dirName)
       ..writeByte(4)
-      ..write(obj.images);
+      ..write(obj.images)
+      ..writeByte(5)
+      ..write(obj.imageCount);
   }
 
   @override
