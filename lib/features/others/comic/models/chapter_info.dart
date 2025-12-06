@@ -20,7 +20,9 @@ class ChapterInfo {
   //   'width': size.width,
   //   'height': size.height,
   // }
-  final List<Map<String, dynamic>> images;
+  late final List<Map<String, dynamic>> images;
+  @HiveField(5)
+  final int imageCount;
 
   ChapterInfo({
     required this.id,
@@ -28,13 +30,15 @@ class ChapterInfo {
     required this.chapterIndex,
     required this.dirName,
     required this.images,
-  });
+    int? imageCount,
+  }): imageCount = imageCount??images.length;
   ChapterInfo.newOne({
     required this.comicId,
     required this.chapterIndex,
     required this.dirName,
     required this.images,
-  }):id=generateId();
+    int? imageCount,
+  }):id=generateId(), imageCount=imageCount??images.length;
 
   /// 序列化
   factory ChapterInfo.fromJson(Map<String, dynamic> json) {
@@ -50,6 +54,7 @@ class ChapterInfo {
       chapterIndex: json['chapter_index'] as int,
       dirName: json['dir_name'] as String,
       images: images,
+      imageCount: json['image_count']
     );
   }
   Map<String, dynamic> toJson() {
@@ -59,6 +64,7 @@ class ChapterInfo {
       'chapter_index': chapterIndex,
       'dir_name': dirName,
       'images': images,
+      'image_count': imageCount
     };
   }
 }
