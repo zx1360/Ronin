@@ -344,11 +344,9 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
               opacity: 0.15,
             ),
           ),
-          child: SingleChildScrollView(
+          child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            children: [
                 // 页面标题
                 Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
                 const SizedBox(height: 20),
@@ -420,8 +418,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                   records: _relatedRecords,
                 ),
               ],
-            ),
-          ),
+          )
         ),
       ),
     );

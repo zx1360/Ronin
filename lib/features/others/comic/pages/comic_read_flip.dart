@@ -54,6 +54,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       chapterInfos = ref.read(
         chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
       );
+      // TODO!!!!!: '0'值.
       currentChapter = chapterInfos[chapterIndex];
       setState(() {
         images = currentChapter!.images;

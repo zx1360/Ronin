@@ -1,10 +1,8 @@
 import 'package:hive/hive.dart';
-import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 
 part 'task_list.g.dart';
 
-@JsonSerializable()
 @HiveType(typeId: 18)
 class TaskList {
   @HiveField(0)

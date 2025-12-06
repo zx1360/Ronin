@@ -1,12 +1,10 @@
 import 'package:hive/hive.dart';
-import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/shared/utils/util.dart';
 
 part 'comic_info.g.dart';
 
 // 漫画元数据
 @HiveType(typeId: 31)
-@JsonSerializable()
 class ComicInfo {
   @HiveField(0)
   final String id;
@@ -32,5 +30,25 @@ class ComicInfo {
     required this.coverImage,
     required this.chapterCount,
     required this.imageCount,
-  }):id=generateId();
+  }) : id = generateId();
+
+  // 序列化
+  factory ComicInfo.fromJson(Map<String, dynamic> json) {
+    return ComicInfo(
+      id: json['id'] as String,
+      comicName: json['title'] as String,
+      coverImage: json['cover_image'] as String,
+      chapterCount: json['chapter_count'] as int,
+      imageCount: json['image_count'] as int,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': comicName,
+      'cover_image': coverImage,
+      'chapter_count': chapterCount,
+      'image_count': imageCount,
+    };
+  }
 }

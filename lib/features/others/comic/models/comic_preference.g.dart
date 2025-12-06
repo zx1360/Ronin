@@ -48,23 +48,3 @@ class ComicPreferenceAdapter extends TypeAdapter<ComicPreference> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
-
-// **************************************************************************
-// JsonSerializableGenerator
-// **************************************************************************
-
-ComicPreference _$ComicPreferenceFromJson(Map<String, dynamic> json) =>
-    ComicPreference(
-      comicId: json['comicId'] as String,
-      chapterIndex: (json['chapterIndex'] as num).toInt(),
-      pageIndex: (json['pageIndex'] as num).toInt(),
-      flipReading: json['flipReading'] as bool? ?? true,
-    );
-
-Map<String, dynamic> _$ComicPreferenceToJson(ComicPreference instance) =>
-    <String, dynamic>{
-      'comicId': instance.comicId,
-      'chapterIndex': instance.chapterIndex,
-      'pageIndex': instance.pageIndex,
-      'flipReading': instance.flipReading,
-    };

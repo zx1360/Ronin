@@ -9,6 +9,7 @@ import 'package:torrid/features/others/comic/widgets/detail_page/row_info_widget
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 
+// TODO: 加入'删除'选项, 从本地删除.  
 class ComicDetailPage extends ConsumerWidget {
   final ComicInfo comicInfo;
   const ComicDetailPage({super.key, required this.comicInfo});

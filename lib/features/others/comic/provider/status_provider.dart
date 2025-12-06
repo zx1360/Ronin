@@ -64,3 +64,4 @@ List<ChapterInfo> chaptersWithComicId(
   return chapters.where((chapter) => chapter.comicId == comicId).toList()
     ..sort((a, b) => a.chapterIndex.compareTo(b.chapterIndex));
 }
+
