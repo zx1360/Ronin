@@ -22,7 +22,8 @@ const (
 )
 
 // ScanComicDir 扫描漫画根目录，返回漫画列表及统计信息
-// TODO: 如果漫画名存在于数据库或漫画名/章节名存在于数据库, 跳过.
+// TODO: 多一个选项: 是否删除数据库中已不存在的漫画/章节/图片记录
+// TODO: 设置raw目录用以专门检测新增, 而comics目录用以全盘确认/删除已不存在的记录等.
 func ScanComicDir(root string) ([]*ComicBook, int, int, error) {
 	var comicBooks []*ComicBook
 	totalChapterCount := 0
@@ -87,7 +88,6 @@ func ScanComicDir(root string) ([]*ComicBook, int, int, error) {
 			comic.ChapterCount++
 			comicTotalImages += chapter.ImageCount
 			totalImageCount += chapter.ImageCount
-			println("  ├─ 章节:", dirName, "(图片数:", chapter.ImageCount, ")")
 		}
 
 		if comic.ChapterCount == 0 {
@@ -118,12 +118,13 @@ func readImageMetadata(chapterID, chapterPath string, imageFiles []os.DirEntry) 
 	for imgIdx, imgFile := range imageFiles {
 		go func() {
 			defer wg.Done()
+			// 用带缓冲的通道实现固定上限的并发控制.
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
 			imgFullPath := filepath.Join(chapterPath, imgFile.Name())
 			// 提取相对路径（基于 static 目录）
-			relPath, _ := strings.CutPrefix(imgFullPath, "static\\")
+			relPath := imgFullPath[strings.Index(imgFullPath, `static\`)+len(`static\`):]
 			width, height := getImageDimensionsSafe(imgFullPath)
 
 			mu.Lock()
