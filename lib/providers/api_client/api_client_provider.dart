@@ -65,7 +65,7 @@ Future<Response<Uint8List>?> bytesFetcher(
 }) async {
   final apiClient = ref.watch(apiClientManagerProvider);
   try {
-    final resp = await apiClient.getBinary( // 调用新创建的 getBinary 方法
+    final resp = await apiClient.getBinary(
       path,
       queryParams: params,
       cancelToken: cancelToken,

@@ -23,7 +23,7 @@ Future<void> backupBooklet(BackupBookletRef ref) async {
 
     final resp = await ref.read(
       senderProvider(
-        path: "/backup/booklet",
+        path: "/api/user-data/backup/booklet",
         jsonData: data,
         files: files,
       ).future,
@@ -49,7 +49,7 @@ Future<void> backupEssay(BackupEssayRef ref) async {
 
     final resp = await ref.read(
       senderProvider(
-        path: "/backup/essay",
+        path: "/api/user-data/backup/essay",
         jsonData: data,
         files: files,
       ).future,

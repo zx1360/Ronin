@@ -197,7 +197,7 @@ final latestStyleProvider = AutoDisposeProvider<Style?>.internal(
 );
 
 typedef LatestStyleRef = AutoDisposeProviderRef<Style?>;
-String _$styleDateRangeHash() => r'e79978ad6238cf04b40a4fa0ee91ef0539667500';
+String _$styleDateRangeHash() => r'6524539a54e00487bbf3c65997ea1bd3c8700734';
 
 /// See also [styleDateRange].
 @ProviderFor(styleDateRange)

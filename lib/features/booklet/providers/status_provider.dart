@@ -63,10 +63,11 @@ DateTimeRange? styleDateRange(StyleDateRangeRef ref, {required Style? style}){
       records.last.date.month,
       records.last.date.day,
     );
+    final today = DateTime.now();
     final latestDate = DateTime(
-      records.first.date.year,
-      records.first.date.month,
-      records.first.date.day,
+      today.year,
+      today.month,
+      today.day,
     );
     return DateTimeRange(start: earliestDate, end: latestDate);
 }
@@ -134,8 +135,8 @@ int currentStreak(CurrentStreakRef ref, String styleId) {
   final todayDate = DateTime(today.year, today.month, today.day);
   final yesterdayDate = todayDate.subtract(const Duration(days: 1));
   // 今/昨有无打卡记录.
-  final hasTodayRecord = currentRecords.any((r) => r.date == todayDate);
-  final hasYesterdayRecord = currentRecords.any((r) => r.date == yesterdayDate);
+  final hasTodayRecord = currentRecords.any((r) => r.date==todayDate);
+  final hasYesterdayRecord = currentRecords.any((r) => r.date==yesterdayDate);
 
   if (!hasTodayRecord && !hasYesterdayRecord) return 0;
   int streak = 0;

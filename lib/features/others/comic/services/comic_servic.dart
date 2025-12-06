@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 // 从章节名称中提取章节序号
 int getChapterIndex(String chapterName) {

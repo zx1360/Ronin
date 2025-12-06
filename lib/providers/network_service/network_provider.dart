@@ -30,13 +30,9 @@ Future<void> saveFromRelativeUrls(SaveFromRelativeUrlsRef ref,
 
       // TODO: 此处网络相关之后分离到transfer_service.dart中.
       // TODO: 本文件重构, 状态相关使用riverpod实现, 结合apiCliantManagerProvider.
-      // final prefs = PrefsService().prefs;
-      // final pcIp = prefs.getString("PC_IP");
-      // final pcPort = prefs.getString("PC_PORT");
       // 请求图片
       // TODO: 并非完全异步, 待优化.
       for (final url in urls) {
-        // final response = await ref.read(fetcherProvider(path: "/static$url").future);
         final response = await ref.read(bytesFetcherProvider(path: "/static/$url").future);
         if (response==null||response.statusCode != 200) {
           throw Exception('图片请求失败:\nurl: $url\n状态码: ${response?.statusCode}');

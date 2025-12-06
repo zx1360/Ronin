@@ -8,7 +8,6 @@ import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 
-import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/save_service.dart';
 
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';

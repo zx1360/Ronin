@@ -30,6 +30,22 @@ class Record {
     required this.taskCompletion,
   });
 
+   Record copyWith({
+    String? id,
+    String? styleId,
+    DateTime? date,
+    String? message,
+    Map<String, bool>? taskCompletion,
+  }) {
+    return Record(
+      id: id ?? this.id,
+      styleId: styleId ?? this.styleId,
+      date: date ?? this.date,
+      message: message ?? this.message,
+      taskCompletion: taskCompletion ?? this.taskCompletion,
+    );
+  }
+
   factory Record.empty({required Style style, required DateTime date}) {
     final Map<String, bool> taskCompletion = {};
     for (Task task in style.tasks) {
