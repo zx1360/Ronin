@@ -20,20 +20,6 @@ final comicInfosProvider = AutoDisposeProvider<List<ComicInfo>>.internal(
 );
 
 typedef ComicInfosRef = AutoDisposeProviderRef<List<ComicInfo>>;
-String _$chapterInfosHash() => r'7e6e3ed36305cff911a386a5062b8c9bd96e7650';
-
-/// See also [chapterInfos].
-@ProviderFor(chapterInfos)
-final chapterInfosProvider = AutoDisposeProvider<List<ChapterInfo>>.internal(
-  chapterInfos,
-  name: r'chapterInfosProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$chapterInfosHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef ChapterInfosRef = AutoDisposeProviderRef<List<ChapterInfo>>;
 String _$comicPrefWithComicIdHash() =>
     r'736cccf8254439070d41a733bd17b0f748209aa3';
 
@@ -187,14 +173,14 @@ class _ComicPrefWithComicIdProviderElement
 }
 
 String _$chaptersWithComicIdHash() =>
-    r'087dadc7e63a4f094495d95f24e060868d17937b';
+    r'cee29817cd4805974b78cd28f6276ad7f288d1f3';
 
 /// See also [chaptersWithComicId].
 @ProviderFor(chaptersWithComicId)
 const chaptersWithComicIdProvider = ChaptersWithComicIdFamily();
 
 /// See also [chaptersWithComicId].
-class ChaptersWithComicIdFamily extends Family<List<ChapterInfo>> {
+class ChaptersWithComicIdFamily extends Family<AsyncValue<List<ChapterInfo>>> {
   /// See also [chaptersWithComicId].
   const ChaptersWithComicIdFamily();
 
@@ -233,7 +219,7 @@ class ChaptersWithComicIdFamily extends Family<List<ChapterInfo>> {
 
 /// See also [chaptersWithComicId].
 class ChaptersWithComicIdProvider
-    extends AutoDisposeProvider<List<ChapterInfo>> {
+    extends AutoDisposeFutureProvider<List<ChapterInfo>> {
   /// See also [chaptersWithComicId].
   ChaptersWithComicIdProvider({
     required String comicId,
@@ -268,7 +254,8 @@ class ChaptersWithComicIdProvider
 
   @override
   Override overrideWith(
-    List<ChapterInfo> Function(ChaptersWithComicIdRef provider) create,
+    FutureOr<List<ChapterInfo>> Function(ChaptersWithComicIdRef provider)
+        create,
   ) {
     return ProviderOverride(
       origin: this,
@@ -285,7 +272,7 @@ class ChaptersWithComicIdProvider
   }
 
   @override
-  AutoDisposeProviderElement<List<ChapterInfo>> createElement() {
+  AutoDisposeFutureProviderElement<List<ChapterInfo>> createElement() {
     return _ChaptersWithComicIdProviderElement(this);
   }
 
@@ -303,13 +290,14 @@ class ChaptersWithComicIdProvider
   }
 }
 
-mixin ChaptersWithComicIdRef on AutoDisposeProviderRef<List<ChapterInfo>> {
+mixin ChaptersWithComicIdRef
+    on AutoDisposeFutureProviderRef<List<ChapterInfo>> {
   /// The parameter `comicId` of this provider.
   String get comicId;
 }
 
 class _ChaptersWithComicIdProviderElement
-    extends AutoDisposeProviderElement<List<ChapterInfo>>
+    extends AutoDisposeFutureProviderElement<List<ChapterInfo>>
     with ChaptersWithComicIdRef {
   _ChaptersWithComicIdProviderElement(super.provider);
 

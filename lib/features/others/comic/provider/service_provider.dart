@@ -93,14 +93,14 @@ Future<Map<String, dynamic>> allInfos(AllInfosRef ref) async {
 
 // ----清空comicInfo中, coverImage文件不存在的记录----
 @riverpod
-Map<String, dynamic> deletedInfos(DeletedInfosRef ref) {
+Future<Map<String, dynamic>> deletedInfos(DeletedInfosRef ref) async {
   final deletedComics = ref
       .read(comicInfosProvider)
       .where((info) => !File(info.coverImage).existsSync())
       .map((info) => info.id)
       .toList();
-  final deletedChapterInfos = ref
-      .read(chapterInfosProvider)
+  final deletedChapterInfos = (await ref
+      .read(chapterInfoStreamProvider.future))
       .where((info) => deletedComics.any((id) => id == info.comicId))
       .map((info) => info.id)
       .toList();

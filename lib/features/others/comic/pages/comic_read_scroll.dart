@@ -32,11 +32,11 @@ class ComicScrollPage extends ConsumerStatefulWidget {
 }
 
 class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
-  // 为了使ListView的跳转正常.
+  // 为了使ListView的跳转正常.  使用globalKey使每次刷新重新构建, 防止遗留信息阻止正常显示.
   Key _listviewKey = UniqueKey();
   // comic信息相关
   late int chapterIndex = widget.chapterIndex;
-  List<ChapterInfo> chapterInfos = [];
+  List<ChapterInfo> chapters = [];
   ChapterInfo? currentChapter;
   List<Map<String, dynamic>> images = [];
 
@@ -60,18 +60,6 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     init();
     // 初始化滚动监听器
     _scrollController.addListener(_onScroll);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      chapterInfos = ref.read(
-        chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
-      );
-      currentChapter = chapterInfos[chapterIndex];
-      setState(() {
-        images = currentChapter!.images;
-        // 计算图片高度和偏移量
-        _calculateImageOffsets();
-      });
-    });
   }
 
   @override
@@ -217,7 +205,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   void _prevChapter() {
     if (chapterIndex <= 0) return;
     chapterIndex--;
-    currentChapter = chapterInfos[chapterIndex];
+    currentChapter = chapters[chapterIndex];
     _currentImageIndex = 0;
     _listviewKey = UniqueKey();
     setState(() {
@@ -231,9 +219,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
   // 下一章节
   void _nextChapter() {
-    if (chapterIndex >= chapterInfos.length - 1) return;
+    if (chapterIndex >= chapters.length - 1) return;
     chapterIndex++;
-    currentChapter = chapterInfos[chapterIndex];
+    currentChapter = chapters[chapterIndex];
     _currentImageIndex = 0;
     _listviewKey = UniqueKey();
     setState(() {
@@ -247,6 +235,10 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
   @override
   Widget build(BuildContext context) {
+    final chaptersAsync = ref.read(
+      chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
+    );
+
     // 计算当前 Slider 的值
     final double slideVal = images.length <= 1
         ? -1
@@ -267,7 +259,18 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         child: Stack(
           children: [
             // 漫画阅读区域（下拉式 + 整体缩放）
-            _buildScrollGallery(context),
+            chaptersAsync.when(
+              data: (data) {
+                chapters = data;
+                currentChapter = chapters[chapterIndex];
+                images = currentChapter!.images;
+                // 计算图片高度和偏移量
+                _calculateImageOffsets();
+                return _buildScrollGallery(context);
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(child: Text('错误：$error')),
+            ),
 
             // 顶部控制栏
             if (_showControls)
