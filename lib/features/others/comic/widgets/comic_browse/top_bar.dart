@@ -8,8 +8,8 @@ class TopControllBar extends StatelessWidget {
   final int currentNum;
   final int totalNum;
   final bool? isMerging;
+  final Function? saveFunc;
 
-  final Function saveFunc;
   const TopControllBar({
     super.key,
     required this.comicName,
@@ -70,16 +70,18 @@ class TopControllBar extends StatelessWidget {
             ),
 
             // 保存当前图片按钮
-            IconButton(
+            if (saveFunc != null)
+              IconButton(
               icon: Icon(
                 Icons.save_alt_rounded,
                 color: isMerging ?? false ? Colors.grey : Colors.white,
               ),
               onPressed: () {
                 if (isMerging ?? false) return;
-                saveFunc();
+                saveFunc!();
               },
             ),
+            
           ],
         ),
       ),

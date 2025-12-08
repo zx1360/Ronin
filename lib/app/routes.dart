@@ -36,7 +36,7 @@ final List<RouteBase> routes = [
   ),
 
   // #### 主要页
-  // 积微页, 打卡/挑战.
+  // 积微页, 打卡
   GoRoute(
     path: "/booklet",
     name: "booklet",
