@@ -8,16 +8,6 @@ import 'package:torrid/features/others/comic/provider/box_provider.dart';
 part 'status_provider.g.dart';
 
 // ----源数据----
-// comicPref
-@riverpod
-List<ComicPreference> comicPrefs(ComicPrefsRef ref) {
-  final asyncVal = ref.watch(comicPrefStreamProvider);
-  if (asyncVal.hasError) {
-    throw asyncVal.error!;
-  }
-  return asyncVal.asData?.value ?? [];
-}
-
 // comicInfo  对于含有中文的, 按拼音升序.
 @riverpod
 List<ComicInfo> comicInfos(ComicInfosRef ref) {
@@ -64,4 +54,3 @@ List<ChapterInfo> chaptersWithComicId(
   return chapters.where((chapter) => chapter.comicId == comicId).toList()
     ..sort((a, b) => a.chapterIndex.compareTo(b.chapterIndex));
 }
-

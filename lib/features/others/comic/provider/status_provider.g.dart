@@ -6,20 +6,6 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicPrefsHash() => r'282d06a77b1093f0208acf5bae0bbf419f319ae8';
-
-/// See also [comicPrefs].
-@ProviderFor(comicPrefs)
-final comicPrefsProvider = AutoDisposeProvider<List<ComicPreference>>.internal(
-  comicPrefs,
-  name: r'comicPrefsProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$comicPrefsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef ComicPrefsRef = AutoDisposeProviderRef<List<ComicPreference>>;
 String _$comicInfosHash() => r'82eae5d4f68dce760a3bab7fb67555f403732655';
 
 /// See also [comicInfos].

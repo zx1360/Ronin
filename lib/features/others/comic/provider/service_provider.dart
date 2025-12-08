@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/provider/box_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/io_comic_service.dart';
@@ -103,11 +104,8 @@ Map<String, dynamic> deletedInfos(DeletedInfosRef ref) {
       .where((info) => deletedComics.any((id) => id == info.comicId))
       .map((info) => info.id)
       .toList();
-  final deletedPrefs = ref
-      .read(comicPrefsProvider)
-      .where((pref) => deletedComics.any((id) => id == pref.comicId))
-      .map((info) => info.comicId)
-      .toList();
+  final prefBox = ref.read(comicPrefBoxProvider);
+  final deletedPrefs = deletedComics.map((comicId)=>prefBox.get(comicId)?.comicId).whereType<String>().toList();
   return {
     "comics": deletedComics,
     "chapters": deletedChapterInfos,

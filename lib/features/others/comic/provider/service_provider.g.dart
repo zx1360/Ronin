@@ -21,7 +21,7 @@ final allInfosProvider =
 );
 
 typedef AllInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
-String _$deletedInfosHash() => r'57be13a4d416660f07804d9399d9061b09dae1ef';
+String _$deletedInfosHash() => r'2dd3235b69f0cdb6faf24a7c7445288efc6812a6';
 
 /// See also [deletedInfos].
 @ProviderFor(deletedInfos)
