@@ -22,6 +22,20 @@ class IoService {
     }
   }
 
+  // 保存图片到外部私有空间
+  static Future<File> saveImageToExternalStorage(
+      {required String relativePath, required List<int> bytes}) async {
+    relativePath = relativePath.startsWith("/")
+        ? relativePath.replaceFirst("/", "")
+        : relativePath;
+    final externalDir = await IoService.externalStorageDir;
+    final filePath = path.join(externalDir.path, relativePath);
+    final file = File(filePath);
+    await file.create(recursive: true);
+    await file.writeAsBytes(bytes);
+    return file;
+  }
+
   // 删除目录下的所有内容但保留目录本身
   static Future<void> deleteDirectoryContents(Directory dir) async {
     if (!await dir.exists()) return;
@@ -41,6 +55,9 @@ class IoService {
 
   // 清除外部私有空间中的指定目录(包括本身)
   static Future<void> clearSpecificDirectory(String relativePath) async {
+    relativePath = relativePath.startsWith("/")
+        ? relativePath.replaceFirst("/", "")
+        : relativePath;
     try {
       // 获取应用外部私有存储根目录
       final externalDir = await IoService.externalStorageDir;

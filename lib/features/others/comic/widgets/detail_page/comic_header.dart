@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
+import 'package:torrid/features/profile/second_page/data/widgets/action_button.dart';
+import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/shared/image_widget/common_image_widget.dart';
+import 'package:torrid/shared/modals/confirm_modal.dart';
 
-class ComicHeader extends StatelessWidget {
+class ComicHeader extends ConsumerWidget {
   final ComicInfo info;
-  const ComicHeader({super.key, required this.info});
+  final bool isLocal;
+  const ComicHeader({super.key, required this.info, required this.isLocal});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -24,22 +31,70 @@ class ComicHeader extends StatelessWidget {
 
           // 漫画信息，使用Expanded避免溢出
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  info.comicName,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+            child: SizedBox(
+              height: 180,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    info.comicName,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                _buildInfoRow('章节数', '${info.chapterCount} 章'),
-                _buildInfoRow('总图片数', '${info.imageCount} 张'),
-              ],
+                  const SizedBox(height: 12),
+                  _buildInfoRow('章节数', '${info.chapterCount} 章'),
+                  _buildInfoRow('总图片数', '${info.imageCount} 张'),
+                  const Spacer(),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    // TODO: 操作过程共加载反馈.
+                    child: isLocal
+                        ? TextButton.icon(
+                            onPressed: () async {
+                              final confirm = await showConfirmDialog(
+                                context: context,
+                                title: "删除漫画",
+                                content: "将从本地目录彻底删除本漫画.",
+                                confirmFunc: () {},
+                              );
+                              if (confirm==null || confirm==false) return;
+                              await IoService.clearSpecificDirectory(
+                                "/comics/${info.comicName}",
+                              );
+                              await ref
+                                  .read(comicServiceProvider.notifier)
+                                  .refreshChanged();
+                              if (context.mounted) {
+                                context.pop();
+                              }
+                            },
+                            label: Text("删除"),
+                            icon: Icon(Icons.delete_outline_rounded),
+                          )
+                        : TextButton.icon(
+                            onPressed: () async {
+                              final confirm = await showConfirmDialog(
+                                context: context,
+                                title: "下载漫画",
+                                content: "将下载本漫画到本地目录，方便离线阅读.",
+                                confirmFunc: (){},
+                              );
+                              if (confirm==null || confirm==false) return;
+                              await ref.read(comicServiceProvider.notifier).downloadAndSaveComic(comicInfo: info);
+                              if (context.mounted) {
+                                context.pop();
+                              }
+                            },
+                            label: Text("下载"),
+                            icon: Icon(Icons.download),
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
