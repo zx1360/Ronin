@@ -21,11 +21,12 @@ final allInfosProvider =
 );
 
 typedef AllInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
-String _$deletedInfosHash() => r'2dd3235b69f0cdb6faf24a7c7445288efc6812a6';
+String _$deletedInfosHash() => r'212dc35f2a03e737f14814c2e6950f778da396ac';
 
 /// See also [deletedInfos].
 @ProviderFor(deletedInfos)
-final deletedInfosProvider = AutoDisposeProvider<Map<String, dynamic>>.internal(
+final deletedInfosProvider =
+    AutoDisposeFutureProvider<Map<String, dynamic>>.internal(
   deletedInfos,
   name: r'deletedInfosProvider',
   debugGetCreateSourceHash:
@@ -34,7 +35,7 @@ final deletedInfosProvider = AutoDisposeProvider<Map<String, dynamic>>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef DeletedInfosRef = AutoDisposeProviderRef<Map<String, dynamic>>;
+typedef DeletedInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
 String _$newInfosHash() => r'002d6cdbdf7072f230c41c078d70cdba33050451';
 
 /// See also [newInfos].

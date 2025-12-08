@@ -32,7 +32,7 @@ class ComicReadPage extends ConsumerStatefulWidget {
 }
 
 class _ComicReadPageState extends ConsumerState<ComicReadPage> {
-  late List<ChapterInfo> chapterInfos;
+  List<ChapterInfo> chapters = [];
   late int chapterIndex = widget.chapterIndex;
   ChapterInfo? currentChapter;
   List<Map<String, dynamic>> images = [];
@@ -50,16 +50,6 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   void initState() {
     super.initState();
     init();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      chapterInfos = ref.read(
-        chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
-      );
-      // TODO!!!!!: '0'值.
-      currentChapter = chapterInfos[chapterIndex];
-      setState(() {
-        images = currentChapter!.images;
-      });
-    });
     _pageController = PageController(initialPage: _currentImageIndex);
   }
 
@@ -127,7 +117,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   void _prevChapter() {
     if (chapterIndex > 0) {
       chapterIndex--;
-      currentChapter = chapterInfos[chapterIndex];
+      currentChapter = chapters[chapterIndex];
       _currentImageIndex = 0;
       setState(() {
         images = currentChapter!.images;
@@ -140,9 +130,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 下一章节
   void _nextChapter() {
-    if (chapterIndex < chapterInfos.length - 1) {
+    if (chapterIndex < chapters.length - 1) {
       chapterIndex++;
-      currentChapter = chapterInfos[chapterIndex];
+      currentChapter = chapters[chapterIndex];
       _currentImageIndex = 0;
       setState(() {
         images = currentChapter!.images;
@@ -184,6 +174,10 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   @override
   Widget build(BuildContext context) {
+    final chaptersAsync = ref.read(
+      chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
+    );
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
@@ -200,7 +194,16 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         child: Stack(
           children: [
             // 漫画阅读区域
-            _buildGallery(),
+            chaptersAsync.when(
+              data: (data) {
+                chapters = data;
+                currentChapter = chapters[chapterIndex];
+                images = currentChapter!.images;
+                return _buildGallery();
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(child: Text('错误：$error')),
+            ),
 
             // 点击翻页区
             ...[

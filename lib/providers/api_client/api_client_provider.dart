@@ -49,7 +49,7 @@ Future<Response?> fetcher(
     );
     return resp;
   } catch (e) {
-    AppLogger().error("fetch出错: $e");
+    AppLogger().error("fetch'$path'出错: $e");
     return null;
   }
 }

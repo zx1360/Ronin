@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
-import 'package:torrid/features/others/comic/pages/comic_detail_online.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
@@ -100,7 +99,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    ComicDetailPage(comicInfo: comic),
+                                    ComicDetailPage(comicInfo: comic, isLocal: true,),
                               ),
                             );
                           },
@@ -140,7 +139,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    OnlineComicDetailPage(comicInfo: comic),
+                                    ComicDetailPage(comicInfo: comic, isLocal: false),
                               ),
                             );
                           },

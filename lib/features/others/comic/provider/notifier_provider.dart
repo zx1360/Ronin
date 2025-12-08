@@ -72,7 +72,7 @@ class ComicService extends _$ComicService {
   // 仅变动更新(新增未记录的、删去目录不存在的)
   Future<void> refreshChanged() async {
     // 删去不存在的.
-    final deleted = ref.read(deletedInfosProvider);
+    final deleted = await ref.read(deletedInfosProvider.future);
     await state.prefBox.deleteAll(deleted['prefs']);
     await state.comicInfoBox.deleteAll(deleted['comics']);
     await state.chapterInfoBox.deleteAll(deleted['chapters']);
