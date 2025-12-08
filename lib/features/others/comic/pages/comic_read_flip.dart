@@ -10,21 +10,27 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
+import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/save_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/shared/bottom/snack_bar.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
+  final List<ChapterInfo> chapters;
   final int chapterIndex;
+  final bool isLocal;
 
   const ComicReadPage({
     super.key,
     required this.comicInfo,
+    required this.chapters,
     required this.chapterIndex,
+    required this.isLocal,
   });
 
   @override
@@ -32,10 +38,10 @@ class ComicReadPage extends ConsumerStatefulWidget {
 }
 
 class _ComicReadPageState extends ConsumerState<ComicReadPage> {
-  List<ChapterInfo> chapters = [];
+  late List<ChapterInfo> chapters = widget.chapters;
   late int chapterIndex = widget.chapterIndex;
-  ChapterInfo? currentChapter;
-  List<Map<String, dynamic>> images = [];
+  late ChapterInfo currentChapter = chapters[chapterIndex];
+  late List<Map<String, dynamic>> images = currentChapter.images;
   // 是否展示操作栏
   bool _showControls = true;
   // 图片加载相关
@@ -120,7 +126,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       currentChapter = chapters[chapterIndex];
       _currentImageIndex = 0;
       setState(() {
-        images = currentChapter!.images;
+        images = currentChapter.images;
       });
       _controlsTimer.cancel();
       init();
@@ -135,7 +141,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       currentChapter = chapters[chapterIndex];
       _currentImageIndex = 0;
       setState(() {
-        images = currentChapter!.images;
+        images = currentChapter.images;
       });
       _controlsTimer.cancel();
       init();
@@ -157,7 +163,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       final fileExtension = sourceFile.path.split('.').last;
       final fileName =
           "${widget.comicInfo.comicName}_"
-          "第${currentChapter!.chapterIndex}章_"
+          "第${currentChapter.chapterIndex}章_"
           "第${_currentImageIndex + 1}页."
           "$fileExtension";
       ComicSaverService.saveFlipImageToPublic(
@@ -174,9 +180,15 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   @override
   Widget build(BuildContext context) {
-    final chaptersAsync = ref.read(
-      chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
-    );
+    // 图片信息的获取(兼容在线阅读)
+    AsyncValue<List<Map<String, dynamic>>> imagesAsync;
+    if (images.isEmpty) {
+      imagesAsync = ref.watch(
+        onlineImagesWithChapterIdProvider(chapterId: currentChapter.id),
+      );
+    } else {
+      imagesAsync = AsyncValue.data(images);
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -194,11 +206,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         child: Stack(
           children: [
             // 漫画阅读区域
-            chaptersAsync.when(
+            imagesAsync.when(
               data: (data) {
-                chapters = data;
-                currentChapter = chapters[chapterIndex];
-                images = currentChapter!.images;
+                images = data;
                 return _buildGallery();
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -233,9 +243,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
             if (_showControls)
               TopControllBar(
                 comicName: widget.comicInfo.comicName,
-                chapterName: currentChapter?.dirName ?? "",
+                chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
-                totalNum: currentChapter?.images.length ?? 1,
+                totalNum: currentChapter.images.length | currentChapter.imageCount,
                 saveFunc: () {
                   _saveThisImage(context);
                 },
@@ -248,7 +258,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                 nextFunc: _nextChapter,
                 slideVal: _getSliderValue(),
                 onSlideFunc: (value) {
-                  if (currentChapter!.images.isNotEmpty) {
+                  if (images.isNotEmpty) {
                     _pageController.jumpToPage(
                       (value * (images.length - 1)).round(),
                     );
@@ -289,8 +299,12 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     return PhotoViewGallery.builder(
       itemCount: images.length,
       builder: (context, index) {
+        final serverUrl = ref.read(apiClientManagerProvider).baseUrl;
+        final ImageProvider imageProvider = widget.isLocal
+            ? FileImage(File(images[index]['path']))
+            : NetworkImage("$serverUrl/static/${images[index]['path']}");
         return PhotoViewGalleryPageOptions(
-          imageProvider: FileImage(File(images[index]['path'])),
+          imageProvider: imageProvider,
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 2,
         );

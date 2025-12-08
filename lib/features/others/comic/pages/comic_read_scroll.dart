@@ -6,6 +6,7 @@ import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
+import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 
 import 'package:torrid/features/others/comic/services/save_service.dart';
@@ -13,18 +14,23 @@ import 'package:torrid/features/others/comic/services/save_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/shared/bottom/snack_bar.dart';
 
 class ComicScrollPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
+  final List<ChapterInfo> chapters;
   final int chapterIndex;
+  final bool isLocal;
 
   const ComicScrollPage({
     super.key,
     required this.comicInfo,
+    required this.chapters,
     required this.chapterIndex,
+    required this.isLocal,
   });
 
   @override
@@ -35,10 +41,10 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   // 为了使ListView的跳转正常.  使用globalKey使每次刷新重新构建, 防止遗留信息阻止正常显示.
   Key _listviewKey = UniqueKey();
   // comic信息相关
+  late List<ChapterInfo> chapters = widget.chapters;
   late int chapterIndex = widget.chapterIndex;
-  List<ChapterInfo> chapters = [];
-  ChapterInfo? currentChapter;
-  List<Map<String, dynamic>> images = [];
+  late ChapterInfo currentChapter = chapters[chapterIndex];
+  late List<Map<String, dynamic>> images = currentChapter.images;
 
   // 状态量
   int _currentImageIndex = 0;
@@ -47,7 +53,6 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
   // 实现交互界面
   final ScrollController _scrollController = ScrollController();
-  // final ScrollController _scrollController = ScrollController();
   late Timer _controlsTimer;
   final Duration closeBarDuration = const Duration(seconds: 4);
 
@@ -133,7 +138,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         imagePaths.add(images[i]['path']);
       }
       final filename =
-          "${widget.comicInfo.comicName}_第${currentChapter!.chapterIndex}章_${startIndex + 1}-${endIndex + 1}";
+          "${widget.comicInfo.comicName}_第${currentChapter.chapterIndex}章_${startIndex + 1}-${endIndex + 1}";
       setState(() {
         _isMerging = true;
       });
@@ -209,7 +214,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     _currentImageIndex = 0;
     _listviewKey = UniqueKey();
     setState(() {
-      images = currentChapter!.images;
+      images = currentChapter.images;
     });
     _scrollController.jumpTo(0.0);
     _calculateImageOffsets();
@@ -225,7 +230,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     _currentImageIndex = 0;
     _listviewKey = UniqueKey();
     setState(() {
-      images = currentChapter!.images;
+      images = currentChapter.images;
     });
     _scrollController.jumpTo(0.0);
     _calculateImageOffsets();
@@ -235,14 +240,17 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
 
   @override
   Widget build(BuildContext context) {
-    final chaptersAsync = ref.read(
-      chaptersWithComicIdProvider(comicId: widget.comicInfo.id),
-    );
+    AsyncValue<List<Map<String, dynamic>>> imagesAsync;
+    if (images.isEmpty) {
+      imagesAsync = ref.watch(
+        onlineImagesWithChapterIdProvider(chapterId: currentChapter.id),
+      );
+    } else {
+      imagesAsync = AsyncValue.data(images);
+    }
 
     // 计算当前 Slider 的值
-    final double slideVal = images.length <= 1
-        ? -1
-        : _currentImageIndex / (images.length - 1);
+    double slideVal = -1;
 
     return Scaffold(
       body: GestureDetector(
@@ -259,11 +267,12 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         child: Stack(
           children: [
             // 漫画阅读区域（下拉式 + 整体缩放）
-            chaptersAsync.when(
+            imagesAsync.when(
               data: (data) {
-                chapters = data;
-                currentChapter = chapters[chapterIndex];
-                images = currentChapter!.images;
+                images = data;
+                if(images.length>1) {
+                  slideVal = _currentImageIndex / (images.length - 1);
+                }
                 // 计算图片高度和偏移量
                 _calculateImageOffsets();
                 return _buildScrollGallery(context);
@@ -276,7 +285,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
             if (_showControls)
               TopControllBar(
                 comicName: widget.comicInfo.comicName,
-                chapterName: currentChapter?.dirName ?? "",
+                chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
                 totalNum: images.length,
                 saveFunc: _saveImage,
@@ -323,6 +332,8 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
       physics: const BouncingScrollPhysics(),
       itemCount: images.length,
       itemBuilder: (context, index) {
+        final url = widget.isLocal? images[index]['path']: "${ref.watch(apiClientManagerProvider).baseUrl}/static/${images[index]['path']}";
+        
         final image = images[index];
         final width = image['width'];
         // 确保宽度不为0，避免除零错误
@@ -332,7 +343,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         return SizedBox(
           width: maxWidth,
           height: height,
-          child: ComicImage(path: images[index]['path']),
+          child: ComicImage(path: url, isLocal: widget.isLocal,),
         );
       },
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/pages/comic_read_flip.dart';
 import 'package:torrid/features/others/comic/pages/comic_read_scroll.dart';
@@ -8,7 +9,14 @@ import 'package:torrid/features/others/comic/provider/status_provider.dart';
 /// 漫画详情页 - 继续阅读按钮组件
 class ContinueReadingButton extends ConsumerWidget {
   final ComicInfo comicInfo;
-  const ContinueReadingButton({super.key, required this.comicInfo});
+  final List<ChapterInfo> chapters;
+  final bool isLocal;
+  const ContinueReadingButton({
+    super.key,
+    required this.comicInfo,
+    required this.chapters,
+    required this.isLocal,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,11 +36,15 @@ class ContinueReadingButton extends ConsumerWidget {
               builder: (context) => comicPref.flipReading
                   ? ComicReadPage(
                       comicInfo: comicInfo,
+                      chapters: chapters,
                       chapterIndex: targetChapter,
+                      isLocal: isLocal,
                     )
                   : ComicScrollPage(
                       comicInfo: comicInfo,
+                      chapters: chapters,
                       chapterIndex: targetChapter,
+                      isLocal: isLocal,
                     ),
             ),
           );
