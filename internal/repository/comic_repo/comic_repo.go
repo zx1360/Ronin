@@ -4,13 +4,24 @@ import (
 	"context"
 	"fmt"
 	"monarch/internal/model"
+	"monarch/internal/service/db"
 	_ "monarch/internal/service/db"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+///	repo.go分两层函数:
+// 	第一层供外部调用, 仅接收业务参数.
+//	第二层核心函数私有, 同时接受ctx, pool等参数.
+// 	(可同时附带另一个可带上下文的版本)支持自定义 ctx+pool（多数据源/长超时场景）
+
 // 读取漫画总元数据
-func GetComicMetaData(ctx context.Context, pool *pgxpool.Pool) (*model.ComicTotalMetaData, error) {
+func GetComicMetaData() (*model.ComicTotalMetaData, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return getComicMetaData(ctx, db.GetPool())
+}
+func getComicMetaData(ctx context.Context, pool *pgxpool.Pool) (*model.ComicTotalMetaData, error) {
 	var metadata model.ComicTotalMetaData
 	query := `select book_count, total_chapter_count, total_image_count, updated_at from comics.comic_summary where id='comic_total_metadata'`
 	err := pool.QueryRow(ctx, query).Scan(&metadata.BookCount, &metadata.TotalChapterCount, &metadata.TotalImageCount, &metadata.UpdatedAt)
@@ -21,7 +32,12 @@ func GetComicMetaData(ctx context.Context, pool *pgxpool.Pool) (*model.ComicTota
 }
 
 // 获取所有漫画的总览信息
-func GetAllComicInfos(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInfo, error) {
+func GetAllComicInfos() ([]model.ComicInfo, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return getAllComicInfos(ctx, db.GetPool())
+}
+func getAllComicInfos(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInfo, error) {
 	// TODO: 加入limit, 客户端做分页.
 	query := `select id, title, chapter_count, image_count, cover_image from comics.comic_books`
 	rows, err := pool.Query(ctx, query)
@@ -42,7 +58,12 @@ func GetAllComicInfos(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInf
 }
 
 // 获取某章节(全局唯一章节id)及其下的图片信息
-func GetChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId string) ([]model.ChapterInfo, error) {
+func GetChaptersWithComicId(comicId string) ([]model.ChapterInfo, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return getChaptersWithComicId(ctx, db.GetPool(), comicId)
+}
+func getChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId string) ([]model.ChapterInfo, error) {
 	// 获取该章节下所有图片的信息
 	var chapterInfos []model.ChapterInfo
 	query := `select id, comic_id, dir_name, chapter_index, image_count from comics.comic_chapters where comic_id=$1 order by chapter_index asc;`
@@ -63,7 +84,12 @@ func GetChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId str
 }
 
 // 获取某章节(全局唯一章节id)及其下的图片信息
-func GetChapterInfo(ctx context.Context, pool *pgxpool.Pool, chapterId string) (*model.ChapterInfo, error) {
+func GetChapterInfo(chapterId string) (*model.ChapterInfo, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return getChapterInfo(ctx, db.GetPool(), chapterId)
+}
+func getChapterInfo(ctx context.Context, pool *pgxpool.Pool, chapterId string) (*model.ChapterInfo, error) {
 	var chapterInfo model.ChapterInfo
 	// 获取章节总览信息
 	query := `select id, comic_id, dir_name, chapter_index from comics.comic_chapters where id=$1`
