@@ -7,7 +7,6 @@ import 'package:torrid/features/others/comic/models/comic_info.dart';
 
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
-import 'package:torrid/features/others/comic/provider/status_provider.dart';
 
 import 'package:torrid/features/others/comic/services/save_service.dart';
 
@@ -288,7 +287,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
                 totalNum: images.length,
-                saveFunc: _saveImage,
+                saveFunc: widget.isLocal? () => _saveImage() : null,
                 isMerging: _isMerging,
               ),
 

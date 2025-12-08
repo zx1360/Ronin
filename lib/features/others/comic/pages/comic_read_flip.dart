@@ -11,7 +11,6 @@ import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
-import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/save_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
@@ -246,9 +245,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
                 totalNum: currentChapter.images.length | currentChapter.imageCount,
-                saveFunc: () {
-                  _saveThisImage(context);
-                },
+                saveFunc: widget.isLocal? () => _saveThisImage(context) : null,
               ),
 
             // 底部控制栏 - 只有当图片数量大于1时才显示进度条和翻页按钮
