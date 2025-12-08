@@ -40,6 +40,26 @@ class ChapterInfo {
     int? imageCount,
   }):id=generateId(), imageCount=imageCount??images.length;
 
+  ChapterInfo copyWith({
+    String? id,
+    String? comicId,
+    int? chapterIndex,
+    String? dirName,
+    List<Map<String, dynamic>>? images,
+    int? imageCount,
+  }) {
+    return ChapterInfo(
+      id: id ?? this.id,
+      comicId: comicId ?? this.comicId,
+      chapterIndex: chapterIndex ?? this.chapterIndex,
+      dirName: dirName ?? this.dirName,
+      // 注意：列表是引用类型，如需深拷贝可在此处处理（如 images?.map((e) => Map.from(e)).toList()）
+      images: images?.map((e) => Map.from(e)).toList().cast<Map<String, dynamic>>() ?? this.images,
+      // 若未传入 imageCount，优先使用新 images 的长度，否则沿用原 imageCount
+      imageCount: imageCount ?? images?.length ?? this.imageCount,
+    );
+  }
+
   /// 序列化
   factory ChapterInfo.fromJson(Map<String, dynamic> json) {
     // 安全转换 images 列表（处理空值和类型异常）
@@ -54,7 +74,7 @@ class ChapterInfo {
       chapterIndex: json['chapter_index'] as int,
       dirName: json['dir_name'] as String,
       images: images,
-      imageCount: json['image_count']
+      imageCount: json['image_count']??images.length
     );
   }
   Map<String, dynamic> toJson() {

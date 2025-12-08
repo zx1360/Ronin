@@ -36,7 +36,7 @@ class ComicDetailPage extends ConsumerWidget {
       ),
       body: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(child: ComicHeader(info: comicInfo)),
+          SliverToBoxAdapter(child: ComicHeader(info: comicInfo, isLocal: isLocal,)),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
