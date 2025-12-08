@@ -20,7 +20,7 @@ class ChapterInfo {
   //   'width': size.width,
   //   'height': size.height,
   // }
-  late final List<Map<String, dynamic>> images;
+  final List<Map<String, dynamic>> images;
   @HiveField(5)
   final int imageCount;
 

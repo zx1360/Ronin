@@ -28,6 +28,7 @@ class ComicDetailPage extends ConsumerWidget {
     final comicPref = ref.watch(
       comicPrefWithComicIdProvider(comicId: comicInfo.id),
     );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(comicInfo.comicName, overflow: TextOverflow.ellipsis),
@@ -41,7 +42,16 @@ class ComicDetailPage extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  ContinueReadingButton(comicInfo: comicInfo),
+                  chaptersAsync.when(
+                    data: (chapters) => ContinueReadingButton(
+                      comicInfo: comicInfo,
+                      chapters: chapters,
+                      isLocal: isLocal,
+                    ),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, stack) => Center(child: Text('错误：$error')),
+                  ),
                   RowInfoWidget(comicId: comicInfo.id),
                 ],
               ),
@@ -81,7 +91,9 @@ class ComicDetailPage extends ConsumerWidget {
                             MaterialPageRoute(
                               builder: (context) => ComicReadPage(
                                 comicInfo: comicInfo,
+                                chapters: chapters,
                                 chapterIndex: index,
+                                isLocal: isLocal,
                               ),
                             ),
                           );
@@ -91,7 +103,9 @@ class ComicDetailPage extends ConsumerWidget {
                             MaterialPageRoute(
                               builder: (context) => ComicScrollPage(
                                 comicInfo: comicInfo,
+                                chapters: chapters,
                                 chapterIndex: index,
+                                isLocal: isLocal,
                               ),
                             ),
                           );
