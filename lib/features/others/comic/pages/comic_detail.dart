@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/comic_header.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/continue_read_btn.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/row_info_widget.dart';
+import 'package:torrid/providers/progress/progress_provider.dart';
+import 'package:torrid/shared/widgets/progress_indicator.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 
@@ -22,156 +25,166 @@ class ComicDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 根据isLocal读取章节数据
     final chaptersAsync = isLocal
         ? ref.watch(chaptersWithComicIdProvider(comicId: comicInfo.id))
         : ref.watch(onlineChaptersWithComicIdProvider(comicId: comicInfo.id));
     final comicPref = ref.watch(
       comicPrefWithComicIdProvider(comicId: comicInfo.id),
     );
+    // ui加载态相关.
+    final isLoading = ref.watch(progressServiceProvider).total > 0;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(comicInfo.comicName, overflow: TextOverflow.ellipsis),
         centerTitle: true,
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(child: ComicHeader(info: comicInfo, isLocal: isLocal,)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  chaptersAsync.when(
-                    data: (chapters) => ContinueReadingButton(
-                      comicInfo: comicInfo,
-                      chapters: chapters,
-                      isLocal: isLocal,
+      body: isLoading
+          ? ProgressIndicatorWidget()
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: ComicHeader(info: comicInfo, isLocal: isLocal),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        chaptersAsync.when(
+                          data: (chapters) => ContinueReadingButton(
+                            comicInfo: comicInfo,
+                            chapters: chapters,
+                            isLocal: isLocal,
+                          ),
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (error, stack) =>
+                              Center(child: Text('错误：$error')),
+                        ),
+                        RowInfoWidget(comicId: comicInfo.id),
+                      ],
                     ),
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, stack) => Center(child: Text('错误：$error')),
                   ),
-                  RowInfoWidget(comicId: comicInfo.id),
-                ],
-              ),
-            ),
-          ),
+                ),
 
-          chaptersAsync.when(
-            data: (chapters) {
-              if (chapters.isNotEmpty) {
-                return SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    childAspectRatio: 1.5,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final chapter = chapters[index];
-                    return ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[100],
-                        foregroundColor: Colors.black87,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: Colors.grey[300]!),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                      ),
-                      onPressed: () {
-                        final isFlipMode = comicPref.flipReading;
-                        if (isFlipMode) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ComicReadPage(
-                                comicInfo: comicInfo,
-                                chapters: chapters,
-                                chapterIndex: index,
-                                isLocal: isLocal,
+                chaptersAsync.when(
+                  data: (chapters) {
+                    if (chapters.isNotEmpty) {
+                      return SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 1.5,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final chapter = chapters[index];
+                          return ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[100],
+                              foregroundColor: Colors.black87,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(color: Colors.grey[300]!),
                               ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                            ),
+                            onPressed: () {
+                              final isFlipMode = comicPref.flipReading;
+                              if (isFlipMode) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ComicReadPage(
+                                      comicInfo: comicInfo,
+                                      chapters: chapters,
+                                      chapterIndex: index,
+                                      isLocal: isLocal,
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ComicScrollPage(
+                                      comicInfo: comicInfo,
+                                      chapters: chapters,
+                                      chapterIndex: index,
+                                      isLocal: isLocal,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  getChapterTitle(chapter.dirName),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '第 ${chapter.chapterIndex} 章',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${chapter.images.length | chapter.imageCount} 页',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           );
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ComicScrollPage(
-                                comicInfo: comicInfo,
-                                chapters: chapters,
-                                chapterIndex: index,
-                                isLocal: isLocal,
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            getChapterTitle(chapter.dirName),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        }, childCount: chapters.length),
+                      );
+                    } else {
+                      return const SliverToBoxAdapter(
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text('未找到任何章节'),
                           ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                '第 ${chapter.chapterIndex} 章',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${chapter.images.length | chapter.imageCount} 页',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  }, childCount: chapters.length),
-                );
-              } else {
-                return const SliverToBoxAdapter(
-                  child: Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('未找到任何章节'),
-                    ),
+                        ),
+                      );
+                    }
+                  },
+                  loading: () => SliverToBoxAdapter(
+                    child: const Center(child: CircularProgressIndicator()),
                   ),
-                );
-              }
-            },
-            loading: () => SliverToBoxAdapter(
-              child: const Center(child: CircularProgressIndicator()),
+                  error: (error, stack) => SliverToBoxAdapter(
+                    child: Center(child: Text('错误：$error')),
+                  ),
+                ),
+              ],
             ),
-            error: (error, stack) =>
-                SliverToBoxAdapter(child: Center(child: Text('错误：$error'))),
-          ),
-        ],
-      ),
     );
   }
 }
