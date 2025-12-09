@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"gizmos/internal/comics"
+	"gizmos/internal/service/config"
+	"gizmos/internal/service/db"
 )
 
 // 配置项（全局唯一配置点）
@@ -13,15 +15,10 @@ const (
 )
 
 func main() {
-	// 1. 初始化数据库存储
-	dbStorage, err := comics.NewStorage()
-	if err != nil {
-		fmt.Printf("❌ 初始化存储失败: %v\n", err)
-		return
-	}
-	defer dbStorage.Close()
-	fmt.Println("✅ 数据库连接成功")
+	db.Init(config.DbConf)
+	defer db.Close()
 
+	// TODO: 就算是增量更新, 全目录扫描还是好笨重, 再加一个"漫画级"跳过吧.
 	// 2. 扫描漫画目录（获取所有漫画/章节/图片信息，包含已存在的）
 	fmt.Printf("🔍 开始扫描漫画目录: %s\n", comicRoot)
 	comicBooks, _, _, err := comics.ScanComicDir(comicRoot)
@@ -33,8 +30,7 @@ func main() {
 	fmt.Printf("✅ 扫描完成：共扫描到 %d 本漫画\n", totalScannedBooks)
 
 	// 3. 增量更新核心逻辑
-	// 3.1 查询已存在的章节（用于跳过重复）
-	existingChapters, err := dbStorage.GetExistingChapters()
+	existingChapters, err := comics.GetExistingChapters()
 	if err != nil {
 		fmt.Printf("❌ 查询已存在章节失败: %v\n", err)
 		return
@@ -42,7 +38,7 @@ func main() {
 	fmt.Printf("ℹ️  数据库中已存在 %d 个章节\n", len(existingChapters))
 
 	// 3.2 查询当前汇总统计（用于增量更新汇总信息）
-	existingBookCount, existingChapterCount, existingImageCount, err := dbStorage.GetCurrentSummary()
+	existingBookCount, existingChapterCount, existingImageCount, err := comics.GetCurrentSummary()
 	if err != nil {
 		fmt.Printf("❌ 查询当前汇总信息失败: %v\n", err)
 		return
@@ -51,7 +47,7 @@ func main() {
 		existingBookCount, existingChapterCount, existingImageCount)
 
 	// 3.3 批量插入新增数据（跳过已存在章节）
-	newChapterCount, newImageCount, err := dbStorage.InsertComicData(comicBooks, existingChapters)
+	newChapterCount, newImageCount, err := comics.InsertComicData(comicBooks, existingChapters)
 	if err != nil {
 		fmt.Printf("❌ 插入漫画数据失败: %v\n", err)
 		return
@@ -66,14 +62,11 @@ func main() {
 	}
 	existingComicCount := len(existingComicSet)
 	newBookCount := totalScannedBooks - existingComicCount
-	if newBookCount < 0 {
-		newBookCount = 0 // 避免扫描到的漫画数少于已存在的情况（如手动删除了部分漫画）
-	}
 
 	// 4. 更新汇总信息（增量更新）
-	if err := dbStorage.UpdateSummary(
-		existingBookCount, existingChapterCount, existingImageCount,
-		newBookCount, newChapterCount, newImageCount,
+	totalChapterCount, titalImageCount := existingChapterCount+newChapterCount, existingImageCount+newImageCount
+	if err := comics.UpdateSummary(
+		totalScannedBooks, totalChapterCount, titalImageCount,
 	); err != nil {
 		fmt.Printf("❌ 更新汇总信息失败: %v\n", err)
 		return
