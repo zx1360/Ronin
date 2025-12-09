@@ -84,22 +84,15 @@ func getChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId str
 }
 
 // 获取某章节(全局唯一章节id)及其下的图片信息
-func GetChapterInfo(chapterId string) (*model.ChapterInfo, error) {
+func GetImagesWithChapterId(chapterId string) ([]map[string]interface{}, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
-	return getChapterInfo(ctx, db.GetPool(), chapterId)
+	return getImagesWithChapterId(ctx, db.GetPool(), chapterId)
 }
-func getChapterInfo(ctx context.Context, pool *pgxpool.Pool, chapterId string) (*model.ChapterInfo, error) {
-	var chapterInfo model.ChapterInfo
-	// 获取章节总览信息
-	query := `select id, comic_id, dir_name, chapter_index from comics.comic_chapters where id=$1`
-	err := pool.QueryRow(ctx, query, chapterId).Scan(&chapterInfo.Id, &chapterInfo.ComicId, &chapterInfo.DirName, &chapterInfo.ChapterIndex)
-	if err != nil {
-		return nil, fmt.Errorf("查询章节信息失败: %w", err)
-	}
+func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId string) ([]map[string]interface{}, error) {
 	// 获取该章节下所有图片的信息
 	var images []map[string]interface{}
-	query = `select image_path, width, height from comics.comic_images where chapter_id=$1 order by sort_num asc;`
+	query := `select image_path, width, height from comics.comic_images where chapter_id=$1 order by sort_num asc;`
 	rows, err := pool.Query(ctx, query, chapterId)
 	if err != nil {
 		return nil, fmt.Errorf("查询章节下的图片信息失败: %w", err)
@@ -122,7 +115,5 @@ func getChapterInfo(ctx context.Context, pool *pgxpool.Pool, chapterId string) (
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("迭代结果集失败: %w", err)
 	}
-	chapterInfo.Images = images
-	chapterInfo.ImageCount = len(images)
-	return &chapterInfo, nil
+	return images, nil
 }

@@ -23,14 +23,14 @@ func FetchAllComicInfos(c *gin.Context) {
 // 获取某漫画的所有章节信息
 func FetchChaptersWithComicId(c *gin.Context) {
 	comicId := c.Param("comic-id")
-	comicInfos, _ := comic_repo.GetChaptersWithComicId(comicId)
-	c.JSON(200, comicInfos)
+	chapters, _ := comic_repo.GetChaptersWithComicId(comicId)
+	c.JSON(200, chapters)
 }
 
 // 在线阅读, 获取某章节的详细信息(包括图片)
-func FetchChapterInfo(c *gin.Context) {
+func FetchImagesWithChapterId(c *gin.Context) {
 	chapterId := c.Param("chapter-id")
-	chapterInfo, err := comic_repo.GetChapterInfo(chapterId)
+	chapterInfo, err := comic_repo.GetImagesWithChapterId(chapterId)
 	if err != nil {
 		c.JSON(404, gin.H{
 			"message": fmt.Errorf("FetchChapterInfo出错: %w", err),
@@ -39,8 +39,21 @@ func FetchChapterInfo(c *gin.Context) {
 	c.JSON(200, chapterInfo)
 }
 
-// 下载整部漫画
+// // 下载整部漫画
 func DownloadComic(c *gin.Context) {
-	// comicId := c.Param("comic-id")
+	manifest := []map[string]interface{}{}
+	comicId := c.Param("comic-id")
+	chapters, _ := comic_repo.GetChaptersWithComicId(comicId)
+	for _, chapter := range chapters {
+		images, _ := comic_repo.GetImagesWithChapterId(chapter.Id)
+		manifest = append(manifest, map[string]interface{}{
+			"id":            chapter.Id,
+			"comic_id":      chapter.ComicId,
+			"dir_name":      chapter.DirName,
+			"chapter_index": chapter.ChapterIndex,
+			"images":        images,
+		})
+	}
 
+	c.JSON(200, manifest)
 }
