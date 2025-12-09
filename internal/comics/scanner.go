@@ -58,7 +58,7 @@ func ScanComicDir(root string) ([]*ComicBook, int, int, error) {
 			}
 
 			dirName := chapterDir.Name()
-			chapterIndex := extractPrefixNumber(dirName) - 1
+			chapterIndex := extractPrefixNumber(dirName)
 			chapter := NewComicChapter(comic.ID, dirName, chapterIndex)
 			chapterPath := filepath.Join(comicPath, dirName)
 
@@ -124,7 +124,7 @@ func readImageMetadata(chapterID, chapterPath string, imageFiles []os.DirEntry) 
 
 			imgFullPath := filepath.Join(chapterPath, imgFile.Name())
 			// 提取相对路径（基于 static 目录）
-			relPath := imgFullPath[strings.Index(imgFullPath, `static\`)+len(`static\`):]
+			relPath := strings.ReplaceAll(imgFullPath[strings.Index(imgFullPath, `static\`)+len(`static\`):], "\\", "/")
 			width, height := getImageDimensionsSafe(imgFullPath)
 
 			mu.Lock()
@@ -146,7 +146,7 @@ func readImageMetadata(chapterID, chapterPath string, imageFiles []os.DirEntry) 
 }
 
 // 安全获取图片宽高（失败返回0,0）
-// TODO: 可优化效率, 只读文件头.
+// TODO: 可优化效率, 只读文件头.	(有坑)
 func getImageDimensionsSafe(filePath string) (int, int) {
 	file, err := os.Open(filePath)
 	if err != nil {
