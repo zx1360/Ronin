@@ -2,10 +2,10 @@ package comic_repo
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"monarch/internal/model"
 	"monarch/internal/service/db"
-	_ "monarch/internal/service/db"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -15,7 +15,7 @@ import (
 //	第二层核心函数私有, 同时接受ctx, pool等参数.
 // 	(可同时附带另一个可带上下文的版本)支持自定义 ctx+pool（多数据源/长超时场景）
 
-// 读取漫画总元数据
+// 读取漫画总计数元数据
 func GetComicMetaData() (*model.ComicTotalMetaData, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
@@ -116,4 +116,75 @@ func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId s
 		return nil, fmt.Errorf("迭代结果集失败: %w", err)
 	}
 	return images, nil
+}
+
+// 漫画下载清单manifest获取, 获取某漫画的所有章节信息(带有所有图片信息)
+func GetComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comicId string) (map[string]model.ChapterInfo, map[string][]map[string]interface{}, error) {
+	// 关联查询章节和图片（LEFT JOIN保证无图片的章节也能返回）
+	query := `
+        SELECT 
+            c.id as chapter_id, c.comic_id, c.dir_name, c.chapter_index, c.image_count,
+            i.image_path, i.width, i.height
+        FROM comics.comic_chapters c
+        LEFT JOIN comics.comic_images i ON c.id = i.chapter_id
+        WHERE c.comic_id = $1
+        ORDER BY c.chapter_index ASC, i.sort_num ASC;
+    `
+	rows, err := pool.Query(ctx, query, comicId)
+	if err != nil {
+		return nil, nil, fmt.Errorf("关联查询章节和图片失败: %w", err)
+	}
+	defer rows.Close()
+
+	// 内存中分组：chapterId -> 章节信息 / chapterId -> 图片列表
+	chapterMap := make(map[string]model.ChapterInfo)
+	imageMap := make(map[string][]map[string]interface{})
+
+	for rows.Next() {
+		var (
+			chapterId    string
+			comicId      string
+			dirName      string
+			chapterIndex int // 按实际字段类型调整
+			imageCount   int
+			imagePath    sql.NullString // 允许NULL（无图片的章节）
+			width        sql.NullInt32
+			height       sql.NullInt32
+		)
+		// 扫描行数据（注意字段顺序和查询语句一致）
+		err := rows.Scan(
+			&chapterId, &comicId, &dirName, &chapterIndex, &imageCount,
+			&imagePath, &width, &height,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("扫描章节图片数据失败: %w", err)
+		}
+
+		// 初始化章节信息（仅第一次扫描到该章节时）
+		if _, ok := chapterMap[chapterId]; !ok {
+			chapterMap[chapterId] = model.ChapterInfo{
+				Id:           chapterId,
+				ComicId:      comicId,
+				DirName:      dirName,
+				ChapterIndex: chapterIndex,
+				ImageCount:   imageCount,
+			}
+		}
+
+		// 初始化图片列表（仅当图片字段非NULL时）
+		if imagePath.Valid {
+			image := map[string]interface{}{
+				"path":   imagePath.String,
+				"width":  width.Int32,
+				"height": height.Int32,
+			}
+			imageMap[chapterId] = append(imageMap[chapterId], image)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("迭代章节图片结果集失败: %w", err)
+	}
+
+	return chapterMap, imageMap, nil
 }
