@@ -50,7 +50,6 @@ class ComicHeader extends ConsumerWidget {
                   const Spacer(),
                   Align(
                     alignment: Alignment.bottomRight,
-                    // TODO: 操作过程共加载反馈.
                     child: isLocal
                         ? TextButton.icon(
                             onPressed: () async {

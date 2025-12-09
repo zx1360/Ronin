@@ -11,6 +11,8 @@ import 'package:torrid/features/others/comic/provider/box_provider.dart';
 import 'package:torrid/features/others/comic/provider/service_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
+import 'package:torrid/providers/progress/progress.dart';
+import 'package:torrid/providers/progress/progress_provider.dart';
 import 'package:torrid/services/debug/logging_service.dart';
 import 'package:torrid/services/io/io_service.dart';
 
@@ -65,9 +67,9 @@ class ComicService extends _$ComicService {
   }
 
   // 下载整部漫画并保存.
-  // TODO: 加载态反馈/ 进度.
+  // TODO: 基本是直接复制的, 待优化.
   final int _maxConcurrent = 5; // 最大并发下载数
-  final Duration _requestDelay = Duration(milliseconds: 200); // 批次间延迟
+  final Duration _requestDelay = Duration(milliseconds: 100); // 批次间延迟
 
   Future<void> downloadAndSaveComic({required ComicInfo comicInfo}) async {
     // 1. 获取下载清单
@@ -82,14 +84,16 @@ class ComicService extends _$ComicService {
     final List<Map<String, dynamic>> failedImages = []; // 记录失败的图片
     final externalPath = (await IoService.externalStorageDir).path;
     final comicRootDir = path.join("comics", comicInfo.comicName);
+    final chaptersData = manifestResponse.data as List;
+    ref.read(progressServiceProvider.notifier).setProgress(Progress(current: 0, total: comicInfo.chapterCount, currentMessage: "准备中...", message: "下载整本漫画中..."));
 
     try {
       // 2. 初始化目录
       await IoService.ensureDirExists(comicRootDir);
 
       // 3. 遍历章节，收集所有图片下载任务
-      final List<Future<void>> allImageTasks = [];
-      for (final chapter in manifestResponse.data) {
+      final List<Future<int> Function()> allImageTasks = [];
+      for (final chapter in chaptersData) {
         final ChapterInfo chapterInfo = ChapterInfo.fromJson(chapter);
         chapters[chapterInfo.id] = chapterInfo;
 
@@ -105,17 +109,18 @@ class ComicService extends _$ComicService {
           final localImagePath = path.join(externalPath, relativePath);
 
           // 包装下载任务：捕获单张图片失败，不终止整体
-          Future<void> imageTask() async {
+          Future<int> imageTask() async {
             try {
               // 先检查文件是否已存在（避免重复下载）
               final file = File(localImagePath);
               if (await file.exists()) {
                 image['path'] = localImagePath; // 已存在，直接更新路径
-                return;
+                return chapterInfo.chapterIndex;
               }
               // 执行下载
               await saveImageToLocal(imageUrl, relativePath);
               image['path'] = localImagePath; // 更新为本地路径
+              return chapterInfo.chapterIndex;
             } catch (e) {
               // 单张图片失败：记录失败信息，不抛错
               failedImages.add({
@@ -126,10 +131,11 @@ class ComicService extends _$ComicService {
                 "error": e.toString(),
               });
               AppLogger().warning("单张图片下载失败: $imageUrl, 错误: $e");
+              return -1;
             }
           }
 
-          allImageTasks.add(imageTask());
+          allImageTasks.add(() => imageTask()); 
         }
       }
 
@@ -155,6 +161,7 @@ class ComicService extends _$ComicService {
       await state.chapterInfoBox.putAll(chapters);
 
       // 6. 提示失败的图片（可选：弹窗/日志）
+      // TODO: 改为重试之后仍旧失败的图片再提示.
       if (failedImages.isNotEmpty) {
         AppLogger().warning(
           "漫画下载完成，但有${failedImages.length}张图片失败: $failedImages",
@@ -162,6 +169,8 @@ class ComicService extends _$ComicService {
         // 可在这里触发失败图片的重试逻辑
         // await _retryFailedImages(failedImages);
       }
+
+      ref.read(progressServiceProvider.notifier).resetStatus();
     } catch (e) {
       // 仅当初始化/目录创建等核心逻辑失败时，清空目录
       await IoService.clearSpecificDirectory(comicRootDir);
@@ -174,12 +183,12 @@ class ComicService extends _$ComicService {
 
   /// 分批执行任务，控制并发数+批次间延迟
   Future<void> _executeTasksInBatches({
-    required List<Future<void>> tasks,
+    required List<Future<int> Function()> tasks,
     required int batchSize,
     required Duration delayBetweenBatches,
   }) async {
     // 分割任务为批次
-    final batches = <List<Future<void>>>[];
+    final batches = <List<Future<int> Function()>>[];
     for (int i = 0; i < tasks.length; i += batchSize) {
       final end = i + batchSize > tasks.length ? tasks.length : i + batchSize;
       batches.add(tasks.sublist(i, end));
@@ -188,7 +197,14 @@ class ComicService extends _$ComicService {
     // 逐批执行
     for (int i = 0; i < batches.length; i++) {
       final batch = batches[i];
-      await Future.wait(batch); // 等待当前批次完成
+      final result = await Future.wait(batch.map((taskFunc)=>taskFunc()).toList());
+      final currChapter = (result).fold(-1, (prev, element) => element > prev ? element : prev); // 等待当前批次完成
+      if (currChapter > ref.read(progressServiceProvider).current) {
+        ref.read(progressServiceProvider.notifier).increaseProgress(
+          current: currChapter,
+          currentMessage: "已下载至章节 $currChapter",
+        );
+      } 
       // 最后一批不需要延迟
       if (i < batches.length - 1) {
         await Future.delayed(delayBetweenBatches);
