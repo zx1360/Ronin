@@ -73,7 +73,7 @@ Future<Response<Uint8List>?> bytesFetcher(
     );
     return resp;
   } catch (e) {
-    AppLogger().error("bytesFetcher出错: $e");
+    AppLogger().error("bytesFetcher '$path'出错: $e");
     return null;
   }
 }

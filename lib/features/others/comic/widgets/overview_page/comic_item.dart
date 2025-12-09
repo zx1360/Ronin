@@ -5,7 +5,8 @@ import 'package:torrid/shared/image_widget/common_image_widget.dart';
 
 class ComicItem extends ConsumerWidget {
   final ComicInfo comicInfo;
-  const ComicItem({super.key, required this.comicInfo});
+  final bool isLocal;
+  const ComicItem({super.key, required this.comicInfo, required this.isLocal});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -13,7 +14,7 @@ class ComicItem extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 漫画封面
-          Expanded(child: CommonImageWidget(imageUrl: comicInfo.coverImage)),
+          Expanded(child: CommonImageWidget(imageUrl: comicInfo.coverImage, isLocal: isLocal)),
           const SizedBox(height: 5),
           // 漫画标题（自动换行）
           Text(

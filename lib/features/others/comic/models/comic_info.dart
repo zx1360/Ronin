@@ -32,6 +32,22 @@ class ComicInfo {
     required this.imageCount,
   }) : id = generateId();
 
+  ComicInfo copyWith({
+    String? id,
+    String? comicName,
+    String? coverImage,
+    int? chapterCount,
+    int? imageCount,
+  }) {
+    return ComicInfo(
+      id: id ?? this.id,
+      comicName: comicName ?? this.comicName,
+      coverImage: coverImage ?? this.coverImage,
+      chapterCount: chapterCount ?? this.chapterCount,
+      imageCount: imageCount ?? this.imageCount,
+    );
+  }
+
   // 序列化
   factory ComicInfo.fromJson(Map<String, dynamic> json) {
     return ComicInfo(

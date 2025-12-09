@@ -22,6 +22,20 @@ class IoService {
     }
   }
 
+  // 确保某目录存在, relativePath
+  static Future<Directory> ensureDirExists(String relativePath) async {
+    relativePath = relativePath.startsWith("/")
+        ? relativePath.replaceFirst("/", "")
+        : relativePath;
+    final externalDir = await externalStorageDir;
+    final dirPath = path.join(externalDir.path, relativePath);
+    final dir = Directory(dirPath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
   // 保存图片到外部私有空间
   static Future<File> saveImageToExternalStorage(
       {required String relativePath, required List<int> bytes}) async {

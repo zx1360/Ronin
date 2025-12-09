@@ -204,7 +204,7 @@ class _FetcherProviderElement
       (origin as FetcherProvider).onReceiveProgress;
 }
 
-String _$bytesFetcherHash() => r'fe98203086cb83862bdf3be8e876cbd4221263b3';
+String _$bytesFetcherHash() => r'e2fcfc546e6d1d950165f53a28fa015e3d95bfa8';
 
 /// bytesFetcher方法提供者，专门用于获取二进制数据
 ///
