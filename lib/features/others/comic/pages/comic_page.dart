@@ -103,7 +103,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                               ),
                             );
                           },
-                          child: ComicItem(comicInfo: comic),
+                          child: ComicItem(comicInfo: comic, isLocal: true,),
                         );
                       },
                     ),
@@ -143,7 +143,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                               ),
                             );
                           },
-                          child: ComicItem(comicInfo: comic),
+                          child: ComicItem(comicInfo: comic, isLocal: false,),
                         );
                       },
                     ),

@@ -53,8 +53,10 @@ class ChapterInfo {
       comicId: comicId ?? this.comicId,
       chapterIndex: chapterIndex ?? this.chapterIndex,
       dirName: dirName ?? this.dirName,
-      // 注意：列表是引用类型，如需深拷贝可在此处处理（如 images?.map((e) => Map.from(e)).toList()）
-      images: images?.map((e) => Map.from(e)).toList().cast<Map<String, dynamic>>() ?? this.images,
+      // 可恶这一行害得我改了不下三个小时左右
+      // 原版本: 创建一个每个列表元素都转为Map, 且转为Map<String, dynamic>, 但元素本身仍是Map. 什么吊语言特性.
+      // images: images?.map((e) => Map.from(e)).toList().cast<Map<String, dynamic>>() ?? this.images,
+      images: images?.map((e) => Map<String, dynamic>.from(e)).toList() ?? this.images,
       // 若未传入 imageCount，优先使用新 images 的长度，否则沿用原 imageCount
       imageCount: imageCount ?? images?.length ?? this.imageCount,
     );

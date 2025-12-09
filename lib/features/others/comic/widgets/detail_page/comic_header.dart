@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
-import 'package:torrid/features/profile/second_page/data/widgets/action_button.dart';
 import 'package:torrid/services/io/io_service.dart';
 import 'package:torrid/shared/image_widget/common_image_widget.dart';
 import 'package:torrid/shared/modals/confirm_modal.dart';
@@ -24,7 +23,7 @@ class ComicHeader extends ConsumerWidget {
           SizedBox(
             width: 120,
             height: 180,
-            child: CommonImageWidget(imageUrl: info.coverImage),
+            child: CommonImageWidget(imageUrl: info.coverImage, isLocal: isLocal,),
           ),
 
           const SizedBox(width: 16),
@@ -61,7 +60,7 @@ class ComicHeader extends ConsumerWidget {
                                 content: "将从本地目录彻底删除本漫画.",
                                 confirmFunc: () {},
                               );
-                              if (confirm==null || confirm==false) return;
+                              if (confirm == null || confirm == false) return;
                               await IoService.clearSpecificDirectory(
                                 "/comics/${info.comicName}",
                               );
@@ -81,12 +80,22 @@ class ComicHeader extends ConsumerWidget {
                                 context: context,
                                 title: "下载漫画",
                                 content: "将下载本漫画到本地目录，方便离线阅读.",
-                                confirmFunc: (){},
+                                confirmFunc: () {},
                               );
-                              if (confirm==null || confirm==false) return;
-                              await ref.read(comicServiceProvider.notifier).downloadAndSaveComic(comicInfo: info);
-                              if (context.mounted) {
-                                context.pop();
+                              if (confirm == null || confirm == false) return;
+                              try {
+                                await ref
+                                    .read(comicServiceProvider.notifier)
+                                    .downloadAndSaveComic(comicInfo: info);
+                                if (context.mounted) {
+                                  context.pop();
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("下载失败：$e")),
+                                  );
+                                }
                               }
                             },
                             label: Text("下载"),
