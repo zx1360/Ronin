@@ -44,11 +44,11 @@ func SetupRouter() *gin.Engine {
 			// 漫画元数据	TODO: 客户端写个页面展示当前漫画资源量.
 			comicGroup.GET("/meta-info", comic_handler.FetchComicMetadata)
 			// 下载整本漫画到本地
-			comicGroup.GET("/download/:comic-id")
+			comicGroup.GET("/download/:comic-id", comic_handler.DownloadComic)
 			// 在线阅读	(也许后面加入"用户模块"补全阅读进度持久化记录等功能)
 			comicGroup.GET("/comic-info", comic_handler.FetchAllComicInfos)
 			comicGroup.GET("/comic-info/:comic-id", comic_handler.FetchChaptersWithComicId)
-			comicGroup.GET("/chapter-info/:chapter-id", comic_handler.FetchChapterInfo)
+			comicGroup.GET("/chapter-info/:chapter-id", comic_handler.FetchImagesWithChapterId)
 		}
 
 		// 媒体浏览相关
