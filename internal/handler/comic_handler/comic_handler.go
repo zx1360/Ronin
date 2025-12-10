@@ -2,7 +2,9 @@ package comic_handler
 
 import (
 	"fmt"
+	"monarch/internal/model"
 	"monarch/internal/repository/comic_repo"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,21 +41,24 @@ func FetchImagesWithChapterId(c *gin.Context) {
 	c.JSON(200, chapterInfo)
 }
 
-// // 下载整部漫画
+// 下载整部漫画
 func DownloadComic(c *gin.Context) {
-	manifest := []map[string]interface{}{}
 	comicId := c.Param("comic-id")
-	chapters, _ := comic_repo.GetChaptersWithComicId(comicId)
-	for _, chapter := range chapters {
-		images, _ := comic_repo.GetImagesWithChapterId(chapter.Id)
-		manifest = append(manifest, map[string]interface{}{
-			"id":            chapter.Id,
-			"comic_id":      chapter.ComicId,
-			"dir_name":      chapter.DirName,
-			"chapter_index": chapter.ChapterIndex,
-			"images":        images,
+	chapterMap, imageMap, _ := comic_repo.GetComicAllChaptersAndImages(comicId)
+	manifest := make([]model.ChapterInfo, 0, len(chapterMap))
+	for _, chapter := range chapterMap {
+		manifest = append(manifest, model.ChapterInfo{
+			Id:           chapter.Id,
+			ComicId:      chapter.ComicId,
+			DirName:      chapter.DirName,
+			ChapterIndex: chapter.ChapterIndex,
+			ImageCount:   chapter.ImageCount,
+			Images:       imageMap[chapter.Id],
 		})
 	}
+	sort.Slice(manifest, func(i, j int) bool {
+		return manifest[i].ChapterIndex < manifest[j].ChapterIndex
+	})
 
 	c.JSON(200, manifest)
 }

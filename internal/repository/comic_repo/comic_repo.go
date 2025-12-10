@@ -2,11 +2,11 @@ package comic_repo
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"monarch/internal/model"
 	"monarch/internal/service/db"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -119,7 +119,12 @@ func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId s
 }
 
 // 漫画下载清单manifest获取, 获取某漫画的所有章节信息(带有所有图片信息)
-func GetComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comicId string) (map[string]model.ChapterInfo, map[string][]map[string]interface{}, error) {
+func GetComicAllChaptersAndImages(comicId string) (map[string]model.ChapterInfo, map[string][]map[string]interface{}, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return getComicAllChaptersAndImages(ctx, db.GetPool(), comicId)
+}
+func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comicId string) (map[string]model.ChapterInfo, map[string][]map[string]interface{}, error) {
 	// 关联查询章节和图片（LEFT JOIN保证无图片的章节也能返回）
 	query := `
         SELECT 
@@ -137,6 +142,7 @@ func GetComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comic
 	defer rows.Close()
 
 	// 内存中分组：chapterId -> 章节信息 / chapterId -> 图片列表
+	// 最佳实践: 内存中分组操作使用map.
 	chapterMap := make(map[string]model.ChapterInfo)
 	imageMap := make(map[string][]map[string]interface{})
 
@@ -147,9 +153,9 @@ func GetComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comic
 			dirName      string
 			chapterIndex int // 按实际字段类型调整
 			imageCount   int
-			imagePath    sql.NullString // 允许NULL（无图片的章节）
-			width        sql.NullInt32
-			height       sql.NullInt32
+			imagePath    pgtype.Text
+			width        pgtype.Int4
+			height       pgtype.Int4
 		)
 		// 扫描行数据（注意字段顺序和查询语句一致）
 		err := rows.Scan(
@@ -160,15 +166,13 @@ func GetComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comic
 			return nil, nil, fmt.Errorf("扫描章节图片数据失败: %w", err)
 		}
 
-		// 初始化章节信息（仅第一次扫描到该章节时）
-		if _, ok := chapterMap[chapterId]; !ok {
-			chapterMap[chapterId] = model.ChapterInfo{
-				Id:           chapterId,
-				ComicId:      comicId,
-				DirName:      dirName,
-				ChapterIndex: chapterIndex,
-				ImageCount:   imageCount,
-			}
+		// 初始化章节信息（chapterId唯一）
+		chapterMap[chapterId] = model.ChapterInfo{
+			Id:           chapterId,
+			ComicId:      comicId,
+			DirName:      dirName,
+			ChapterIndex: chapterIndex,
+			ImageCount:   imageCount,
 		}
 
 		// 初始化图片列表（仅当图片字段非NULL时）
