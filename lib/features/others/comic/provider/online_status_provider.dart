@@ -11,7 +11,7 @@ part 'online_status_provider.g.dart';
 Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref)async{
   final response = await ref.read(fetcherProvider(path: "/api/comic/comic-info").future);
   if(response==null){
-    return [];
+    throw Exception("获取在线漫画列表失败");
   }
   final comics = <ComicInfo>[];
   for (final row in response.data){

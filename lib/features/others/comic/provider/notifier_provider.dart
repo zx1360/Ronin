@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:hive/hive.dart';
-import 'package:path/path.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
