@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
