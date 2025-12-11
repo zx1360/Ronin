@@ -5,7 +5,7 @@ import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
 import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/providers/status_provider.dart';
-import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/utils/util.dart';
 
 // TODO: 目前只有基础功能, 智能列表和更多功能待做.
 // 统一打开任务弹窗(新增/编辑)

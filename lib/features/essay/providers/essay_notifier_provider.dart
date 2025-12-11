@@ -8,7 +8,7 @@ import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/providers/network_service/network_provider.dart';
-import 'package:torrid/shared/models/message.dart';
+import 'package:torrid/core/models/message.dart';
 
 part 'essay_notifier_provider.g.dart';
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
-import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/utils/util.dart';
 
 class CheckinCalendar extends StatelessWidget {
   final BuildContext context;

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 
 // ----comic_page.dart
 // 查找目录中的第一张图片

@@ -4,8 +4,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/booklet/providers/routine_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
-import 'package:torrid/services/debug/logging_service.dart';
-import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 
 part 'backup_service.g.dart';
 

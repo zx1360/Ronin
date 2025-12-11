@@ -1,5 +1,5 @@
 import 'package:hive/hive.dart';
-import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/utils/util.dart';
 
 part 'task.g.dart';
 

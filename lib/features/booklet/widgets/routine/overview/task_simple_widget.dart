@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 
 class TaskSimpleWidget extends StatelessWidget {
   const TaskSimpleWidget({

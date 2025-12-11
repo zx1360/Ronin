@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 void openBottomSheet(
   BuildContext context, {
-  required String initialListId,
   required Widget widget,
   required double heightPercentage,
 }) {

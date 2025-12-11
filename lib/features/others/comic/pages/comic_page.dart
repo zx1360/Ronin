@@ -5,9 +5,9 @@ import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/widgets/overview_page/comic_item.dart';
-import 'package:torrid/shared/modals/choice_modal.dart';
-import 'package:torrid/shared/modals/dialog_option.dart';
-import 'package:torrid/shared/widgets/progress_indicator.dart';
+import 'package:torrid/core/modals/choice_modal.dart';
+import 'package:torrid/core/modals/dialog_option.dart';
+import 'package:torrid/core/widgets/progress_indicator/progress_indicator.dart';
 
 class ComicPage extends ConsumerStatefulWidget {
   const ComicPage({super.key});

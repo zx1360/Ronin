@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/app/theme_book.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
 
 class ProgressIndicatorWidget extends ConsumerWidget {

@@ -3,15 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:torrid/app/theme_book.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
-import 'package:torrid/shared/modals/confirm_modal.dart';
-import 'package:torrid/shared/utils/util.dart';
-import 'package:torrid/shared/widgets/file_img_builder.dart';
+import 'package:torrid/core/modals/confirm_modal.dart';
+import 'package:torrid/core/utils/util.dart';
+import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 
 class EssayContentWidget extends ConsumerWidget {
   const EssayContentWidget({super.key});

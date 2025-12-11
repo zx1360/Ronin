@@ -3,7 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
-import 'package:torrid/services/storage/hive_service.dart';
+import 'package:torrid/core/services/storage/hive_service.dart';
 
 part 'box_provider.g.dart';
 

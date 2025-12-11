@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
-import 'package:torrid/app/theme_book.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/pages/task_detail_page.dart';
 import 'package:torrid/features/todo/providers/notifier_provider.dart';
 import 'package:torrid/features/todo/widgets/edit_sheet/edit_task_sheet.dart';
 import 'package:torrid/features/todo/widgets/non_content_widget/priority_indicator.dart';
-import 'package:torrid/shared/modals/confirm_modal.dart';
+import 'package:torrid/core/modals/confirm_modal.dart';
 
 class TaskItem extends ConsumerWidget {
   final TodoTask task;

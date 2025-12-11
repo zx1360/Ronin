@@ -1,5 +1,5 @@
 import 'package:hive/hive.dart';
-import 'package:torrid/shared/models/message.dart';
+import 'package:torrid/core/models/message.dart';
 
 part "status.g.dart";
 

@@ -8,7 +8,7 @@ import 'package:torrid/features/others/comic/widgets/detail_page/comic_header.da
 import 'package:torrid/features/others/comic/widgets/detail_page/continue_read_btn.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/row_info_widget.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
-import 'package:torrid/shared/widgets/progress_indicator.dart';
+import 'package:torrid/core/widgets/progress_indicator/progress_indicator.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 

@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as path;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
-import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 
 part 'network_provider.g.dart';
 

@@ -1,7 +1,7 @@
 // dialogs.dart 文件
 import 'package:flutter/material.dart';
-import 'package:torrid/app/theme_book.dart';
-import 'package:torrid/shared/modals/dialog_option.dart'; // 确保导入你的主题文件
+import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/core/modals/dialog_option.dart'; // 确保导入你的主题文件
 
 /// 弹出一个带有多个选项按钮的模态对话框。
 /// [options] 参数接收一个 DialogOption 对象的列表，用于动态生成按钮。

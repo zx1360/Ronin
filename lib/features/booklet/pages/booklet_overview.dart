@@ -12,12 +12,12 @@ import 'package:torrid/features/booklet/widgets/routine/overview/new_style/newta
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/style_info_widgets.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/task_simple_widget.dart';
-import 'package:torrid/services/io/io_service.dart';
-import 'package:torrid/shared/modals/confirm_modal.dart';
+import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/modals/confirm_modal.dart';
 
 // 工具类
-import 'package:torrid/shared/utils/util.dart';
-import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/core/utils/util.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 // 导入数据模型与Hive服务
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';

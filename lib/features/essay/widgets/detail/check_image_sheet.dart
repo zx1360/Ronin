@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/shared/widgets/file_img_builder.dart';
+import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 
 // 双击任务大图展示
 void showBigScaledImage(BuildContext context, String path) {

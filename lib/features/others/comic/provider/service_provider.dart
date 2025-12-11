@@ -10,7 +10,7 @@ import 'package:torrid/features/others/comic/services/io_comic_service.dart';
 import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/providers/progress/progress.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
-import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 
 part 'service_provider.g.dart';
 

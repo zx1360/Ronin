@@ -2,7 +2,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:torrid/features/todo/models/task_list.dart';
-import 'package:torrid/services/storage/hive_service.dart';
+import 'package:torrid/core/services/storage/hive_service.dart';
 
 part 'box_provider.g.dart';
 

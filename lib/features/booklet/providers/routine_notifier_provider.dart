@@ -11,7 +11,7 @@ import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/providers/box_provider.dart';
 import 'package:torrid/features/booklet/providers/status_provider.dart';
 
-import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/utils/util.dart';
 
 part 'routine_notifier_provider.g.dart';
 
