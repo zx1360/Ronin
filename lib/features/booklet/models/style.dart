@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:torrid/features/booklet/models/task.dart';
-import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/utils/util.dart';
 
 part 'style.g.dart';
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/providers/server_connect/server_conn_provider.dart';
-import 'package:torrid/services/storage/prefs_service.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
 
 class NetworkConfigWidget extends ConsumerStatefulWidget {
   const NetworkConfigWidget({super.key});

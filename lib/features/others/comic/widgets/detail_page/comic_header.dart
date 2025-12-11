@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
-import 'package:torrid/services/io/io_service.dart';
-import 'package:torrid/shared/image_widget/common_image_widget.dart';
-import 'package:torrid/shared/modals/confirm_modal.dart';
+import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/widgets/image_widget/common_image_widget.dart';
+import 'package:torrid/core/modals/confirm_modal.dart';
 
 class ComicHeader extends ConsumerWidget {
   final ComicInfo info;

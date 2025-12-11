@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import 'package:torrid/shared/widgets/file_img_builder.dart';
+import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 
 class TaskWidget extends StatelessWidget {
   const TaskWidget({

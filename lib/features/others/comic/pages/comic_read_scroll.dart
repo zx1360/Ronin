@@ -15,8 +15,8 @@ import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.da
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
-import 'package:torrid/services/debug/logging_service.dart';
-import 'package:torrid/shared/bottom/snack_bar.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/modals/snack_bar.dart';
 
 class ComicScrollPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
@@ -142,9 +142,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         _isMerging = true;
       });
       await ComicSaverService.saveScrollImagesToPublic(imagePaths, filename);
-      showSnackBar(context, "图片已保存: $filename");
+      displaySnackBar(context, "图片已保存: $filename");
     } catch (e) {
-      showSnackBar(context, "保存失败: ${e.toString()}");
+      displaySnackBar(context, "保存失败: ${e.toString()}");
       AppLogger().error("保存图片错误: $e");
     } finally {
       setState(() {

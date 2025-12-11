@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/services/debug/logging_service.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 
 class IoService {
   static Directory? _externalStorageDir;

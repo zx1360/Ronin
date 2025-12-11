@@ -12,8 +12,8 @@ import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/providers/progress/progress.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
-import 'package:torrid/services/debug/logging_service.dart';
-import 'package:torrid/services/io/io_service.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 
 part 'notifier_provider.g.dart';
 

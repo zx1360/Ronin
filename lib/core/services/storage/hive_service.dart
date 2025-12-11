@@ -11,7 +11,7 @@ import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/models/task_list.dart';
-import 'package:torrid/shared/models/message.dart';
+import 'package:torrid/core/models/message.dart';
 // tuntun藏品
 import 'package:torrid/features/others/tuntun/models/info.dart';
 import 'package:torrid/features/others/tuntun/models/status.dart';

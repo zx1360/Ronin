@@ -6,7 +6,7 @@ import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/providers/box_provider.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
 import 'package:torrid/features/todo/providers/status_provider.dart';
-import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/utils/util.dart';
 
 part 'notifier_provider.g.dart';
 

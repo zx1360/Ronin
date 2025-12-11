@@ -15,8 +15,8 @@ import 'package:torrid/features/others/comic/services/save_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
-import 'package:torrid/services/debug/logging_service.dart';
-import 'package:torrid/shared/bottom/snack_bar.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/modals/snack_bar.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
@@ -154,7 +154,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       // 获取当前图片文件
       final sourceFile = File(images[_currentImageIndex]['path']);
       if (!await sourceFile.exists()) {
-        showSnackBar(context, "图片文件不存在");
+        displaySnackBar(context, "图片文件不存在");
         return;
       }
 
@@ -170,9 +170,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         fileName,
       );
 
-      showSnackBar(context, "图片已保存: $fileName");
+      displaySnackBar(context, "图片已保存: $fileName");
     } catch (e) {
-      showSnackBar(context, "保存失败: ${e.toString()}");
+      displaySnackBar(context, "保存失败: ${e.toString()}");
       AppLogger().error("保存图片错误: $e");
     }
   }

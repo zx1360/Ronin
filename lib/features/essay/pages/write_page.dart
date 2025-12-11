@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
-import 'package:torrid/app/theme_book.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/write/image_preview.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
-import 'package:torrid/services/io/io_service.dart';
-import 'package:torrid/shared/utils/util.dart';
+import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/utils/util.dart';
 
 class EssayWritePage extends ConsumerStatefulWidget {
   final String? initialContent;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/shared/image_widget/common_image_widget.dart';
+import 'package:torrid/core/widgets/image_widget/common_image_widget.dart';
 
 class ComicItem extends ConsumerWidget {
   final ComicInfo comicInfo;
