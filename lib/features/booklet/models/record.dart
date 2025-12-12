@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/core/utils/util.dart';
@@ -6,6 +7,7 @@ import 'package:torrid/core/utils/util.dart';
 part 'record.g.dart';
 
 @HiveType(typeId: 12)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Record {
   @HiveField(0)
   final String id;
@@ -30,7 +32,7 @@ class Record {
     required this.taskCompletion,
   });
 
-   Record copyWith({
+  Record copyWith({
     String? id,
     String? styleId,
     DateTime? date,
@@ -60,25 +62,6 @@ class Record {
     );
   }
 
-  factory Record.fromJson(Map<String, dynamic> json) {
-    final taskCompletions = (json['taskCompletion'] as Map<String, dynamic>)
-        .map((k, v) => MapEntry(k, v as bool));
-    return Record(
-      id: json['id'],
-      styleId: json['styleId'],
-      date: DateTime.parse(json['date']),
-      message: json['message'],
-      taskCompletion: taskCompletions,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      "id": id,
-      "styleId": styleId,
-      "date": date.toLocal().toString().split(".").first,
-      "message": message,
-      "taskCompletion": taskCompletion,
-    };
-  }
+  factory Record.fromJson(Map<String, dynamic> json) => _$RecordFromJson(json);
+  Map<String, dynamic> toJson() => _$RecordToJson(this);
 }

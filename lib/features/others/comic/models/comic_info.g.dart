@@ -51,3 +51,23 @@ class ComicInfoAdapter extends TypeAdapter<ComicInfo> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+ComicInfo _$ComicInfoFromJson(Map<String, dynamic> json) => ComicInfo(
+      id: json['id'] as String,
+      comicName: json['comic_name'] as String,
+      coverImage: json['cover_image'] as String,
+      chapterCount: (json['chapter_count'] as num).toInt(),
+      imageCount: (json['image_count'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$ComicInfoToJson(ComicInfo instance) => <String, dynamic>{
+      'id': instance.id,
+      'comic_name': instance.comicName,
+      'cover_image': instance.coverImage,
+      'chapter_count': instance.chapterCount,
+      'image_count': instance.imageCount,
+    };

@@ -57,3 +57,31 @@ class EssayAdapter extends TypeAdapter<Essay> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+Essay _$EssayFromJson(Map<String, dynamic> json) => Essay(
+      id: json['id'] as String,
+      date: dateFromJson(json['date'] as String),
+      wordCount: (json['word_count'] as num).toInt(),
+      content: json['content'] as String,
+      imgs: (json['imgs'] as List<dynamic>).map((e) => e as String).toList(),
+      labels:
+          (json['labels'] as List<dynamic>).map((e) => e as String).toList(),
+      messages: (json['messages'] as List<dynamic>?)
+              ?.map((e) => Message.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+
+Map<String, dynamic> _$EssayToJson(Essay instance) => <String, dynamic>{
+      'id': instance.id,
+      'date': dateToJson(instance.date),
+      'word_count': instance.wordCount,
+      'content': instance.content,
+      'imgs': instance.imgs,
+      'labels': instance.labels,
+      'messages': instance.messages,
+    };

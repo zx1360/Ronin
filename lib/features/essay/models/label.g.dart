@@ -45,3 +45,19 @@ class LabelAdapter extends TypeAdapter<Label> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+Label _$LabelFromJson(Map<String, dynamic> json) => Label(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      essayCount: (json['essay_count'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$LabelToJson(Label instance) => <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'essay_count': instance.essayCount,
+    };

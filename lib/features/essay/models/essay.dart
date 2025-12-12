@@ -1,14 +1,21 @@
 import 'package:hive/hive.dart';
+import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/models/message.dart';
+import 'package:torrid/core/utils/serialization.dart';
 
 part 'essay.g.dart';
 
 @HiveType(typeId: 1)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Essay {
   @HiveField(0)
   final String id;
 
   @HiveField(1)
+  @JsonKey(
+    fromJson: dateFromJson,
+    toJson: dateToJson,
+  )
   final DateTime date;
 
   @HiveField(2)
@@ -24,6 +31,7 @@ class Essay {
   final List<String> labels;
 
   @HiveField(6)
+  @JsonKey(defaultValue: [])
   final List<Message> messages;
 
   Essay({
@@ -37,52 +45,29 @@ class Essay {
   });
 
   Essay copyWith({
-  String? id,
-  DateTime? date,
-  int? wordCount,
-  String? content,
-  List<String>? imgs,
-  List<String>? labels,
-  List<Message>? messages,
-}) {
-  return Essay(
-    id: id ?? this.id,
-    date: date ?? this.date,
-    wordCount: wordCount ?? this.wordCount,
-    content: content ?? this.content,
-    imgs: imgs ?? this.imgs,
-    labels: labels ?? this.labels,
-    messages: messages ?? this.messages,
-  );
-}
-
-  factory Essay.fromJson(Map<String, dynamic> json) {
+    String? id,
+    DateTime? date,
+    int? wordCount,
+    String? content,
+    List<String>? imgs,
+    List<String>? labels,
+    List<Message>? messages,
+  }) {
     return Essay(
-      id: json['id'],
-      date: DateTime.parse(json['date']),
-      wordCount: json['wordCount'],
-      content: json['content'],
-      imgs: List<String>.from(json['imgs']),
-      labels: List<String>.from(json['labels']),
-      messages: json['messages'] != null
-          ? (json['messages'] as List)
-                .map((item) => Message.fromJson(item))
-                .toList()
-          : [],
+      id: id ?? this.id,
+      date: date ?? this.date,
+      wordCount: wordCount ?? this.wordCount,
+      content: content ?? this.content,
+      imgs: imgs ?? this.imgs,
+      labels: labels ?? this.labels,
+      messages: messages ?? this.messages,
     );
   }
-  Map<String, dynamic> toJson() {
-    return {
-      "id": id,
-      "date": date.toLocal().toString().split('.').first,
-      "wordCount": wordCount,
-      "content": content,
-      "imgs": imgs,
-      "labels": labels,
-      "messages": messages.map((item) => item.toJson()).toList(),
-    };
-  }
+
+  factory Essay.fromJson(Map<String, dynamic> json) => _$EssayFromJson(json);
+  Map<String, dynamic> toJson() => _$EssayToJson(this);
 
   int get year => date.year;
   int get month => date.month;
 }
+

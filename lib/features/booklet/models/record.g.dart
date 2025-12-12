@@ -51,3 +51,23 @@ class RecordAdapter extends TypeAdapter<Record> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+Record _$RecordFromJson(Map<String, dynamic> json) => Record(
+      id: json['id'] as String,
+      styleId: json['style_id'] as String,
+      date: DateTime.parse(json['date'] as String),
+      message: json['message'] as String,
+      taskCompletion: Map<String, bool>.from(json['task_completion'] as Map),
+    );
+
+Map<String, dynamic> _$RecordToJson(Record instance) => <String, dynamic>{
+      'id': instance.id,
+      'style_id': instance.styleId,
+      'date': instance.date.toIso8601String(),
+      'message': instance.message,
+      'task_completion': instance.taskCompletion,
+    };

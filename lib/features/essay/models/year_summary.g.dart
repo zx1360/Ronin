@@ -88,3 +88,37 @@ class MonthSummaryAdapter extends TypeAdapter<MonthSummary> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+YearSummary _$YearSummaryFromJson(Map<String, dynamic> json) => YearSummary(
+      year: json['year'] as String,
+      essayCount: (json['essay_count'] as num?)?.toInt() ?? 0,
+      wordCount: (json['word_count'] as num?)?.toInt() ?? 0,
+      monthSummaries: (json['month_summaries'] as List<dynamic>?)
+          ?.map((e) => MonthSummary.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+
+Map<String, dynamic> _$YearSummaryToJson(YearSummary instance) =>
+    <String, dynamic>{
+      'year': instance.year,
+      'essay_count': instance.essayCount,
+      'word_count': instance.wordCount,
+      'month_summaries': instance.monthSummaries,
+    };
+
+MonthSummary _$MonthSummaryFromJson(Map<String, dynamic> json) => MonthSummary(
+      month: json['month'] as String,
+      essayCount: (json['essay_count'] as num?)?.toInt() ?? 0,
+      wordCount: (json['word_count'] as num?)?.toInt() ?? 0,
+    );
+
+Map<String, dynamic> _$MonthSummaryToJson(MonthSummary instance) =>
+    <String, dynamic>{
+      'month': instance.month,
+      'essay_count': instance.essayCount,
+      'word_count': instance.wordCount,
+    };

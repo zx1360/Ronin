@@ -2,7 +2,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 part 'comic_preference.g.dart';
 
-// TODO: 删掉pageIndex字段, 在加入进度条Provider时候做吧.
+// TODO: 删掉pageIndex字段.?
 @HiveType(typeId: 30)
 class ComicPreference {
   @HiveField(0)
