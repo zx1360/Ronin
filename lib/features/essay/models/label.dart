@@ -1,9 +1,11 @@
 import 'package:hive/hive.dart';
+import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'label.g.dart';
 
 @HiveType(typeId: 2)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Label {
   @HiveField(0)
   final String id;
@@ -28,15 +30,7 @@ class Label {
     return Label(id: generateId(), name: name, essayCount: 0);
   }
 
-  factory Label.fromJson(Map<String, dynamic> json) {
-    return Label(
-      id: json['id'],
-      name: json['name'],
-      essayCount: json['essayCount'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {"id": id, "name": name, "essayCount": essayCount};
-  }
+  // (反)序列化
+  factory Label.fromJson(Map<String, dynamic> json)=> _$LabelFromJson(json);
+  Map<String, dynamic> toJson() => _$LabelToJson(this);
 }

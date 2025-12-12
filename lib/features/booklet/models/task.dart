@@ -1,9 +1,11 @@
 import 'package:hive/hive.dart';
+import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'task.g.dart';
 
 @HiveType(typeId: 11)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Task {
   @HiveField(0)
   final String id;
@@ -30,21 +32,6 @@ class Task {
     required this.image,
   }): id=generateId();
 
-  factory Task.fromJson(Map<String, dynamic> json) {
-    return Task(
-      id: json['id'],
-      title: json['title'],
-      description: json['description'],
-      image: json['image'],
-    );
-  }
-
-  Map<String, dynamic> toJson(){
-    return{
-      "id": id,
-      "title": title,
-      "description": description,
-      "image": image,
-    };
-  }
+  factory Task.fromJson(Map<String, dynamic> json) => _$TaskFromJson(json);
+  Map<String, dynamic> toJson() => _$TaskToJson(this);
 }

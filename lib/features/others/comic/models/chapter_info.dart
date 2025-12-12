@@ -1,10 +1,12 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'chapter_info.g.dart';
 
 // 章节元数据
 @HiveType(typeId: 32)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class ChapterInfo {
   @HiveField(0)
   final String id;
@@ -15,6 +17,7 @@ class ChapterInfo {
   @HiveField(3)
   final String dirName;
   @HiveField(4)
+  @JsonKey(defaultValue: [])
   // {
   //   'path': file.path,
   //   'width': size.width,
@@ -57,36 +60,11 @@ class ChapterInfo {
       // 原版本: 创建一个每个列表元素都转为Map, 且转为Map<String, dynamic>, 但元素本身仍是Map. 什么吊语言特性.
       // images: images?.map((e) => Map.from(e)).toList().cast<Map<String, dynamic>>() ?? this.images,
       images: images?.map((e) => Map<String, dynamic>.from(e)).toList() ?? this.images,
-      // 若未传入 imageCount，优先使用新 images 的长度，否则沿用原 imageCount
       imageCount: imageCount ?? images?.length ?? this.imageCount,
     );
   }
 
   /// 序列化
-  factory ChapterInfo.fromJson(Map<String, dynamic> json) {
-    // 安全转换 images 列表（处理空值和类型异常）
-    final List<dynamic> imagesJson = json['images'] ?? [];
-    final List<Map<String, dynamic>> images = imagesJson
-        .cast<Map<String, dynamic>>()
-        .toList();
-
-    return ChapterInfo(
-      id: json['id'] as String,
-      comicId: json['comic_id'] as String,
-      chapterIndex: json['chapter_index'] as int,
-      dirName: json['dir_name'] as String,
-      images: images,
-      imageCount: json['image_count']??images.length
-    );
-  }
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'comic_id': comicId,
-      'chapter_index': chapterIndex,
-      'dir_name': dirName,
-      'images': images,
-      'image_count': imageCount
-    };
-  }
+  factory ChapterInfo.fromJson(Map<String, dynamic> json) => _$ChapterInfoFromJson(json);
+  Map<String, dynamic> toJson() => _$ChapterInfoToJson(this);
 }

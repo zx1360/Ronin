@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/core/utils/util.dart';
+import 'package:torrid/core/utils/file_relates.dart';
 
 class ComicSaverService {
   static String publicPath = '/storage/emulated/0/Pictures/torrid';

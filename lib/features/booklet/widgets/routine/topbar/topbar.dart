@@ -43,12 +43,12 @@ class Topbar extends StatelessWidget {
               children: [
                 StatItem(
                   label: "累计打卡",
-                  value: "${stats["validCheckIn"]}天",
+                  value: "${stats["valid_check_in"]}天",
                   icon: Icons.calendar_today,
                 ),
                 StatItem(
                   label: "全通天数",
-                  value: "${stats["fullyDone"]}天",
+                  value: "${stats["fully_done"]}天",
                   icon: Icons.star,
                 ),
                 StatItem(

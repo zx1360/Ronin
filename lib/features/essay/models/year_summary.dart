@@ -1,18 +1,22 @@
 import 'package:hive/hive.dart';
+import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 
 part 'year_summary.g.dart';
 
 // ----随笔年度信息类
 @HiveType(typeId: 0)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class YearSummary {
   @HiveField(0)
   final String year;
 
   @HiveField(1)
+  @JsonKey(defaultValue: 0)
   final int essayCount;
 
   @HiveField(2)
+  @JsonKey(defaultValue: 0)
   final int wordCount;
 
   @HiveField(3)
@@ -64,38 +68,25 @@ class YearSummary {
     );
   }
 
-  factory YearSummary.fromJson(Map<String, dynamic> json) {
-    return YearSummary(
-      year: json['year'],
-      essayCount: json['essayCount'] ?? 0,
-      wordCount: json['totalWordCount'] ?? 0,
-      monthSummaries: json.containsKey('monthSummaries')
-          ? (json['monthSummaries'] as List)
-                .map((item) => MonthSummary.fromJson(item))
-                .toList()
-          : [],
-    );
-  }
-  Map<String, dynamic> toJson() {
-    return {
-      'year': year,
-      'essayCount': essayCount,
-      'totalWordCount': wordCount,
-      'monthSummaries': monthSummaries.map((month) => month.toJson()).toList(),
-    };
-  }
+  // (反)序列化
+  factory YearSummary.fromJson(Map<String, dynamic> json) =>
+      _$YearSummaryFromJson(json);
+  Map<String, dynamic> toJson() => _$YearSummaryToJson(this);
 }
 
 // ----随笔月度信息类
 @HiveType(typeId: 3)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class MonthSummary {
   @HiveField(0)
   final String month;
 
   @HiveField(1)
+  @JsonKey(defaultValue: 0)
   final int essayCount;
 
   @HiveField(2)
+  @JsonKey(defaultValue: 0)
   final int wordCount;
 
   MonthSummary({required this.month, this.essayCount = 0, this.wordCount = 0});
@@ -117,14 +108,8 @@ class MonthSummary {
     );
   }
 
-  factory MonthSummary.fromJson(Map<String, dynamic> json) {
-    return MonthSummary(
-      month: json['month'],
-      essayCount: json['essayCount'] ?? 0,
-      wordCount: json['monthWordCount'] ?? 0,
-    );
-  }
-  Map<String, dynamic> toJson() {
-    return {"month": month, "essayCount": essayCount, "monthWordCount": wordCount};
-  }
+  // (反)序列化
+  factory MonthSummary.fromJson(Map<String, dynamic> json) =>
+      _$MonthSummaryFromJson(json);
+  Map<String, dynamic> toJson() => _$MonthSummaryToJson(this);
 }

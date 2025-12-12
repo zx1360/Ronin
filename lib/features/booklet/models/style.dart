@@ -1,15 +1,22 @@
 import 'package:hive/hive.dart';
+import 'package:json_annotation/json_annotation.dart';
+import 'package:torrid/core/utils/serialization.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'style.g.dart';
 
 @HiveType(typeId: 10)
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Style {
   @HiveField(0)
   final String id;
 
   @HiveField(1)
+  @JsonKey(
+    fromJson: dateFromJson,
+    toJson: dateToJson,
+  )
   final DateTime startDate;
 
   @HiveField(2)
@@ -69,29 +76,6 @@ class Style {
     );
   }
 
-  factory Style.fromJson(Map<String, dynamic> json) {
-    return Style(
-      id: json['id'],
-      startDate: DateTime.parse(json['startDate']),
-      validCheckIn: json['validCheckIn'],
-      fullyDone: json['fullyDone'],
-      longestStreak: json['longestStreak'],
-      longestFullyStreak: json['longestFullyStreak'],
-      tasks: (json['tasks'] as List)
-          .map((item) => Task.fromJson(item))
-          .toList(),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      "id": id,
-      "startDate": startDate.toLocal().toString().split('.').first,
-      "fullyDone": fullyDone,
-      "validCheckIn": validCheckIn,
-      "longestStreak": longestStreak,
-      "longestFullyStreak": longestFullyStreak,
-      "tasks": tasks.map((item) => item.toJson()).toList(),
-    };
-  }
+  factory Style.fromJson(Map<String, dynamic> json) => _$StyleFromJson(json);
+  Map<String, dynamic> toJson() => _$StyleToJson(this);
 }

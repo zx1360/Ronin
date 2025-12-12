@@ -42,3 +42,17 @@ class MessageAdapter extends TypeAdapter<Message> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+Message _$MessageFromJson(Map<String, dynamic> json) => Message(
+      timestamp: dateFromJson(json['timestamp'] as String),
+      content: json['content'] as String,
+    );
+
+Map<String, dynamic> _$MessageToJson(Message instance) => <String, dynamic>{
+      'timestamp': dateToJson(instance.timestamp),
+      'content': instance.content,
+    };

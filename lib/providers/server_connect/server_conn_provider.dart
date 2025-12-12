@@ -25,7 +25,6 @@ class ServerConnector extends _$ServerConnector {
   }
 
   // 网络请求时切换为"加载中"
-  // TODO: state加入"队列", 对于失败的重新入队直到['ceased']=True提示失败.
   Future<void> loadWithFunc(Function func) async {
     state = {...state, "isLoading": true};
     await func();

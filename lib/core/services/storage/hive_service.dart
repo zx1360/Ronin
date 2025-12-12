@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:torrid/core/models/message.dart';
 // booklet打卡
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
@@ -9,14 +10,13 @@ import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/todo/models/todo_task.dart';
-import 'package:torrid/features/todo/models/task_list.dart';
-import 'package:torrid/core/models/message.dart';
-// tuntun藏品
 import 'package:torrid/features/others/tuntun/models/info.dart';
 import 'package:torrid/features/others/tuntun/models/status.dart';
+import 'package:torrid/features/todo/models/task_list.dart';
+// tuntun藏品
 // comic漫画
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
+import 'package:torrid/features/todo/models/todo_task.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {

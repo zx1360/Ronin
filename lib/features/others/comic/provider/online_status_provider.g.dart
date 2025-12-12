@@ -6,7 +6,7 @@ part of 'online_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicsOnlineHash() => r'2373f660285c8adc033b78b45acec5b324b27d10';
+String _$comicsOnlineHash() => r'c58a21d700c8098d9262e109cf53d03eb43866c7';
 
 /// See also [comicsOnline].
 @ProviderFor(comicsOnline)
