@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
@@ -266,18 +267,17 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         child: Stack(
           children: [
             // 漫画阅读区域（下拉式 + 整体缩放）
-            imagesAsync.when(
-              data: (data) {
+            AsyncValueWidget(
+              asyncValue: imagesAsync,
+              dataBuilder: (data) {
                 images = data;
-                if(images.length>1) {
+                if (images.length > 1) {
                   slideVal = _currentImageIndex / (images.length - 1);
                 }
                 // 计算图片高度和偏移量
                 _calculateImageOffsets();
                 return _buildScrollGallery(context);
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(child: Text('错误：$error')),
             ),
 
             // 顶部控制栏
@@ -287,7 +287,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
                 totalNum: images.length,
-                saveFunc: widget.isLocal? () => _saveImage() : null,
+                saveFunc: widget.isLocal ? () => _saveImage() : null,
                 isMerging: _isMerging,
               ),
 
@@ -331,8 +331,10 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
       physics: const BouncingScrollPhysics(),
       itemCount: images.length,
       itemBuilder: (context, index) {
-        final url = widget.isLocal? images[index]['path']: "${ref.watch(apiClientManagerProvider).baseUrl}/static/${images[index]['path']}";
-        
+        final url = widget.isLocal
+            ? images[index]['path']
+            : "${ref.watch(apiClientManagerProvider).baseUrl}/static/${images[index]['path']}";
+
         final image = images[index];
         final width = image['width'];
         // 确保宽度不为0，避免除零错误
@@ -342,7 +344,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
         return SizedBox(
           width: maxWidth,
           height: height,
-          child: ComicImage(path: url, isLocal: widget.isLocal,),
+          child: ComicImage(path: url, isLocal: widget.isLocal),
         );
       },
     );

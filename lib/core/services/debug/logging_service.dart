@@ -25,7 +25,7 @@ class AppLogger {
   void info(String message) => _logger.info(message);
   void warning(String message) => _logger.warning(message);
   void error(String message, [Object? error, StackTrace? stackTrace]) =>
-      _logger.fine(message, error, stackTrace);
+      _logger.severe(message, error, stackTrace);
 
   // 设置日志级别
   void setLevel(Level level){

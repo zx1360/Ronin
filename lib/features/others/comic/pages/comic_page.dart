@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
@@ -58,7 +59,9 @@ class _ComicPageState extends ConsumerState<ComicPage> {
   @override
   Widget build(BuildContext context) {
     final comicInfos = ref.watch(comicInfosProvider);
-    final onlineComicsAsync = isOnlineComicsLoaded ? ref.watch(comicsOnlineProvider) : null;
+    final onlineComicsAsync = isOnlineComicsLoaded
+        ? ref.watch(comicsOnlineProvider)
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -78,12 +81,23 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                   if (comicInfos.isNotEmpty) ...[
                     // 修改：优化本地漫画标题样式 - 简约美观
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       width: double.infinity,
                       decoration: BoxDecoration(
                         color: Colors.grey[50],
-                        border: BoxBorder.fromLTRB(bottom: BorderSide(color: Colors.grey[200]!, width: 1)),
+                        border: BoxBorder.fromLTRB(
+                          bottom: BorderSide(
+                            color: Colors.grey[200]!,
+                            width: 1,
+                          ),
+                        ),
                       ),
                       child: const Text(
                         "本地漫画",
@@ -114,24 +128,34 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    ComicDetailPage(comicInfo: comic, isLocal: true,),
+                                builder: (context) => ComicDetailPage(
+                                  comicInfo: comic,
+                                  isLocal: true,
+                                ),
                               ),
                             );
                           },
-                          child: ComicItem(comicInfo: comic, isLocal: true,),
+                          child: ComicItem(comicInfo: comic, isLocal: true),
                         );
                       },
                     ),
                   ],
                   // 在线漫画相关
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     width: double.infinity,
                     decoration: BoxDecoration(
                       color: Colors.grey[50],
-                      border: BoxBorder.fromLTRB(bottom: BorderSide(color: Colors.grey[200]!, width: 1)),
+                      border: BoxBorder.fromLTRB(
+                        bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -146,7 +170,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                         ),
                         // 加载在线漫画按钮
                         TextButton(
-                          onPressed: (){
+                          onPressed: () {
                             setState(() {
                               isOnlineComicsLoaded = true;
                             });
@@ -173,43 +197,44 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                   ),
                   // 在线漫画列表
                   if (isOnlineComicsLoaded && onlineComicsAsync != null)
-                    onlineComicsAsync.when(
-                      data: (comics) {
+                    AsyncValueWidget(
+                      asyncValue: onlineComicsAsync,
+                      dataBuilder: (comics) {
                         return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(10),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              childAspectRatio: 1,
-                              crossAxisSpacing: 6,
-                              mainAxisSpacing: 6,
-                            ),
-                        itemCount: comics.length,
-                        itemBuilder: (context, index) {
-                          final comic = comics[index];
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      ComicDetailPage(comicInfo: comic, isLocal: false),
-                                ),
-                              );
-                            },
-                            child: ComicItem(comicInfo: comic, isLocal: false,),
-                          );
-                        },
-                      );
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(10),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 1,
+                                crossAxisSpacing: 6,
+                                mainAxisSpacing: 6,
+                              ),
+                          itemCount: comics.length,
+                          itemBuilder: (context, index) {
+                            final comic = comics[index];
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ComicDetailPage(
+                                      comicInfo: comic,
+                                      isLocal: false,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: ComicItem(
+                                comicInfo: comic,
+                                isLocal: false,
+                              ),
+                            );
+                          },
+                        );
                       },
-                      // TODO: 考虑封装一下呢.
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (error, stack) => Center(child: Text('错误：$error')),
                     ),
-                  // 在线漫画相关修改 End
                 ],
               ),
             ),
