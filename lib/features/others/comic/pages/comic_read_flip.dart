@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
@@ -205,13 +206,12 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         child: Stack(
           children: [
             // 漫画阅读区域
-            imagesAsync.when(
-              data: (data) {
+            AsyncValueWidget(
+              asyncValue: imagesAsync,
+              dataBuilder: (data) {
                 images = data;
                 return _buildGallery();
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(child: Text('错误：$error')),
             ),
 
             // 点击翻页区
@@ -244,8 +244,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                 comicName: widget.comicInfo.comicName,
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
-                totalNum: currentChapter.images.length | currentChapter.imageCount,
-                saveFunc: widget.isLocal? () => _saveThisImage(context) : null,
+                totalNum:
+                    currentChapter.images.length | currentChapter.imageCount,
+                saveFunc: widget.isLocal ? () => _saveThisImage(context) : null,
               ),
 
             // 底部控制栏 - 只有当图片数量大于1时才显示进度条和翻页按钮

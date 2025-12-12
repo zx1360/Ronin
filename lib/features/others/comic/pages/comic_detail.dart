@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
@@ -51,16 +52,13 @@ class ComicDetailPage extends ConsumerWidget {
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        chaptersAsync.when(
-                          data: (chapters) => ContinueReadingButton(
+                        AsyncValueWidget(
+                          asyncValue: chaptersAsync,
+                          dataBuilder: (chapters) => ContinueReadingButton(
                             comicInfo: comicInfo,
                             chapters: chapters,
                             isLocal: isLocal,
                           ),
-                          loading: () =>
-                              const Center(child: CircularProgressIndicator()),
-                          error: (error, stack) =>
-                              Center(child: Text('错误：$error')),
                         ),
                         RowInfoWidget(comicId: comicInfo.id),
                       ],
@@ -68,8 +66,9 @@ class ComicDetailPage extends ConsumerWidget {
                   ),
                 ),
 
-                chaptersAsync.when(
-                  data: (chapters) {
+                AsyncValueWidget(
+                  asyncValue: chaptersAsync,
+                  dataBuilder: (chapters) {
                     if (chapters.isNotEmpty) {
                       return SliverGrid(
                         gridDelegate:
@@ -175,12 +174,6 @@ class ComicDetailPage extends ConsumerWidget {
                       );
                     }
                   },
-                  loading: () => SliverToBoxAdapter(
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (error, stack) => SliverToBoxAdapter(
-                    child: Center(child: Text('错误：$error')),
-                  ),
                 ),
               ],
             ),
