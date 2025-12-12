@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/core/constants/app_border_radius.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 /// 弹出确认框，点击确定后执行相关逻辑
 Future<bool?> showConfirmDialog({
@@ -13,7 +15,7 @@ Future<bool?> showConfirmDialog({
     builder: (context) => AlertDialog(
       backgroundColor: AppTheme.surfaceWarm,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
         side: BorderSide(color: AppTheme.outline.withAlpha(76)),
       ),
       title: Text(
@@ -35,7 +37,7 @@ Future<bool?> showConfirmDialog({
           style: Theme.of(context).textButtonTheme.style?.copyWith(
                 foregroundColor: WidgetStateProperty.all(AppTheme.onSurfaceVariant),
                 padding: WidgetStateProperty.all(
-                  const EdgeInsets.symmetric(horizontal: 16),
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 ),
               ),
           child: Text("取消", style: TextStyle(color: AppTheme.onSurfaceVariant)),
@@ -45,7 +47,7 @@ Future<bool?> showConfirmDialog({
           style: Theme.of(context).textButtonTheme.style?.copyWith(
                 foregroundColor: WidgetStateProperty.all(AppTheme.errorVivid),
                 padding: WidgetStateProperty.all(
-                  const EdgeInsets.symmetric(horizontal: 16),
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 ),
               ),
           child: Text("确定", style: TextStyle(color: AppTheme.errorVivid)),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:torrid/core/constants/app_border_radius.dart';
 
 void openBottomSheet(
   BuildContext context, {
@@ -9,7 +10,7 @@ void openBottomSheet(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppBorderRadius.xl)),
     ),
     builder: (context) => Container(
       constraints: BoxConstraints(

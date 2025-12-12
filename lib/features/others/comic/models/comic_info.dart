@@ -10,8 +10,11 @@ part 'comic_info.g.dart';
 class ComicInfo {
   @HiveField(0)
   final String id;
+
+  @JsonKey(name: "title")
   @HiveField(1)
   final String comicName;
+
   @HiveField(2)
   final String coverImage;
   @HiveField(3)

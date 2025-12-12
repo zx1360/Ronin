@@ -1,6 +1,8 @@
 // dialogs.dart 文件
 import 'package:flutter/material.dart';
 import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/core/constants/app_border_radius.dart';
+import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/core/modals/dialog_option.dart'; // 确保导入你的主题文件
 
 /// 弹出一个带有多个选项按钮的模态对话框。
@@ -16,7 +18,7 @@ Future<DialogOption?> showOptionsDialog({
     builder: (context) => AlertDialog(
       backgroundColor: AppTheme.surfaceWarm,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
         side: BorderSide(color: AppTheme.outline.withAlpha(76)),
       ),
       title: Text(
@@ -44,7 +46,7 @@ Future<DialogOption?> showOptionsDialog({
                   option.textColor ?? AppTheme.onSurfaceVariant,
                 ),
                 padding: WidgetStateProperty.all(
-                  const EdgeInsets.symmetric(horizontal: 16),
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 ),
               ),
               child: Text(

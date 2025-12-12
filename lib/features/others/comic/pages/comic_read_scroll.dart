@@ -211,7 +211,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     if (chapterIndex <= 0) return;
     chapterIndex--;
     currentChapter = chapters[chapterIndex];
-    _currentImageIndex = 0;
+    setState(() {
+      _currentImageIndex = 0;
+    });
     _listviewKey = UniqueKey();
     setState(() {
       images = currentChapter.images;
@@ -227,7 +229,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     if (chapterIndex >= chapters.length - 1) return;
     chapterIndex++;
     currentChapter = chapters[chapterIndex];
-    _currentImageIndex = 0;
+    setState(() {
+      _currentImageIndex = 0;
+    });
     _listviewKey = UniqueKey();
     setState(() {
       images = currentChapter.images;
@@ -250,7 +254,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     }
 
     // 计算当前 Slider 的值
-    double slideVal = -1;
+    double slideVal = images.isEmpty||images.length<2
+        ? -1
+        : _currentImageIndex / (images.length - 1);
 
     return Scaffold(
       body: GestureDetector(
@@ -271,9 +277,6 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
               asyncValue: imagesAsync,
               dataBuilder: (data) {
                 images = data;
-                if (images.length > 1) {
-                  slideVal = _currentImageIndex / (images.length - 1);
-                }
                 // 计算图片高度和偏移量
                 _calculateImageOffsets();
                 return _buildScrollGallery(context);
