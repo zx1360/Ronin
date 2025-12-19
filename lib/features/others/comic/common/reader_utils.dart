@@ -37,3 +37,24 @@ ImageProvider resolveImageProvider(
   final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
   return NetworkImage("$baseUrl/static/${image['path']}");
 }
+
+/// 计算图片在指定最大宽度下的显示高度（宽度异常时回退为等于宽度）
+double computeImageHeight(Map<String, dynamic> image, double maxWidth) {
+  final width = image['width'];
+  if (width is num && width > 0) {
+    return (image['height'] as num) * (maxWidth / width);
+  }
+  return maxWidth;
+}
+
+/// 计算列表中每张图片的累计偏移量（用于快速定位滚动位置）
+List<double> computeImageOffsets(List<Map<String, dynamic>> images, double maxWidth) {
+  final offsets = <double>[];
+  double current = 0.0;
+  for (final img in images) {
+    offsets.add(current);
+    current += computeImageHeight(img, maxWidth);
+  }
+  offsets.add(current); // 最后一张底部位置，便于区间计算
+  return offsets;
+}

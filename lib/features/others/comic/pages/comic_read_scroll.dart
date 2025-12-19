@@ -77,19 +77,11 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
 
   /// 计算所有图片的高度和累计偏移量
   void _calculateImageOffsets() {
-    _imageOffsets.clear();
-    double currentOffset = 0.0;
     final maxWidth = MediaQuery.of(context).size.width;
-    for (var image in images) {
-      _imageOffsets.add(currentOffset);
-      final width = image['width'];
-      final height = (width is num && width > 0)
-          ? image['height'] * (maxWidth / width)
-          : maxWidth;
-      currentOffset += height;
-    }
-    // 添加最后一张图片的底部位置，方便计算
-    _imageOffsets.add(currentOffset);
+    // 抽离后的通用计算，便于维护
+    _imageOffsets
+      ..clear()
+      ..addAll(computeImageOffsets(images, maxWidth));
   }
 
   void init() {
@@ -318,11 +310,8 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
       itemBuilder: (context, index) {
         final image = images[index];
         final url = resolveImageUrl(image, widget.isLocal, ref);
-        final width = image['width'];
-        // 确保宽度不为0，避免除零错误
-        final height = width > 0
-            ? image['height'] * (maxWidth / width)
-            : maxWidth;
+        // 抽离后的通用高度计算
+        final height = computeImageHeight(image, maxWidth);
         return SizedBox(
           width: maxWidth,
           height: height,
