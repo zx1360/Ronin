@@ -15,9 +15,10 @@ import 'package:torrid/features/others/comic/provider/online_status_provider.dar
 import 'package:torrid/features/others/comic/services/save_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
-import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/modals/snack_bar.dart';
+import 'package:torrid/features/others/comic/common/controls_auto_hide_mixin.dart';
+import 'package:torrid/features/others/comic/common/reader_utils.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
@@ -37,20 +38,18 @@ class ComicReadPage extends ConsumerStatefulWidget {
   ConsumerState<ComicReadPage> createState() => _ComicReadPageState();
 }
 
-class _ComicReadPageState extends ConsumerState<ComicReadPage> {
+class _ComicReadPageState extends ConsumerState<ComicReadPage>
+    with ControlsAutoHideMixin<ComicReadPage> {
   late List<ChapterInfo> chapters = widget.chapters;
   late int chapterIndex = widget.chapterIndex;
   late ChapterInfo currentChapter = chapters[chapterIndex];
   late List<Map<String, dynamic>> images = currentChapter.images;
-  late int imageCount = currentChapter.imageCount| currentChapter.images.length;
+  late int imageCount = effectiveImageCount(currentChapter);
   // 是否展示操作栏
-  bool _showControls = true;
   // 图片加载相关
   int _currentImageIndex = 0;
   late PageController _pageController;
   // 自动关闭操作栏计时器
-  late Timer _controlsTimer;
-  final Duration closeBarDuration = const Duration(seconds: 4);
   final Duration switchImgDuration = const Duration(milliseconds: 300);
   
 
@@ -68,34 +67,18 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
           comicId: widget.comicInfo.id,
           chapterIndex: chapterIndex,
         );
-    _initializeControlsTimer();
+    initializeControlsTimer();
   }
 
   @override
   void dispose() {
-    _controlsTimer.cancel();
+    disposeControlsTimer();
     // 退出时恢复系统UI
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
-  void _initializeControlsTimer() {
-    _controlsTimer = Timer.periodic(closeBarDuration, (timer) {
-      if (mounted && _showControls) {
-        setState(() {
-          _showControls = false;
-        });
-      }
-    });
-  }
-
-  void _resetControlsTimer() {
-    _controlsTimer.cancel();
-    setState(() {
-      _showControls = true;
-    });
-    _initializeControlsTimer();
-  }
+  // 计时器逻辑由 ControlsAutoHideMixin 提供
 
   // 导航到上一页
   void _prevImage() {
@@ -129,8 +112,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       _currentImageIndex = 0;
       setState(() {
         images = currentChapter.images;
+        imageCount = effectiveImageCount(currentChapter);
       });
-      _controlsTimer.cancel();
+      cancelControlsTimer();
       init();
       _pageController.animateToPage(0, duration: switchImgDuration, curve: Curves.easeInOut);
     }
@@ -144,10 +128,11 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       _currentImageIndex = 0;
       setState(() {
         images = currentChapter.images;
+        imageCount = effectiveImageCount(currentChapter);
       });
-      _controlsTimer.cancel();
+      cancelControlsTimer();
       init();
-      _pageController.animateToPage(0, duration: Duration(seconds: 5), curve: Curves.easeInOut);
+      _pageController.animateToPage(0, duration: switchImgDuration, curve: Curves.easeInOut);
     }
   }
 
@@ -157,7 +142,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       // 获取当前图片文件
       final sourceFile = File(images[_currentImageIndex]['path']);
       if (!await sourceFile.exists()) {
-        displaySnackBar(context, "图片文件不存在");
+        if (mounted) {
+          displaySnackBar(context, "图片文件不存在");
+        }
         return;
       }
 
@@ -172,10 +159,13 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
         images[_currentImageIndex]['path'],
         fileName,
       );
-
-      displaySnackBar(context, "图片已保存: $fileName");
+      if (mounted) {
+        displaySnackBar(context, "图片已保存: $fileName");
+      }
     } catch (e) {
-      displaySnackBar(context, "保存失败: ${e.toString()}");
+      if (mounted) {
+        displaySnackBar(context, "保存失败: ${e.toString()}");
+      }
       AppLogger().error("保存图片错误: $e");
     }
   }
@@ -195,16 +185,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
-        onTap: () {
-          if (_showControls) {
-            _controlsTimer.cancel();
-            setState(() {
-              _showControls = false;
-            });
-          } else {
-            _resetControlsTimer();
-          }
-        },
+        onTap: handleTapToggle,
         child: Stack(
           children: [
             // 漫画阅读区域
@@ -241,18 +222,18 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
             ],
 
             // 顶部控制栏
-            if (_showControls)
+            if (showControls)
               TopControllBar(
                 comicName: widget.comicInfo.comicName,
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
                 totalNum:
-                    currentChapter.images.length | currentChapter.imageCount,
+                    imageCount,
                 saveFunc: widget.isLocal ? () => _saveThisImage(context) : null,
               ),
 
             // 底部控制栏 - 只有当图片数量大于1时才显示进度条和翻页按钮
-            if (_showControls)
+            if (showControls)
               BottomControllBar(
                 prevFunc: _prevChapter,
                 nextFunc: _nextChapter,
@@ -265,15 +246,15 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
                   }
                 },
                 onSlideStart: () {
-                  _controlsTimer.cancel();
-                  if (!_showControls) {
+                  cancelControlsTimer();
+                  if (!showControls) {
                     setState(() {
-                      _showControls = true;
+                      showControls = true;
                     });
                   }
                 },
                 onSlideEnd: () {
-                  _resetControlsTimer();
+                  resetControlsTimer();
                 },
               ),
           ],
@@ -284,10 +265,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 获取滑块进度条.
   double _getSliderValue() {
-    if (imageCount <= 1) {
-      return -1;
-    }
-    return _currentImageIndex / (imageCount - 1);
+    return sliderValue(_currentImageIndex, imageCount);
   }
 
   Widget _buildGallery() {
@@ -300,10 +278,8 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       key: ValueKey('comic_gallery_${currentChapter.id}_${currentChapter.chapterIndex}'),
       itemCount: images.length,
       builder: (context, index) {
-        final serverUrl = ref.read(apiClientManagerProvider).baseUrl;
-        final ImageProvider imageProvider = widget.isLocal
-            ? FileImage(File(images[index]['path']))
-            : NetworkImage("$serverUrl/static/${images[index]['path']}");
+        final ImageProvider imageProvider =
+            resolveImageProvider(images[index], widget.isLocal, ref);
         return PhotoViewGalleryPageOptions(
           imageProvider: imageProvider,
           minScale: PhotoViewComputedScale.contained,
