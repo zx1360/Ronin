@@ -51,6 +51,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   late Timer _controlsTimer;
   final Duration closeBarDuration = const Duration(seconds: 4);
   final Duration switchImgDuration = const Duration(milliseconds: 300);
+  
 
   @override
   void initState() {
@@ -130,7 +131,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       });
       _controlsTimer.cancel();
       init();
-      _pageController.jumpToPage(0);
+      _pageController.animateToPage(0, duration: switchImgDuration, curve: Curves.easeInOut);
     }
   }
 
@@ -145,7 +146,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
       });
       _controlsTimer.cancel();
       init();
-      _pageController.jumpToPage(0);
+      _pageController.animateToPage(0, duration: Duration(seconds: 5), curve: Curves.easeInOut);
     }
   }
 
@@ -295,6 +296,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
     // TODO: 图片预加载前后一张图片防止短暂空白.
     return PhotoViewGallery.builder(
+      key: ValueKey('comic_gallery_${currentChapter.id}_${currentChapter.chapterIndex}'),
       itemCount: images.length,
       builder: (context, index) {
         final serverUrl = ref.read(apiClientManagerProvider).baseUrl;
@@ -305,6 +307,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
           imageProvider: imageProvider,
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 2,
+          tightMode: true
         );
       },
       scrollPhysics: const ClampingScrollPhysics(),
