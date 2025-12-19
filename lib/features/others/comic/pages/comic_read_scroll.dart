@@ -45,6 +45,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
   late int chapterIndex = widget.chapterIndex;
   late ChapterInfo currentChapter = chapters[chapterIndex];
   late List<Map<String, dynamic>> images = currentChapter.images;
+  late int imageCount = currentChapter.imageCount| currentChapter.images.length;
 
   // 状态量
   int _currentImageIndex = 0;
@@ -254,9 +255,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
     }
 
     // 计算当前 Slider 的值
-    double slideVal = images.isEmpty||images.length<2
+    double slideVal = imageCount<2
         ? -1
-        : _currentImageIndex / (images.length - 1);
+        : _currentImageIndex / (imageCount - 1);
 
     return Scaffold(
       body: GestureDetector(
@@ -289,7 +290,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage> {
                 comicName: widget.comicInfo.comicName,
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
-                totalNum: images.length,
+                totalNum: imageCount,
                 saveFunc: widget.isLocal ? () => _saveImage() : null,
                 isMerging: _isMerging,
               ),
