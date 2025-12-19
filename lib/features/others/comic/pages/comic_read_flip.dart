@@ -42,6 +42,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
   late int chapterIndex = widget.chapterIndex;
   late ChapterInfo currentChapter = chapters[chapterIndex];
   late List<Map<String, dynamic>> images = currentChapter.images;
+  late int imageCount = currentChapter.imageCount| currentChapter.images.length;
   // 是否展示操作栏
   bool _showControls = true;
   // 图片加载相关
@@ -283,10 +284,10 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage> {
 
   // 获取滑块进度条.
   double _getSliderValue() {
-    if (images.length <= 1) {
+    if (imageCount <= 1) {
       return -1;
     }
-    return _currentImageIndex / (images.length - 1);
+    return _currentImageIndex / (imageCount - 1);
   }
 
   Widget _buildGallery() {
