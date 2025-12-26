@@ -19,6 +19,10 @@ class ReadPage extends StatelessWidget {
           foregroundColor: colorScheme.onPrimary,
           bottom: TabBar(
             isScrollable: true,
+            labelColor: colorScheme.onPrimary,
+            unselectedLabelColor: colorScheme.onPrimary.withOpacity(0.7),
+            indicatorColor: colorScheme.onPrimary,
+            indicatorWeight: 3,
             tabs: const [
               Tab(text: '周期资讯'),
               Tab(text: '实用功能'),

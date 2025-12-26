@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
 import 'package:torrid/features/todo/providers/notifier_provider.dart';
@@ -225,40 +224,5 @@ class _TaskModalSheetState extends ConsumerState<TaskModalSheet> {
     );
   }
 
-  // 共用日期选择组件
-  Widget _buildDatePicker(
-    ThemeData theme,
-    String label,
-    DateTime? date,
-    Function(DateTime) onSelected,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () async {
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: date ?? DateTime.now(),
-            firstDate: DateTime.now(),
-            lastDate: DateTime(2100),
-          );
-          if (picked != null) onSelected(picked);
-          FocusManager.instance.primaryFocus?.unfocus();
-        },
-        child: InputDecorator(
-          decoration: InputDecoration(labelText: label),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                date != null ? DateFormat.yMd().format(date) : '未设置',
-                style: theme.textTheme.bodyMedium,
-              ),
-              const Icon(Icons.calendar_month),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // 移除未使用的日期选择组件以消除未引用告警
 }

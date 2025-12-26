@@ -174,7 +174,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                             setState(() {
                               isOnlineComicsLoaded = true;
                             });
-                            ref.refresh(comicsOnlineProvider);
+                            ref.invalidate(comicsOnlineProvider);
                           },
                           style: TextButton.styleFrom(
                             minimumSize: const Size(80, 32),

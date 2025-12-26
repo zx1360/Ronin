@@ -17,6 +17,7 @@ class _TuntunPageState extends State<TuntunPage> {
   // 控制页面切换的控制器
   final PageController _pageController = PageController();
   // 当前页面索引
+  // ignore: unused_field
   int _currentIndex = 0;
   // 视频数据列表
   List<VideoData> _videoList = [];
@@ -112,6 +113,7 @@ class _TuntunPageState extends State<TuntunPage> {
   }
 
   // 切换到指定页面
+  // ignore: unused_element
   void _navigateToPage(int index) {
     _pageController.animateToPage(
       index,
