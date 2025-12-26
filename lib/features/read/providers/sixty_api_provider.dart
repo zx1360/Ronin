@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 
@@ -21,13 +22,20 @@ final sixtySecondsProvider = FutureProvider.family<Json, String?>(
 );
 
 final aiNewsProvider = FutureProvider.family<Json, String?>(
-  (ref, date) async {
+  (ref, _date) async {
     final client = ref.read(sixtyApiClientProvider);
-    final resp = await client.get('/v2/ai-news', queryParams: {
-      if (date != null && date.isNotEmpty) 'date': date,
-      'encoding': 'json',
-    });
-    return (resp.data as Json)['data'] as Json;
+    Response resp;
+    try {
+      resp = await client.get('/v2/ai-news', queryParams: {
+        'encoding': 'json',
+      });
+    } catch (_) {
+      resp = await client.get('/v2/ai_news', queryParams: {
+        'encoding': 'json',
+      });
+    }
+    final data = (resp.data as Json)['data'];
+    return (data is Map<String, dynamic>) ? data : {'news': data};
   },
 );
 
@@ -39,13 +47,16 @@ final bingWallpaperProvider = FutureProvider<Json>((ref) async {
   return (resp.data as Json)['data'] as Json;
 });
 
-final todayInHistoryProvider = FutureProvider<Json>((ref) async {
-  final client = ref.read(sixtyApiClientProvider);
-  final resp = await client.get('/v2/today-in-history', queryParams: {
-    'encoding': 'json',
-  });
-  return (resp.data as Json)['data'] as Json;
-});
+final todayInHistoryProvider = FutureProvider.family<Json, String?>(
+  (ref, date) async {
+    final client = ref.read(sixtyApiClientProvider);
+    final resp = await client.get('/v2/today-in-history', queryParams: {
+      'encoding': 'json',
+      if (date != null && date.isNotEmpty) 'date': date, // 若服务端支持则生效
+    });
+    return (resp.data as Json)['data'] as Json;
+  },
+);
 
 final epicGamesProvider = FutureProvider<List<dynamic>>((ref) async {
   final client = ref.read(sixtyApiClientProvider);
@@ -129,10 +140,84 @@ final maoyanRealtimeWebProvider = FutureProvider<Json>((ref) async {
   return (resp.data as Json)['data'] as Json;
 });
 
+// 反选补充的热门榜单
+final toutiaoHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/toutiao', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final weiboHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/weibo', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final zhihuHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/zhihu', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final hackerNewsProvider = FutureProvider.family<dynamic, String>((ref, kind) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/hacker-news/$kind', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final baiduHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/baidu/hot', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final baiduTeleplayProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/baidu/teleplay', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final baiduTiebaProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/baidu/tieba', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final ncmRankListProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/ncm-rank/list', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final biliHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/bili', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final douyinHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/douyin', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final quarkHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/quark', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+final rednoteHotProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.read(sixtyApiClientProvider);
+  final resp = await client.get('/v2/rednote', queryParams: {'encoding': 'json'});
+  return (resp.data as Json)['data'];
+});
+
+
 // ---------------- 消遣娱乐 ----------------
 final changyaAudioProvider = FutureProvider<Json>((ref) async {
   final client = ref.read(sixtyApiClientProvider);
-  final resp = await client.get('/v2/changya');
+  final resp = await client.get('/v2/changya', queryParams: {'encoding': 'json'});
   return (resp.data as Json)['data'] as Json;
 });
 

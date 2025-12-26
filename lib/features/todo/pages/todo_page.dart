@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/todo/providers/content_provider.dart';
-import 'package:torrid/features/todo/providers/status_provider.dart';
 
 import 'package:torrid/features/todo/widgets/task_content/task_list_widget.dart';
 import 'package:torrid/features/todo/widgets/bar/side_drawer.dart';
@@ -12,7 +11,7 @@ class TodoPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final lists=ref.watch(taskListProvider);
+    // Removed unused local variable to satisfy analyzer
     final currentList = ref.watch(contentProvider);
 
     return Scaffold(
