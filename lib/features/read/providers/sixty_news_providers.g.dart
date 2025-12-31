@@ -155,7 +155,7 @@ class _SixtySecondsProviderElement
   String? get date => (origin as SixtySecondsProvider).date;
 }
 
-String _$aiNewsHash() => r'2f7360b70bc2c4f703bc40903266bfbdba43cb7e';
+String _$aiNewsHash() => r'cd56996498da8afd0cc93735b03270d7d2c5b24b';
 
 /// See also [aiNews].
 @ProviderFor(aiNews)

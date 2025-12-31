@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class ToutiaoTab extends ConsumerWidget {
   const ToutiaoTab({super.key});
@@ -14,8 +15,10 @@ class ToutiaoTab extends ConsumerWidget {
       error: (e, _) => ErrorView('头条热榜加载失败：$e'),
       data: (data) {
         final list = (data is List)
-          ? data
-            : ((data['list'] as List<dynamic>?) ?? (data['items'] as List<dynamic>?) ?? []);
+            ? data
+            : ((data['list'] as List<dynamic>?) ??
+                  (data['items'] as List<dynamic>?) ??
+                  []);
         return RefreshIndicator(
           onRefresh: () async => ref.invalidate(toutiaoHotProvider),
           child: ListView.builder(
@@ -23,15 +26,24 @@ class ToutiaoTab extends ConsumerWidget {
             itemBuilder: (ctx, i) {
               final m = list[i] as Map<String, dynamic>;
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
                 child: Card(
                   child: ListTile(
                     leading: CircleAvatar(child: Text('${i + 1}')),
                     title: Text(m['title'] ?? m['name'] ?? ''),
-                    subtitle: Text('热度：${m['hot'] ?? m['score'] ?? m['heat'] ?? ''}'),
+                    subtitle: Text(
+                      '热度：${m['hot'] ?? m['score'] ?? m['heat'] ?? ''}',
+                    ),
                     trailing: IconButton(
                       icon: const Icon(Icons.copy),
-                      onPressed: () => Clipboard.setData(ClipboardData(text: (m['url'] ?? m['link'] ?? '') as String)),
+                      onPressed: () => Clipboard.setData(
+                        ClipboardData(
+                          text: (m['url'] ?? m['link'] ?? '') as String,
+                        ),
+                      ),
                     ),
                   ),
                 ),

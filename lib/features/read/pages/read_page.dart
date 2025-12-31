@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:torrid/features/read/views/periodic_view.dart';
 import 'package:torrid/features/read/views/utilities_view.dart';
 import 'package:torrid/features/read/views/hotlists_view.dart';

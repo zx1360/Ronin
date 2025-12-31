@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class SectionTitle extends StatelessWidget {
   final String title;
@@ -9,17 +10,15 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
       child: Row(
         children: [
-          if (icon != null)
-            Icon(icon, color: cs.primary),
-          if (icon != null)
-            const SizedBox(width: 8),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          if (icon != null) Icon(icon, color: cs.primary),
+          if (icon != null) const SizedBox(width: AppSpacing.sm),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
         ],
       ),
     );
@@ -31,9 +30,7 @@ class LoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: CircularProgressIndicator(color: cs.primary),
-    );
+    return Center(child: CircularProgressIndicator(color: cs.primary));
   }
 }
 
@@ -44,25 +41,24 @@ class ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Container(
         decoration: BoxDecoration(
           color: cs.errorContainer,
           borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(Icons.error_outline, color: cs.error),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 message,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: cs.onErrorContainer),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: cs.onErrorContainer),
               ),
             ),
           ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class FabingTab extends ConsumerStatefulWidget {
   const FabingTab({super.key});
@@ -19,13 +20,18 @@ class _FabingTabState extends ConsumerState<FabingTab> {
       children: [
         const SectionTitle(title: '随机发病文学', icon: Icons.auto_stories),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _nameCtrl,
-                  decoration: const InputDecoration(hintText: '替换的人名（可选），默认：主人'),
+                  decoration: const InputDecoration(
+                    hintText: '替换的人名（可选），默认：主人',
+                  ),
                   onSubmitted: (_) => setState(() {}),
                 ),
               ),
@@ -41,7 +47,7 @@ class _FabingTabState extends ConsumerState<FabingTab> {
           loading: () => const LoadingView(),
           error: (e, _) => ErrorView('生成失败：$e'),
           data: (data) => Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -50,7 +56,7 @@ class _FabingTabState extends ConsumerState<FabingTab> {
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpacing.md),
       ],
     );
   }

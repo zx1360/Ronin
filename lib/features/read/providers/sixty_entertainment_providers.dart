@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:torrid/features/read/providers/sixty_client.dart';
+import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 part 'sixty_entertainment_providers.g.dart';
 
 // ---------------- 消遣娱乐 ----------------

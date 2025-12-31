@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:torrid/features/read/providers/sixty_client.dart';
+import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 part 'sixty_news_providers.g.dart';
 
 // ---------------- 周期资讯 ----------------
@@ -23,7 +21,6 @@ Future<Json> sixtySeconds(SixtySecondsRef ref, String? date) async {
 Future<Json> aiNews(AiNewsRef ref, String? date) async {
   final client = ref.read(sixtyApiClientProvider);
   final resp = await client.get('/v2/ai-news', queryParams: {'encoding': 'json', 'all': '1'});
-  print(resp.data);
   return (resp.data as Json)['data'] as Json;
 }
 
