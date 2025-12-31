@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class LyricTab extends ConsumerStatefulWidget {
   const LyricTab({super.key});
@@ -17,7 +18,10 @@ class _LyricTabState extends ConsumerState<LyricTab> {
       children: [
         const SectionTitle(title: '搜索歌词', icon: Icons.music_note),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
           child: Row(
             children: [
               Expanded(
@@ -40,29 +44,31 @@ class _LyricTabState extends ConsumerState<LyricTab> {
           ),
         ),
         if (_ctrl.text.trim().isNotEmpty)
-          Consumer(builder: (context, ref, _) {
-            final async = ref.watch(lyricSearchProvider(_ctrl.text.trim()));
-            return async.when(
-              loading: () => const LoadingView(),
-              error: (e, _) => ErrorView('歌词搜索失败：$e'),
-              data: (data) {
-                final formatted = data['formatted'] as String?;
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: SelectableText(
-                        formatted ?? '未找到歌词',
-                        style: Theme.of(context).textTheme.bodyMedium,
+          Consumer(
+            builder: (context, ref, _) {
+              final async = ref.watch(lyricSearchProvider(_ctrl.text.trim()));
+              return async.when(
+                loading: () => const LoadingView(),
+                error: (e, _) => ErrorView('歌词搜索失败：$e'),
+                data: (data) {
+                  final formatted = data['formatted'] as String?;
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: SelectableText(
+                          formatted ?? '未找到歌词',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
-            );
-          }),
-        const SizedBox(height: 24),
+                  );
+                },
+              );
+            },
+          ),
+        const SizedBox(height: AppSpacing.md),
       ],
     );
   }

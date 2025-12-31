@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class TodayInHistoryTab extends ConsumerWidget {
   const TodayInHistoryTab({super.key});
@@ -27,14 +28,21 @@ class TodayInHistoryTab extends ConsumerWidget {
               }
               final item = items[i - 1] as Map<String, dynamic>;
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
                 child: Card(
                   child: ListTile(
-                    title: Text('${item['year'] ?? ''} · ${item['title'] ?? ''}'),
+                    title: Text(
+                      '${item['year'] ?? ''} · ${item['title'] ?? ''}',
+                    ),
                     subtitle: Text(item['description'] ?? ''),
                     trailing: IconButton(
                       icon: const Icon(Icons.copy),
-                      onPressed: () => Clipboard.setData(ClipboardData(text: (item['link'] ?? '') as String)),
+                      onPressed: () => Clipboard.setData(
+                        ClipboardData(text: (item['link'] ?? '') as String),
+                      ),
                     ),
                   ),
                 ),

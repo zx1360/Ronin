@@ -23,6 +23,8 @@ class _SimpleAudioPlayerState extends State<SimpleAudioPlayer> {
   @override
   void initState() {
     super.initState();
+    // 使用非循环播放模式，兼容流媒体
+    _player.setReleaseMode(ReleaseMode.stop);
     _stateSub = _player.onPlayerStateChanged.listen((s) {
       if (!mounted || _disposed) return;
       setState(() => _state = s);
@@ -49,8 +51,16 @@ class _SimpleAudioPlayerState extends State<SimpleAudioPlayer> {
   }
 
   Future<void> _play() async {
-    await _player.stop();
-    await _player.play(UrlSource(widget.url));
+    try {
+      await _player.stop();
+      await _player.setSourceUrl(widget.url);
+      await _player.resume();
+    } catch (e) {
+      // 简单容错：回退到 play 调用
+      try {
+        await _player.play(UrlSource(widget.url));
+      } catch (_) {}
+    }
   }
 
   Future<void> _pause() async => _player.pause();

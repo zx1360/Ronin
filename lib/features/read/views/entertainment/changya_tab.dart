@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/audio_player.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class ChangyaTab extends ConsumerWidget {
   const ChangyaTab({super.key});
@@ -24,20 +25,28 @@ class ChangyaTab extends ConsumerWidget {
               const SectionTitle(title: '用户与歌曲', icon: Icons.person),
               if (user != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
                   child: Row(
                     children: [
                       CircleAvatar(
-                        backgroundImage: user['avatar_url'] != null ? NetworkImage(user['avatar_url']) : null,
+                        backgroundImage: user['avatar_url'] != null
+                            ? NetworkImage(user['avatar_url'])
+                            : null,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpacing.sm),
                       Text(user['nickname'] ?? ''),
                     ],
                   ),
                 ),
               if (song != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
                   child: Card(
                     child: ListTile(
                       title: Text(song['name'] ?? ''),
@@ -48,7 +57,10 @@ class ChangyaTab extends ConsumerWidget {
               const SectionTitle(title: '音频'),
               if (audio != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
                   child: Card(
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -58,7 +70,7 @@ class ChangyaTab extends ConsumerWidget {
                           Row(
                             children: [
                               const Icon(Icons.audiotrack),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: AppSpacing.sm),
                               Expanded(
                                 child: Text(
                                   '${audio['duration'] ?? 0} ms · ❤ ${audio['like_count'] ?? 0}',
@@ -67,11 +79,15 @@ class ChangyaTab extends ConsumerWidget {
                               ),
                               IconButton(
                                 icon: const Icon(Icons.copy),
-                                onPressed: () => Clipboard.setData(ClipboardData(text: (audio['url'] ?? '') as String)),
+                                onPressed: () => Clipboard.setData(
+                                  ClipboardData(
+                                    text: (audio['url'] ?? '') as String,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppSpacing.sm),
                           if ((audio['url'] ?? '').toString().isNotEmpty)
                             SimpleAudioPlayer(url: (audio['url'] as String)),
                         ],
@@ -79,7 +95,7 @@ class ChangyaTab extends ConsumerWidget {
                     ),
                   ),
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.md),
             ],
           ),
         );

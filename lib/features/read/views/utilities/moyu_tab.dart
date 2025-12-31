@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class MoyuTab extends ConsumerWidget {
   const MoyuTab({super.key});
@@ -21,25 +22,38 @@ class MoyuTab extends ConsumerWidget {
             children: [
               const SectionTitle(title: '今日进度', icon: Icons.timeline),
               if (progress != null) ...[
-                _progressRow(context, '周进度', progress['week'] as Map<String, dynamic>?),
-                _progressRow(context, '月进度', progress['month'] as Map<String, dynamic>?),
-                _progressRow(context, '年进度', progress['year'] as Map<String, dynamic>?),
+                _progressRow(
+                  context,
+                  '周进度',
+                  progress['week'] as Map<String, dynamic>?,
+                ),
+                _progressRow(
+                  context,
+                  '月进度',
+                  progress['month'] as Map<String, dynamic>?,
+                ),
+                _progressRow(
+                  context,
+                  '年进度',
+                  progress['year'] as Map<String, dynamic>?,
+                ),
               ],
               const SectionTitle(title: '摸鱼金句', icon: Icons.format_quote),
               if (quote != null)
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: Card(
                     child: ListTile(
                       title: Text(quote),
                       trailing: IconButton(
                         icon: const Icon(Icons.copy),
-                        onPressed: () => Clipboard.setData(ClipboardData(text: quote)),
+                        onPressed: () =>
+                            Clipboard.setData(ClipboardData(text: quote)),
                       ),
                     ),
                   ),
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.md),
             ],
           ),
         );
@@ -47,18 +61,25 @@ class MoyuTab extends ConsumerWidget {
     );
   }
 
-  Widget _progressRow(BuildContext context, String label, Map<String, dynamic>? p) {
+  Widget _progressRow(
+    BuildContext context,
+    String label,
+    Map<String, dynamic>? p,
+  ) {
     if (p == null) return const SizedBox.shrink();
     final percent = ((p['percentage'] ?? 0) as num).toDouble();
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.xs),
           LinearProgressIndicator(value: percent / 100),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.xs),
           Text('已完成：${percent.toStringAsFixed(0)}%'),
         ],
       ),

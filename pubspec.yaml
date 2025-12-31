@@ -69,6 +69,8 @@ dependencies:
 
   # 音频播放
   audioplayers: ^6.1.0
+  # 链接跳转
+  url_launcher: ^6.3.0
 
 
   # ----成熟库----

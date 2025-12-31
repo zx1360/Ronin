@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/image_preview.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class BingWallpaperTab extends ConsumerWidget {
   const BingWallpaperTab({super.key});
@@ -27,10 +28,13 @@ class BingWallpaperTab extends ConsumerWidget {
           },
           child: ListView(
             children: [
-              if (title != null) const SectionTitle(title: '必应每日壁纸', icon: Icons.image),
+              if (title != null)
+                const SectionTitle(title: '必应每日壁纸', icon: Icons.image),
               if (cover != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: GestureDetector(
@@ -44,7 +48,10 @@ class BingWallpaperTab extends ConsumerWidget {
                 ),
               if (cover4k != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
                   child: Row(
                     children: [
                       FilledButton.icon(
@@ -52,10 +59,15 @@ class BingWallpaperTab extends ConsumerWidget {
                         icon: const Icon(Icons.hd),
                         label: const Text('查看 4K'),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpacing.sm),
                       OutlinedButton.icon(
                         onPressed: () async {
-                          await _downloadImageUsingClient(context, ref, cover4k, (title ?? 'bing_4k'));
+                          await _downloadImageUsingClient(
+                            context,
+                            ref,
+                            cover4k,
+                            (title ?? 'bing_4k'),
+                          );
                         },
                         icon: const Icon(Icons.download),
                         label: const Text('下载 4K 到本地'),
@@ -65,12 +77,20 @@ class BingWallpaperTab extends ConsumerWidget {
                 ),
               if (cover != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
                   child: Row(
                     children: [
                       OutlinedButton.icon(
                         onPressed: () async {
-                          await _downloadImageUsingClient(context, ref, cover, (title ?? 'bing_cover'));
+                          await _downloadImageUsingClient(
+                            context,
+                            ref,
+                            cover,
+                            (title ?? 'bing_cover'),
+                          );
                         },
                         icon: const Icon(Icons.download),
                         label: const Text('下载封面到本地'),
@@ -80,13 +100,24 @@ class BingWallpaperTab extends ConsumerWidget {
                 ),
               if (desc != null)
                 Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(desc, style: Theme.of(context).textTheme.bodyLarge),
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Text(
+                    desc,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                 ),
               if (mainText != null)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  child: Text(mainText, style: Theme.of(context).textTheme.bodyMedium),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.md,
+                  ),
+                  child: Text(
+                    mainText,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
             ],
           ),
@@ -108,7 +139,9 @@ Future<void> _downloadImageUsingClient(
     final bytes = resp.data;
     if (bytes == null || bytes.isEmpty) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('图片下载失败：无数据')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('图片下载失败：无数据')));
       }
       return;
     }
@@ -120,15 +153,20 @@ Future<void> _downloadImageUsingClient(
     } else {
       dir = await getApplicationDocumentsDirectory();
     }
-    final fileName = '${fileBaseName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final fileName =
+        '${fileBaseName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final file = File(p.join(dir.path, fileName));
     await file.writeAsBytes(bytes);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已保存到：${file.path}')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已保存到：${file.path}')));
     }
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('下载出错：$e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('下载出错：$e')));
     }
   }
 }

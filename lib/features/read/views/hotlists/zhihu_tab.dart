@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/core/constants/spacing.dart';
 
 class ZhihuTab extends ConsumerWidget {
   const ZhihuTab({super.key});
@@ -14,7 +15,7 @@ class ZhihuTab extends ConsumerWidget {
       error: (e, _) => ErrorView('知乎热榜加载失败：$e'),
       data: (data) {
         final list = (data is List)
-          ? data
+            ? data
             : ((data['list'] as List<dynamic>?) ?? []);
         return RefreshIndicator(
           onRefresh: () async => ref.invalidate(zhihuHotProvider),
@@ -23,7 +24,10 @@ class ZhihuTab extends ConsumerWidget {
             itemBuilder: (ctx, i) {
               final m = list[i] as Map<String, dynamic>;
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
                 child: Card(
                   child: ListTile(
                     leading: CircleAvatar(child: Text('${i + 1}')),
@@ -31,7 +35,11 @@ class ZhihuTab extends ConsumerWidget {
                     subtitle: Text('热度：${m['hot'] ?? m['heat'] ?? ''}'),
                     trailing: IconButton(
                       icon: const Icon(Icons.copy),
-                      onPressed: () => Clipboard.setData(ClipboardData(text: (m['url'] ?? m['link'] ?? '') as String)),
+                      onPressed: () => Clipboard.setData(
+                        ClipboardData(
+                          text: (m['url'] ?? m['link'] ?? '') as String,
+                        ),
+                      ),
                     ),
                   ),
                 ),

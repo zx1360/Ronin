@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'sixty_client.dart';
+part of 'sixty_api_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
