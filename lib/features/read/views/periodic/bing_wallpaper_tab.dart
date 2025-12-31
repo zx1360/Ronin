@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/image_preview.dart';
+import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 
 class BingWallpaperTab extends ConsumerWidget {
   const BingWallpaperTab({super.key});
