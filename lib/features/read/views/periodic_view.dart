@@ -17,9 +17,6 @@ class PeriodicView extends ConsumerWidget {
         children: [
           TabBar(
             isScrollable: true,
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
-            indicatorColor: Theme.of(context).colorScheme.primary,
             tabs: const [
               Tab(text: '60秒读懂世界'),
               Tab(text: 'AI资讯'),

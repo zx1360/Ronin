@@ -63,7 +63,7 @@ class _EssayDetailPageState extends ConsumerState<EssayDetailPage> {
         // 底部分割线
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Divider(color: AppTheme.outline.withOpacity(0.3), height: 1),
+          child: Divider(color: AppTheme.outline.withAlpha(77), height: 1),
         ),
         title: const Text('随笔详情'),
         actions: [

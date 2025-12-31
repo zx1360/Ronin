@@ -17,9 +17,6 @@ class EntertainmentView extends ConsumerWidget {
         children: [
           TabBar(
             isScrollable: true,
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
-            indicatorColor: Theme.of(context).colorScheme.primary,
             tabs: [
               Tab(text: '随机唱歌音频'),
               Tab(text: '随机一言'),
@@ -46,4 +43,3 @@ class EntertainmentView extends ConsumerWidget {
     );
   }
 }
-// tabs moved to views/entertainment/*

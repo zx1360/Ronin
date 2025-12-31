@@ -15,12 +15,9 @@ class ReadPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('阅读页'),
-          backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
           bottom: TabBar(
-            isScrollable: true,
             labelColor: colorScheme.onPrimary,
-            unselectedLabelColor: colorScheme.onPrimary.withOpacity(0.7),
+            unselectedLabelColor: colorScheme.onPrimary.withAlpha(179),
             indicatorColor: colorScheme.onPrimary,
             indicatorWeight: 3,
             tabs: const [

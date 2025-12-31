@@ -95,7 +95,7 @@ class TaskItem extends ConsumerWidget {
                 Text(
                   task.desc!,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    color: theme.colorScheme.onSurface.withAlpha(179),
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

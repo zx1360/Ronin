@@ -209,7 +209,7 @@ class AppTheme {
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
+          borderSide: BorderSide(color: colorScheme.outline.withAlpha(128)),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -234,7 +234,9 @@ class AppTheme {
         activeTrackColor: colorScheme.primary,
         inactiveTrackColor: colorScheme.surfaceContainerHighest,
         thumbColor: colorScheme.primary,
-        overlayColor: colorScheme.primary.withOpacity(0.2),
+        overlayColor: colorScheme.primary.withAlpha(51),
+        
+        
         valueIndicatorColor: colorScheme.primary,
         valueIndicatorTextStyle: TextStyle(
           color: colorScheme.onPrimary,
@@ -281,7 +283,7 @@ class AppTheme {
           }
           return null;
         }),
-        overlayColor: WidgetStateProperty.all(colorScheme.primary.withOpacity(0.2)),
+        overlayColor: WidgetStateProperty.all(colorScheme.primary.withAlpha(51)),
       ),
 
       // 进度指示器样式
@@ -339,7 +341,7 @@ class AppTheme {
 
       // 分割线样式
       dividerTheme: DividerThemeData(
-        color: colorScheme.outline.withOpacity(0.3),
+        color: colorScheme.outline.withAlpha(77),
         thickness: 1,
         space: 0,
       ),
