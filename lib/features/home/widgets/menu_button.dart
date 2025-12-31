@@ -35,13 +35,13 @@ class MenuButton extends StatelessWidget {
     final defaultTextColor = textColor ?? AppTheme.onSurface;
     final defaultHighlightColor =
         highlightColor ??
-        AppTheme.primaryContainer.withOpacity(0.2);
+      AppTheme.primaryContainer.withAlpha(51);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => func(info.route),
-        splashColor: AppTheme.primary.withOpacity(0.2),
+        splashColor: AppTheme.primary.withAlpha(51),
         highlightColor: defaultHighlightColor,
         borderRadius: BorderRadius.circular(10),
         child: Container(
@@ -55,12 +55,12 @@ class MenuButton extends StatelessWidget {
                 height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: defaultTextColor.withOpacity(0.1),
+                  color: defaultTextColor.withAlpha(26),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Icon(
                   info.icon,
-                  color: defaultTextColor.withOpacity(0.9),
+                  color: defaultTextColor.withAlpha(230),
                   size: 22,
                 ),
               ),

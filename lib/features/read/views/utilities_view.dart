@@ -13,7 +13,7 @@ class UtilitiesView extends ConsumerWidget {
       length: 4,
       child: Column(
         children: [
-          const TabBar(
+           TabBar(
             isScrollable: true,
             tabs: [
               Tab(text: '摸鱼日报'),
@@ -38,4 +38,3 @@ class UtilitiesView extends ConsumerWidget {
   }
 }
 
-// tabs moved to views/utilities/*

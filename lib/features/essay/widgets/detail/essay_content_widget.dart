@@ -83,7 +83,7 @@ class EssayContentWidget extends ConsumerWidget {
                           vertical: 4.0,
                         ),
                         decoration: BoxDecoration(
-                          color: theme.primaryColor.withOpacity(0.1),
+                          color: theme.primaryColor.withAlpha(26),
                           borderRadius: BorderRadius.circular(12.0),
                         ),
                         child: Text(

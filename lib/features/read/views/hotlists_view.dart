@@ -22,9 +22,6 @@ class HotlistsView extends ConsumerWidget {
         children: [
           TabBar(
             isScrollable: true,
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
-            indicatorColor: Theme.of(context).colorScheme.primary,
             tabs: [
               Tab(text: '头条热榜'),
               Tab(text: '微博热搜'),
@@ -65,4 +62,3 @@ class HotlistsView extends ConsumerWidget {
     );
   }
 }
-// tabs moved to views/hotlists/*

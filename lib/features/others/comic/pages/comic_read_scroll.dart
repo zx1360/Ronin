@@ -242,6 +242,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
     double slideVal = sliderValue(_currentImageIndex, imageCount);
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: handleTapToggle,
         child: Stack(

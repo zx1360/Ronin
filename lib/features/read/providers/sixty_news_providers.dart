@@ -22,14 +22,9 @@ Future<Json> sixtySeconds(SixtySecondsRef ref, String? date) async {
 @riverpod
 Future<Json> aiNews(AiNewsRef ref, String? date) async {
   final client = ref.read(sixtyApiClientProvider);
-  Response resp;
-  try {
-    resp = await client.get('/v2/ai-news', queryParams: {'encoding': 'json'});
-  } catch (_) {
-    resp = await client.get('/v2/ai_news', queryParams: {'encoding': 'json'});
-  }
-  final data = (resp.data as Json)['data'];
-  return (data is Map<String, dynamic>) ? data : {'news': data};
+  final resp = await client.get('/v2/ai-news', queryParams: {'encoding': 'json', 'all': '1'});
+  print(resp.data);
+  return (resp.data as Json)['data'] as Json;
 }
 
 @riverpod
