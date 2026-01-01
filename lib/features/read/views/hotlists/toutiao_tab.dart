@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/features/read/widgets/indexed_preview_image.dart';
 import 'package:torrid/core/constants/spacing.dart';
 
 class ToutiaoTab extends ConsumerWidget {
@@ -43,18 +44,13 @@ class ToutiaoTab extends ConsumerWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (cover.isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              cover,
-                              width: 56,
-                              height: 56,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        else
-                          CircleAvatar(child: Text('${i + 1}')),
+                        IndexedPreviewImage(
+                          imageUrl: cover,
+                          index: i + 1,
+                          width: 64,
+                          height: 64,
+                          radius: 8,
+                        ),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Column(
