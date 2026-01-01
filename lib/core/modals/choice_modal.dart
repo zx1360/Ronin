@@ -3,7 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/app_border_radius.dart';
 import 'package:torrid/core/constants/spacing.dart';
-import 'package:torrid/core/modals/dialog_option.dart'; // 确保导入你的主题文件
+
+class DialogOption {
+  final String text;
+  final Function onPressed;
+  final Color? textColor;
+
+  DialogOption({
+    required this.text,
+    required this.onPressed,
+    this.textColor,
+  });
+}
 
 /// 弹出一个带有多个选项按钮的模态对话框。
 /// [options] 参数接收一个 DialogOption 对象的列表，用于动态生成按钮。

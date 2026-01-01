@@ -32,19 +32,6 @@ Future<Json> bingWallpaper(BingWallpaperRef ref) async {
 }
 
 @riverpod
-Future<Json> todayInHistory(TodayInHistoryRef ref, String? date) async {
-  final client = ref.read(sixtyApiClientProvider);
-  final resp = await client.get(
-    '/v2/today-in-history',
-    queryParams: {
-      'encoding': 'json',
-      if (date != null && date.isNotEmpty) 'date': date,
-    },
-  );
-  return (resp.data as Json)['data'] as Json;
-}
-
-@riverpod
 Future<List<dynamic>> epicGames(EpicGamesRef ref) async {
   final client = ref.read(sixtyApiClientProvider);
   final resp = await client.get('/v2/epic', queryParams: {'encoding': 'json'});

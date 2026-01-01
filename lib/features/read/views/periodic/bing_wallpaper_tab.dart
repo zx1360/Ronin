@@ -20,6 +20,7 @@ class BingWallpaperTab extends ConsumerWidget {
         final cover = data['cover'] as String?;
         final cover4k = data['cover_4k'] as String?;
         final title = data['title'] as String?;
+        final headline = data['headline'] as String?;
         final desc = data['description'] as String?;
         final mainText = data['main_text'] as String?;
         return RefreshIndicator(
@@ -30,6 +31,30 @@ class BingWallpaperTab extends ConsumerWidget {
             children: [
               if (title != null)
                 const SectionTitle(title: '必应每日壁纸', icon: Icons.image),
+              if (title != null || headline != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (title != null)
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      if (headline != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          headline,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               if (cover != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -147,15 +172,11 @@ Future<void> _downloadImageUsingClient(
     }
 
     Directory dir;
-    if (Platform.isAndroid) {
-      final ext = await getExternalStorageDirectory();
-      dir = ext ?? await getApplicationDocumentsDirectory();
-    } else {
-      dir = await getApplicationDocumentsDirectory();
-    }
+    final ext = await getExternalStorageDirectory();
+    dir = ext ?? await getApplicationDocumentsDirectory();
     final fileName =
         '${fileBaseName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final file = File(p.join(dir.path, fileName));
+    final file = File(p.join(dir.path, "api_medias", fileName));
     await file.writeAsBytes(bytes);
     if (context.mounted) {
       ScaffoldMessenger.of(
