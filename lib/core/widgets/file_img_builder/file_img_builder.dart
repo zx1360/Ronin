@@ -6,10 +6,12 @@ import 'package:torrid/core/services/io/io_service.dart';
 class FileImageBuilder extends StatelessWidget {
   final String relativeImagePath;
   final bool isOriginScale;
+  final double size;
   const FileImageBuilder({
     super.key,
     required this.relativeImagePath,
     this.isOriginScale=false,
+    this.size=60,
   });
 
   @override
@@ -26,8 +28,8 @@ class FileImageBuilder extends StatelessWidget {
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return Container(
-                  width: 60,
-                  height: 60,
+                  width: size,
+                  height: size,
                   color: Colors.yellow.shade200,
                   child: Icon(Icons.task, color: Colors.yellow.shade700),
                 );
@@ -35,13 +37,13 @@ class FileImageBuilder extends StatelessWidget {
             ):
             Image.file(
               snapshot.data!,
-              width: 60,
-              height: 60,
+              width: size,
+              height: size,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return Container(
-                  width: 60,
-                  height: 60,
+                  width: size,
+                  height: size,
                   color: Colors.yellow.shade200,
                   child: Icon(Icons.task, color: Colors.yellow.shade700),
                 );
@@ -50,8 +52,8 @@ class FileImageBuilder extends StatelessWidget {
           }
         }
         return Container(
-          width: 60,
-          height: 60,
+          width: size,
+          height: size,
           color: Colors.yellow.shade200,
           child: snapshot.connectionState == ConnectionState.waiting
               ? const CircularProgressIndicator(strokeWidth: 2)

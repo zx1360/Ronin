@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/features/read/widgets/indexed_preview_image.dart';
 import 'package:torrid/core/constants/spacing.dart';
 
 class ZhihuTab extends ConsumerWidget {
@@ -32,6 +33,7 @@ class ZhihuTab extends ConsumerWidget {
               final hotDesc = (m['hot_value_desc'] ?? '') as String;
               final created = (m['created'] ?? '') as String;
               final link = (m['link']) as String?;
+              final index = i + 1;
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.md,
@@ -43,18 +45,6 @@ class ZhihuTab extends ConsumerWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (cover.isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              cover,
-                              width: 56,
-                              height: 56,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        else
-                          CircleAvatar(child: Text('${i + 1}')),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Column(
@@ -74,14 +64,27 @@ class ZhihuTab extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        IconButton(
-                          tooltip: '打开链接',
-                          icon: const Icon(Icons.open_in_new),
-                          onPressed: () async {
-                            if (link == null || link.isEmpty) return;
-                            final uri = Uri.parse(link);
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          },
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            IndexedPreviewImage(
+                              imageUrl: cover,
+                              index: index,
+                              width: 72,
+                              height: 72,
+                              radius: 8,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            IconButton(
+                              tooltip: '打开链接',
+                              icon: const Icon(Icons.open_in_new),
+                              onPressed: () async {
+                                if (link == null || link.isEmpty) return;
+                                final uri = Uri.parse(link);
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),

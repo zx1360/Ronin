@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/features/read/widgets/indexed_preview_image.dart';
 import 'package:torrid/core/constants/spacing.dart';
 
 class BaiduTiebaTab extends ConsumerWidget {
@@ -26,11 +27,12 @@ class BaiduTiebaTab extends ConsumerWidget {
             itemCount: list.length,
             itemBuilder: (ctx, i) {
               final m = list[i] as Map<String, dynamic>;
-              final title = m['title'] as String;
+              final title = (m['title'] ?? m['name'] ?? '') as String;
               final desc = (m['desc'] ?? '') as String;
               final abstractText = (m['abstract'] ?? '') as String;
               final heatDesc = (m['score_desc'] ?? '') as String;
               final url = (m['url'] ?? m['link']) as String?;
+              final avatar = (m['avatar'] ?? '') as String;
               final rank = i + 1;
               return Padding(
                 padding: const EdgeInsets.symmetric(
@@ -43,8 +45,6 @@ class BaiduTiebaTab extends ConsumerWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(child: Text('$rank')),
-                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,14 +63,27 @@ class BaiduTiebaTab extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        IconButton(
-                          tooltip: '打开链接',
-                          icon: const Icon(Icons.open_in_new),
-                          onPressed: () async {
-                            if (url == null || url.isEmpty) return;
-                            final uri = Uri.parse(url);
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          },
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            IndexedPreviewImage(
+                              imageUrl: avatar,
+                              index: rank,
+                              width: 56,
+                              height: 56,
+                              radius: 8,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            IconButton(
+                              tooltip: '打开链接',
+                              icon: const Icon(Icons.open_in_new),
+                              onPressed: () async {
+                                if (url == null || url.isEmpty) return;
+                                final uri = Uri.parse(url);
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),
