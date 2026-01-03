@@ -17,6 +17,11 @@ import 'package:torrid/features/todo/models/task_list.dart';
 // comic漫画
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
+// changya 随机唱歌音频
+import 'package:torrid/features/read/models/changya_user.dart';
+import 'package:torrid/features/read/models/changya_song.dart';
+import 'package:torrid/features/read/models/changya_audio.dart';
+import 'package:torrid/features/read/models/changya_record.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {
@@ -38,6 +43,8 @@ class HiveService {
   static const String comicPrefBoxName = "comicPreference";
   static const String comicBoxName = "comicInfo";
   static const String chapterBoxName = "chapterInfo";
+  // changya 随机唱歌音频
+  static const String changyaBoxName = 'changyaRecords';
 
   // ----常用Box----
   static Future<void> init() async {
@@ -63,6 +70,11 @@ class HiveService {
     Hive.registerAdapter(ComicInfoAdapter());
     Hive.registerAdapter(ChapterInfoAdapter());
     Hive.registerAdapter(ComicPreferenceAdapter());
+    // changya
+    Hive.registerAdapter(ChangyaUserAdapter());
+    Hive.registerAdapter(ChangyaSongAdapter());
+    Hive.registerAdapter(ChangyaAudioAdapter());
+    Hive.registerAdapter(ChangyaRecordAdapter());
 
     // 打开(创建)箱
     await Hive.openBox<Style>(styleBoxName);
@@ -73,6 +85,7 @@ class HiveService {
     await Hive.openBox<Essay>(essayBoxName);
 
     await Hive.openBox<TaskList>(taskListsBoxName);
+    await Hive.openBox<ChangyaRecord>(changyaBoxName);
   }
 
   // ----非常用Box----

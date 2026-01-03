@@ -18,13 +18,6 @@ Future<Json> sixtySeconds(SixtySecondsRef ref, String? date) async {
 }
 
 @riverpod
-Future<Json> aiNews(AiNewsRef ref, String? date) async {
-  final client = ref.read(sixtyApiClientProvider);
-  final resp = await client.get('/v2/ai-news', queryParams: {'encoding': 'json', 'all': '1'});
-  return (resp.data as Json)['data'] as Json;
-}
-
-@riverpod
 Future<Json> bingWallpaper(BingWallpaperRef ref) async {
   final client = ref.read(sixtyApiClientProvider);
   final resp = await client.get('/v2/bing', queryParams: {'encoding': 'json'});
