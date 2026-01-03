@@ -9,6 +9,7 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/utils/file_relates.dart';
 
 class ComicSaverService {
+  // TODO: 外部公有空间的通用逻辑.
   static String publicPath = '/storage/emulated/0/Pictures/torrid';
 
   // # 翻页漫画的某页保存到外部空间

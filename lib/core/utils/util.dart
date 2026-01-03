@@ -19,3 +19,7 @@ DateTime getTodayDate() {
   final today = DateTime.now();
   return DateTime(today.year, today.month, today.day);
 }
+String getTodayDateString() {
+  final today = getTodayDate();
+  return '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+}
