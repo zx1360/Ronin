@@ -18,10 +18,10 @@ import 'package:torrid/features/todo/models/task_list.dart';
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
 // changya 随机唱歌音频
-import 'package:torrid/features/read/models/changya_user.dart';
-import 'package:torrid/features/read/models/changya_song.dart';
-import 'package:torrid/features/read/models/changya_audio.dart';
-import 'package:torrid/features/read/models/changya_record.dart';
+import 'package:torrid/features/read/models/changya/changya_user.dart';
+import 'package:torrid/features/read/models/changya/changya_song.dart';
+import 'package:torrid/features/read/models/changya/changya_audio.dart';
+import 'package:torrid/features/read/models/changya/changya_record.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {

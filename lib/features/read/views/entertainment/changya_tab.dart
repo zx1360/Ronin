@@ -7,7 +7,7 @@ import 'package:torrid/features/read/providers/changya_local_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/audio_player.dart';
 import 'package:torrid/core/constants/spacing.dart';
-import 'package:torrid/features/read/models/changya_record.dart';
+import 'package:torrid/features/read/models/changya/changya_record.dart';
 import 'package:torrid/features/read/views/entertainment/widgets/changya_top_bar.dart';
 import 'package:torrid/features/read/views/entertainment/widgets/changya_user_line.dart';
 
@@ -23,7 +23,6 @@ class _ChangyaTabState extends ConsumerState<ChangyaTab> {
   @override
   void initState() {
     super.initState();
-    Hive.openBox<ChangyaRecord>('changya_records');
   }
 
   @override

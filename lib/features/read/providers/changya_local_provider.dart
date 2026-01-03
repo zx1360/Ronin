@@ -8,10 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
-import 'package:torrid/features/read/models/changya_user.dart';
-import 'package:torrid/features/read/models/changya_song.dart';
-import 'package:torrid/features/read/models/changya_audio.dart';
-import 'package:torrid/features/read/models/changya_record.dart';
+import 'package:torrid/features/read/models/changya/changya_user.dart';
+import 'package:torrid/features/read/models/changya/changya_song.dart';
+import 'package:torrid/features/read/models/changya/changya_audio.dart';
+import 'package:torrid/features/read/models/changya/changya_record.dart';
 
 // 保存“随机唱歌音频”的数据与文件到本地，并返回替换后的本地化数据（类型化）
 final saveChangyaLocalProvider = FutureProvider.family<ChangyaRecord, Json>((ref, data) async {
