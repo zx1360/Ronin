@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/features/read/views/periodic/sixty_seconds_tab.dart';
-import 'package:torrid/features/read/views/periodic/ai_news_tab.dart';
 import 'package:torrid/features/read/views/periodic/bing_wallpaper_tab.dart';
 import 'package:torrid/features/read/views/periodic/epic_games_tab.dart';
 
@@ -12,7 +11,7 @@ class PeriodicView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Column(
         children: [
           TabBar(
@@ -20,7 +19,6 @@ class PeriodicView extends ConsumerWidget {
             tabs: const [
               Tab(text: '60秒读懂世界'),
               Tab(text: '必应每日壁纸'),
-              Tab(text: 'AI资讯'),
               Tab(text: 'Epic 免费游戏'),
             ],
           ),
@@ -29,7 +27,6 @@ class PeriodicView extends ConsumerWidget {
               children: const [
                 SixtySecondsTab(),
                 BingWallpaperTab(),
-                AiNewsTab(),
                 EpicGamesTab(),
               ],
             ),
