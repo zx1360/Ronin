@@ -6,8 +6,8 @@ import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/core/constants/spacing.dart';
 
-class EntertainmentCombinedPage extends ConsumerWidget {
-  const EntertainmentCombinedPage({super.key});
+class SentenceTab extends ConsumerWidget {
+  const SentenceTab({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListView(

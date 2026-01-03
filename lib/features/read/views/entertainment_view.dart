@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/features/read/views/entertainment/changya_tab.dart';
-import 'package:torrid/features/read/views/entertainment/entertaiment_tab.dart';
+import 'package:torrid/features/read/views/entertainment/sentence_tab.dart';
 
 class EntertainmentView extends ConsumerWidget {
   const EntertainmentView({super.key});
@@ -23,7 +23,7 @@ class EntertainmentView extends ConsumerWidget {
             child: TabBarView(
               children: const [
                 ChangyaTab(),
-                EntertainmentCombinedPage(),
+                SentenceTab(),
               ],
             ),
           ),
