@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:torrid/core/modals/snack_bar.dart';
+import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/utils/file_relates.dart';
+import 'package:torrid/core/utils/util.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/image_preview.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
@@ -171,23 +175,18 @@ Future<void> _downloadImageUsingClient(
       return;
     }
 
-    Directory dir;
-    final ext = await getExternalStorageDirectory();
-    dir = ext ?? await getApplicationDocumentsDirectory();
+    final dir = await IoService.externalStorageDir;
     final fileName =
-        '${fileBaseName.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        '${sanitizeDirectoryName(fileBaseName.replaceAll(' ', '_'))}_${getTodayDateString()}.jpg';
     final file = File(p.join(dir.path, "api_medias", fileName));
+
+    if (await file.exists()) {
+      await file.delete();
+    }
+    await IoService.ensureDirExists("api_medias");
     await file.writeAsBytes(bytes);
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('已保存到：${file.path}')));
-    }
+    displaySnackBar(context, '已保存到：${file.path}');
   } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('下载出错：$e')));
-    }
+    displaySnackBar(context, '下载出错：$e');
   }
 }

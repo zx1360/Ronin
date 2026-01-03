@@ -1,7 +1,7 @@
 // ----文件相关----
-// 去除非法目录字符.
 import 'dart:math';
 
+// 去除非法目录字符.
 String sanitizeDirectoryName(String input) {
   const invalidChars = r'<>:"/\|?*';
   final regex = RegExp('[$invalidChars]');
