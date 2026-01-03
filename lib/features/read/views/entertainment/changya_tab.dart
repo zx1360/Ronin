@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/providers/changya_local_provider.dart';
