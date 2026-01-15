@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/utils/file_relates.dart';
