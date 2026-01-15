@@ -54,7 +54,7 @@ class _ChangyaTabState extends ConsumerState<ChangyaTab> {
                 isLocal: true
               ),
               const SectionTitle(title: '本地记录', icon: Icons.download_done),
-              ...list.map((r) => _buildLocalCard(context, ref, r)).toList(),
+              ...list.map((r) => _buildLocalCard(context, ref, r)),
             ],
           );
         },

@@ -37,7 +37,7 @@ final saveChangyaLocalProvider = FutureProvider.family<ChangyaRecord, Json>((ref
   final avatarUrl = (userJson['avatar_url'] ?? '').toString();
   if (avatarUrl.isNotEmpty) {
     final ext = _extFromUrl(avatarUrl, fallback: '.jpg');
-    final avatarRel = '$baseRel/avatars/${baseName}$ext';
+    final avatarRel = '$baseRel/avatars/$baseName$ext';
     await _downloadToRelative(dio: dio, url: avatarUrl, relativePath: avatarRel);
     userJson['avatar_url'] = avatarRel; // 替换为本地相对路径
   }
@@ -46,7 +46,7 @@ final saveChangyaLocalProvider = FutureProvider.family<ChangyaRecord, Json>((ref
   final audioUrl = (audioJson['url'] ?? '').toString();
   if (audioUrl.isNotEmpty) {
     final ext = _extFromUrl(audioUrl, fallback: '.mp3');
-    final audioRel = '$baseRel/audios/${baseName}$ext';
+    final audioRel = '$baseRel/audios/$baseName$ext';
     await _downloadToRelative(dio: dio, url: audioUrl, relativePath: audioRel);
     audioJson['url'] = audioRel; // 替换为本地相对路径
   }
