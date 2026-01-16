@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/countdown_timer_provider.dart';
-import '../services/lathe_foreground_service.dart';
 import '../services/lathe_notification_service.dart';
 import '../widgets/countdown_timer_card.dart';
 import '../widgets/timer_edit_dialog.dart';
@@ -43,9 +42,6 @@ class _LathePageState extends ConsumerState<LathePage> with WidgetsBindingObserv
     // 初始化通知服务
     await LatheNotificationService.instance.initialize();
     await LatheNotificationService.instance.requestPermission();
-    
-    // 初始化前台服务
-    await LatheForegroundService.instance.initialize();
     
     setState(() {
       _isInitialized = true;
@@ -103,10 +99,10 @@ class _LathePageState extends ConsumerState<LathePage> with WidgetsBindingObserv
           : state.timers.isEmpty
               ? _buildEmptyState(colorScheme)
               : _buildTimerList(state),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _onAddTimer,
-        icon: const Icon(Icons.add),
-        label: const Text('添加倒计时'),
+        tooltip: '添加倒计时',
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -158,6 +154,8 @@ class _LathePageState extends ConsumerState<LathePage> with WidgetsBindingObserv
           onRestart: () => ref.read(countdownTimersProvider.notifier).restartTimer(timer.id),
           onEdit: () => _onEditTimer(timer.id, timer.name, timer.totalSeconds),
           onDelete: () => _onDeleteTimer(timer.id, timer.name),
+          onSpeedUp: () => ref.read(countdownTimersProvider.notifier).speedUp(timer.id),
+          onExtendTime: () => ref.read(countdownTimersProvider.notifier).extendTime(timer.id),
         );
       },
     );

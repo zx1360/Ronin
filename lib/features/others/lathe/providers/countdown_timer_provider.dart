@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/storage/hive_service.dart';
 import '../models/countdown_timer_model.dart';
 import '../services/lathe_notification_service.dart';
-import '../services/lathe_foreground_service.dart';
 
 part 'countdown_timer_provider.g.dart';
 
@@ -13,20 +14,20 @@ part 'countdown_timer_provider.g.dart';
 @immutable
 class CountdownTimersState {
   final List<CountdownTimerModel> timers;
-  final bool isForegroundServiceRunning;
+  final bool isInitialized;
 
   const CountdownTimersState({
     this.timers = const [],
-    this.isForegroundServiceRunning = false,
+    this.isInitialized = false,
   });
 
   CountdownTimersState copyWith({
     List<CountdownTimerModel>? timers,
-    bool? isForegroundServiceRunning,
+    bool? isInitialized,
   }) {
     return CountdownTimersState(
       timers: timers ?? this.timers,
-      isForegroundServiceRunning: isForegroundServiceRunning ?? this.isForegroundServiceRunning,
+      isInitialized: isInitialized ?? this.isInitialized,
     );
   }
 
@@ -34,20 +35,89 @@ class CountdownTimersState {
   bool get hasRunningTimers => timers.any((t) => t.isRunning);
 }
 
-/// 倒计时器管理Provider
-@riverpod
+/// 倒计时器管理Provider (keepAlive: true 保证在应用内全程存活)
+@Riverpod(keepAlive: true)
 class CountdownTimers extends _$CountdownTimers {
   Timer? _tickTimer;
   final _uuid = const Uuid();
+  Box<CountdownTimerModel>? _box;
+
+  Box<CountdownTimerModel> get _timerBox {
+    _box ??= Hive.box<CountdownTimerModel>(HiveService.countdownTimerBoxName);
+    return _box!;
+  }
 
   @override
   CountdownTimersState build() {
     ref.onDispose(() {
       _tickTimer?.cancel();
-      // 页面销毁时停止前台服务
-      LatheForegroundService.instance.stopService();
     });
+    
+    // 使用 Future.microtask 延迟加载，等待 build 完成后再执行
+    Future.microtask(_loadFromHive);
+    
     return const CountdownTimersState();
+  }
+
+  /// 从Hive加载倒计时数据
+  Future<void> _loadFromHive() async {
+    final timers = _timerBox.values.toList();
+    
+    // 检查是否有运行中的计时器需要恢复
+    final now = DateTime.now();
+    final restoredTimers = timers.map((timer) {
+      if (timer.status == CountdownTimerStatus.running && timer.lastUpdateTime != null) {
+        // 计算离线期间经过的时间
+        final elapsedSeconds = now.difference(timer.lastUpdateTime!).inSeconds;
+        final newRemaining = (timer.remainingSeconds - elapsedSeconds).clamp(0, timer.totalSeconds);
+        
+        if (newRemaining <= 0) {
+          // 倒计时已完成
+          return timer.copyWith(
+            status: CountdownTimerStatus.completed,
+            remainingSeconds: 0,
+            lastUpdateTime: now,
+          );
+        }
+        
+        return timer.copyWith(
+          remainingSeconds: newRemaining,
+          lastUpdateTime: now,
+        );
+      }
+      return timer;
+    }).toList();
+    
+    state = CountdownTimersState(
+      timers: restoredTimers,
+      isInitialized: true,
+    );
+    
+    // 如果有运行中的计时器，启动tick
+    if (state.hasRunningTimers) {
+      _startTickTimer();
+    }
+    
+    // 保存恢复后的状态
+    await _saveAllToHive();
+  }
+
+  /// 保存所有倒计时到Hive
+  Future<void> _saveAllToHive() async {
+    await _timerBox.clear();
+    for (final timer in state.timers) {
+      await _timerBox.put(timer.id, timer);
+    }
+  }
+
+  /// 保存单个倒计时到Hive
+  Future<void> _saveTimerToHive(CountdownTimerModel timer) async {
+    await _timerBox.put(timer.id, timer);
+  }
+
+  /// 从Hive删除倒计时
+  Future<void> _deleteTimerFromHive(String id) async {
+    await _timerBox.delete(id);
   }
 
   /// 添加新的倒计时器
@@ -66,13 +136,15 @@ class CountdownTimers extends _$CountdownTimers {
     state = state.copyWith(
       timers: [...state.timers, timer],
     );
+    
+    _saveTimerToHive(timer);
   }
 
   /// 删除倒计时器
   void removeTimer(String id) {
     final newTimers = state.timers.where((t) => t.id != id).toList();
     state = state.copyWith(timers: newTimers);
-    _checkAndUpdateForegroundService();
+    _deleteTimerFromHive(id);
   }
 
   /// 修改倒计时器
@@ -99,10 +171,57 @@ class CountdownTimers extends _$CountdownTimers {
     final newTimers = List<CountdownTimerModel>.from(state.timers);
     newTimers[index] = updatedTimer;
     state = state.copyWith(timers: newTimers);
+    
+    _saveTimerToHive(updatedTimer);
   }
 
+  /// 调整运行中的倒计时剩余时间
+  /// [adjustSeconds] 正数延长时间，负数加速（减少时间）
+  /// 注意：只调整当前这一轮的剩余时间，不修改设定的总时长
+  void adjustTime(String id, int adjustSeconds) {
+    final index = state.timers.indexWhere((t) => t.id == id);
+    if (index == -1) return;
+
+    final timer = state.timers[index];
+    // 只有运行中才能调整时间
+    if (timer.status != CountdownTimerStatus.running) return;
+
+    // 只调整剩余时间，不修改totalSeconds
+    final newRemaining = (timer.remainingSeconds + adjustSeconds).clamp(0, timer.totalSeconds + 1800);
+    
+    final now = DateTime.now();
+    CountdownTimerModel updatedTimer;
+    
+    if (newRemaining <= 0) {
+      // 如果调整后时间归零，标记为完成
+      updatedTimer = timer.copyWith(
+        status: CountdownTimerStatus.completed,
+        remainingSeconds: 0,
+        lastUpdateTime: now,
+      );
+      LatheNotificationService.instance.showTimerCompletedNotification(timer.name);
+    } else {
+      updatedTimer = timer.copyWith(
+        remainingSeconds: newRemaining,
+        lastUpdateTime: now,
+      );
+    }
+
+    final newTimers = List<CountdownTimerModel>.from(state.timers);
+    newTimers[index] = updatedTimer;
+    state = state.copyWith(timers: newTimers);
+    
+    _saveTimerToHive(updatedTimer);
+  }
+
+  /// 快速加速（减少10秒）
+  void speedUp(String id) => adjustTime(id, -10);
+
+  /// 快速延长（增加10秒）
+  void extendTime(String id) => adjustTime(id, 10);
+
   /// 开始倒计时
-  Future<void> startTimer(String id) async {
+  void startTimer(String id) {
     final index = state.timers.indexWhere((t) => t.id == id);
     if (index == -1) return;
 
@@ -120,13 +239,13 @@ class CountdownTimers extends _$CountdownTimers {
     final newTimers = List<CountdownTimerModel>.from(state.timers);
     newTimers[index] = updatedTimer;
     state = state.copyWith(timers: newTimers);
-
+    
+    _saveTimerToHive(updatedTimer);
     _startTickTimer();
-    await _checkAndUpdateForegroundService();
   }
 
   /// 停止倒计时（恢复到未开启状态）
-  Future<void> stopTimer(String id) async {
+  void stopTimer(String id) {
     final index = state.timers.indexWhere((t) => t.id == id);
     if (index == -1) return;
 
@@ -141,12 +260,12 @@ class CountdownTimers extends _$CountdownTimers {
     final newTimers = List<CountdownTimerModel>.from(state.timers);
     newTimers[index] = updatedTimer;
     state = state.copyWith(timers: newTimers);
-
-    await _checkAndUpdateForegroundService();
+    
+    _saveTimerToHive(updatedTimer);
   }
 
   /// 重新开始倒计时（从完成状态开始新一轮）
-  Future<void> restartTimer(String id) async {
+  void restartTimer(String id) {
     final index = state.timers.indexWhere((t) => t.id == id);
     if (index == -1) return;
 
@@ -164,9 +283,9 @@ class CountdownTimers extends _$CountdownTimers {
     final newTimers = List<CountdownTimerModel>.from(state.timers);
     newTimers[index] = updatedTimer;
     state = state.copyWith(timers: newTimers);
-
+    
+    _saveTimerToHive(updatedTimer);
     _startTickTimer();
-    await _checkAndUpdateForegroundService();
   }
 
   /// 启动计时器tick
@@ -216,6 +335,9 @@ class CountdownTimers extends _$CountdownTimers {
     }).toList();
 
     state = state.copyWith(timers: newTimers);
+    
+    // 定期保存到Hive（每次tick都保存以保证数据不丢失）
+    _saveAllToHive();
 
     // 发送通知
     if (hasCompletedThisTick) {
@@ -228,39 +350,7 @@ class CountdownTimers extends _$CountdownTimers {
     if (!hasRunningTimers && !state.hasRunningTimers) {
       _tickTimer?.cancel();
       _tickTimer = null;
-      _checkAndUpdateForegroundService();
     }
-  }
-
-  /// 检查并更新前台服务状态
-  Future<void> _checkAndUpdateForegroundService() async {
-    if (state.hasRunningTimers) {
-      if (!state.isForegroundServiceRunning) {
-        await LatheForegroundService.instance.startService();
-        state = state.copyWith(isForegroundServiceRunning: true);
-      }
-      // 更新前台服务通知
-      _updateForegroundNotification();
-    } else {
-      if (state.isForegroundServiceRunning) {
-        await LatheForegroundService.instance.stopService();
-        state = state.copyWith(isForegroundServiceRunning: false);
-      }
-    }
-  }
-
-  /// 更新前台服务通知内容
-  void _updateForegroundNotification() {
-    final runningTimers = state.timers.where((t) => t.isRunning).toList();
-    if (runningTimers.isEmpty) return;
-
-    final text = runningTimers
-        .map((t) => '${t.name}: ${t.formattedRemainingTime}')
-        .join(' | ');
-    LatheForegroundService.instance.updateNotification(
-      title: '倒计时运行中',
-      text: text,
-    );
   }
 
   /// 页面恢复时同步状态（处理后台恢复）
