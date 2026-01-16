@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:torrid/features/others/lathe/pages/lathe_page.dart';
 import 'package:torrid/features/others/widgets/entry_button.dart';
 
 import 'package:torrid/features/others/comic/pages/comic_page.dart';
@@ -17,6 +18,12 @@ class OtherPagesData {
       label: "藏品",
       icon: Icons.assessment,
       builder: (context) => TuntunPage(),
+    ),
+    // 倒计时页.
+    PageItem(
+      label: "倒计时",
+      icon: Icons.timer,
+      builder: (context) => LathePage(),
     ),
   ];
 }

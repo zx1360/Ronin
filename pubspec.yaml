@@ -71,6 +71,15 @@ dependencies:
   audioplayers: ^6.1.0
   # 链接跳转
   url_launcher: ^6.3.0
+  # 本地通知
+  flutter_local_notifications: ^18.0.1
+  # 时区支持（通知需要）
+  timezone: ^0.10.0
+  flutter_timezone: ^3.0.1
+  # 铃声播放
+  flutter_ringtone_player: ^4.0.0+3
+  # 前台服务保活
+  flutter_foreground_task: ^9.0.2
 
 
   # ----成熟库----
