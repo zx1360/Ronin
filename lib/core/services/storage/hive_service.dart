@@ -22,6 +22,8 @@ import 'package:torrid/features/read/models/changya/changya_user.dart';
 import 'package:torrid/features/read/models/changya/changya_song.dart';
 import 'package:torrid/features/read/models/changya/changya_audio.dart';
 import 'package:torrid/features/read/models/changya/changya_record.dart';
+// lathe倒计时
+import 'package:torrid/features/others/lathe/models/countdown_timer_model.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {
@@ -35,6 +37,8 @@ class HiveService {
   static const String essayBoxName = 'essays';
   // todo待办
   static const String taskListsBoxName = 'taskLists';
+  // lathe倒计时
+  static const String countdownTimerBoxName = 'countdownTimers';
   // ----非常用
   // tuntun藏品
   static const String infoBoxName = "mediaInfo";
@@ -75,6 +79,9 @@ class HiveService {
     Hive.registerAdapter(ChangyaSongAdapter());
     Hive.registerAdapter(ChangyaAudioAdapter());
     Hive.registerAdapter(ChangyaRecordAdapter());
+    // lathe倒计时
+    Hive.registerAdapter(CountdownTimerStatusAdapter());
+    Hive.registerAdapter(CountdownTimerModelAdapter());
 
     // 打开(创建)箱
     await Hive.openBox<Style>(styleBoxName);
@@ -86,6 +93,7 @@ class HiveService {
 
     await Hive.openBox<TaskList>(taskListsBoxName);
     await Hive.openBox<ChangyaRecord>(changyaBoxName);
+    await Hive.openBox<CountdownTimerModel>(countdownTimerBoxName);
   }
 
   // ----非常用Box----

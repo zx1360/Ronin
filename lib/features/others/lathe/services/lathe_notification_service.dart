@@ -61,24 +61,27 @@ class LatheNotificationService {
       volume: 0.8,
     );
 
-    // 显示通知（消息类型，非闹铃）
+    // 显示通知（消息类型，启用横幅弹出）
     const androidDetails = AndroidNotificationDetails(
       'lathe_timer_channel',
       '倒计时提醒',
       channelDescription: '倒计时器完成提醒通知',
-      importance: Importance.high,
-      priority: Priority.high,
+      importance: Importance.max,  // 最高优先级，确保横幅弹出
+      priority: Priority.max,      // 最高优先级
       playSound: true,
       enableVibration: true,
-      category: AndroidNotificationCategory.message, // 改为消息类型
+      category: AndroidNotificationCategory.message,
       visibility: NotificationVisibility.public,
       autoCancel: true,
+      ticker: '倒计时完成',  // 状态栏提示文字
     );
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      presentBanner: true,  // iOS横幅
+      presentList: true,
       interruptionLevel: InterruptionLevel.active,
     );
 

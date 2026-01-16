@@ -1,37 +1,50 @@
-import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+
+part 'countdown_timer_model.g.dart';
 
 /// 倒计时器状态枚举
+@HiveType(typeId: 100)
 enum CountdownTimerStatus {
   /// 空闲状态，未开始
+  @HiveField(0)
   idle,
   /// 运行中
+  @HiveField(1)
   running,
   /// 已完成（归零），等待重新开始
+  @HiveField(2)
   completed,
 }
 
 /// 倒计时器数据模型
-@immutable
+@HiveType(typeId: 101)
 class CountdownTimerModel {
   /// 唯一标识符
+  @HiveField(0)
   final String id;
   
   /// 倒计时名称
+  @HiveField(1)
   final String name;
   
   /// 设定的总时长（秒），最大3600秒（60分钟）
+  @HiveField(2)
   final int totalSeconds;
   
   /// 剩余时间（秒）
+  @HiveField(3)
   final int remainingSeconds;
   
   /// 当前状态
+  @HiveField(4)
   final CountdownTimerStatus status;
   
   /// 上次更新时间戳（用于计算息屏后的实际时间）
+  @HiveField(5)
   final DateTime? lastUpdateTime;
   
   /// 开始时间戳
+  @HiveField(6)
   final DateTime? startTime;
 
   const CountdownTimerModel({

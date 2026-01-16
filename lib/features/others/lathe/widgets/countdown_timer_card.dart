@@ -10,6 +10,8 @@ class CountdownTimerCard extends StatelessWidget {
   final VoidCallback onRestart;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onSpeedUp;   // 加速（减少10秒）
+  final VoidCallback? onExtendTime; // 延长（增加10秒）
 
   const CountdownTimerCard({
     super.key,
@@ -19,6 +21,8 @@ class CountdownTimerCard extends StatelessWidget {
     required this.onRestart,
     required this.onEdit,
     required this.onDelete,
+    this.onSpeedUp,
+    this.onExtendTime,
   });
 
   @override
@@ -200,33 +204,40 @@ class CountdownTimerCard extends StatelessWidget {
             ],
           ),
           const Spacer(),
-          // 时间显示
+          // 时间显示和操作按钮
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                timer.formattedRemainingTime,
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w300,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  color: timer.isCompleted
-                      ? colorScheme.error
-                      : colorScheme.onSurface,
+              // 时间显示
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      timer.formattedRemainingTime,
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w300,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: timer.isCompleted
+                            ? colorScheme.error
+                            : colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '/ ${timer.formattedTotalTime}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '/ ${timer.formattedTotalTime}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              const Spacer(),
               // 操作按钮
               _buildActionButton(colorScheme),
             ],
@@ -284,14 +295,53 @@ class CountdownTimerCard extends StatelessWidget {
           ),
         );
       case CountdownTimerStatus.running:
-        return FilledButton.icon(
-          onPressed: onStop,
-          icon: const Icon(Icons.stop),
-          label: const Text('终止'),
-          style: FilledButton.styleFrom(
-            backgroundColor: colorScheme.error,
-            foregroundColor: colorScheme.onError,
-          ),
+        // 运行中显示时间调整按钮和终止按钮
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 加速按钮（减少10秒）
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                onPressed: onSpeedUp,
+                icon: const Icon(Icons.fast_forward, size: 20),
+                tooltip: '加速 -10秒',
+                padding: EdgeInsets.zero,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.orange.withValues(alpha: 0.2),
+                  foregroundColor: Colors.orange,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            // 延长按钮（增加10秒）
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: IconButton(
+                onPressed: onExtendTime,
+                icon: const Icon(Icons.more_time, size: 20),
+                tooltip: '延长 +10秒',
+                padding: EdgeInsets.zero,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.blue.withValues(alpha: 0.2),
+                  foregroundColor: Colors.blue,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            // 终止按钮
+            FilledButton(
+              onPressed: onStop,
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              child: const Text('终止'),
+            ),
+          ],
         );
       case CountdownTimerStatus.completed:
         return FilledButton.icon(
