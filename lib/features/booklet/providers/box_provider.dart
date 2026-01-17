@@ -14,7 +14,6 @@ Box<Style> styleBox(StyleBoxRef ref) {
   return Hive.box(HiveService.styleBoxName);
 }
 
-// TODO: "Stream是Future序列", 有时间了理解一下呢.
 @riverpod
 Stream<List<Style>> styleStream(StyleStreamRef ref) async* {
   final box = ref.read(styleBoxProvider);

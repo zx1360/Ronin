@@ -79,7 +79,6 @@ class RoutineService extends _$RoutineService {
   }
 
   // 刷新Style的信息.
-  // TODO: 之后加入同一天的Record记录去重留一. 放到统一的刷新页面, 集成所有的数据刷新.
   Future<void> refreshAll() async {
     final allStyles = ref.read(stylesProvider);
     for (final style in allStyles) {
