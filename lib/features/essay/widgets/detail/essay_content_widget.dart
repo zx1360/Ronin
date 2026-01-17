@@ -12,6 +12,7 @@ import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
 import 'package:torrid/core/modals/confirm_modal.dart';
 import 'package:torrid/core/utils/util.dart';
 import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
+import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 
 class EssayContentWidget extends ConsumerWidget {
   const EssayContentWidget({super.key});
@@ -36,11 +37,24 @@ class EssayContentWidget extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              dateFormat.format(essay.date),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            Row(
+              children: [
+                Text(
+                  dateFormat.format(essay.date),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                ),
+                // 心情显示
+                if (essay.mood != null) ...[
+                  const SizedBox(width: 8),
+                  MoodDisplay(
+                    mood: essay.mood,
+                    iconSize: 18,
+                    showLabel: true,
+                  ),
+                ],
+              ],
             ),
             Row(
               children: [

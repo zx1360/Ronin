@@ -6,7 +6,7 @@ part of 'countdown_timer_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$countdownTimersHash() => r'929148d92b1b2b6d6a695dc8d0be7d51af8cf466';
+String _$countdownTimersHash() => r'd9a99b5dc0267033100b1344f7242f2e1eb96d90';
 
 /// 倒计时器管理Provider (keepAlive: true 保证在应用内全程存活)
 ///

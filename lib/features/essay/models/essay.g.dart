@@ -24,13 +24,14 @@ class EssayAdapter extends TypeAdapter<Essay> {
       imgs: (fields[4] as List).cast<String>(),
       labels: (fields[5] as List).cast<String>(),
       messages: (fields[6] as List).cast<Message>(),
+      mood: fields[7] as MoodType?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Essay obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class EssayAdapter extends TypeAdapter<Essay> {
       ..writeByte(5)
       ..write(obj.labels)
       ..writeByte(6)
-      ..write(obj.messages);
+      ..write(obj.messages)
+      ..writeByte(7)
+      ..write(obj.mood);
   }
 
   @override
@@ -74,6 +77,7 @@ Essay _$EssayFromJson(Map<String, dynamic> json) => Essay(
               ?.map((e) => Message.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      mood: const MoodTypeConverter().fromJson(json['mood'] as String?),
     );
 
 Map<String, dynamic> _$EssayToJson(Essay instance) => <String, dynamic>{
@@ -84,4 +88,5 @@ Map<String, dynamic> _$EssayToJson(Essay instance) => <String, dynamic>{
       'imgs': instance.imgs,
       'labels': instance.labels,
       'messages': instance.messages,
+      'mood': const MoodTypeConverter().toJson(instance.mood),
     };

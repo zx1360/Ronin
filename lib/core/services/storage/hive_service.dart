@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:torrid/core/models/message.dart';
+import 'package:torrid/core/models/mood.dart';
 // booklet打卡
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
@@ -53,6 +54,8 @@ class HiveService {
   // ----常用Box----
   static Future<void> init() async {
     // ----注册适配器
+    // 通用
+    Hive.registerAdapter(MoodTypeAdapter());
     // booklet打卡
     Hive.registerAdapter(StyleAdapter());
     Hive.registerAdapter(TaskAdapter());
