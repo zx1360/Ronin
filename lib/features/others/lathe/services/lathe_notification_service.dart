@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -62,18 +64,23 @@ class LatheNotificationService {
     );
 
     // 显示通知（消息类型，启用横幅弹出）
+    // 使用新的channel id，确保横幅弹出设置生效
     const androidDetails = AndroidNotificationDetails(
-      'lathe_timer_channel',
+      'lathe_timer_headsup_channel',  // 新渠道ID，确保设置生效
       '倒计时提醒',
-      channelDescription: '倒计时器完成提醒通知',
+      channelDescription: '倒计时器完成提醒通知（横幅弹出）',
       importance: Importance.max,  // 最高优先级，确保横幅弹出
       priority: Priority.max,      // 最高优先级
       playSound: true,
       enableVibration: true,
-      category: AndroidNotificationCategory.message,
+      category: AndroidNotificationCategory.alarm,  // 使用alarm类别确保弹出
       visibility: NotificationVisibility.public,
       autoCancel: true,
-      ticker: '倒计时完成',  // 状态栏提示文字
+      ticker: '倒计时完成',
+      fullScreenIntent: true,  // 全屏意图，确保横幅弹出
+      channelShowBadge: true,
+      colorized: true,
+      color: Color(0xFF4CAF50),
     );
 
     const iosDetails = DarwinNotificationDetails(
