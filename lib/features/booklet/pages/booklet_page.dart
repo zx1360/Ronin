@@ -11,6 +11,9 @@ import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart'
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/booklet/models/record.dart';
+import 'package:torrid/core/models/mood.dart';
+import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
+import 'package:torrid/core/utils/util.dart';
 
 class BookletPage extends ConsumerStatefulWidget {
   const BookletPage({super.key});
@@ -44,6 +47,13 @@ class _BookletPageState extends ConsumerState<BookletPage> {
   Future<void> saveMessage() async {
     if (_latestStyle == null) return;
     _targetRecord.message = _messageController.text;
+    await _server!.putRecord(styleId: _latestStyle!.id, record: _targetRecord);
+  }
+
+  // # 更新心情记录
+  Future<void> updateMood(MoodType? mood) async {
+    if (_latestStyle == null) return;
+    _targetRecord.mood = mood;
     await _server!.putRecord(styleId: _latestStyle!.id, record: _targetRecord);
   }
 
@@ -218,25 +228,43 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                       },
                     ),
                     const SizedBox(height: 6),
-                    // TODO: 保存按钮左边有一片区域空着, 也许放点小表情(天气图标) 表示当天心情?
-                    // 保存按钮
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: ElevatedButton(
-                        onPressed: saveMessage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.yellow[700],
-                          foregroundColor: Colors.brown[900],
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
+                    // 心情选择器和保存按钮 - 根据是否为今日区分显示
+                    Row(
+                      children: [
+                        // 今日：可选择心情；往期：只读显示（如有）
+                        Expanded(
+                          child: isSameDay(targetDate, DateTime.now())
+                              ? MoodSelector(
+                                  selectedMood: _targetRecord.mood,
+                                  onMoodChanged: updateMood,
+                                  compact: true,
+                                  iconSize: 24,
+                                )
+                              : (_targetRecord.mood != null
+                                  ? MoodDisplay(
+                                      mood: _targetRecord.mood,
+                                      iconSize: 24,
+                                      showLabel: true,
+                                    )
+                                  : const SizedBox.shrink()),
                         ),
-                        child: const Text("保存"),
-                      ),
+                        // 保存按钮
+                        ElevatedButton(
+                          onPressed: saveMessage,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.yellow[700],
+                            foregroundColor: Colors.brown[900],
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text("保存"),
+                        ),
+                      ],
                     ),
                   ],
                 ),

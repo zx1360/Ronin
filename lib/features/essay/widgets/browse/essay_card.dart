@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
+import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 
 class EssayCard extends ConsumerWidget {
   final Essay essay;
@@ -132,11 +133,20 @@ class EssayCard extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${essay.wordCount} 字',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                Row(
+                  children: [
+                    Text(
+                      '${essay.wordCount} 字',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                    ),
+                    // 心情显示
+                    if (essay.mood != null) ...[                    
+                      const SizedBox(width: 12),
+                      MoodDisplay(mood: essay.mood, iconSize: 16),
+                    ],
+                  ],
                 ),
                 if (essay.messages.isNotEmpty)
                   Text(

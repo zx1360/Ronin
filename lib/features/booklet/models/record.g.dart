@@ -22,13 +22,14 @@ class RecordAdapter extends TypeAdapter<Record> {
       date: fields[2] as DateTime,
       message: fields[3] as String,
       taskCompletion: (fields[4] as Map).cast<String, bool>(),
+      mood: fields[5] as MoodType?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Record obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +39,9 @@ class RecordAdapter extends TypeAdapter<Record> {
       ..writeByte(3)
       ..write(obj.message)
       ..writeByte(4)
-      ..write(obj.taskCompletion);
+      ..write(obj.taskCompletion)
+      ..writeByte(5)
+      ..write(obj.mood);
   }
 
   @override
@@ -62,6 +65,7 @@ Record _$RecordFromJson(Map<String, dynamic> json) => Record(
       date: DateTime.parse(json['date'] as String),
       message: json['message'] as String,
       taskCompletion: Map<String, bool>.from(json['task_completion'] as Map),
+      mood: const MoodTypeConverter().fromJson(json['mood'] as String?),
     );
 
 Map<String, dynamic> _$RecordToJson(Record instance) => <String, dynamic>{
@@ -70,4 +74,5 @@ Map<String, dynamic> _$RecordToJson(Record instance) => <String, dynamic>{
       'date': instance.date.toIso8601String(),
       'message': instance.message,
       'task_completion': instance.taskCompletion,
+      'mood': const MoodTypeConverter().toJson(instance.mood),
     };

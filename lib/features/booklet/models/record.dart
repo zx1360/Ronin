@@ -2,6 +2,7 @@ import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
+import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'record.g.dart';
@@ -24,12 +25,18 @@ class Record {
   @HiveField(4)
   late final Map<String, bool> taskCompletion;
 
+  /// 心情记录 - 可选字段，兼容旧数据
+  @HiveField(5)
+  @MoodTypeConverter()
+  MoodType? mood;
+
   Record({
     required this.id,
     required this.styleId,
     required this.date,
     required this.message,
     required this.taskCompletion,
+    this.mood,
   });
 
   Record copyWith({
@@ -38,6 +45,8 @@ class Record {
     DateTime? date,
     String? message,
     Map<String, bool>? taskCompletion,
+    MoodType? mood,
+    bool clearMood = false,
   }) {
     return Record(
       id: id ?? this.id,
@@ -45,6 +54,7 @@ class Record {
       date: date ?? this.date,
       message: message ?? this.message,
       taskCompletion: taskCompletion ?? this.taskCompletion,
+      mood: clearMood ? null : (mood ?? this.mood),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/models/message.dart';
+import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/core/utils/serialization.dart';
 
 part 'essay.g.dart';
@@ -34,6 +35,11 @@ class Essay {
   @JsonKey(defaultValue: [])
   final List<Message> messages;
 
+  /// 心情记录 - 可选字段，兼容旧数据
+  @HiveField(7)
+  @MoodTypeConverter()
+  final MoodType? mood;
+
   Essay({
     required this.id,
     required this.date,
@@ -42,6 +48,7 @@ class Essay {
     required this.imgs,
     required this.labels,
     required this.messages,
+    this.mood,
   });
 
   Essay copyWith({
@@ -52,6 +59,8 @@ class Essay {
     List<String>? imgs,
     List<String>? labels,
     List<Message>? messages,
+    MoodType? mood,
+    bool clearMood = false,
   }) {
     return Essay(
       id: id ?? this.id,
@@ -61,6 +70,7 @@ class Essay {
       imgs: imgs ?? this.imgs,
       labels: labels ?? this.labels,
       messages: messages ?? this.messages,
+      mood: clearMood ? null : (mood ?? this.mood),
     );
   }
 

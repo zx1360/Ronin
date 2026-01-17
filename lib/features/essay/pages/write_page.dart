@@ -13,6 +13,8 @@ import 'package:torrid/features/essay/widgets/write/image_preview.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/utils/util.dart';
+import 'package:torrid/core/models/mood.dart';
+import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 
 class EssayWritePage extends ConsumerStatefulWidget {
   final String? initialContent;
@@ -32,6 +34,8 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
   // 内容相关
   final List<String> _selectedLabels = [];
   final List<File> _selectedImages = [];
+  // 心情相关
+  MoodType? _selectedMood;
 
   @override
   void initState() {
@@ -118,6 +122,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
       imgs: imgs,
       labels: _selectedLabels,
       messages: [],
+      mood: _selectedMood,
     );
     ref.watch(essayServiceProvider.notifier).writeEssay(essay: essay);
 
@@ -166,6 +171,22 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
                 border: InputBorder.none,
               ),
               style: Theme.of(context).textTheme.bodyLarge,
+            ),
+
+            const SizedBox(height: 16),
+
+            // 心情选择
+            const Text('今日心情:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            MoodSelector(
+              selectedMood: _selectedMood,
+              onMoodChanged: (mood) {
+                setState(() {
+                  _selectedMood = mood;
+                });
+              },
+              compact: false,
+              iconSize: 28,
             ),
 
             const SizedBox(height: 16),

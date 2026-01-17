@@ -192,7 +192,7 @@ class RoutineService extends _$RoutineService {
               ..sort((a, b) => b.date.compareTo(a.date)))
             .map((item) => item.toJson())
             .toList();
-    // TODO: 为使northstar的multipart文件解析方便的权宜之策.
+    // 为使multipart文件解析方便的权宜之策.
     return {
       "jsonData": jsonEncode({"styles": styles, "records": records}),
     };
