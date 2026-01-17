@@ -8,13 +8,36 @@ import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
 import 'package:torrid/features/essay/widgets/browse/year_summary_card.dart';
 
-class BrowsePart extends ConsumerWidget {
+class BrowsePart extends ConsumerStatefulWidget {
   final YearSummary yearSummary;
   const BrowsePart({super.key, required this.yearSummary});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final essaysAsync = ref.watch(yearEssaysProvider(year: yearSummary.year));
+  ConsumerState<BrowsePart> createState() => BrowsePartState();
+}
+
+class BrowsePartState extends ConsumerState<BrowsePart> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final essaysAsync = ref.watch(yearEssaysProvider(year: widget.yearSummary.year));
     ref.watch(contentServerProvider); //防止contentServerProvider被销毁.
 
     return essaysAsync.when(
@@ -23,20 +46,20 @@ class BrowsePart extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: YearSummaryCard(summary: yearSummary),
+            child: YearSummaryCard(summary: widget.yearSummary),
           ),
           const Center(child: CircularProgressIndicator()),
         ],
       ),
       data: (essays) => ListView.builder(
-        shrinkWrap: true,
+        controller: _scrollController,
         itemCount: essays.length + 2,
         itemBuilder: (context, index) {
           // 年度概览
           if (index == 0) {
             return Padding(
               padding: const EdgeInsets.all(16.0),
-              child: YearSummaryCard(summary: yearSummary),
+              child: YearSummaryCard(summary: widget.yearSummary),
             );
           }
           // 给右下角floating_btn留空.

@@ -2,55 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/app/theme/theme_book.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
-import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/essay_content_widget.dart';
+import 'package:torrid/features/essay/widgets/detail/message_input_widget.dart';
 import 'package:torrid/features/essay/widgets/modify/retag_widget.dart';
-import 'package:torrid/core/models/message.dart';
 
-class EssayDetailPage extends ConsumerStatefulWidget {
+class EssayDetailPage extends ConsumerWidget {
   const EssayDetailPage({super.key});
 
   @override
-  ConsumerState<EssayDetailPage> createState() => _EssayDetailPageState();
-}
-
-class _EssayDetailPageState extends ConsumerState<EssayDetailPage> {
-  final TextEditingController _messageController = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  // 添加留言
-  // TODO: 既然内容都独立拆分了, 添加留言这一块也拆出来也不是不行
-  void _addMessage() {
-    final content = _messageController.text.trim();
-    _messageController.clear();
-    _focusNode.unfocus();
-    if (content.isEmpty) return;
-
-    ref
-        .watch(essayServiceProvider.notifier)
-        .appendMessage(
-          ref.watch(contentServerProvider)!.id,
-          Message(timestamp: DateTime.now(), content: content),
-        );
-
-    setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppTheme.surfaceContainer,
@@ -83,46 +43,7 @@ class _EssayDetailPageState extends ConsumerState<EssayDetailPage> {
             const SizedBox(height: 24),
 
             // 添加留言
-            Column(
-              children: [
-                TextField(
-                  controller: _messageController,
-                  focusNode: _focusNode,
-                  minLines: 2,
-                  maxLines: null,
-                  decoration: InputDecoration(
-                    hintText: '添加留言...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24.0),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24.0),
-                      borderSide: BorderSide(
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 12.0,
-                    ),
-                  ),
-                  onTapOutside: (event) => _focusNode.unfocus(),
-                ),
-                const SizedBox(width: 8.0),
-                // TODO: routine的表情添加可以置于此?
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    onPressed: _addMessage,
-                    icon: Icon(
-                      Icons.send,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            const MessageInputWidget(),
           ],
         ),
       ),
@@ -136,8 +57,7 @@ class _EssayDetailPageState extends ConsumerState<EssayDetailPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) =>
-          RetagWidget(),
+      builder: (context) => RetagWidget(),
     );
   }
 }

@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/essay/pages/browse_body.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
+import 'package:torrid/features/essay/widgets/browse/expandable_fab.dart';
 
 import 'package:torrid/features/essay/widgets/browse/setting_widget.dart';
 
-class EssayBrowsePage extends StatelessWidget {
+class EssayBrowsePage extends StatefulWidget {
   const EssayBrowsePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<EssayBrowsePage> createState() => _EssayBrowsePageState();
+}
 
+class _EssayBrowsePageState extends State<EssayBrowsePage> {
+  final GlobalKey<BrowseBodyState> _browseBodyKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('随笔'),
@@ -21,20 +27,28 @@ class EssayBrowsePage extends StatelessWidget {
           ),
         ],
       ),
-      body: BrowseBody(),
-      floatingActionButton: FloatingActionButton(
-        elevation: 6,
-        highlightElevation: 10,
-        backgroundColor: AppTheme.primary,
-        foregroundColor: AppTheme.onPrimary,
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const EssayWritePage()),
-        ),
-        child: const Icon(
-          Icons.edit,
-          size: 24,
-        ),
+      body: BrowseBody(key: _browseBodyKey),
+      floatingActionButton: ExpandableFab(
+        distance: 70,
+        actions: [
+          FabAction(
+            icon: Icons.vertical_align_top,
+            label: '回到顶部',
+            onPressed: () {
+              _browseBodyKey.currentState?.scrollToTop();
+            },
+          ),
+          FabAction(
+            icon: Icons.edit,
+            label: '写随笔',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EssayWritePage()),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
