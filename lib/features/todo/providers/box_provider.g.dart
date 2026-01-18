@@ -8,7 +8,9 @@ part of 'box_provider.dart';
 
 String _$taskListBoxHash() => r'e37a9063efcfc9927bbc4e4f283b1fc19a3a7dd2';
 
-/// See also [taskListBox].
+/// 任务列表的 Hive Box
+///
+/// Copied from [taskListBox].
 @ProviderFor(taskListBox)
 final taskListBoxProvider = AutoDisposeProvider<Box<TaskList>>.internal(
   taskListBox,
@@ -22,7 +24,9 @@ final taskListBoxProvider = AutoDisposeProvider<Box<TaskList>>.internal(
 typedef TaskListBoxRef = AutoDisposeProviderRef<Box<TaskList>>;
 String _$taskListStreamHash() => r'f900836febfee8c40f515781a29e63fba7660cdb';
 
-/// See also [taskListStream].
+/// 任务列表的响应式流
+///
+/// Copied from [taskListStream].
 @ProviderFor(taskListStream)
 final taskListStreamProvider =
     AutoDisposeStreamProvider<List<TaskList>>.internal(

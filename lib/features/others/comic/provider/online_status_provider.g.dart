@@ -6,9 +6,11 @@ part of 'online_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicsOnlineHash() => r'c58a21d700c8098d9262e109cf53d03eb43866c7';
+String _$comicsOnlineHash() => r'df8831c4521e9925212bc76c2513208ab72f8b40';
 
-/// See also [comicsOnline].
+/// 获取所有在线漫画信息
+///
+/// Copied from [comicsOnline].
 @ProviderFor(comicsOnline)
 final comicsOnlineProvider =
     AutoDisposeFutureProvider<List<ComicInfo>>.internal(
@@ -22,7 +24,7 @@ final comicsOnlineProvider =
 
 typedef ComicsOnlineRef = AutoDisposeFutureProviderRef<List<ComicInfo>>;
 String _$onlineChaptersWithComicIdHash() =>
-    r'3f000f73115aca49a26d987356feaad92d7c3bde';
+    r'351076787ffeb7129f1dfe2f127998f5ae5699e8';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -45,17 +47,25 @@ class _SystemHash {
   }
 }
 
-/// See also [onlineChaptersWithComicId].
+/// 根据漫画 ID 获取对应的章节信息
+///
+/// Copied from [onlineChaptersWithComicId].
 @ProviderFor(onlineChaptersWithComicId)
 const onlineChaptersWithComicIdProvider = OnlineChaptersWithComicIdFamily();
 
-/// See also [onlineChaptersWithComicId].
+/// 根据漫画 ID 获取对应的章节信息
+///
+/// Copied from [onlineChaptersWithComicId].
 class OnlineChaptersWithComicIdFamily
     extends Family<AsyncValue<List<ChapterInfo>>> {
-  /// See also [onlineChaptersWithComicId].
+  /// 根据漫画 ID 获取对应的章节信息
+  ///
+  /// Copied from [onlineChaptersWithComicId].
   const OnlineChaptersWithComicIdFamily();
 
-  /// See also [onlineChaptersWithComicId].
+  /// 根据漫画 ID 获取对应的章节信息
+  ///
+  /// Copied from [onlineChaptersWithComicId].
   OnlineChaptersWithComicIdProvider call({
     required String comicId,
   }) {
@@ -88,10 +98,14 @@ class OnlineChaptersWithComicIdFamily
   String? get name => r'onlineChaptersWithComicIdProvider';
 }
 
-/// See also [onlineChaptersWithComicId].
+/// 根据漫画 ID 获取对应的章节信息
+///
+/// Copied from [onlineChaptersWithComicId].
 class OnlineChaptersWithComicIdProvider
     extends AutoDisposeFutureProvider<List<ChapterInfo>> {
-  /// See also [onlineChaptersWithComicId].
+  /// 根据漫画 ID 获取对应的章节信息
+  ///
+  /// Copied from [onlineChaptersWithComicId].
   OnlineChaptersWithComicIdProvider({
     required String comicId,
   }) : this._internal(
@@ -178,19 +192,27 @@ class _OnlineChaptersWithComicIdProviderElement
 }
 
 String _$onlineImagesWithChapterIdHash() =>
-    r'247852fed891c80033420b615a69048deb8efff1';
+    r'45f462cd66aada07a229c959a1085431c8d60fc1';
 
-/// See also [onlineImagesWithChapterId].
+/// 根据章节 ID 获取对应的图片信息
+///
+/// Copied from [onlineImagesWithChapterId].
 @ProviderFor(onlineImagesWithChapterId)
 const onlineImagesWithChapterIdProvider = OnlineImagesWithChapterIdFamily();
 
-/// See also [onlineImagesWithChapterId].
+/// 根据章节 ID 获取对应的图片信息
+///
+/// Copied from [onlineImagesWithChapterId].
 class OnlineImagesWithChapterIdFamily
     extends Family<AsyncValue<List<Map<String, dynamic>>>> {
-  /// See also [onlineImagesWithChapterId].
+  /// 根据章节 ID 获取对应的图片信息
+  ///
+  /// Copied from [onlineImagesWithChapterId].
   const OnlineImagesWithChapterIdFamily();
 
-  /// See also [onlineImagesWithChapterId].
+  /// 根据章节 ID 获取对应的图片信息
+  ///
+  /// Copied from [onlineImagesWithChapterId].
   OnlineImagesWithChapterIdProvider call({
     required String chapterId,
   }) {
@@ -223,10 +245,14 @@ class OnlineImagesWithChapterIdFamily
   String? get name => r'onlineImagesWithChapterIdProvider';
 }
 
-/// See also [onlineImagesWithChapterId].
+/// 根据章节 ID 获取对应的图片信息
+///
+/// Copied from [onlineImagesWithChapterId].
 class OnlineImagesWithChapterIdProvider
     extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
-  /// See also [onlineImagesWithChapterId].
+  /// 根据章节 ID 获取对应的图片信息
+  ///
+  /// Copied from [onlineImagesWithChapterId].
   OnlineImagesWithChapterIdProvider({
     required String chapterId,
   }) : this._internal(

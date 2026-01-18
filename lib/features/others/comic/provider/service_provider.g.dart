@@ -6,9 +6,13 @@ part of 'service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$allInfosHash() => r'0691e6fed1414f5b793edd8325907b5e51fe2348';
+String _$allInfosHash() => r'df8714f59117fce68264fb311db075e293064995';
 
-/// See also [allInfos].
+/// 扫描漫画目录获取所有漫画和章节元数据
+///
+/// 遍历 `comics` 目录下的所有子目录，生成 [ComicInfo] 和 [ChapterInfo]。
+///
+/// Copied from [allInfos].
 @ProviderFor(allInfos)
 final allInfosProvider =
     AutoDisposeFutureProvider<Map<String, dynamic>>.internal(
@@ -21,9 +25,13 @@ final allInfosProvider =
 );
 
 typedef AllInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
-String _$deletedInfosHash() => r'212dc35f2a03e737f14814c2e6950f778da396ac';
+String _$deletedInfosHash() => r'75689efc5e105a5a473b4dfa473979366b14c08d';
 
-/// See also [deletedInfos].
+/// 获取需要删除的漫画记录
+///
+/// 返回 coverImage 文件不存在的漫画及其关联数据。
+///
+/// Copied from [deletedInfos].
 @ProviderFor(deletedInfos)
 final deletedInfosProvider =
     AutoDisposeFutureProvider<Map<String, dynamic>>.internal(
@@ -36,9 +44,13 @@ final deletedInfosProvider =
 );
 
 typedef DeletedInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
-String _$newInfosHash() => r'002d6cdbdf7072f230c41c078d70cdba33050451';
+String _$newInfosHash() => r'31c6c6672517c3c0c37d1a95cdf6dee471a394f5';
 
-/// See also [newInfos].
+/// 扫描未记录的新漫画目录
+///
+/// 只处理尚未在数据库中的漫画目录。
+///
+/// Copied from [newInfos].
 @ProviderFor(newInfos)
 final newInfosProvider =
     AutoDisposeFutureProvider<Map<String, dynamic>>.internal(

@@ -16,11 +16,9 @@ class RetagWidget extends ConsumerWidget {
         .where((l) => essay!.labels.contains(l.id))
         .map((l) => l.id)
         .toList();
-        
+
     void onToggle(String labelId) {
-      ref
-          .read(essayServiceProvider.notifier)
-          .retag(essay!.id, labelId);
+      ref.read(essayServiceProvider.notifier).retag(essay!.id, labelId);
     }
 
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
@@ -37,10 +35,13 @@ class RetagWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          LabelSelector(
-            labels: labels,
-            selectedLabels: selectedLabels,
-            onToggleLabel: onToggle,
+          // 使用 Flexible 让标签选择器在空间不足时可滚动
+          Flexible(
+            child: LabelSelector(
+              labels: labels,
+              selectedLabels: selectedLabels,
+              onToggleLabel: onToggle,
+            ),
           ),
         ],
       ),

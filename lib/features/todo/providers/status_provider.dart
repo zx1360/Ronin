@@ -1,3 +1,8 @@
+/// Todo 模块的派生状态提供者
+///
+/// 基于 Box 数据流提供经过处理的同步数据访问和业务查询。
+library;
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:torrid/features/todo/models/task_list.dart';
@@ -5,7 +10,11 @@ import 'package:torrid/features/todo/providers/box_provider.dart';
 
 part 'status_provider.g.dart';
 
-// taskList记录
+// ============================================================================
+// 基础数据
+// ============================================================================
+
+/// 所有任务列表（按 order 升序排列）
 @riverpod
 List<TaskList> taskList(TaskListRef ref) {
   final asyncVal = ref.watch(taskListStreamProvider);
@@ -16,37 +25,47 @@ List<TaskList> taskList(TaskListRef ref) {
   return vals..sort((a, b) => a.order.compareTo(b.order));
 }
 
-// ----业务相关数据----
+// ============================================================================
+// 业务查询
+// ============================================================================
+
+/// 根据列表 ID 获取任务列表
 @riverpod
 TaskList listWithId(ListWithIdRef ref, String listId) {
-  return ref.read(taskListProvider).where((l) => l.id == listId).first;
+  return ref.read(taskListProvider).firstWhere((l) => l.id == listId);
 }
 
-// 根据列表名找到list(默认列表中)
+/// 根据列表名称获取默认任务列表
 @riverpod
 TaskList listWithName(ListWithNameRef ref, String listName) {
   final box = ref.read(taskListBoxProvider);
   return box.values.firstWhere((l) => l.isDefault && l.name == listName);
 }
 
-// 根据taskId找到list.
+/// 根据任务 ID 找到其所属的任务列表
 @riverpod
 TaskList listWithTaskId(ListWithTaskIdRef ref, String taskId) {
   final box = ref.read(taskListBoxProvider);
-  return box.values
-      .where((l) => l.tasks.map((t) => t.id).contains(taskId))
-      .first;
+  return box.values.firstWhere(
+    (l) => l.tasks.any((t) => t.id == taskId),
+  );
 }
 
-// 新增task时, 可供作为'所属列表'的list.
+/// 新增任务时可供选择的任务列表
+/// 
+/// 包含默认的"任务"列表和所有非默认列表。
 @riverpod
 List<TaskList> availableLists(AvailableListsRef ref) {
   final lists = ref.watch(taskListProvider);
-  return (lists
-        .where((l) => l.isDefault && l.name == "任务" || !l.isDefault)
-        .toList()
-    ..sort((a, b) {
-      if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
-      return 0;
-    })).toList();
+  final filtered = lists.where(
+    (l) => (l.isDefault && l.name == "任务") || !l.isDefault,
+  ).toList();
+  
+  // 默认列表排在前面
+  filtered.sort((a, b) {
+    if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+    return 0;
+  });
+  
+  return filtered;
 }

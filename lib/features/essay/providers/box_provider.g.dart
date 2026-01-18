@@ -8,7 +8,9 @@ part of 'box_provider.dart';
 
 String _$summaryBoxHash() => r'43b7f357b01ac8e090c1b3c0e7b38be52fcb2796';
 
-/// See also [summaryBox].
+/// 年度统计信息的 Hive Box
+///
+/// Copied from [summaryBox].
 @ProviderFor(summaryBox)
 final summaryBoxProvider = AutoDisposeProvider<Box<YearSummary>>.internal(
   summaryBox,
@@ -22,7 +24,11 @@ final summaryBoxProvider = AutoDisposeProvider<Box<YearSummary>>.internal(
 typedef SummaryBoxRef = AutoDisposeProviderRef<Box<YearSummary>>;
 String _$summaryStreamHash() => r'3309d339208ff008234699b0983f68469b46a414';
 
-/// See also [summaryStream].
+/// 年度统计信息的响应式流
+///
+/// 使用 yield 手动触发一次以读取初始数据，之后监听 box 变化。
+///
+/// Copied from [summaryStream].
 @ProviderFor(summaryStream)
 final summaryStreamProvider =
     AutoDisposeStreamProvider<List<YearSummary>>.internal(
@@ -38,7 +44,9 @@ final summaryStreamProvider =
 typedef SummaryStreamRef = AutoDisposeStreamProviderRef<List<YearSummary>>;
 String _$essayBoxHash() => r'4c04d29c307c031ea1b3063d5c519218a95d9136';
 
-/// See also [essayBox].
+/// 随笔数据的 Hive Box
+///
+/// Copied from [essayBox].
 @ProviderFor(essayBox)
 final essayBoxProvider = AutoDisposeProvider<Box<Essay>>.internal(
   essayBox,
@@ -52,7 +60,9 @@ final essayBoxProvider = AutoDisposeProvider<Box<Essay>>.internal(
 typedef EssayBoxRef = AutoDisposeProviderRef<Box<Essay>>;
 String _$essayStreamHash() => r'f3ec87b2c434c806c378da17b5fd9dceb4b6631e';
 
-/// See also [essayStream].
+/// 随笔数据的响应式流
+///
+/// Copied from [essayStream].
 @ProviderFor(essayStream)
 final essayStreamProvider = AutoDisposeStreamProvider<List<Essay>>.internal(
   essayStream,
@@ -66,7 +76,9 @@ final essayStreamProvider = AutoDisposeStreamProvider<List<Essay>>.internal(
 typedef EssayStreamRef = AutoDisposeStreamProviderRef<List<Essay>>;
 String _$labelBoxHash() => r'9344185ac11e932f41f54c4341dd772cdf14aa06';
 
-/// See also [labelBox].
+/// 标签数据的 Hive Box
+///
+/// Copied from [labelBox].
 @ProviderFor(labelBox)
 final labelBoxProvider = AutoDisposeProvider<Box<Label>>.internal(
   labelBox,
@@ -80,7 +92,9 @@ final labelBoxProvider = AutoDisposeProvider<Box<Label>>.internal(
 typedef LabelBoxRef = AutoDisposeProviderRef<Box<Label>>;
 String _$labelStreamHash() => r'08feaadbca6daacf039c17048c856f1e4b0b4499';
 
-/// See also [labelStream].
+/// 标签数据的响应式流
+///
+/// Copied from [labelStream].
 @ProviderFor(labelStream)
 final labelStreamProvider = AutoDisposeStreamProvider<List<Label>>.internal(
   labelStream,

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 
-// TODO: 点击可以进入概览Page, 显示更多纵览统计信息. 标签分布等.
+/// 年度概览卡片组件
+/// 点击可进入详细概览页面，显示更多统计信息
 class YearSummaryCard extends StatelessWidget {
   final YearSummary summary;
+  final VoidCallback? onTap;
 
-  const YearSummaryCard({super.key, required this.summary});
+  const YearSummaryCard({super.key, required this.summary, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -14,65 +16,87 @@ class YearSummaryCard extends StatelessWidget {
         ? (summary.wordCount / summary.essayCount).round()
         : 0;
 
-    return Container(
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(48),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${summary.year} 年',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 统计数据
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem(
-                context,
-                value: summary.essayCount.toString(),
-                label: '总篇数',
+        child: Container(
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(48),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
-              _buildStatItem(
-                context,
-                value: summary.wordCount.toString(),
-                label: '总字数',
-              ),
-              _buildStatItem(context, value: wordAvg.toString(), label: '单篇平均'),
             ],
           ),
-
-          const SizedBox(height: 20),
-
-          // 月度数据图表
-          Column(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '月度写作趋势',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    summary.year == '-1' ? '全部随笔' : '${summary.year} 年',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (onTap != null)
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.grey[400],
+                    ),
+                ],
               ),
-              const SizedBox(height: 12),
-              _buildMonthlyChart(context),
+
+              const SizedBox(height: 16),
+
+              // 统计数据
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem(
+                    context,
+                    value: summary.essayCount.toString(),
+                    label: '总篇数',
+                  ),
+                  _buildStatItem(
+                    context,
+                    value: summary.wordCount.toString(),
+                    label: '总字数',
+                  ),
+                  _buildStatItem(
+                    context,
+                    value: wordAvg.toString(),
+                    label: '单篇平均',
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // 月度数据图表
+              Column(
+                children: [
+                  Text(
+                    '月度写作趋势',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildMonthlyChart(context),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

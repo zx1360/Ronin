@@ -8,7 +8,9 @@ part of 'status_provider.dart';
 
 String _$taskListHash() => r'f4dad0b370bd7dd654e8746d4f16523c33fffb6d';
 
-/// See also [taskList].
+/// 所有任务列表（按 order 升序排列）
+///
+/// Copied from [taskList].
 @ProviderFor(taskList)
 final taskListProvider = AutoDisposeProvider<List<TaskList>>.internal(
   taskList,
@@ -20,7 +22,7 @@ final taskListProvider = AutoDisposeProvider<List<TaskList>>.internal(
 );
 
 typedef TaskListRef = AutoDisposeProviderRef<List<TaskList>>;
-String _$listWithIdHash() => r'510eac64f33a50ecaa2d0b69381dab46647ebb40';
+String _$listWithIdHash() => r'10ecefcd6eec38380c50711b63a9934d5201e036';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -43,16 +45,24 @@ class _SystemHash {
   }
 }
 
-/// See also [listWithId].
+/// 根据列表 ID 获取任务列表
+///
+/// Copied from [listWithId].
 @ProviderFor(listWithId)
 const listWithIdProvider = ListWithIdFamily();
 
-/// See also [listWithId].
+/// 根据列表 ID 获取任务列表
+///
+/// Copied from [listWithId].
 class ListWithIdFamily extends Family<TaskList> {
-  /// See also [listWithId].
+  /// 根据列表 ID 获取任务列表
+  ///
+  /// Copied from [listWithId].
   const ListWithIdFamily();
 
-  /// See also [listWithId].
+  /// 根据列表 ID 获取任务列表
+  ///
+  /// Copied from [listWithId].
   ListWithIdProvider call(
     String listId,
   ) {
@@ -85,9 +95,13 @@ class ListWithIdFamily extends Family<TaskList> {
   String? get name => r'listWithIdProvider';
 }
 
-/// See also [listWithId].
+/// 根据列表 ID 获取任务列表
+///
+/// Copied from [listWithId].
 class ListWithIdProvider extends AutoDisposeProvider<TaskList> {
-  /// See also [listWithId].
+  /// 根据列表 ID 获取任务列表
+  ///
+  /// Copied from [listWithId].
   ListWithIdProvider(
     String listId,
   ) : this._internal(
@@ -171,16 +185,24 @@ class _ListWithIdProviderElement extends AutoDisposeProviderElement<TaskList>
 
 String _$listWithNameHash() => r'2440c6c68581bc56791ca45714ad1dbdc0cf306b';
 
-/// See also [listWithName].
+/// 根据列表名称获取默认任务列表
+///
+/// Copied from [listWithName].
 @ProviderFor(listWithName)
 const listWithNameProvider = ListWithNameFamily();
 
-/// See also [listWithName].
+/// 根据列表名称获取默认任务列表
+///
+/// Copied from [listWithName].
 class ListWithNameFamily extends Family<TaskList> {
-  /// See also [listWithName].
+  /// 根据列表名称获取默认任务列表
+  ///
+  /// Copied from [listWithName].
   const ListWithNameFamily();
 
-  /// See also [listWithName].
+  /// 根据列表名称获取默认任务列表
+  ///
+  /// Copied from [listWithName].
   ListWithNameProvider call(
     String listName,
   ) {
@@ -213,9 +235,13 @@ class ListWithNameFamily extends Family<TaskList> {
   String? get name => r'listWithNameProvider';
 }
 
-/// See also [listWithName].
+/// 根据列表名称获取默认任务列表
+///
+/// Copied from [listWithName].
 class ListWithNameProvider extends AutoDisposeProvider<TaskList> {
-  /// See also [listWithName].
+  /// 根据列表名称获取默认任务列表
+  ///
+  /// Copied from [listWithName].
   ListWithNameProvider(
     String listName,
   ) : this._internal(
@@ -297,18 +323,26 @@ class _ListWithNameProviderElement extends AutoDisposeProviderElement<TaskList>
   String get listName => (origin as ListWithNameProvider).listName;
 }
 
-String _$listWithTaskIdHash() => r'1efc685316f6ae5f5e03e8fd41c2aac5a918c560';
+String _$listWithTaskIdHash() => r'b8ad400dc38a48dde0fcfcecfd0a07d9c07077a7';
 
-/// See also [listWithTaskId].
+/// 根据任务 ID 找到其所属的任务列表
+///
+/// Copied from [listWithTaskId].
 @ProviderFor(listWithTaskId)
 const listWithTaskIdProvider = ListWithTaskIdFamily();
 
-/// See also [listWithTaskId].
+/// 根据任务 ID 找到其所属的任务列表
+///
+/// Copied from [listWithTaskId].
 class ListWithTaskIdFamily extends Family<TaskList> {
-  /// See also [listWithTaskId].
+  /// 根据任务 ID 找到其所属的任务列表
+  ///
+  /// Copied from [listWithTaskId].
   const ListWithTaskIdFamily();
 
-  /// See also [listWithTaskId].
+  /// 根据任务 ID 找到其所属的任务列表
+  ///
+  /// Copied from [listWithTaskId].
   ListWithTaskIdProvider call(
     String taskId,
   ) {
@@ -341,9 +375,13 @@ class ListWithTaskIdFamily extends Family<TaskList> {
   String? get name => r'listWithTaskIdProvider';
 }
 
-/// See also [listWithTaskId].
+/// 根据任务 ID 找到其所属的任务列表
+///
+/// Copied from [listWithTaskId].
 class ListWithTaskIdProvider extends AutoDisposeProvider<TaskList> {
-  /// See also [listWithTaskId].
+  /// 根据任务 ID 找到其所属的任务列表
+  ///
+  /// Copied from [listWithTaskId].
   ListWithTaskIdProvider(
     String taskId,
   ) : this._internal(
@@ -425,9 +463,13 @@ class _ListWithTaskIdProviderElement
   String get taskId => (origin as ListWithTaskIdProvider).taskId;
 }
 
-String _$availableListsHash() => r'bd98f709167211e281ef7aec66321fedc9d81269';
+String _$availableListsHash() => r'297274bf137a5fc313a50bd60404b01f9d9e8ca3';
 
-/// See also [availableLists].
+/// 新增任务时可供选择的任务列表
+///
+/// 包含默认的"任务"列表和所有非默认列表。
+///
+/// Copied from [availableLists].
 @ProviderFor(availableLists)
 final availableListsProvider = AutoDisposeProvider<List<TaskList>>.internal(
   availableLists,

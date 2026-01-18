@@ -6,12 +6,19 @@ part of 'notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$todoServiceHash() => r'8b70d36aa6bbb287fcf0756a840ca15063566ad8';
+String _$todoServiceHash() => r'f5c3638373a12ab6c0b132885af0eef06a590eaf';
 
-/// See also [TodoService].
+/// Todo 模块的核心服务
+///
+/// 提供以下功能：
+/// - 任务列表 CRUD 操作
+/// - 任务 CRUD 操作
+/// - 列表排序管理
+///
+/// Copied from [TodoService].
 @ProviderFor(TodoService)
 final todoServiceProvider =
-    AutoDisposeNotifierProvider<TodoService, Cashier>.internal(
+    AutoDisposeNotifierProvider<TodoService, TodoRepository>.internal(
   TodoService.new,
   name: r'todoServiceProvider',
   debugGetCreateSourceHash:
@@ -20,6 +27,6 @@ final todoServiceProvider =
   allTransitiveDependencies: null,
 );
 
-typedef _$TodoService = AutoDisposeNotifier<Cashier>;
+typedef _$TodoService = AutoDisposeNotifier<TodoRepository>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

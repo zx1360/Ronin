@@ -69,7 +69,6 @@ class _MessageInputWidgetState extends ConsumerState<MessageInputWidget> {
           onTapOutside: (event) => _focusNode.unfocus(),
         ),
         const SizedBox(width: 8.0),
-        // TODO: routine的表情添加可以置于此?
         Align(
           alignment: Alignment.centerRight,
           child: IconButton(

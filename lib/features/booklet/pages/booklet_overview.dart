@@ -6,8 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:torrid/core/utils/file_relates.dart';
-import 'package:torrid/features/booklet/providers/routine_notifier_provider.dart';
-import 'package:torrid/features/booklet/providers/status_provider.dart';
+import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/checkin_calendar.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/new_style/newtask_inputitem.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
@@ -60,7 +59,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
   void _onStyleChanged(String? newStyleId) {
     if (newStyleId != _currentStyle?.id) {
       setState(() {
-        _currentStyle = ref.read(styleWithIdProvider(newStyleId!));
+        _currentStyle = ref.read(styleByIdProvider(newStyleId!));
       });
     }
   }
@@ -81,7 +80,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
       // 新建样式前, 删除<日期为今天>的record记录和style记录
       await _server.clearBeforeNewStyle();
     }
-    await ref.read(routineServiceProvider.notifier).refreshAll();
+    await ref.read(routineServiceProvider.notifier).refreshAllStats();
     // 本方法内两个setState()
     // 前者为了确保有style记录被删时, 下拉栏断言不出错.
     // 后者为了新建之后立刻显示新style的overview.
@@ -327,9 +326,14 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
   Widget build(BuildContext context) {
     _server = ref.watch(routineServiceProvider.notifier);
     // 响应式数据
+    Map<String, int> taskCompletionCounts = {};
     if (_currentStyle != null) {
       _relatedRecords = ref.watch(
-        recordsWithStyleidProvider(_currentStyle!.id),
+        recordsByStyleIdProvider(_currentStyle!.id),
+      );
+      // 获取所有任务的完成次数
+      taskCompletionCounts = ref.watch(
+        allTaskCompletionCountsProvider(_currentStyle!.id),
       );
     }
 
@@ -399,10 +403,12 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                       itemCount: _currentStyle!.tasks.length,
                       itemBuilder: (context, index) {
                         Task task = _currentStyle!.tasks[index];
+                        final completionCount = taskCompletionCounts[task.id] ?? 0;
                         return TaskSimpleWidget(
                           title: task.title,
                           description: task.description,
                           imgUrl: task.image,
+                          completionCount: completionCount,
                         );
                       },
                     ),
