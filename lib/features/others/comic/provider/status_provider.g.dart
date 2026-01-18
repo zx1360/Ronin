@@ -8,7 +8,11 @@ part of 'status_provider.dart';
 
 String _$comicInfosHash() => r'82eae5d4f68dce760a3bab7fb67555f403732655';
 
-/// See also [comicInfos].
+/// 所有本地漫画信息（按拼音升序排列）
+///
+/// 对于含有中文的漫画名，按拼音首字母排序。
+///
+/// Copied from [comicInfos].
 @ProviderFor(comicInfos)
 final comicInfosProvider = AutoDisposeProvider<List<ComicInfo>>.internal(
   comicInfos,
@@ -21,7 +25,7 @@ final comicInfosProvider = AutoDisposeProvider<List<ComicInfo>>.internal(
 
 typedef ComicInfosRef = AutoDisposeProviderRef<List<ComicInfo>>;
 String _$comicPrefWithComicIdHash() =>
-    r'736cccf8254439070d41a733bd17b0f748209aa3';
+    r'e7356a15d0a93a610b9181d66a02d9912a964930';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -44,16 +48,32 @@ class _SystemHash {
   }
 }
 
-/// See also [comicPrefWithComicId].
+/// 获取指定漫画的阅读偏好
+///
+/// 如果不存在则返回默认偏好（从第0章开始）。
+///
+/// Copied from [comicPrefWithComicId].
 @ProviderFor(comicPrefWithComicId)
 const comicPrefWithComicIdProvider = ComicPrefWithComicIdFamily();
 
-/// See also [comicPrefWithComicId].
+/// 获取指定漫画的阅读偏好
+///
+/// 如果不存在则返回默认偏好（从第0章开始）。
+///
+/// Copied from [comicPrefWithComicId].
 class ComicPrefWithComicIdFamily extends Family<ComicPreference> {
-  /// See also [comicPrefWithComicId].
+  /// 获取指定漫画的阅读偏好
+  ///
+  /// 如果不存在则返回默认偏好（从第0章开始）。
+  ///
+  /// Copied from [comicPrefWithComicId].
   const ComicPrefWithComicIdFamily();
 
-  /// See also [comicPrefWithComicId].
+  /// 获取指定漫画的阅读偏好
+  ///
+  /// 如果不存在则返回默认偏好（从第0章开始）。
+  ///
+  /// Copied from [comicPrefWithComicId].
   ComicPrefWithComicIdProvider call({
     required String comicId,
   }) {
@@ -86,10 +106,18 @@ class ComicPrefWithComicIdFamily extends Family<ComicPreference> {
   String? get name => r'comicPrefWithComicIdProvider';
 }
 
-/// See also [comicPrefWithComicId].
+/// 获取指定漫画的阅读偏好
+///
+/// 如果不存在则返回默认偏好（从第0章开始）。
+///
+/// Copied from [comicPrefWithComicId].
 class ComicPrefWithComicIdProvider
     extends AutoDisposeProvider<ComicPreference> {
-  /// See also [comicPrefWithComicId].
+  /// 获取指定漫画的阅读偏好
+  ///
+  /// 如果不存在则返回默认偏好（从第0章开始）。
+  ///
+  /// Copied from [comicPrefWithComicId].
   ComicPrefWithComicIdProvider({
     required String comicId,
   }) : this._internal(
@@ -173,18 +201,34 @@ class _ComicPrefWithComicIdProviderElement
 }
 
 String _$chaptersWithComicIdHash() =>
-    r'cee29817cd4805974b78cd28f6276ad7f288d1f3';
+    r'9592109cace153ea9f3ef32ac53b7c3b373c04b7';
 
-/// See also [chaptersWithComicId].
+/// 获取指定漫画的所有章节信息
+///
+/// 按章节索引升序排列。
+///
+/// Copied from [chaptersWithComicId].
 @ProviderFor(chaptersWithComicId)
 const chaptersWithComicIdProvider = ChaptersWithComicIdFamily();
 
-/// See also [chaptersWithComicId].
+/// 获取指定漫画的所有章节信息
+///
+/// 按章节索引升序排列。
+///
+/// Copied from [chaptersWithComicId].
 class ChaptersWithComicIdFamily extends Family<AsyncValue<List<ChapterInfo>>> {
-  /// See also [chaptersWithComicId].
+  /// 获取指定漫画的所有章节信息
+  ///
+  /// 按章节索引升序排列。
+  ///
+  /// Copied from [chaptersWithComicId].
   const ChaptersWithComicIdFamily();
 
-  /// See also [chaptersWithComicId].
+  /// 获取指定漫画的所有章节信息
+  ///
+  /// 按章节索引升序排列。
+  ///
+  /// Copied from [chaptersWithComicId].
   ChaptersWithComicIdProvider call({
     required String comicId,
   }) {
@@ -217,10 +261,18 @@ class ChaptersWithComicIdFamily extends Family<AsyncValue<List<ChapterInfo>>> {
   String? get name => r'chaptersWithComicIdProvider';
 }
 
-/// See also [chaptersWithComicId].
+/// 获取指定漫画的所有章节信息
+///
+/// 按章节索引升序排列。
+///
+/// Copied from [chaptersWithComicId].
 class ChaptersWithComicIdProvider
     extends AutoDisposeFutureProvider<List<ChapterInfo>> {
-  /// See also [chaptersWithComicId].
+  /// 获取指定漫画的所有章节信息
+  ///
+  /// 按章节索引升序排列。
+  ///
+  /// Copied from [chaptersWithComicId].
   ChaptersWithComicIdProvider({
     required String comicId,
   }) : this._internal(

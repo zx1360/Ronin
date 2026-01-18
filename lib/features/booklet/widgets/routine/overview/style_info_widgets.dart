@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/booklet/models/style.dart';
-import 'package:torrid/features/booklet/providers/status_provider.dart';
+import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
 
 /// 构建Style下拉选择框（支持滚动，按创建时间倒序）
@@ -22,8 +22,7 @@ class StyleDropdown extends ConsumerWidget {
       return Text('暂无打卡计划', style: noteSmall);
     }
 
-    final allStyles = ref.read(stylesProvider)
-      ..sort((a, b) => b.startDate.compareTo(a.startDate));
+    final allStyles = ref.watch(sortedStylesProvider);
     return LimitedBox(
       maxHeight: dropdownMaxHeight,
       child: DropdownButtonFormField<String>(

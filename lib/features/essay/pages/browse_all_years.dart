@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
+import 'package:torrid/features/essay/pages/year_overview_page.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
@@ -50,7 +51,10 @@ class BrowseAllYearsState extends ConsumerState<BrowseAllYears> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: _AllYearsSummaryCard(yearSummaries: widget.yearSummaries),
+            child: _AllYearsSummaryCard(
+              yearSummaries: widget.yearSummaries,
+              onTap: () => _navigateToOverview(context),
+            ),
           ),
           const Center(child: CircularProgressIndicator()),
         ],
@@ -64,7 +68,10 @@ class BrowseAllYearsState extends ConsumerState<BrowseAllYears> {
           if (index == 0) {
             return Padding(
               padding: const EdgeInsets.all(16.0),
-              child: _AllYearsSummaryCard(yearSummaries: widget.yearSummaries),
+              child: _AllYearsSummaryCard(
+                yearSummaries: widget.yearSummaries,
+                onTap: () => _navigateToOverview(context),
+              ),
             );
           }
           // 给右下角floating_btn留空.
@@ -89,6 +96,41 @@ class BrowseAllYearsState extends ConsumerState<BrowseAllYears> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// 跳转到全部概览页面
+  void _navigateToOverview(BuildContext context) {
+    // 构建全部年份的汇总 YearSummary
+    final totalEssayCount = widget.yearSummaries.fold<int>(
+      0,
+      (sum, y) => sum + y.essayCount,
+    );
+    final totalWordCount = widget.yearSummaries.fold<int>(
+      0,
+      (sum, y) => sum + y.wordCount,
+    );
+
+    final allYearsSummary = YearSummary(
+      year: '-1',
+      essayCount: totalEssayCount,
+      wordCount: totalWordCount,
+      monthSummaries: widget.yearSummaries
+          .map(
+            (y) => MonthSummary(
+              month: y.year,
+              essayCount: y.essayCount,
+              wordCount: y.wordCount,
+            ),
+          )
+          .toList(),
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => YearOverviewPage(summary: allYearsSummary),
       ),
     );
   }
@@ -140,9 +182,9 @@ class _EssayCardWithYear extends ConsumerWidget {
               children: [
                 Text(
                   dateFormat.format(essay.date),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
                 if (labelNames.isNotEmpty)
                   Row(
@@ -195,9 +237,8 @@ class _EssayCardWithYear extends ConsumerWidget {
                         margin: const EdgeInsets.only(left: 4.0),
                         child: Text(
                           '+${essay.imgs.length - 3}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.grey[600],
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.grey[600]),
                         ),
                       ),
                   ],
@@ -230,9 +271,9 @@ class _EssayCardWithYear extends ConsumerWidget {
                   const SizedBox(),
                 Text(
                   '${essay.wordCount} 字',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[500],
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
                 ),
               ],
             ),
@@ -246,8 +287,9 @@ class _EssayCardWithYear extends ConsumerWidget {
 /// 所有年份的汇总卡片
 class _AllYearsSummaryCard extends StatelessWidget {
   final List<YearSummary> yearSummaries;
+  final VoidCallback? onTap;
 
-  const _AllYearsSummaryCard({required this.yearSummaries});
+  const _AllYearsSummaryCard({required this.yearSummaries, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -260,119 +302,135 @@ class _AllYearsSummaryCard extends StatelessWidget {
       0,
       (sum, y) => sum + y.wordCount,
     );
-    final wordAvg =
-        totalEssayCount > 0 ? (totalWordCount / totalEssayCount).round() : 0;
+    final wordAvg = totalEssayCount > 0
+        ? (totalWordCount / totalEssayCount).round()
+        : 0;
     final yearCount = yearSummaries.length;
 
     // 找出写作最多的年份
     final mostProductiveYear = yearSummaries.isNotEmpty
-        ? yearSummaries.reduce(
-            (a, b) => a.essayCount > b.essayCount ? a : b,
-          )
+        ? yearSummaries.reduce((a, b) => a.essayCount > b.essayCount ? a : b)
         : null;
 
-    return Container(
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(48),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.library_books_outlined,
-                color: Theme.of(context).primaryColor,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '全部随笔',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+        child: Container(
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(48),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
-
-          // 主要统计数据
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildStatItem(
-                context,
-                value: totalEssayCount.toString(),
-                label: '总篇数',
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.library_books_outlined,
+                        color: Theme.of(context).primaryColor,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '全部随笔',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  if (onTap != null)
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.grey[400],
+                    ),
+                ],
               ),
-              _buildStatItem(
-                context,
-                value: totalWordCount.toString(),
-                label: '总字数',
+
+              const SizedBox(height: 16),
+
+              // 主要统计数据
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem(
+                    context,
+                    value: totalEssayCount.toString(),
+                    label: '总篇数',
+                  ),
+                  _buildStatItem(
+                    context,
+                    value: totalWordCount.toString(),
+                    label: '总字数',
+                  ),
+                  _buildStatItem(
+                    context,
+                    value: wordAvg.toString(),
+                    label: '单篇平均',
+                  ),
+                ],
               ),
-              _buildStatItem(
-                context,
-                value: wordAvg.toString(),
-                label: '单篇平均',
+
+              const SizedBox(height: 16),
+
+              // 次要统计数据
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem(
+                    context,
+                    value: yearCount.toString(),
+                    label: '跨越年份',
+                    isSecondary: true,
+                  ),
+                  if (mostProductiveYear != null)
+                    _buildStatItem(
+                      context,
+                      value: mostProductiveYear.year,
+                      label: '最高产年份',
+                      isSecondary: true,
+                    ),
+                  if (mostProductiveYear != null)
+                    _buildStatItem(
+                      context,
+                      value: mostProductiveYear.essayCount.toString(),
+                      label: '该年篇数',
+                      isSecondary: true,
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // 年度分布图表
+              Column(
+                children: [
+                  Text(
+                    '年度写作分布',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildYearlyChart(context),
+                ],
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
-
-          // 次要统计数据
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem(
-                context,
-                value: yearCount.toString(),
-                label: '跨越年份',
-                isSecondary: true,
-              ),
-              if (mostProductiveYear != null)
-                _buildStatItem(
-                  context,
-                  value: mostProductiveYear.year,
-                  label: '最高产年份',
-                  isSecondary: true,
-                ),
-              if (mostProductiveYear != null)
-                _buildStatItem(
-                  context,
-                  value: mostProductiveYear.essayCount.toString(),
-                  label: '该年篇数',
-                  isSecondary: true,
-                ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // 年度分布图表
-          Column(
-            children: [
-              Text(
-                '年度写作分布',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildYearlyChart(context),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -390,20 +448,20 @@ class _AllYearsSummaryCard extends StatelessWidget {
           value,
           style: isSecondary
               ? Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).primaryColor.withAlpha(200),
-                  )
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).primaryColor.withAlpha(200),
+                )
               : Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).primaryColor,
-                  ),
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).primaryColor,
+                ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.grey[600],
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
         ),
       ],
     );
@@ -426,7 +484,7 @@ class _AllYearsSummaryCard extends StatelessWidget {
     // 每行最多12个年份
     const maxPerRow = 12;
     final rowCount = (sortedSummaries.length / maxPerRow).ceil();
-    
+
     // 将年份分成多行
     final List<List<YearSummary>> rows = [];
     for (int i = 0; i < rowCount; i++) {
@@ -440,7 +498,7 @@ class _AllYearsSummaryCard extends StatelessWidget {
         final rowIndex = entry.key;
         final rowSummaries = entry.value;
         final isLastRow = rowIndex == rows.length - 1;
-        
+
         return Padding(
           padding: EdgeInsets.only(bottom: isLastRow ? 0 : 12),
           child: SizedBox(
@@ -448,7 +506,9 @@ class _AllYearsSummaryCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: rowSummaries.map((summary) {
-                final heightRatio = maxCount > 0 ? summary.essayCount / maxCount : 0.0;
+                final heightRatio = maxCount > 0
+                    ? summary.essayCount / maxCount
+                    : 0.0;
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -457,10 +517,8 @@ class _AllYearsSummaryCard extends StatelessWidget {
                       children: [
                         Text(
                           summary.essayCount.toString(),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Colors.grey[600],
-                            fontSize: 9,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: Colors.grey[600], fontSize: 9),
                         ),
                         const SizedBox(height: 2),
                         Container(
@@ -476,13 +534,11 @@ class _AllYearsSummaryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          summary.year.length >= 4 
+                          summary.year.length >= 4
                               ? summary.year.substring(2) // 只显示后两位年份
                               : summary.year,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Colors.grey[600],
-                            fontSize: 10,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: Colors.grey[600], fontSize: 10),
                         ),
                       ],
                     ),

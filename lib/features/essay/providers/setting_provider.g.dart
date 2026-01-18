@@ -6,9 +6,13 @@ part of 'setting_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$browseManagerHash() => r'82b7f6aa5d645499e278c563ff86ffa7866d20ca';
+String _$browseManagerHash() => r'813331531e532857c0721b5d7b3223a732f74964';
 
-/// See also [BrowseManager].
+/// 浏览设置管理器
+///
+/// 管理随笔浏览页面的排序和筛选设置。
+///
+/// Copied from [BrowseManager].
 @ProviderFor(BrowseManager)
 final browseManagerProvider =
     AutoDisposeNotifierProvider<BrowseManager, BrowseSettings>.internal(
@@ -22,9 +26,16 @@ final browseManagerProvider =
 );
 
 typedef _$BrowseManager = AutoDisposeNotifier<BrowseSettings>;
-String _$contentServerHash() => r'34eb93eacce6caf6c301cafe81b79f2c7f5df5d5';
+String _$contentServerHash() => r'fdd5b1e710b49201d78772f119e8209067d1e379';
 
-/// See also [ContentServer].
+/// 当前选中/正在查看的随笔
+///
+/// 用于详情页和相关操作时保持当前随笔的引用。
+///
+/// **重命名说明**: 原名 `ContentServer`，为提高可读性重命名为 `SelectedEssay`。
+/// 生成的 provider 名称保持 `contentServerProvider` 以保持向后兼容。
+///
+/// Copied from [ContentServer].
 @ProviderFor(ContentServer)
 final contentServerProvider =
     AutoDisposeNotifierProvider<ContentServer, Essay?>.internal(

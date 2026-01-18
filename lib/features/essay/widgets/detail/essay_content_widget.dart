@@ -198,7 +198,6 @@ class EssayContentWidget extends ConsumerWidget {
                   childAspectRatio: 1.0,
                 ),
                 itemCount: essay.imgs.length,
-                // TODO: 对于过大的图片(比如长截图), 无法显示, 使用photo_view呢?
                 itemBuilder: (context, index) {
                   return GestureDetector(
                     onDoubleTap: () =>

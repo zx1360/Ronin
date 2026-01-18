@@ -43,6 +43,25 @@ class YearSummary {
     );
   }
 
+  /// 从指定年份的 essays 列表计算生成 YearSummary
+  /// 用于刷新/重建年度统计信息
+  factory YearSummary.fromEssays(String year, Iterable<Essay> essays) {
+    final essaysInYear = essays.where((e) => e.date.year.toString() == year);
+    final monthSummaries = <MonthSummary>[];
+    for (int month = 1; month <= 12; month++) {
+      final summary = MonthSummary.fromEssays(month, essaysInYear);
+      if (summary.essayCount > 0) {
+        monthSummaries.add(summary);
+      }
+    }
+    return YearSummary(
+      year: year,
+      essayCount: essaysInYear.length,
+      wordCount: essaysInYear.fold(0, (sum, e) => sum + e.wordCount),
+      monthSummaries: monthSummaries,
+    );
+  }
+
   // 增/删随笔时. 更新信息.
   YearSummary edit({required Essay essay, required bool isAppend}) {
     int flag = isAppend ? 1 : -1;
@@ -105,6 +124,16 @@ class MonthSummary {
       month: month,
       essayCount: essayCount + flag,
       wordCount: wordCount + essay.wordCount * flag,
+    );
+  }
+
+  /// 从指定月份的 essays 列表计算生成 MonthSummary
+  factory MonthSummary.fromEssays(int month, Iterable<Essay> essays) {
+    final essaysInMonth = essays.where((e) => e.date.month == month);
+    return MonthSummary(
+      month: month.toString(),
+      essayCount: essaysInMonth.length,
+      wordCount: essaysInMonth.fold(0, (sum, e) => sum + e.wordCount),
     );
   }
 

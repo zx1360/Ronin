@@ -6,9 +6,16 @@ part of 'content_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$contentHash() => r'0f0c71cbad63a61ed854e0125703e79e3fde7222';
+String _$contentHash() => r'6520d27334f7017158e723c60ffa68ad73acfeda';
 
-/// See also [Content].
+/// 当前选中的任务列表
+///
+/// 用于 Todo 页面显示当前正在查看的任务列表。
+///
+/// **重命名说明**: 原名 `Content`，为提高可读性可考虑重命名为 `SelectedTaskList`。
+/// 生成的 provider 名称保持 `contentProvider` 以保持向后兼容。
+///
+/// Copied from [Content].
 @ProviderFor(Content)
 final contentProvider =
     AutoDisposeNotifierProvider<Content, TaskList?>.internal(

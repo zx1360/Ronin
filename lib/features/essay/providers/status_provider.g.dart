@@ -8,7 +8,9 @@ part of 'status_provider.dart';
 
 String _$labelsHash() => r'a4807c62a23711524f0da9764bfef6308d265b10';
 
-/// See also [labels].
+/// 所有标签列表（按随笔数量降序排列）
+///
+/// Copied from [labels].
 @ProviderFor(labels)
 final labelsProvider = AutoDisposeProvider<List<Label>>.internal(
   labels,
@@ -22,7 +24,11 @@ final labelsProvider = AutoDisposeProvider<List<Label>>.internal(
 typedef LabelsRef = AutoDisposeProviderRef<List<Label>>;
 String _$idMapHash() => r'e9610658a70dc1ad4da555431b922f231b93c8bf';
 
-/// See also [idMap].
+/// 标签 ID 到名称的映射表
+///
+/// 便于在显示时快速查找标签名称。
+///
+/// Copied from [idMap].
 @ProviderFor(idMap)
 final idMapProvider = AutoDisposeProvider<Map<String, String>>.internal(
   idMap,
@@ -36,7 +42,11 @@ final idMapProvider = AutoDisposeProvider<Map<String, String>>.internal(
 typedef IdMapRef = AutoDisposeProviderRef<Map<String, String>>;
 String _$summariesHash() => r'59992ea03bca0de1ae15ab1c66b342d633756521';
 
-/// See also [summaries].
+/// 所有年度统计数据（按年份降序排列）
+///
+/// 每个年度内的月份数据按月份升序排列。
+///
+/// Copied from [summaries].
 @ProviderFor(summaries)
 final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
   summaries,
@@ -48,9 +58,13 @@ final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
 );
 
 typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'901bebba6f82082fe585667e01e22323dbe01c54';
+String _$filteredEssaysHash() => r'96fa72df99045c9574dfae767701d7bfcd5dc3b1';
 
-/// See also [filteredEssays].
+/// 经过筛选和排序的随笔列表
+///
+/// 根据 [BrowseManager] 的设置进行标签筛选和排序。
+///
+/// Copied from [filteredEssays].
 @ProviderFor(filteredEssays)
 final filteredEssaysProvider = AutoDisposeFutureProvider<List<Essay>>.internal(
   filteredEssays,
@@ -86,16 +100,24 @@ class _SystemHash {
   }
 }
 
-/// See also [yearEssays].
+/// 指定年份的随笔列表（基于筛选结果）
+///
+/// Copied from [yearEssays].
 @ProviderFor(yearEssays)
 const yearEssaysProvider = YearEssaysFamily();
 
-/// See also [yearEssays].
+/// 指定年份的随笔列表（基于筛选结果）
+///
+/// Copied from [yearEssays].
 class YearEssaysFamily extends Family<AsyncValue<List<Essay>>> {
-  /// See also [yearEssays].
+  /// 指定年份的随笔列表（基于筛选结果）
+  ///
+  /// Copied from [yearEssays].
   const YearEssaysFamily();
 
-  /// See also [yearEssays].
+  /// 指定年份的随笔列表（基于筛选结果）
+  ///
+  /// Copied from [yearEssays].
   YearEssaysProvider call({
     required String year,
   }) {
@@ -128,9 +150,13 @@ class YearEssaysFamily extends Family<AsyncValue<List<Essay>>> {
   String? get name => r'yearEssaysProvider';
 }
 
-/// See also [yearEssays].
+/// 指定年份的随笔列表（基于筛选结果）
+///
+/// Copied from [yearEssays].
 class YearEssaysProvider extends AutoDisposeFutureProvider<List<Essay>> {
-  /// See also [yearEssays].
+  /// 指定年份的随笔列表（基于筛选结果）
+  ///
+  /// Copied from [yearEssays].
   YearEssaysProvider({
     required String year,
   }) : this._internal(

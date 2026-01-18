@@ -76,10 +76,13 @@ class SettingWidget extends ConsumerWidget {
           const Text('标签筛选:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
 
-          LabelSelector(
-            labels: labels,
-            selectedLabels: selectedLabels,
-            onToggleLabel: onToggle,
+          // 使用 Flexible 让标签选择器在空间不足时可滚动
+          Flexible(
+            child: LabelSelector(
+              labels: labels,
+              selectedLabels: selectedLabels,
+              onToggleLabel: onToggle,
+            ),
           ),
 
           const SizedBox(height: 16),
@@ -90,7 +93,7 @@ class SettingWidget extends ConsumerWidget {
             children: [
               ElevatedButton(
                 onPressed: () {
-                  final notifier=ref.read(essayServiceProvider.notifier);
+                  final notifier = ref.read(essayServiceProvider.notifier);
                   notifier.refreshLabel();
                   notifier.refreshYear();
                   notifier.deleteZeroLabels();

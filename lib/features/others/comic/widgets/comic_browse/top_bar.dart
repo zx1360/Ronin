@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
 
-// TODO: riverpod重构!
 class TopControllBar extends StatelessWidget {
   final String comicName;
   final String chapterName;

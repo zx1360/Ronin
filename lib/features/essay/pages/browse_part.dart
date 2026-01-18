@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
+import 'package:torrid/features/essay/pages/year_overview_page.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
@@ -37,7 +38,9 @@ class BrowsePartState extends ConsumerState<BrowsePart> {
 
   @override
   Widget build(BuildContext context) {
-    final essaysAsync = ref.watch(yearEssaysProvider(year: widget.yearSummary.year));
+    final essaysAsync = ref.watch(
+      yearEssaysProvider(year: widget.yearSummary.year),
+    );
     ref.watch(contentServerProvider); //防止contentServerProvider被销毁.
 
     return essaysAsync.when(
@@ -46,7 +49,10 @@ class BrowsePartState extends ConsumerState<BrowsePart> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: YearSummaryCard(summary: widget.yearSummary),
+            child: YearSummaryCard(
+              summary: widget.yearSummary,
+              onTap: () => _navigateToOverview(context),
+            ),
           ),
           const Center(child: CircularProgressIndicator()),
         ],
@@ -59,7 +65,10 @@ class BrowsePartState extends ConsumerState<BrowsePart> {
           if (index == 0) {
             return Padding(
               padding: const EdgeInsets.all(16.0),
-              child: YearSummaryCard(summary: widget.yearSummary),
+              child: YearSummaryCard(
+                summary: widget.yearSummary,
+                onTap: () => _navigateToOverview(context),
+              ),
             );
           }
           // 给右下角floating_btn留空.
@@ -84,6 +93,16 @@ class BrowsePartState extends ConsumerState<BrowsePart> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// 跳转到年度概览页面
+  void _navigateToOverview(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => YearOverviewPage(summary: widget.yearSummary),
       ),
     );
   }

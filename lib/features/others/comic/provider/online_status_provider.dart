@@ -1,3 +1,8 @@
+/// Comic 模块的在线数据提供者
+///
+/// 从服务器获取漫画和章节信息。
+library;
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
@@ -5,7 +10,11 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'online_status_provider.g.dart';
 
-// 获取所有漫画信息
+// ============================================================================
+// 在线漫画数据
+// ============================================================================
+
+/// 获取所有在线漫画信息
 @riverpod
 Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
   final response = await ref.read(
@@ -14,14 +23,13 @@ Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
   if (response == null) {
     throw Exception("获取在线漫画列表失败");
   }
-  final comics = <ComicInfo>[];
-  for (final row in response.data) {
-    comics.add(ComicInfo.fromJson(row));
-  }
-  return comics;
+  
+  return (response.data as List)
+      .map((row) => ComicInfo.fromJson(row as Map<String, dynamic>))
+      .toList();
 }
 
-// 根据comicId获取对应的章节信息
+/// 根据漫画 ID 获取对应的章节信息
 @riverpod
 Future<List<ChapterInfo>> onlineChaptersWithComicId(
   OnlineChaptersWithComicIdRef ref, {
@@ -33,14 +41,13 @@ Future<List<ChapterInfo>> onlineChaptersWithComicId(
   if (response == null) {
     return [];
   }
-  final comics = <ChapterInfo>[];
-  for (final row in response.data) {
-    comics.add(ChapterInfo.fromJson(row));
-  }
-  return comics;
+  
+  return (response.data as List)
+      .map((row) => ChapterInfo.fromJson(row as Map<String, dynamic>))
+      .toList();
 }
 
-// 根据chapterId获取对应的章节信息
+/// 根据章节 ID 获取对应的图片信息
 @riverpod
 Future<List<Map<String, dynamic>>> onlineImagesWithChapterId(
   OnlineImagesWithChapterIdRef ref, {
@@ -52,11 +59,8 @@ Future<List<Map<String, dynamic>>> onlineImagesWithChapterId(
   if (response == null) {
     return [];
   }
-  final images = <Map<String, dynamic>>[];
-  // TODO:
-  // return response.data.cast<Map<String, dynamic>>();
-  for (final row in response.data) {
-    images.add(row);
-  }
-  return images;
+  
+  return (response.data as List)
+      .map((row) => row as Map<String, dynamic>)
+      .toList();
 }
