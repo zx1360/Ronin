@@ -268,12 +268,22 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
     return sliderValue(_currentImageIndex, imageCount);
   }
 
+  /// 预加载相邻图片（前后各1张）
+  void _precacheAdjacentImages(int currentIndex) {
+    final indicesToPrecache = [currentIndex - 1, currentIndex + 1];
+    for (final i in indicesToPrecache) {
+      if (i >= 0 && i < images.length) {
+        final imageProvider = resolveImageProvider(images[i], widget.isLocal, ref);
+        precacheImage(imageProvider, context);
+      }
+    }
+  }
+
   Widget _buildGallery() {
     if (images.isEmpty) {
       return const Center(child: Text('该章节没有找到图片'));
     }
 
-    // TODO: 图片预加载前后一张图片防止短暂空白.
     return PhotoViewGallery.builder(
       key: ValueKey('comic_gallery_${currentChapter.id}_${currentChapter.chapterIndex}'),
       itemCount: images.length,
@@ -294,6 +304,8 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
         setState(() {
           _currentImageIndex = index;
         });
+        // 预加载前后图片
+        _precacheAdjacentImages(index);
       },
       pageController: _pageController,
     );

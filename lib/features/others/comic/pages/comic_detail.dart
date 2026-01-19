@@ -12,7 +12,6 @@ import 'package:torrid/core/widgets/progress_indicator/progress_indicator.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 
-// TODO: 加入'删除'选项, 从本地删除.
 class ComicDetailPage extends ConsumerWidget {
   final ComicInfo comicInfo;
   final bool isLocal;
