@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/profile/second_page/about/profile_about.dart';
 import 'package:torrid/features/profile/second_page/account/profile_account.dart';
-import 'package:torrid/features/profile/second_page/data/page/profile_data.dart';
+import 'package:torrid/features/profile/second_page/data_transfer/data_transfer.dart';
 import 'package:torrid/features/profile/second_page/preferences/profile_preferences.dart';
 
 
@@ -41,7 +41,7 @@ final List<ProfilePageConfig> profilePages = [
     title: '数据',
     subtitle: '备份或同步',
     icon: Icons.laptop_chromebook_outlined,
-    builder: (context) => const ProfileData(),
+    builder: (context) => const DataTransferPage(),
   ),
   ProfilePageConfig(
     name: 'profile_account',

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/profile/second_page/data/models/action_info.dart';
+import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
 import 'package:torrid/features/profile/second_page/data/providers/status_provider.dart';
+import 'package:torrid/features/profile/second_page/data/providers/transfer_service.dart';
 import 'package:torrid/features/profile/second_page/data/widgets/action_button.dart';
 import 'package:torrid/features/profile/second_page/data/widgets/network_config_widget.dart';
+import 'package:torrid/features/profile/second_page/data/widgets/transfer_progress_widget.dart';
 import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
-// TODO: 数据页史诗级重构!
 class ProfileData extends ConsumerWidget {
   const ProfileData({super.key});
 
@@ -14,6 +16,8 @@ class ProfileData extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final List<ActionInfo> infos = ref.read(actionInfosProvider);
+    final transferProgress = ref.watch(transferStateProvider);
+    final isTransferring = transferProgress.isInProgress;
 
     return Container(
       child: ref.watch(serverConnectorProvider)['isLoading']
@@ -40,6 +44,13 @@ class ProfileData extends ConsumerWidget {
                     // 网络地址输入框/状态栏
                     NetworkConfigWidget(),
 
+                    // 传输进度指示器
+                    if (transferProgress.status != TransferStatus.idle)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: TransferProgressWidget(),
+                      ),
+
                     // 同步相关操作
                     Text(
                       "同步到本地:",
@@ -52,7 +63,11 @@ class ProfileData extends ConsumerWidget {
                     ...infos.take((infos.length / 2).ceil()).expand((info) {
                       return [
                         const SizedBox(height: 8),
-                        ActionButton(context: context, info: info),
+                        ActionButton(
+                          context: context,
+                          info: info,
+                          disabled: isTransferring,
+                        ),
                       ];
                     }),
 
@@ -69,7 +84,11 @@ class ProfileData extends ConsumerWidget {
                     ...infos.skip((infos.length / 2).ceil()).expand((info) {
                       return [
                         const SizedBox(height: 8),
-                        ActionButton(context: context, info: info),
+                        ActionButton(
+                          context: context,
+                          info: info,
+                          disabled: isTransferring,
+                        ),
                       ];
                     }),
                   ],

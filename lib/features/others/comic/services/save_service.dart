@@ -4,13 +4,43 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/utils/file_relates.dart';
 
 class ComicSaverService {
-  // TODO: 外部公有空间的通用逻辑.
-  static String publicPath = '/storage/emulated/0/Pictures/torrid';
+  // 外部公有空间路径（Android Pictures 目录）
+  static const String publicPath = '/storage/emulated/0/Pictures/torrid';
+
+  /// 确保存储权限并创建目录，返回是否成功
+  static Future<bool> _ensureStorageAccess() async {
+    // Android 10+ 使用 MANAGE_EXTERNAL_STORAGE，低版本使用 storage
+    final permission = await Permission.manageExternalStorage.status;
+    if (!permission.isGranted) {
+      final result = await Permission.manageExternalStorage.request();
+      if (!result.isGranted) {
+        // 降级尝试普通存储权限
+        final storageResult = await Permission.storage.request();
+        if (!storageResult.isGranted) {
+          AppLogger().warning('存储权限被拒绝');
+          return false;
+        }
+      }
+    }
+
+    // 确保目录存在
+    final publicDir = Directory(publicPath);
+    if (!await publicDir.exists()) {
+      try {
+        await publicDir.create(recursive: true);
+      } catch (e) {
+        AppLogger().error('创建公共目录失败: $e');
+        return false;
+      }
+    }
+    return true;
+  }
 
   // # 翻页漫画的某页保存到外部空间
   static Future<bool> saveFlipImageToPublic(
@@ -18,19 +48,9 @@ class ComicSaverService {
     String filename,
   ) async {
     try {
-      // TODO: 结合permission_handler.
+      if (!await _ensureStorageAccess()) return false;
+
       File sourceFile = File(privateImagePath);
-
-      // 获取外部公共图片目录
-      Directory? publicDir = Directory(publicPath);
-
-      if (!await publicDir.exists()) {
-        try {
-          await publicDir.create(recursive: true);
-        } catch (e) {
-          return false;
-        }
-      }
 
       // 处理文件名
       String fileExtension = getFileExtension(sourceFile.path);
@@ -66,15 +86,8 @@ class ComicSaverService {
   static Future<bool> _processAndSaveImages(Map<String, dynamic> params) async {
     final imagePaths = params['imagePaths'];
     final filename = params['filename'];
-    // 获取外部公共图片目录
-    Directory? publicDir = Directory(publicPath);
-    if (!await publicDir.exists()) {
-      try {
-        await publicDir.create(recursive: true);
-      } catch (e) {
-        return false;
-      }
-    }
+    
+    // 目录已在调用前由 _ensureStorageAccess 确保存在
 
     // 1.加载所有图片并获取宽高.
     List<img.Image> images = [];
@@ -113,13 +126,16 @@ class ComicSaverService {
     if (imagePaths.isEmpty || filename.isEmpty) return false;
 
     try {
-      // 1. 包装需要传递给 compute 的参数（只能传1个参数，用Map包装多个值）
+      // 先确保权限和目录（在主isolate中执行）
+      if (!await _ensureStorageAccess()) return false;
+
+      // 包装需要传递给 compute 的参数
       final params = {
         'imagePaths': imagePaths,
         'filename': filename,
       };
 
-      // 2. 使用 compute 执行耗时操作（回调函数必须是顶级函数）
+      // 使用 compute 执行耗时操作
       bool result = await compute(_processAndSaveImages, params);
       return result;
     } catch (e) {

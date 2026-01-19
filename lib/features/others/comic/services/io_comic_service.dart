@@ -35,23 +35,32 @@ Future<int> countChapters(Directory comicDir) async {
   }
 }
 
-// TODO: 现在是先后两次获取, 之后用一个, comic级的数量用chapter的和.
-// 计算总图片数量
-Future<int> countTotalImages(Directory comicDir) async {
-  int count = 0;
+/// 一次遍历同时获取章节数量和总图片数量
+/// 返回 (chapterCount, imageCount)
+Future<({int chapterCount, int imageCount})> countComicStats(Directory comicDir) async {
+  int chapterCount = 0;
+  int imageCount = 0;
+  const imageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'};
+  
   try {
-    await for (var entity in comicDir.list(recursive: true)) {
-      if (entity is File) {
-        final extension = entity.path.split('.').last.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'gif'].contains(extension)) {
-          count++;
+    await for (var entity in comicDir.list()) {
+      if (entity is Directory) {
+        chapterCount++;
+        // 统计该章节目录下的图片
+        await for (var file in entity.list()) {
+          if (file is File) {
+            final extension = file.path.split('.').last.toLowerCase();
+            if (imageExtensions.contains(extension)) {
+              imageCount++;
+            }
+          }
         }
       }
     }
   } catch (e) {
-    AppLogger().error("计算图片数失败: $e");
+    AppLogger().error("统计漫画信息失败: $e");
   }
-  return count;
+  return (chapterCount: chapterCount, imageCount: imageCount);
 }
 
 // 计算章节图片数量

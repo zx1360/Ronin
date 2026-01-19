@@ -182,8 +182,9 @@ Future<Map<String, dynamic>> newInfos(NewInfosRef ref) async {
 /// 从目录构建漫画信息
 Future<ComicInfo> _buildComicInfo(Directory comicDir, String comicName) async {
   final coverImage = await findFirstImage(comicDir);
-  final chapterCount = await countChapters(comicDir);
-  final imageCount = await countTotalImages(comicDir);
+  final stats = await countComicStats(comicDir);
+  final chapterCount = stats.chapterCount;
+  final imageCount = stats.imageCount;
   
   return ComicInfo.newOne(
     comicName: comicName,

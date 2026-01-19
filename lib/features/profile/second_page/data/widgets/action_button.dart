@@ -1,59 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/profile/second_page/data/models/action_info.dart';
-import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
 // 构建带样式的操作按钮
 class ActionButton extends ConsumerWidget {
   final BuildContext context;
   final ActionInfo info;
-  const ActionButton({super.key, required this.context, required this.info});
+  final bool disabled;
+  
+  const ActionButton({
+    super.key,
+    required this.context,
+    required this.info,
+    this.disabled = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 2,
-            offset: const Offset(0, 1),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: disabled ? 0.5 : 1.0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: disabled ? Colors.grey[100] : Colors.grey[50],
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: disabled ? null : [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: TextButton.icon(
+          onPressed: disabled
+              ? null
+              : () async {
+                  final result = await showConfirmationDialog(
+                    context,
+                    info.label,
+                    info.action,
+                  );
+                  if (result) {
+                    // 直接执行传输操作，不使用旧的loadWithFunc
+                    // 因为新的传输服务有自己的状态管理
+                    await info.action();
+                  }
+                },
+          icon: Icon(
+            info.icon,
+            color: disabled
+                ? Colors.grey
+                : Theme.of(context).colorScheme.primary,
           ),
-        ],
-      ),
-      child: TextButton.icon(
-        onPressed: () async {
-          final result = await showConfirmationDialog(
-            context,
-            info.label,
-            info.action,
-          );
-          if (result) {
-            ref.read(serverConnectorProvider.notifier).loadWithFunc(info.action);
-          }
-        },
-        icon: Icon(info.icon, color: Theme.of(context).colorScheme.primary),
-        label: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              info.label,
-              style: TextStyle(
-                fontSize: 15,
-                color: info.highlighted ? Colors.red : Colors.black87,
+          label: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                info.label,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: disabled
+                      ? Colors.grey
+                      : (info.highlighted ? Colors.red : Colors.black87),
+                ),
               ),
             ),
           ),
-        ),
-        style: TextButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          minimumSize: const Size(double.infinity, 50),
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          style: TextButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            minimumSize: const Size(double.infinity, 50),
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+          ),
         ),
       ),
     );
