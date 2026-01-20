@@ -600,7 +600,7 @@ Future<List<FailedItem>> _retryDownloads({
         }
       } catch (e) {
         lastError = e.toString();
-        AppLogger().warning("重试失败 (${retryCount}/${_maxRetries}): ${item.name}");
+        AppLogger().warning("重试失败 ($retryCount/$_maxRetries): ${item.name}");
       }
     }
 

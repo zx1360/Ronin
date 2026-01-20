@@ -20,7 +20,6 @@ enum Priority {
 }
 
 // todo页的任务数据类.
-// TODO: 目前仅当作备忘录记录接下来需要做的事, 
 // 后续要实现'ms todo'那样的加上循环, 事件提醒啥的话后续再说.
 @JsonSerializable()
 @HiveType(typeId: 19)
