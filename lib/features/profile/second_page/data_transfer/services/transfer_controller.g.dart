@@ -7,7 +7,7 @@ part of 'transfer_controller.dart';
 // **************************************************************************
 
 String _$transferControllerHash() =>
-    r'4575f524199af2a119b40c73c2c1bc7690c931ee';
+    r'e866b86cbb98a4abdb91aa754987b987ee89cc44';
 
 /// 数据传输控制器
 ///
@@ -17,14 +17,14 @@ String _$transferControllerHash() =>
 @ProviderFor(TransferController)
 final transferControllerProvider =
     AutoDisposeNotifierProvider<TransferController, TransferProgress>.internal(
-      TransferController.new,
-      name: r'transferControllerProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$transferControllerHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+  TransferController.new,
+  name: r'transferControllerProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$transferControllerHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
 
 typedef _$TransferController = AutoDisposeNotifier<TransferProgress>;
 // ignore_for_file: type=lint

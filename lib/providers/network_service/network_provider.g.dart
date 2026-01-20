@@ -6,8 +6,27 @@ part of 'network_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+String _$transferServiceHash() => r'31779b6acdef5306079c2384e3fb1cfc4bb9af08';
+
+/// 提供 [TransferService] 实例的 Provider
+///
+/// 依赖 [apiClientManagerProvider] 获取配置好的网络客户端
+///
+/// Copied from [transferService].
+@ProviderFor(transferService)
+final transferServiceProvider = AutoDisposeProvider<TransferService>.internal(
+  transferService,
+  name: r'transferServiceProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$transferServiceHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef TransferServiceRef = AutoDisposeProviderRef<TransferService>;
 String _$saveFromRelativeUrlsHash() =>
-    r'eb4909b9cf64bd89ab9021ba93a825a11b91b464';
+    r'558b6f017a156953bd9f56cc10c72bb7c31229ea';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -30,16 +49,96 @@ class _SystemHash {
   }
 }
 
-/// See also [saveFromRelativeUrls].
+/// 从相对URL批量下载文件并保存到指定目录
+///
+/// [urls] - 相对路径列表（不含 `/static/` 前缀）
+/// [relativeDir] - 保存目标的相对目录路径（相对于应用外部私有空间）
+///
+/// 特性：
+/// - 保存前自动清空目标目录
+/// - 使用并发下载提升性能（默认并发数 5）
+/// - 通过 [TransferService] 实现，便于测试和复用
+///
+/// 使用示例：
+/// ```dart
+/// await ref.read(
+///   saveFromRelativeUrlsProvider(
+///     urls: ['path/to/image1.png', 'path/to/image2.jpg'],
+///     relativeDir: 'img_storage/booklet',
+///   ).future,
+/// );
+/// ```
+///
+/// Copied from [saveFromRelativeUrls].
 @ProviderFor(saveFromRelativeUrls)
 const saveFromRelativeUrlsProvider = SaveFromRelativeUrlsFamily();
 
-/// See also [saveFromRelativeUrls].
+/// 从相对URL批量下载文件并保存到指定目录
+///
+/// [urls] - 相对路径列表（不含 `/static/` 前缀）
+/// [relativeDir] - 保存目标的相对目录路径（相对于应用外部私有空间）
+///
+/// 特性：
+/// - 保存前自动清空目标目录
+/// - 使用并发下载提升性能（默认并发数 5）
+/// - 通过 [TransferService] 实现，便于测试和复用
+///
+/// 使用示例：
+/// ```dart
+/// await ref.read(
+///   saveFromRelativeUrlsProvider(
+///     urls: ['path/to/image1.png', 'path/to/image2.jpg'],
+///     relativeDir: 'img_storage/booklet',
+///   ).future,
+/// );
+/// ```
+///
+/// Copied from [saveFromRelativeUrls].
 class SaveFromRelativeUrlsFamily extends Family<AsyncValue<void>> {
-  /// See also [saveFromRelativeUrls].
+  /// 从相对URL批量下载文件并保存到指定目录
+  ///
+  /// [urls] - 相对路径列表（不含 `/static/` 前缀）
+  /// [relativeDir] - 保存目标的相对目录路径（相对于应用外部私有空间）
+  ///
+  /// 特性：
+  /// - 保存前自动清空目标目录
+  /// - 使用并发下载提升性能（默认并发数 5）
+  /// - 通过 [TransferService] 实现，便于测试和复用
+  ///
+  /// 使用示例：
+  /// ```dart
+  /// await ref.read(
+  ///   saveFromRelativeUrlsProvider(
+  ///     urls: ['path/to/image1.png', 'path/to/image2.jpg'],
+  ///     relativeDir: 'img_storage/booklet',
+  ///   ).future,
+  /// );
+  /// ```
+  ///
+  /// Copied from [saveFromRelativeUrls].
   const SaveFromRelativeUrlsFamily();
 
-  /// See also [saveFromRelativeUrls].
+  /// 从相对URL批量下载文件并保存到指定目录
+  ///
+  /// [urls] - 相对路径列表（不含 `/static/` 前缀）
+  /// [relativeDir] - 保存目标的相对目录路径（相对于应用外部私有空间）
+  ///
+  /// 特性：
+  /// - 保存前自动清空目标目录
+  /// - 使用并发下载提升性能（默认并发数 5）
+  /// - 通过 [TransferService] 实现，便于测试和复用
+  ///
+  /// 使用示例：
+  /// ```dart
+  /// await ref.read(
+  ///   saveFromRelativeUrlsProvider(
+  ///     urls: ['path/to/image1.png', 'path/to/image2.jpg'],
+  ///     relativeDir: 'img_storage/booklet',
+  ///   ).future,
+  /// );
+  /// ```
+  ///
+  /// Copied from [saveFromRelativeUrls].
   SaveFromRelativeUrlsProvider call({
     required List<String> urls,
     required String relativeDir,
@@ -75,9 +174,49 @@ class SaveFromRelativeUrlsFamily extends Family<AsyncValue<void>> {
   String? get name => r'saveFromRelativeUrlsProvider';
 }
 
-/// See also [saveFromRelativeUrls].
+/// 从相对URL批量下载文件并保存到指定目录
+///
+/// [urls] - 相对路径列表（不含 `/static/` 前缀）
+/// [relativeDir] - 保存目标的相对目录路径（相对于应用外部私有空间）
+///
+/// 特性：
+/// - 保存前自动清空目标目录
+/// - 使用并发下载提升性能（默认并发数 5）
+/// - 通过 [TransferService] 实现，便于测试和复用
+///
+/// 使用示例：
+/// ```dart
+/// await ref.read(
+///   saveFromRelativeUrlsProvider(
+///     urls: ['path/to/image1.png', 'path/to/image2.jpg'],
+///     relativeDir: 'img_storage/booklet',
+///   ).future,
+/// );
+/// ```
+///
+/// Copied from [saveFromRelativeUrls].
 class SaveFromRelativeUrlsProvider extends AutoDisposeFutureProvider<void> {
-  /// See also [saveFromRelativeUrls].
+  /// 从相对URL批量下载文件并保存到指定目录
+  ///
+  /// [urls] - 相对路径列表（不含 `/static/` 前缀）
+  /// [relativeDir] - 保存目标的相对目录路径（相对于应用外部私有空间）
+  ///
+  /// 特性：
+  /// - 保存前自动清空目标目录
+  /// - 使用并发下载提升性能（默认并发数 5）
+  /// - 通过 [TransferService] 实现，便于测试和复用
+  ///
+  /// 使用示例：
+  /// ```dart
+  /// await ref.read(
+  ///   saveFromRelativeUrlsProvider(
+  ///     urls: ['path/to/image1.png', 'path/to/image2.jpg'],
+  ///     relativeDir: 'img_storage/booklet',
+  ///   ).future,
+  /// );
+  /// ```
+  ///
+  /// Copied from [saveFromRelativeUrls].
   SaveFromRelativeUrlsProvider({
     required List<String> urls,
     required String relativeDir,
