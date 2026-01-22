@@ -6,14 +6,14 @@ part of 'notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$todoServiceHash() => r'f5c3638373a12ab6c0b132885af0eef06a590eaf';
+String _$todoServiceHash() => r'43602051f3162fb05035a89fe14c0f132b5bdf1f';
 
 /// Todo 模块的核心服务
 ///
 /// 提供以下功能：
 /// - 任务列表 CRUD 操作
 /// - 任务 CRUD 操作
-/// - 列表排序管理
+/// - 智能列表支持（我的一天、重要、计划内等）
 ///
 /// Copied from [TodoService].
 @ProviderFor(TodoService)

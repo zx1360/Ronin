@@ -38,6 +38,7 @@ class HiveService {
   static const String essayBoxName = 'essays';
   // todo待办
   static const String taskListsBoxName = 'taskLists';
+  static const String todoTasksBoxName = 'todoTasks';
   // lathe倒计时
   static const String countdownTimerBoxName = 'countdownTimers';
   // ----非常用
@@ -68,7 +69,10 @@ class HiveService {
     Hive.registerAdapter(MessageAdapter());
     // todo待办
     Hive.registerAdapter(PriorityAdapter());
+    Hive.registerAdapter(RepeatTypeAdapter());
+    Hive.registerAdapter(TodoStepAdapter());
     Hive.registerAdapter(TodoTaskAdapter());
+    Hive.registerAdapter(ListThemeColorAdapter());
     Hive.registerAdapter(TaskListAdapter());
     // tuntun藏品
     Hive.registerAdapter(InfoAdapter());
@@ -94,7 +98,10 @@ class HiveService {
     await Hive.openBox<Label>(labelBoxName);
     await Hive.openBox<Essay>(essayBoxName);
 
+    // todo 模块
     await Hive.openBox<TaskList>(taskListsBoxName);
+    await Hive.openBox<TodoTask>(todoTasksBoxName);
+    
     await Hive.openBox<ChangyaRecord>(changyaBoxName);
     await Hive.openBox<CountdownTimerModel>(countdownTimerBoxName);
   }
