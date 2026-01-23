@@ -2,7 +2,6 @@
 package data_handler
 
 import (
-	"fmt"
 	"path/filepath"
 )
 
@@ -46,7 +45,6 @@ var Modules = []ModuleConfig{
 
 // FindModuleConfigByName 根据模块名称查找其配置
 func FindModuleConfigByName(name string) *ModuleConfig {
-	fmt.Println(filepath.Join(AppDir, "static", "booklet", "styles.json"))
 	for i := range Modules {
 		if Modules[i].Name == name {
 			return &Modules[i]

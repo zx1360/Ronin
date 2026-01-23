@@ -2,7 +2,6 @@ package data_handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -53,9 +52,6 @@ func SyncHandler(c *gin.Context) {
 		key = key[:len(key)-len(filepath.Ext(key))] // 移除 .json
 
 		mergedData[key] = data
-	}
-	for k, v := range mergedData {
-		fmt.Println("Key:", k, "Value Type:", fmt.Sprintf("%T", v))
 	}
 
 	c.JSON(http.StatusOK, mergedData)
