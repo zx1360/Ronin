@@ -30,10 +30,10 @@ func main() {
 	// err := indexer.IndexIncrementalByComic(comicRoot)
 
 	// 全量重建索引（清表后重建）
-	err := indexer.IndexFullReindex(comicRoot)
+	// err := indexer.IndexFullReindex(comicRoot)
 
 	// 刷新更新（对齐磁盘变化，支持新增与硬删除）
-	// err := indexer.IndexRefresh(comicRoot)
+	err := indexer.IndexRefresh(comicRoot)
 
 	if err != nil {
 		fmt.Printf("❌ 运行失败: %v\n", err)
