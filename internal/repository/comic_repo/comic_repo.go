@@ -84,14 +84,14 @@ func getChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId str
 }
 
 // 获取某章节(全局唯一章节id)及其下的图片信息
-func GetImagesWithChapterId(chapterId string) ([]map[string]interface{}, error) {
+func GetImagesWithChapterId(chapterId string) ([]model.ImageInfo, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 	return getImagesWithChapterId(ctx, db.GetPool(), chapterId)
 }
-func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId string) ([]map[string]interface{}, error) {
+func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId string) ([]model.ImageInfo, error) {
 	// 获取该章节下所有图片的信息
-	var images []map[string]interface{}
+	var images []model.ImageInfo
 	query := `select image_path, width, height from comics.comic_images where chapter_id=$1 order by sort_num asc;`
 	rows, err := pool.Query(ctx, query, chapterId)
 	if err != nil {
@@ -99,18 +99,11 @@ func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId s
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var (
-			path   string
-			width  int
-			height int
-		)
-		rows.Scan(&path, &width, &height)
-		image := map[string]interface{}{
-			"path":   path,
-			"width":  width,
-			"height": height,
+		var img model.ImageInfo
+		if err := rows.Scan(&img.Path, &img.Width, &img.Height); err != nil {
+			return nil, fmt.Errorf("扫描图片数据失败: %w", err)
 		}
-		images = append(images, image)
+		images = append(images, img)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("迭代结果集失败: %w", err)
@@ -119,12 +112,12 @@ func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId s
 }
 
 // 漫画下载清单manifest获取, 获取某漫画的所有章节信息(带有所有图片信息)
-func GetComicAllChaptersAndImages(comicId string) (map[string]model.ChapterInfo, map[string][]map[string]interface{}, error) {
+func GetComicAllChaptersAndImages(comicId string) (map[string]model.ChapterInfo, map[string][]model.ImageInfo, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 	return getComicAllChaptersAndImages(ctx, db.GetPool(), comicId)
 }
-func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comicId string) (map[string]model.ChapterInfo, map[string][]map[string]interface{}, error) {
+func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comicId string) (map[string]model.ChapterInfo, map[string][]model.ImageInfo, error) {
 	// 关联查询章节和图片（LEFT JOIN保证无图片的章节也能返回）
 	query := `
         SELECT 
@@ -144,14 +137,14 @@ func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comic
 	// 内存中分组：chapterId -> 章节信息 / chapterId -> 图片列表
 	// 最佳实践: 内存中分组操作使用map.
 	chapterMap := make(map[string]model.ChapterInfo)
-	imageMap := make(map[string][]map[string]interface{})
+	imageMap := make(map[string][]model.ImageInfo)
 
 	for rows.Next() {
 		var (
 			chapterId    string
 			comicId      string
 			dirName      string
-			chapterIndex int // 按实际字段类型调整
+			chapterIndex int
 			imageCount   int
 			imagePath    pgtype.Text
 			width        pgtype.Int4
@@ -177,12 +170,12 @@ func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comic
 
 		// 初始化图片列表（仅当图片字段非NULL时）
 		if imagePath.Valid {
-			image := map[string]interface{}{
-				"path":   imagePath.String,
-				"width":  width.Int32,
-				"height": height.Int32,
+			img := model.ImageInfo{
+				Path:   imagePath.String,
+				Width:  width.Int32,
+				Height: height.Int32,
 			}
-			imageMap[chapterId] = append(imageMap[chapterId], image)
+			imageMap[chapterId] = append(imageMap[chapterId], img)
 		}
 	}
 

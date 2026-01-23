@@ -23,10 +23,17 @@ type ComicInfo struct {
 
 // 章节数据类
 type ChapterInfo struct {
-	Id           string                   `json:"id"`
-	ComicId      string                   `json:"comic_id"`
-	DirName      string                   `json:"dir_name"`
-	ChapterIndex int                      `json:"chapter_index"`
-	ImageCount   int                      `json:"image_count"`
-	Images       []map[string]interface{} `json:"images"`
+	Id           string      `json:"id"`
+	ComicId      string      `json:"comic_id"`
+	DirName      string      `json:"dir_name"`
+	ChapterIndex int         `json:"chapter_index"`
+	ImageCount   int         `json:"image_count"`
+	Images       []ImageInfo `json:"images,omitempty"`
+}
+
+// 图片信息数据类
+type ImageInfo struct {
+	Path   string `json:"path"`
+	Width  int32  `json:"width"`
+	Height int32  `json:"height"`
 }
