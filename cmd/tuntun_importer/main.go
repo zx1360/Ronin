@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	sourceDir = "D:\\products\\Go\\monarch\\static\\tuntun_1\\raw"    // 源文件目录
-	destDir   = "D:\\products\\Go\\monarch\\static\\tuntun_1\\medias" // 目标文件目录
+	sourceDir = "" // 源文件目录
+	destDir   = "" // 目标文件目录
 )
 
 func main() {
