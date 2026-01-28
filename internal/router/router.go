@@ -52,13 +52,11 @@ func SetupRouter() *gin.Engine {
 		}
 
 		// 媒体浏览相关
-		tuntunGroup := api.Group("/tuntun")
+		galleryGroup := api.Group("/gallery")
 		{
-			tuntunGroup.GET("/meta-info")
-			// 获取批量媒体文件
-			tuntunGroup.GET("/fetch-batch")
-			// 提交操作
-			tuntunGroup.POST("/send-ops")
+			// 获取完整标签数据记录
+			galleryGroup.GET("/tags")
+
 		}
 
 		// 工具api
