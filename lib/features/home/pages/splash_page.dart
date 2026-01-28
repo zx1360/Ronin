@@ -38,7 +38,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       HiveService.init(),
       // TODO: 改到特定页面再加载, 处理好时机关系.
       HiveService.initComic(),
-      HiveService.initTuntun(),
+      HiveService.initGallery(),
     ]);
     if (mounted) {
       context.replaceNamed("home", queryParameters: {"bgIndex": randomIndex});
