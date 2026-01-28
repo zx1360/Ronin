@@ -1,0 +1,230 @@
+// Package repository 负责数据库操作
+package repository
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"gizmos/internal/gallery/model"
+	"gizmos/internal/service/db"
+)
+
+// Repository 数据库操作仓库
+type Repository struct{}
+
+// NewRepository 创建新的仓库实例
+func NewRepository() *Repository {
+	return &Repository{}
+}
+
+// HashExists 检查哈希是否已存在
+func (r *Repository) HashExists(ctx context.Context, hash []byte) (bool, error) {
+	var exists bool
+	err := db.Pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM gallery.media_assets WHERE hash = $1)`,
+		hash,
+	).Scan(&exists)
+	return exists, err
+}
+
+// InsertMediaAsset 插入媒体资产记录
+func (r *Repository) InsertMediaAsset(ctx context.Context, asset *model.MediaAsset) error {
+	_, err := db.Pool.Exec(ctx, `
+		INSERT INTO gallery.media_assets (
+			id, captured_at, file_path, thumb_path, preview_path, 
+			hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`,
+		asset.ID,
+		asset.CapturedAt,
+		asset.FilePath,
+		asset.ThumbPath,
+		asset.PreviewPath,
+		asset.Hash,
+		asset.SizeBytes,
+		asset.MimeType,
+		asset.IsDeleted,
+		asset.SyncCount,
+		asset.GroupID,
+	)
+	return err
+}
+
+// BatchInsertMediaAssets 批量插入媒体资产
+func (r *Repository) BatchInsertMediaAssets(ctx context.Context, assets []*model.MediaAsset) error {
+	if len(assets) == 0 {
+		return nil
+	}
+
+	batch := &pgx.Batch{}
+	for _, asset := range assets {
+		batch.Queue(`
+			INSERT INTO gallery.media_assets (
+				id, captured_at, file_path, thumb_path, preview_path, 
+				hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (hash) DO NOTHING
+		`,
+			asset.ID,
+			asset.CapturedAt,
+			asset.FilePath,
+			asset.ThumbPath,
+			asset.PreviewPath,
+			asset.Hash,
+			asset.SizeBytes,
+			asset.MimeType,
+			asset.IsDeleted,
+			asset.SyncCount,
+			asset.GroupID,
+		)
+	}
+
+	br := db.Pool.SendBatch(ctx, batch)
+	defer br.Close()
+
+	for range assets {
+		if _, err := br.Exec(); err != nil {
+			return fmt.Errorf("批量插入失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// GetDeletedAssets 获取标记为删除的媒体资产
+func (r *Repository) GetDeletedAssets(ctx context.Context) ([]*model.MediaAsset, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
+			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		FROM gallery.media_assets 
+		WHERE is_deleted = true
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var assets []*model.MediaAsset
+	for rows.Next() {
+		asset := &model.MediaAsset{}
+		err := rows.Scan(
+			&asset.ID,
+			&asset.CreatedAt,
+			&asset.UpdatedAt,
+			&asset.CapturedAt,
+			&asset.FilePath,
+			&asset.ThumbPath,
+			&asset.PreviewPath,
+			&asset.Hash,
+			&asset.SizeBytes,
+			&asset.MimeType,
+			&asset.IsDeleted,
+			&asset.SyncCount,
+			&asset.GroupID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, asset)
+	}
+
+	return assets, rows.Err()
+}
+
+// GetGroupedAssets 获取被捆绑到指定主文件的所有资产
+func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([]*model.MediaAsset, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
+			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		FROM gallery.media_assets 
+		WHERE group_id = $1
+	`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var assets []*model.MediaAsset
+	for rows.Next() {
+		asset := &model.MediaAsset{}
+		err := rows.Scan(
+			&asset.ID,
+			&asset.CreatedAt,
+			&asset.UpdatedAt,
+			&asset.CapturedAt,
+			&asset.FilePath,
+			&asset.ThumbPath,
+			&asset.PreviewPath,
+			&asset.Hash,
+			&asset.SizeBytes,
+			&asset.MimeType,
+			&asset.IsDeleted,
+			&asset.SyncCount,
+			&asset.GroupID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, asset)
+	}
+
+	return assets, rows.Err()
+}
+
+// DeleteAssetRecord 物理删除数据库记录
+func (r *Repository) DeleteAssetRecord(ctx context.Context, id uuid.UUID) error {
+	_, err := db.Pool.Exec(ctx, `DELETE FROM gallery.media_assets WHERE id = $1`, id)
+	return err
+}
+
+// BatchDeleteAssetRecords 批量删除数据库记录
+func (r *Repository) BatchDeleteAssetRecords(ctx context.Context, ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	_, err := db.Pool.Exec(ctx, `DELETE FROM gallery.media_assets WHERE id = ANY($1)`, ids)
+	return err
+}
+
+// GetAssetByID 根据 ID 获取媒体资产
+func (r *Repository) GetAssetByID(ctx context.Context, id uuid.UUID) (*model.MediaAsset, error) {
+	asset := &model.MediaAsset{}
+	err := db.Pool.QueryRow(ctx, `
+		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
+			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		FROM gallery.media_assets 
+		WHERE id = $1
+	`, id).Scan(
+		&asset.ID,
+		&asset.CreatedAt,
+		&asset.UpdatedAt,
+		&asset.CapturedAt,
+		&asset.FilePath,
+		&asset.ThumbPath,
+		&asset.PreviewPath,
+		&asset.Hash,
+		&asset.SizeBytes,
+		&asset.MimeType,
+		&asset.IsDeleted,
+		&asset.SyncCount,
+		&asset.GroupID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return asset, nil
+}
+
+// CountAssets 统计媒体资产数量
+func (r *Repository) CountAssets(ctx context.Context) (total int64, deleted int64, err error) {
+	err = db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM gallery.media_assets`).Scan(&total)
+	if err != nil {
+		return
+	}
+	err = db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM gallery.media_assets WHERE is_deleted = true`).Scan(&deleted)
+	return
+}
