@@ -11,10 +11,8 @@ import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/tuntun/models/info.dart';
-import 'package:torrid/features/others/tuntun/models/status.dart';
 import 'package:torrid/features/todo/models/task_list.dart';
-// tuntun藏品
+// gallery库
 // comic漫画
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/todo/models/todo_task.dart';
@@ -42,7 +40,7 @@ class HiveService {
   // lathe倒计时
   static const String countdownTimerBoxName = 'countdownTimers';
   // ----非常用
-  // tuntun藏品
+  // gallery库
   static const String infoBoxName = "mediaInfo";
   static const String statusBoxName = "mediaStatus";
   // comic漫画
@@ -74,9 +72,8 @@ class HiveService {
     Hive.registerAdapter(TodoTaskAdapter());
     Hive.registerAdapter(ListThemeColorAdapter());
     Hive.registerAdapter(TaskListAdapter());
-    // tuntun藏品
-    Hive.registerAdapter(InfoAdapter());
-    Hive.registerAdapter(StatusAdapter());
+    // gallery库
+    
     // comic漫画
     Hive.registerAdapter(ComicInfoAdapter());
     Hive.registerAdapter(ChapterInfoAdapter());
@@ -107,7 +104,7 @@ class HiveService {
   }
 
   // ----非常用Box----
-  static Future<void> initTuntun() async {
+  static Future<void> initGallery() async {
     // if (!Hive.isBoxOpen(infoBoxName)) {
     //   await Hive.openBox<Info>(infoBoxName);
     // }

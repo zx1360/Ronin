@@ -3,7 +3,7 @@ import 'package:torrid/features/others/lathe/pages/lathe_page.dart';
 import 'package:torrid/features/others/widgets/entry_button.dart';
 
 import 'package:torrid/features/others/comic/pages/comic_page.dart';
-import 'package:torrid/features/others/tuntun/pages/tuntun_page.dart';
+import 'package:torrid/features/others/gallery/pages/gallery_page.dart';
 
 class OtherPagesData {
   static List<PageItem> get pages => [
@@ -17,7 +17,7 @@ class OtherPagesData {
     PageItem(
       label: "藏品",
       icon: Icons.assessment,
-      builder: (context) => TuntunPage(),
+      builder: (context) => GalleryPage(),
     ),
     // 倒计时页.
     PageItem(
