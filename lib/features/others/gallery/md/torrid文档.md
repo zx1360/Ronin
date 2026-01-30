@@ -16,7 +16,7 @@ gallery_medias_tags: 存储media与tags的关联记录(从服务端增量获取�
 The "Review Cycle" (核心业务闭环):
 
 Fetch: 用户点击“加载新一批”(可自指定数量)。App 请求 monarch。将获取到的json数据按逻辑存储到本地sqflite(基本是原数据表的镜像).
-Cache: App 下载这批文件的源文件+缩略图+预览图存入本地存储(外部应用私有目录下的"/gallery/yyyy-mm/...")。同步修改sqflite中媒体文件的file_path为当前的正确路径.
+Cache: App 下载这批文件的源文件+缩略图+预览图存入本地存储(外部应用私有目录下的"/gallery/yyyy-mm/...").
 Review: 用户滑动阅览、打标签、标记删除。
 Bundling (捆绑): 用户长按选 A, B, C -> 设 A 为主。逻辑：更新 B, C 的 group_id = A.id。UI 上隐藏 B, C，只显示 A (带堆叠图标)。
 Tagging: 对 A 打标签。建议逻辑：标签仅关联 A，但搜索时 B, C 视为隐式包含。

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
+import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/core/utils/util.dart';
 
 class CheckinCalendar extends StatelessWidget {
@@ -91,6 +92,16 @@ class CheckinCalendar extends StatelessWidget {
     return targetRecord.message.isNotEmpty;
   }
 
+  /// 获取日期对应的心情记录
+  /// [date]：目标日期
+  MoodType? _getMood(DateTime date) {
+    if (style == null) return null;
+
+    final targetRecords = records.where((r) => isSameDay(r.date, date));
+    if (targetRecords.isEmpty) return null;
+    return targetRecords.first.mood;
+  }
+
   /// 打开日期详情弹窗（展示该日期的打卡记录和任务完成情况）
   /// [date]：目标日期
   void _openDateDetailDialog(DateTime date) {
@@ -111,6 +122,29 @@ class CheckinCalendar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              // 心情展示（如有）
+              if (targetRecord.mood != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Text('今日心情：', style: noteSmall),
+                      const SizedBox(width: 8),
+                      Text(
+                        targetRecord.mood!.emoji,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        targetRecord.mood!.description,
+                        style: noteText.copyWith(
+                          color: targetRecord.mood!.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // 留言展示（如有）
               if (targetRecord.message.isNotEmpty)
                 Column(
@@ -266,6 +300,7 @@ class CheckinCalendar extends StatelessWidget {
                 final date = monthDates[index - offset];
                 final statusIndex = _getCheckInStatusIndex(date);
                 final hasMessage = _hasMessage(date);
+                final mood = _getMood(date);
                 // 获取目标记录（判断是否有打卡数据）
                 final targetRecord = records.firstWhere(
                   (r) => isSameDay(r.date, date),
@@ -316,6 +351,16 @@ class CheckinCalendar extends StatelessWidget {
                               color: messageMarkerColor,
                               shape: BoxShape.circle,
                             ),
+                          ),
+                        ),
+                      // 心情图标（左下角）
+                      if (mood != null)
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Text(
+                            mood.emoji,
+                            style: const TextStyle(fontSize: 12),
                           ),
                         ),
                     ],
