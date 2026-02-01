@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:torrid/features/profile/widgets/main_setting_section.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 import 'package:torrid/features/profile/widgets/nav_tile.dart';
@@ -18,7 +17,6 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        systemOverlayStyle: SystemUiOverlayStyle.light,
         title: const Text(
           '个人',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),

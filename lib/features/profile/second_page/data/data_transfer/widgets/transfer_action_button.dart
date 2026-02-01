@@ -3,8 +3,8 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/profile/second_page/data_transfer/models/transfer_progress.dart';
-import 'package:torrid/features/profile/second_page/data_transfer/services/transfer_controller.dart';
+import 'package:torrid/features/profile/second_page/data/data_transfer/models/transfer_progress.dart';
+import 'package:torrid/features/profile/second_page/data/data_transfer/services/transfer_controller.dart';
 
 /// 传输操作按钮
 class TransferActionButton extends ConsumerWidget {
