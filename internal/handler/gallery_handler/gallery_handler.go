@@ -173,12 +173,6 @@ func Push(c *gin.Context) {
 		return
 	}
 
-	// 将媒体资产的 sync_count 加 1
-	if err := gallery_repo.IncrementSyncCount(mediaIDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新同步计数失败: " + err.Error()})
-		return
-	}
-
 	c.JSON(http.StatusOK, model.PushResponse{
 		Success: true,
 		Message: "数据同步成功",

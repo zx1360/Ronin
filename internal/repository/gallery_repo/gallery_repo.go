@@ -295,26 +295,3 @@ func UpsertMediaTagLinks(mediaIDs []uuid.UUID, links []model.MediaTagLink) error
 
 	return nil
 }
-
-// IncrementSyncCount 将指定媒体资产的 sync_count 增加 1
-func IncrementSyncCount(mediaIDs []uuid.UUID) error {
-	if len(mediaIDs) == 0 {
-		return nil
-	}
-
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	query := `
-		UPDATE gallery.media_assets
-		SET sync_count = sync_count + 1, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ANY($1)
-	`
-
-	_, err := db.GetPool().Exec(ctx, query, mediaIDs)
-	if err != nil {
-		return fmt.Errorf("增加同步计数失败: %w", err)
-	}
-
-	return nil
-}
