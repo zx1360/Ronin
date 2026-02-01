@@ -12,7 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
-import 'package:torrid/features/profile/second_page/data_transfer/models/transfer_progress.dart';
+import 'package:torrid/features/profile/second_page/data/data_transfer/models/transfer_progress.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
