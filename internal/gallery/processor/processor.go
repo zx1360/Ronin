@@ -22,7 +22,7 @@ import (
 
 const (
 	ThumbSize   = 256 // 缩略图尺寸 256x256
-	PreviewSize = 512 // 预览图最大边
+	PreviewSize = 256 // 预览图最大边
 	JpegQuality = 85  // JPEG 压缩质量
 )
 
