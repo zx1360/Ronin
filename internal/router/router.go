@@ -8,6 +8,7 @@ import (
 	"monarch/internal/config"
 	"monarch/internal/handler/comic_handler"
 	"monarch/internal/handler/data_handler"
+	"monarch/internal/handler/gallery_handler"
 	"monarch/internal/handler/util_handler"
 )
 
@@ -30,6 +31,8 @@ func SetupRouter() *gin.Engine {
 
 	// API路由, 数据/操作
 	api := r.Group("/api")
+	// TODO: 开启API密钥验证
+	// .Use(util_handler.APIKeyAuth())
 	{
 		// 用户数据相关
 		userDataGroup := api.Group("/user-data")
@@ -54,9 +57,14 @@ func SetupRouter() *gin.Engine {
 		// 媒体浏览相关
 		galleryGroup := api.Group("/gallery")
 		{
-			// 获取完整标签数据记录
-			galleryGroup.GET("/tags")
-
+			// 获取一批次的媒体资产 + 全量标签 + 对应的标签关联
+			galleryGroup.GET("/batch", gallery_handler.FetchBatch)
+			// 获取完整标签树
+			galleryGroup.GET("/tags", gallery_handler.FetchAllTags)
+			// 下载文件接口
+			galleryGroup.GET("/:id/:type", gallery_handler.FetchMediaAsset)
+			// 客户端推送数据
+			galleryGroup.POST("/push", gallery_handler.Push)
 		}
 
 		// 工具api
