@@ -8,7 +8,7 @@ import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
 
 part 'data_batch.g.dart';
 
-// 数据收发批次响应模型
+// 数据接收和发送共用的批次响应模型
 @JsonSerializable()
 class BatchResponse {
   /// 媒体文件列表
