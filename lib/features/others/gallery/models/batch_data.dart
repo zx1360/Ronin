@@ -32,5 +32,11 @@ class BatchData {
   factory BatchData.fromJson(Map<String, dynamic> json) =>
       _$BatchDataFromJson(json);
 
-  Map<String, dynamic> toJson() => _$BatchDataToJson(this);
+  // 深度使用toJson以确保嵌套对象也被正确序列化
+  Map<String, dynamic> toJson() => {
+        'media_assets': medias.map((media) => media.toJson()).toList(),
+        'tags': tags.map((tag) => tag.toJson()).toList(),
+        'media_tag_links': links.map((link) => link.toJson()).toList(),
+      };
+  // Map<String, dynamic> toJson() => _$BatchDataToJson(this);
 }
