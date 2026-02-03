@@ -1,6 +1,7 @@
 package gallery_repo
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"monarch/internal/model"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // FetchMediaAssets 分页获取未删除的媒体资产
@@ -177,20 +179,11 @@ func FetchMediaTagLinks(mediaIDs []uuid.UUID) ([]model.MediaTagLink, error) {
 	return links, nil
 }
 
-// UpdateMediaAssets 更新媒体资产（除了 file_path 字段）
-func UpdateMediaAssets(assets []model.MediaAsset) error {
+// UpdateMediaAssetsTx 在事务中更新媒体资产（除了 file_path 字段）
+func UpdateMediaAssetsTx(ctx context.Context, tx pgx.Tx, assets []model.MediaAsset) error {
 	if len(assets) == 0 {
 		return nil
 	}
-
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
 
 	updateQuery := `
 		UPDATE gallery.media_assets
@@ -205,27 +198,13 @@ func UpdateMediaAssets(assets []model.MediaAsset) error {
 		}
 	}
 
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-
 	return nil
 }
 
-// UpsertTags 全量覆写标签表（删除原有标签，重新插入新标签）
-func UpsertTags(tags []model.Tag) error {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
+// UpsertTagsTx 在事务中全量覆写标签表
+func UpsertTagsTx(ctx context.Context, tx pgx.Tx, tags []model.Tag) error {
 	// 删除所有标签
-	_, err = tx.Exec(ctx, `DELETE FROM gallery.tags`)
+	_, err := tx.Exec(ctx, `DELETE FROM gallery.tags`)
 	if err != nil {
 		return fmt.Errorf("删除旧标签失败: %w", err)
 	}
@@ -243,32 +222,18 @@ func UpsertTags(tags []model.Tag) error {
 		}
 	}
 
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-
 	return nil
 }
 
-// UpsertMediaTagLinks 全量覆写媒体-标签关联（仅限指定的媒体 ID）
-func UpsertMediaTagLinks(mediaIDs []uuid.UUID, links []model.MediaTagLink) error {
+// UpsertMediaTagLinksTx 在事务中全量覆写媒体-标签关联
+func UpsertMediaTagLinksTx(ctx context.Context, tx pgx.Tx, mediaIDs []uuid.UUID, links []model.MediaTagLink) error {
 	if len(mediaIDs) == 0 {
 		return nil
 	}
 
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
 	// 删除指定媒体 ID 的所有标签关联
-	deleteQuery := `DELETE FROM  gallery.media_tag_links WHERE media_id = ANY($1)`
-	_, err = tx.Exec(ctx, deleteQuery, mediaIDs)
+	deleteQuery := `DELETE FROM gallery.media_tag_links WHERE media_id = ANY($1)`
+	_, err := tx.Exec(ctx, deleteQuery, mediaIDs)
 	if err != nil {
 		return fmt.Errorf("删除旧的媒体标签关联失败: %w", err)
 	}
@@ -276,7 +241,7 @@ func UpsertMediaTagLinks(mediaIDs []uuid.UUID, links []model.MediaTagLink) error
 	// 插入新的关联记录
 	if len(links) > 0 {
 		insertQuery := `
-			INSERT INTO  gallery.media_tag_links (media_id, tag_id)
+			INSERT INTO gallery.media_tag_links (media_id, tag_id)
 			VALUES ($1, $2)
 		`
 
@@ -288,10 +253,15 @@ func UpsertMediaTagLinks(mediaIDs []uuid.UUID, links []model.MediaTagLink) error
 		}
 	}
 
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-
 	return nil
+}
+
+// BeginTx 开始一个新事务，供外部使用
+func BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return db.GetPool().Begin(ctx)
+}
+
+// GetPool 获取数据库连接池
+func GetPool() *pgxpool.Pool {
+	return db.GetPool()
 }

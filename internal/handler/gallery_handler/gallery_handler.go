@@ -1,10 +1,12 @@
 package gallery_handler
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -139,6 +141,7 @@ func FetchMediaAsset(c *gin.Context) {
 
 // Push 处理 POST /api/gallery/push 请求
 // 接收客户端上传的数据，更新数据库
+// 使用事务确保三个表操作的原子性
 func Push(c *gin.Context) {
 	var req model.BatchData
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -146,30 +149,46 @@ func Push(c *gin.Context) {
 		return
 	}
 
-	// TODO: 下方三个步骤置于事务中, 确保原子性一致性.
-	// 更新媒体资产（除 file_path 字段）
+	// 创建带超时的上下文
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// 开启事务，确保三个表操作的原子性
+	tx, err := gallery_repo.BeginTx(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "开启事务失败: " + err.Error()})
+		return
+	}
+	defer tx.Rollback(ctx) // 确保出错时回滚
+
+	// 1. 更新媒体资产（除 file_path 字段），同时 sync_count 加一
 	if len(req.MediaAssets) > 0 {
-		if err := gallery_repo.UpdateMediaAssets(req.MediaAssets); err != nil {
+		if err := gallery_repo.UpdateMediaAssetsTx(ctx, tx, req.MediaAssets); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新媒体资产失败: " + err.Error()})
 			return
 		}
 	}
 
-	// 全量覆写标签表
-	if err := gallery_repo.UpsertTags(req.Tags); err != nil {
+	// 2. 全量覆写标签表
+	if err := gallery_repo.UpsertTagsTx(ctx, tx, req.Tags); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新标签失败: " + err.Error()})
 		return
 	}
 
-	// 获取本次推送涉及的媒体 ID
+	// 3. 获取本次推送涉及的媒体 ID，全量覆写媒体-标签关联
 	mediaIDs := make([]uuid.UUID, len(req.MediaAssets))
 	for i, asset := range req.MediaAssets {
 		mediaIDs[i] = asset.ID
 	}
 
-	// 全量覆写媒体-标签关联
-	if err := gallery_repo.UpsertMediaTagLinks(mediaIDs, req.MediaTagLinks); err != nil {
+	if err := gallery_repo.UpsertMediaTagLinksTx(ctx, tx, mediaIDs, req.MediaTagLinks); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新标签关联失败: " + err.Error()})
+		return
+	}
+
+	// 提交事务
+	if err := tx.Commit(ctx); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "提交事务失败: " + err.Error()})
 		return
 	}
 
