@@ -42,7 +42,7 @@ Review Mode: 类似相册流或卡片堆叠。
 - 所有的打标签/标记删除等操作在本地离线实现, 记录于与服务端数据表结构相同的sqflite中, 同步时增量上传, 之后删除上传的sqflite中相关记录, 这一步确保原子性.
 - 与monarch的http服务器对应的api.
 
-```json
+"/api/gallery/batch"的响应数据格式如(tags和media_tag_links值可能初始为空, 不为空则为json格式的数据表中的数据的列表.):
 {
   "media_assets": [
     {
