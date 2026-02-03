@@ -84,6 +84,8 @@ class _GallerySettingPageState extends State<GallerySettingPage> {
           ),
 
           // 数据同步区.
+          // 使用'api_client'目录下相关代码进行数据同步操作.
+          // 包括传输进度条, 下载时由于需要下载大量媒体文件, 考虑并发下载/中断续传等功能.(但是要保证原子性和数据一致性,即要么显示为全部下载成功,要么全部失败.)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
