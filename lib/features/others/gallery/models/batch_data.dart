@@ -6,11 +6,11 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
 
-part 'data_batch.g.dart';
+part 'batch_data.g.dart';
 
 // 数据接收和发送共用的批次响应模型
 @JsonSerializable()
-class BatchResponse {
+class BatchData {
   /// 媒体文件列表
   @JsonKey(name: 'media_assets', defaultValue: [])
   final List<MediaAsset> medias;
@@ -23,14 +23,14 @@ class BatchResponse {
   @JsonKey(name: 'media_tag_links', defaultValue: [])
   final List<MediaTagLink> links;
 
-  const BatchResponse({
+  const BatchData({
     required this.medias,
     required this.tags,
     required this.links,
   });
 
-  factory BatchResponse.fromJson(Map<String, dynamic> json) =>
-      _$BatchResponseFromJson(json);
+  factory BatchData.fromJson(Map<String, dynamic> json) =>
+      _$BatchDataFromJson(json);
 
-  Map<String, dynamic> toJson() => _$BatchResponseToJson(this);
+  Map<String, dynamic> toJson() => _$BatchDataToJson(this);
 }

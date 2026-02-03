@@ -1,13 +1,12 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'data_batch.dart';
+part of 'batch_data.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
-BatchResponse _$BatchResponseFromJson(Map<String, dynamic> json) =>
-    BatchResponse(
+BatchData _$BatchDataFromJson(Map<String, dynamic> json) => BatchData(
       medias: (json['media_assets'] as List<dynamic>?)
               ?.map((e) => MediaAsset.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -22,8 +21,7 @@ BatchResponse _$BatchResponseFromJson(Map<String, dynamic> json) =>
           [],
     );
 
-Map<String, dynamic> _$BatchResponseToJson(BatchResponse instance) =>
-    <String, dynamic>{
+Map<String, dynamic> _$BatchDataToJson(BatchData instance) => <String, dynamic>{
       'media_assets': instance.medias,
       'tags': instance.tags,
       'media_tag_links': instance.links,

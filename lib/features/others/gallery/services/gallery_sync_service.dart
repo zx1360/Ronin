@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
-import 'package:torrid/features/others/gallery/models/data_batch.dart';
+import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -112,7 +112,7 @@ class GallerySyncService extends _$GallerySyncService {
         throw Exception('服务器响应错误: ${response.statusCode}');
       }
 
-      final batchData = BatchResponse.fromJson(response.data);
+      final batchData = BatchData.fromJson(response.data);
       final assets = batchData.medias;
       final tags = batchData.tags;
       final links = batchData.links;
@@ -304,7 +304,7 @@ class GallerySyncService extends _$GallerySyncService {
       );
 
       // 2. 构建上传数据
-      final uploadPayload = BatchResponse(
+      final uploadPayload = BatchData(
         medias: data.assets,
         tags: data.tags,
         links: data.links,

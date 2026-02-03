@@ -83,7 +83,7 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
         foregroundColor: Colors.white,
         title: Text(_isSelectionMode 
             ? '已选择 ${_selectedIds.length} 项' 
-            : '媒体文件 (${columns}列)'),
+            : '媒体文件 ($columns列)'),
         actions: [
           // 缩小 (增加列数)
           IconButton(

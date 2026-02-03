@@ -403,11 +403,6 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       await db.updateMediaAsset(updatedAsset);
       ref.invalidate(mediaAssetListProvider);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('留言已保存')),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
