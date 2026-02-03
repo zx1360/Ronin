@@ -201,6 +201,45 @@ func UpdateMediaAssetsTx(ctx context.Context, tx pgx.Tx, assets []model.MediaAss
 	return nil
 }
 
+// sortTagsByHierarchy 按层级排序标签，确保父标签在子标签之前
+func sortTagsByHierarchy(tags []model.Tag) []model.Tag {
+	if len(tags) == 0 {
+		return tags
+	}
+
+	// 构建 ID -> Tag 映射
+	tagMap := make(map[uuid.UUID]model.Tag)
+	for _, tag := range tags {
+		tagMap[tag.ID] = tag
+	}
+
+	// 结果切片
+	sorted := make([]model.Tag, 0, len(tags))
+	visited := make(map[uuid.UUID]bool)
+
+	// 递归添加标签（先添加父标签）
+	var addTag func(tag model.Tag)
+	addTag = func(tag model.Tag) {
+		if visited[tag.ID] {
+			return
+		}
+		// 如果有父标签且父标签在本次传入的标签列表中，先添加父标签
+		if tag.ParentID != nil {
+			if parent, exists := tagMap[*tag.ParentID]; exists {
+				addTag(parent)
+			}
+		}
+		visited[tag.ID] = true
+		sorted = append(sorted, tag)
+	}
+
+	for _, tag := range tags {
+		addTag(tag)
+	}
+
+	return sorted
+}
+
 // UpsertTagsTx 在事务中全量覆写标签表
 func UpsertTagsTx(ctx context.Context, tx pgx.Tx, tags []model.Tag) error {
 	// 删除所有标签
@@ -209,14 +248,20 @@ func UpsertTagsTx(ctx context.Context, tx pgx.Tx, tags []model.Tag) error {
 		return fmt.Errorf("删除旧标签失败: %w", err)
 	}
 
+	// 按层级排序，确保父标签先于子标签插入（满足外键约束）
+	sortedTags := sortTagsByHierarchy(tags)
+
 	// 插入新标签
 	insertQuery := `
 		INSERT INTO gallery.tags (id, name, parent_id, full_path, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 
-	for _, tag := range tags {
-		_, err := tx.Exec(ctx, insertQuery, tag.ID, tag.Name, tag.ParentID, tag.FullPath, tag.CreatedAt, tag.UpdatedAt)
+	for _, tag := range sortedTags {
+		// 将 FlexTime 转换为 time.Time
+		createdAt := tag.CreatedAt.Time()
+		updatedAt := tag.UpdatedAt.Time()
+		_, err := tx.Exec(ctx, insertQuery, tag.ID, tag.Name, tag.ParentID, tag.FullPath, createdAt, updatedAt)
 		if err != nil {
 			return fmt.Errorf("插入标签失败: %w", err)
 		}

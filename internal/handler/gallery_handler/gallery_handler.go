@@ -2,6 +2,7 @@ package gallery_handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -161,7 +162,7 @@ func Push(c *gin.Context) {
 	}
 	defer tx.Rollback(ctx) // 确保出错时回滚
 
-	// 1. 更新媒体资产（除 file_path 字段），同时 sync_count 加一
+	// 1. 更新媒体资产.
 	if len(req.MediaAssets) > 0 {
 		if err := gallery_repo.UpdateMediaAssetsTx(ctx, tx, req.MediaAssets); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新媒体资产失败: " + err.Error()})
@@ -171,6 +172,7 @@ func Push(c *gin.Context) {
 
 	// 2. 全量覆写标签表
 	if err := gallery_repo.UpsertTagsTx(ctx, tx, req.Tags); err != nil {
+		fmt.Println(err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新标签失败: " + err.Error()})
 		return
 	}
