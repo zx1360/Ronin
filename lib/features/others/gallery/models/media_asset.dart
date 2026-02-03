@@ -64,6 +64,8 @@ class MediaAsset {
     int? syncCount,
     String? groupId,
     bool clearGroupId = false,
+    String? message,
+    bool clearMessage = false,
   }) {
     return MediaAsset(
       id: id ?? this.id,
@@ -79,6 +81,7 @@ class MediaAsset {
       isDeleted: isDeleted ?? this.isDeleted,
       syncCount: syncCount ?? this.syncCount,
       groupId: clearGroupId ? null : (groupId ?? this.groupId),
+      message: clearMessage ? null : (message ?? this.message),
     );
   }
 

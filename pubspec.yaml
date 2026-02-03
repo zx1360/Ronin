@@ -17,10 +17,11 @@ dependencies:
   # 状态管理riverpod
   flutter_riverpod: ^2.3.0
   riverpod_annotation: ^2.3.0
-  # 数据持久化方案. Hive, shared_preferences
+  # 数据持久化方案. Hive, shared_preferences, sqflite
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   shared_preferences: ^2.3.2
+  sqflite: ^2.4.1
   # 路径获取及处理.
   path_provider: ^2.1.5
   path: ^1.9.1
