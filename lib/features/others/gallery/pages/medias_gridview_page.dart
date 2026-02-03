@@ -91,9 +91,11 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
             tooltip: '缩小',
             onPressed: () {
               ref.read(galleryGridColumnsProvider.notifier).zoomOut();
-              // 重新计算滚动位置
+              // 等待两帧确保布局完成后再滚动
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                _scrollToCurrentIndex();
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollToCurrentIndex();
+                });
               });
             },
           ),
@@ -103,9 +105,11 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
             tooltip: '放大',
             onPressed: () {
               ref.read(galleryGridColumnsProvider.notifier).zoomIn();
-              // 重新计算滚动位置
+              // 等待两帧确保布局完成后再滚动
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                _scrollToCurrentIndex();
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollToCurrentIndex();
+                });
               });
             },
           ),

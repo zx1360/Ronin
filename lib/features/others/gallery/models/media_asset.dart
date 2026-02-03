@@ -29,6 +29,7 @@ class MediaAsset {
 
   /// 捆绑组主文件ID
   final String? groupId;
+  
   /// 对该媒体文件的留言
   final String? message;
 

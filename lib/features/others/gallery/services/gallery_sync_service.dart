@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -303,17 +301,20 @@ class GallerySyncService extends _$GallerySyncService {
         total: data.assets.length,
       );
 
-      // 2. 构建上传数据
+      // 2. 构建上传数据 (直接使用 toJson)
       final uploadPayload = BatchData(
         medias: data.assets,
         tags: data.tags,
         links: data.links,
       );
 
-      // 3. 发送到服务端
-      final response = await apiClient.post(
+      print(uploadPayload.toJson()['media_assets']);
+      print(uploadPayload.toJson()['tags']);
+      print(uploadPayload.toJson()['media_tag_links']);
+      // 3. 发送到服务端 (使用 postJson 直接发送 JSON body)
+      final response = await apiClient.postJson(
         '/api/gallery/push',
-        jsonData: {'data': jsonEncode(uploadPayload.toJson())},
+        data: uploadPayload.toJson(),
         cancelToken: _cancelToken,
       );
 
