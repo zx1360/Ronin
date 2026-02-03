@@ -367,11 +367,6 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       ref.invalidate(galleryDbStatsProvider);
       ref.invalidate(galleryUploadStatsProvider);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('数据库已清空')),
-        );
-      }
     }
   }
 
@@ -390,11 +385,6 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       // 刷新数据
       ref.invalidate(galleryStorageStatsProvider);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('文件夹已清空')),
-        );
-      }
     }
   }
 

@@ -12,10 +12,7 @@ class LabelListPage extends ConsumerStatefulWidget {
   /// 媒体文件 ID，传入时支持打标签功能
   final String? mediaId;
 
-  const LabelListPage({
-    super.key,
-    this.mediaId,
-  });
+  const LabelListPage({super.key, this.mediaId});
 
   @override
   ConsumerState<LabelListPage> createState() => _LabelListPageState();
@@ -24,7 +21,7 @@ class LabelListPage extends ConsumerStatefulWidget {
 class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 展开的标签 ID 集合
   final Set<String> _expandedIds = {};
-  
+
   /// 选中的标签 ID 集合 (用于打标签)
   Set<String> _selectedIds = {};
 
@@ -88,7 +85,11 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.label_off_outlined, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.label_off_outlined,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
                   const Text('暂无标签', style: TextStyle(color: Colors.grey)),
                   const SizedBox(height: 16),
@@ -106,7 +107,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
           final rootTags = tags.where((t) => t.parentId == null).toList();
           final tagMap = {for (var t in tags) t.id: t};
           final childrenMap = <String, List<Tag>>{};
-          
+
           for (final tag in tags) {
             if (tag.parentId != null) {
               childrenMap.putIfAbsent(tag.parentId!, () => []).add(tag);
@@ -159,14 +160,17 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
           },
           builder: (context, candidateData, rejectedData) {
             final isDropTarget = candidateData.isNotEmpty;
-            
+
             return LongPressDraggable<String>(
               data: tag.id,
               feedback: Material(
                 elevation: 4,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
@@ -203,15 +207,17 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
             );
           },
         ),
-        
+
         // 子标签
         if (isExpanded && hasChildren)
-          ...children.map((child) => _buildTagTile(
-                tag: child,
-                tagMap: tagMap,
-                childrenMap: childrenMap,
-                depth: depth + 1,
-              )),
+          ...children.map(
+            (child) => _buildTagTile(
+              tag: child,
+              tagMap: tagMap,
+              childrenMap: childrenMap,
+              depth: depth + 1,
+            ),
+          ),
       ],
     );
   }
@@ -231,8 +237,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         color: isDropTarget
             ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
             : isSelected
-                ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)
-                : null,
+            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)
+            : null,
         border: isDropTarget
             ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
             : null,
@@ -252,10 +258,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         subtitle: tag.fullPath != null && tag.fullPath != tag.name
             ? Text(
                 tag.fullPath!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 overflow: TextOverflow.ellipsis,
               )
             : null,
@@ -313,8 +316,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         onTap: widget.mediaId != null
             ? () => _toggleSelection(tag.id)
             : hasChildren
-                ? () => _toggleExpand(tag.id)
-                : null,
+            ? () => _toggleExpand(tag.id)
+            : null,
       ),
     );
   }
@@ -344,14 +347,13 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 确认选择
   Future<void> _confirmSelection() async {
     if (widget.mediaId == null) return;
-    
-    await ref.read(currentMediaTagsProvider.notifier).setTags(_selectedIds.toList());
-    
+
+    await ref
+        .read(currentMediaTagsProvider.notifier)
+        .setTags(_selectedIds.toList());
+
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('标签已更新')),
-      );
     }
   }
 
@@ -376,7 +378,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 显示添加标签对话框
   Future<void> _showAddTagDialog(String? parentId) async {
     final controller = TextEditingController();
-    
+
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -410,7 +412,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 添加标签
   Future<void> _addTag(String name, String? parentId) async {
     final allTags = ref.read(tagTreeProvider).valueOrNull ?? [];
-    
+
     // 计算 full_path
     String fullPath;
     if (parentId == null) {
@@ -431,7 +433,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     );
 
     await ref.read(tagTreeProvider.notifier).addTag(tag);
-    
+
     // 展开父节点
     if (parentId != null) {
       setState(() {
@@ -443,7 +445,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 显示重命名对话框
   Future<void> _showRenameDialog(Tag tag) async {
     final controller = TextEditingController(text: tag.name);
-    
+
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -451,9 +453,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: '标签名称',
-          ),
+          decoration: const InputDecoration(labelText: '标签名称'),
         ),
         actions: [
           TextButton(
@@ -484,7 +484,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         fullPath: newFullPath,
         updatedAt: DateTime.now(),
       );
-      
+
       await ref.read(tagTreeProvider.notifier).updateTag(updatedTag);
     }
   }
@@ -523,24 +523,24 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   Future<void> _moveTag(String tagId, String? newParentId) async {
     try {
       await ref.read(tagTreeProvider.notifier).moveTag(tagId, newParentId);
-      
+
       // 展开新父节点
       if (newParentId != null) {
         setState(() {
           _expandedIds.add(newParentId);
         });
       }
-      
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('标签已移动')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('标签已移动')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('移动失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('移动失败: $e')));
       }
     }
   }

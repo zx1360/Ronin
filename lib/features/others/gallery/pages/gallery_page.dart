@@ -37,10 +37,12 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   @override
   Widget build(BuildContext context) {
     // 设置状态栏样式
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarIconBrightness: Brightness.light,
-      statusBarColor: Colors.transparent,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.light,
+        statusBarColor: Colors.transparent,
+      ),
+    );
 
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
@@ -78,10 +80,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
               ],
             ),
           ),
-          
+
           // 预览小窗 (启用预览功能时显示)
-          if (isPreviewAllowed)
-            const _NextMediaPreviewWidget(),
+          if (isPreviewAllowed) const _NextMediaPreviewWidget(),
         ],
       ),
     );
@@ -213,9 +214,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   void _openLabelPage(BuildContext context, String mediaId) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => LabelListPage(mediaId: mediaId),
-      ),
+      MaterialPageRoute(builder: (_) => LabelListPage(mediaId: mediaId)),
     );
   }
 
@@ -230,50 +229,10 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   /// 切换删除状态
   Future<void> _toggleDelete(dynamic media) async {
     final isCurrentlyDeleted = media.isDeleted;
-    
-    if (!isCurrentlyDeleted) {
-      // 确认删除
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('标记删除'),
-          content: const Text('确定要标记此文件为已删除吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('删除'),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmed != true) return;
-    }
 
     await ref
         .read(mediaAssetListProvider.notifier)
         .markDeleted(media.id, deleted: !isCurrentlyDeleted);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isCurrentlyDeleted ? '已取消删除标记' : '已标记为删除'),
-          action: SnackBarAction(
-            label: '撤销',
-            onPressed: () {
-              ref
-                  .read(mediaAssetListProvider.notifier)
-                  .markDeleted(media.id, deleted: isCurrentlyDeleted);
-            },
-          ),
-        ),
-      );
-    }
   }
 
   /// 打开详情页面
@@ -283,9 +242,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => MediaDetailPage(asset: currentMedia),
-      ),
+      MaterialPageRoute(builder: (_) => MediaDetailPage(asset: currentMedia)),
     );
   }
 }
@@ -320,10 +277,7 @@ class _BottomBarButton extends StatelessWidget {
           children: [
             Icon(icon, color: effectiveColor, size: 22),
             const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(color: effectiveColor, fontSize: 9),
-            ),
+            Text(label, style: TextStyle(color: effectiveColor, fontSize: 9)),
           ],
         ),
       ),
@@ -336,13 +290,15 @@ class _NextMediaPreviewWidget extends ConsumerStatefulWidget {
   const _NextMediaPreviewWidget();
 
   @override
-  ConsumerState<_NextMediaPreviewWidget> createState() => _NextMediaPreviewWidgetState();
+  ConsumerState<_NextMediaPreviewWidget> createState() =>
+      _NextMediaPreviewWidgetState();
 }
 
-class _NextMediaPreviewWidgetState extends ConsumerState<_NextMediaPreviewWidget> {
+class _NextMediaPreviewWidgetState
+    extends ConsumerState<_NextMediaPreviewWidget> {
   /// 当前位置偏移
   Offset _offset = const Offset(16, 100);
-  
+
   /// 预览图尺寸
   static const double _previewSize = 80;
 
@@ -358,14 +314,14 @@ class _NextMediaPreviewWidgetState extends ConsumerState<_NextMediaPreviewWidget
       data: (assets) {
         // 计算下一个媒体的索引
         final nextIndex = currentIndex + 1;
-        
+
         // 如果是最后一个，不显示预览窗
         if (nextIndex >= assets.length) {
           return const SizedBox.shrink();
         }
-        
+
         final nextAsset = assets[nextIndex];
-        
+
         return Positioned(
           left: _offset.dx,
           top: _offset.dy,
@@ -409,7 +365,8 @@ class _NextMediaPreviewWidgetState extends ConsumerState<_NextMediaPreviewWidget
                         snapshot.data!,
                         fit: BoxFit.cover,
                         cacheWidth: 160,
-                        errorBuilder: (_, __, ___) => _buildPlaceholder(nextAsset),
+                        errorBuilder: (_, __, ___) =>
+                            _buildPlaceholder(nextAsset),
                       );
                     }
                     return _buildPlaceholder(nextAsset);
@@ -422,19 +379,22 @@ class _NextMediaPreviewWidgetState extends ConsumerState<_NextMediaPreviewWidget
       },
     );
   }
-  
+
   /// 获取预览图文件 (优先预览图 -> 原图)
-  Future<File?> _getPreviewFile(GalleryStorageService storage, MediaAsset asset) async {
+  Future<File?> _getPreviewFile(
+    GalleryStorageService storage,
+    MediaAsset asset,
+  ) async {
     // 优先使用预览图
     if (asset.previewPath != null) {
       final previewFile = await storage.getPreviewFile(asset.previewPath!);
       if (previewFile != null) return previewFile;
     }
-    
+
     // 然后原图
     return await storage.getMediaFile(asset.filePath);
   }
-  
+
   /// 构建占位符
   Widget _buildPlaceholder(MediaAsset asset) {
     return Container(
