@@ -3,13 +3,13 @@
 ## Flutter App（离线优先）
 
 前端应用：Flutter + sqflite
-逻辑：闭环的资源管理与交互, 可离线本地进行媒体文件操作并在局域网内向服务器同步结果。
+逻辑：闭环的资源管理与交互.
 
 Local Data Structure (sqflite):
-
-gallery_medias: 镜像 media_assets (轻量级元数据)。
-gallery_tags: 存储tags记录(初始为从服务端获取到的初始值.)
-gallery_medias_tags: 存储media与tags的关联记录(从服务端增量获取写入)
+media_assets: 镜像 media_assets (轻量级元数据)。
+tags: 存储tags记录(初始为从服务端获取到的初始值.)
+media_tag_links: 存储media与tags的关联记录(从服务端增量获取写入)
+- 表约束之类的与服务端的对应表保持一致. 不过客户端本地的表数据量级远小于服务端, 可不必过于在意性能优化.
 
 与客户端双向增量更新.
 
@@ -41,4 +41,29 @@ Review Mode: 类似相册流或卡片堆叠。
 - 后续增量同步，支持离线队列与重试.
 - 所有的打标签/标记删除等操作在本地离线实现, 记录于与服务端数据表结构相同的sqflite中, 同步时增量上传, 之后删除上传的sqflite中相关记录, 这一步确保原子性.
 - 与monarch的http服务器对应的api.
+
+```json
+{
+  "media_assets": [
+    {
+      "id": "71ab794a-25cf-46a7-a3b8-622e37474e5d",
+      "created_at": "2026-01-28T19:40:16.961975+08:00",
+      "updated_at": "2026-01-28T19:40:16.961975+08:00",
+      "captured_at": "2008-08-29T14:10:56+08:00",
+      "file_path": "2008-08\\Super Sonico超级索尼子壁纸.jpg",
+      "thumb_path": "2008-08\\Super Sonico超级索尼子壁纸_thumb.jpg",
+      "preview_path": "2008-08\\Super Sonico超级索尼子壁纸_preview.jpg",
+      "hash": "9xy9SF4oUH/E3CpFOU26qnJU4rcEClHEFMo5go9Lyus=",
+      "size_bytes": 1942070,
+      "mime_type": "image/jpeg",
+      "is_deleted": false,
+      "sync_count": 0,
+      "group_id": null
+    }
+    ...
+  ],
+  "tags": null,
+  "media_tag_links": null
+}
+```
 

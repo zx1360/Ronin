@@ -222,9 +222,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
       // 关闭BottomSheet并刷新页面数据
       if (mounted) {
         context.pop();
-        // TODO?: 重新加载最新样式和记录
-        // loadInitialData();
-        // setState(() {});
+        setState(() {});
       }
     }
 

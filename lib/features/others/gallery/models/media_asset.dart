@@ -29,6 +29,8 @@ class MediaAsset {
 
   /// 捆绑组主文件ID
   final String? groupId;
+  /// 对该媒体文件的留言
+  final String? message;
 
   const MediaAsset({
     required this.id,
@@ -44,6 +46,7 @@ class MediaAsset {
     this.isDeleted = false,
     this.syncCount = 0,
     this.groupId,
+    this.message,
   });
 
   MediaAsset copyWith({
@@ -123,6 +126,7 @@ class MediaAsset {
         'is_deleted': isDeleted ? 1 : 0,
         'sync_count': syncCount,
         'group_id': groupId,
+        'message': message,
       };
 
   factory MediaAsset.fromDbMap(Map<String, dynamic> map) => MediaAsset(
@@ -139,5 +143,6 @@ class MediaAsset {
         isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
         syncCount: map['sync_count'] as int? ?? 0,
         groupId: map['group_id'] as String?,
+        message: map['message'] as String?,
       );
 }

@@ -20,6 +20,7 @@ MediaAsset _$MediaAssetFromJson(Map<String, dynamic> json) => MediaAsset(
       isDeleted: json['is_deleted'] as bool? ?? false,
       syncCount: (json['sync_count'] as num?)?.toInt() ?? 0,
       groupId: json['group_id'] as String?,
+      message: json['message'] as String?,
     );
 
 Map<String, dynamic> _$MediaAssetToJson(MediaAsset instance) =>
@@ -37,4 +38,5 @@ Map<String, dynamic> _$MediaAssetToJson(MediaAsset instance) =>
       'is_deleted': instance.isDeleted,
       'sync_count': instance.syncCount,
       'group_id': instance.groupId,
+      'message': instance.message,
     };
