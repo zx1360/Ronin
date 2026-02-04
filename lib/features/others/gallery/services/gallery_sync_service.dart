@@ -308,9 +308,6 @@ class GallerySyncService extends _$GallerySyncService {
         links: data.links,
       );
 
-      print(uploadPayload.toJson()['media_assets']);
-      print(uploadPayload.toJson()['tags']);
-      print(uploadPayload.toJson()['media_tag_links']);
       // 3. 发送到服务端 (使用 postJson 直接发送 JSON body)
       final response = await apiClient.postJson(
         '/api/gallery/push',
