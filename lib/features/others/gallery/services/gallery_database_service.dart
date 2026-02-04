@@ -138,10 +138,18 @@ class GalleryDatabaseService {
     await batch.commit(noResult: true);
   }
 
-  /// 获取所有媒体文件 (按 captured_at 升序, 排除已绑定的非主文件)
-  Future<List<MediaAsset>> getMediaAssets({bool includeGroupMembers = false}) async {
+  /// 获取所有媒体文件 (按 captured_at 升序)
+  /// - includeGroupMembers: 是否包含组成员文件
+  /// - excludeDeleted: 是否排除已删除的文件
+  Future<List<MediaAsset>> getMediaAssets({
+    bool includeGroupMembers = false,
+    bool excludeDeleted = false,
+  }) async {
     final db = await database;
-    final String where = includeGroupMembers ? '' : 'WHERE group_id IS NULL';
+    final conditions = <String>[];
+    if (!includeGroupMembers) conditions.add('group_id IS NULL');
+    if (excludeDeleted) conditions.add('is_deleted = 0');
+    final String where = conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}';
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
       SELECT * FROM media_assets $where ORDER BY captured_at ASC
     ''');
@@ -468,13 +476,91 @@ class GalleryDatabaseService {
     AppLogger().info('Gallery 数据库已清空');
   }
 
-  /// 获取待上传的数据包
+  /// 获取待上传的数据包 (全量 - 已废弃，使用 getPartialDataForUpload)
   Future<({List<MediaAsset> assets, List<Tag> tags, List<MediaTagLink> links})>
       getDataForUpload() async {
     final assets = await getMediaAssets(includeGroupMembers: true);
     final tags = await getAllTags();
     final links = await getAllMediaTagLinks();
     return (assets: assets, tags: tags, links: links);
+  }
+
+  /// 获取待上传的部分数据包 (基于当前索引位置)
+  /// - assets: 获取队列中 0 到 currentIndex 位置的媒体文件及其组成员
+  /// - tags: 获取全量标签
+  /// - links: 仅获取与涉及媒体文件相关的关联记录
+  /// 注意：上传时包含所有文件（包括已删除的），因为服务端需要知道删除状态
+  Future<({List<MediaAsset> assets, List<Tag> tags, List<MediaTagLink> links})>
+      getPartialDataForUpload(int currentIndex) async {
+    final db = await database;
+    
+    // 1. 获取队列中主文件列表 (0 到 currentIndex)，不排除已删除的
+    final mainAssetMaps = await db.rawQuery('''
+      SELECT * FROM media_assets 
+      WHERE group_id IS NULL 
+      ORDER BY captured_at ASC 
+      LIMIT ?
+    ''', [currentIndex + 1]);
+    
+    final mainAssets = mainAssetMaps.map((m) => MediaAsset.fromDbMap(m)).toList();
+    final mainIds = mainAssets.map((a) => a.id).toList();
+    
+    if (mainIds.isEmpty) {
+      return (assets: <MediaAsset>[], tags: <Tag>[], links: <MediaTagLink>[]);
+    }
+    
+    // 2. 获取这些主文件的所有组成员
+    final placeholders = List.filled(mainIds.length, '?').join(',');
+    final memberMaps = await db.rawQuery('''
+      SELECT * FROM media_assets 
+      WHERE group_id IN ($placeholders)
+    ''', mainIds);
+    
+    final memberAssets = memberMaps.map((m) => MediaAsset.fromDbMap(m)).toList();
+    
+    // 3. 合并所有媒体文件
+    final allAssets = [...mainAssets, ...memberAssets];
+    final allMediaIds = allAssets.map((a) => a.id).toList();
+    
+    // 4. 获取全量标签
+    final tags = await getAllTags();
+    
+    // 5. 获取相关的 media_tag_links
+    final linkPlaceholders = List.filled(allMediaIds.length, '?').join(',');
+    final linkMaps = await db.rawQuery('''
+      SELECT * FROM media_tag_links 
+      WHERE media_id IN ($linkPlaceholders)
+    ''', allMediaIds);
+    
+    final links = linkMaps.map((m) => MediaTagLink.fromDbMap(m)).toList();
+    
+    return (assets: allAssets, tags: tags, links: links);
+  }
+
+  /// 删除已上传的媒体数据 (部分删除)
+  /// - 删除指定的 media_assets 记录
+  /// - 删除相关的 media_tag_links 记录
+  Future<void> deleteUploadedData(List<String> mediaIds) async {
+    if (mediaIds.isEmpty) return;
+    final db = await database;
+    final placeholders = List.filled(mediaIds.length, '?').join(',');
+    
+    await db.transaction((txn) async {
+      // 先删除关联记录
+      await txn.delete(
+        'media_tag_links',
+        where: 'media_id IN ($placeholders)',
+        whereArgs: mediaIds,
+      );
+      // 再删除媒体文件记录
+      await txn.delete(
+        'media_assets',
+        where: 'id IN ($placeholders)',
+        whereArgs: mediaIds,
+      );
+    });
+    
+    AppLogger().info('Gallery 已删除 ${mediaIds.length} 条媒体记录');
   }
 
   /// 关闭数据库

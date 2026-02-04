@@ -267,7 +267,7 @@ class GallerySyncService extends _$GallerySyncService {
   }
 
   /// 上传本地数据到服务端
-  /// 上传全部本地数据，然后清理本地
+  /// 上传当前媒体及其前面的所有媒体数据，然后清理已上传的记录
   Future<bool> uploadData() async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
@@ -285,8 +285,11 @@ class GallerySyncService extends _$GallerySyncService {
         message: '正在准备数据...',
       );
 
-      // 1. 获取本地数据
-      final data = await db.getDataForUpload();
+      // 1. 获取当前索引位置
+      final currentIndex = ref.read(galleryCurrentIndexProvider);
+      
+      // 2. 获取部分本地数据 (0 到 currentIndex 位置的媒体及其组成员)
+      final data = await db.getPartialDataForUpload(currentIndex);
       
       if (data.assets.isEmpty) {
         state = const SyncProgress(
@@ -336,10 +339,11 @@ class GallerySyncService extends _$GallerySyncService {
       // 5. 清理空目录
       await storage.cleanupEmptyDirectories();
 
-      // 6. 清空数据库
-      await db.clearAllData();
+      // 6. 删除已上传的数据库记录 (部分删除，非全量清空)
+      final uploadedMediaIds = data.assets.map((a) => a.id).toList();
+      await db.deleteUploadedData(uploadedMediaIds);
 
-      // 7. 重置状态
+      // 7. 重置状态到 0
       await ref.read(galleryModifiedCountProvider.notifier).reset();
       await ref.read(galleryCurrentIndexProvider.notifier).update(0);
       

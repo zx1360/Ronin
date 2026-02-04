@@ -7,13 +7,14 @@ part 'media_providers.g.dart';
 
 // ============ 媒体数据 Providers ============
 
-/// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件)
+/// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 排除已删除)
+/// 用于 gallery_page 的主浏览视图
 @riverpod
 class MediaAssetList extends _$MediaAssetList {
   @override
   Future<List<MediaAsset>> build() async {
     final db = ref.watch(galleryDatabaseProvider);
-    return await db.getMediaAssets();
+    return await db.getMediaAssets(excludeDeleted: true);
   }
 
   /// 刷新列表
@@ -21,7 +22,7 @@ class MediaAssetList extends _$MediaAssetList {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final db = ref.read(galleryDatabaseProvider);
-      return await db.getMediaAssets();
+      return await db.getMediaAssets(excludeDeleted: true);
     });
   }
 
@@ -110,5 +111,25 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     if (index >= 0 && index < assets.length) {
       await ref.read(galleryCurrentIndexProvider.notifier).update(index);
     }
+  }
+}
+
+/// 全部媒体文件列表 Provider (包括已删除，仅主文件)
+/// 用于 medias_gridview_page 显示所有文件
+@riverpod
+class AllMediaAssetList extends _$AllMediaAssetList {
+  @override
+  Future<List<MediaAsset>> build() async {
+    final db = ref.watch(galleryDatabaseProvider);
+    return await db.getMediaAssets(excludeDeleted: false);
+  }
+
+  /// 刷新列表
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final db = ref.read(galleryDatabaseProvider);
+      return await db.getMediaAssets(excludeDeleted: false);
+    });
   }
 }

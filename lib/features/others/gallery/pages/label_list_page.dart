@@ -19,11 +19,14 @@ class LabelListPage extends ConsumerStatefulWidget {
 }
 
 class _LabelListPageState extends ConsumerState<LabelListPage> {
-  /// 展开的标签 ID 集合
-  final Set<String> _expandedIds = {};
+  /// 展开的标签 ID 集合 (默认全部展开有子节点的)
+  Set<String> _expandedIds = {};
 
   /// 选中的标签 ID 集合 (用于打标签)
   Set<String> _selectedIds = {};
+  
+  /// 是否已初始化展开状态
+  bool _expandInitialized = false;
 
   @override
   void initState() {
@@ -41,6 +44,24 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       _selectedIds = tagIds.toSet();
     });
   }
+  
+  /// 初始化展开状态 - 默认展开所有有子节点的标签
+  void _initExpandedIds(List<Tag> tags) {
+    if (_expandInitialized) return;
+    _expandInitialized = true;
+    
+    // 找出所有有子节点的标签
+    final parentIds = <String>{};
+    for (final tag in tags) {
+      if (tag.parentId != null) {
+        parentIds.add(tag.parentId!);
+      }
+    }
+    
+    setState(() {
+      _expandedIds = parentIds;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,13 +77,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
             tooltip: '添加根标签',
             onPressed: () => _showAddTagDialog(null),
           ),
-          // 如果是打标签模式，显示确认按钮
-          if (widget.mediaId != null)
-            IconButton(
-              icon: const Icon(Icons.check),
-              tooltip: '确认',
-              onPressed: _confirmSelection,
-            ),
+          // 删除确定按钮 - 勾选即确定
         ],
       ),
       body: tagsAsync.when(
@@ -80,6 +95,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
           ),
         ),
         data: (tags) {
+          // 初始化展开状态
+          _initExpandedIds(tags);
+          
           if (tags.isEmpty) {
             return Center(
               child: Column(
@@ -333,8 +351,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     });
   }
 
-  /// 切换选中状态
-  void _toggleSelection(String tagId) {
+  /// 切换选中状态 (打标签模式下直接保存)
+  Future<void> _toggleSelection(String tagId) async {
     setState(() {
       if (_selectedIds.contains(tagId)) {
         _selectedIds.remove(tagId);
@@ -342,18 +360,12 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         _selectedIds.add(tagId);
       }
     });
-  }
-
-  /// 确认选择
-  Future<void> _confirmSelection() async {
-    if (widget.mediaId == null) return;
-
-    await ref
-        .read(currentMediaTagsProvider.notifier)
-        .setTags(_selectedIds.toList());
-
-    if (mounted) {
-      Navigator.pop(context);
+    
+    // 如果是打标签模式，直接保存
+    if (widget.mediaId != null) {
+      await ref
+          .read(currentMediaTagsProvider.notifier)
+          .setTags(_selectedIds.toList());
     }
   }
 

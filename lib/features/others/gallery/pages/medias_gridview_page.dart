@@ -72,7 +72,8 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final assetsAsync = ref.watch(mediaAssetListProvider);
+    // 使用包含已删除文件的列表
+    final assetsAsync = ref.watch(allMediaAssetListProvider);
     final columns = ref.watch(galleryGridColumnsProvider);
     final currentIndex = ref.watch(galleryCurrentIndexProvider);
 
@@ -185,6 +186,17 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
 
   /// 构建底部操作栏
   Widget _buildBottomBar() {
+    // 检查选中项中是否有已删除的
+    final allAssets = ref.read(allMediaAssetListProvider).valueOrNull ?? [];
+    final hasDeletedSelected = _selectedIds.any((id) {
+      final asset = allAssets.firstWhere((a) => a.id == id, orElse: () => allAssets.first);
+      return asset.isDeleted;
+    });
+    final hasNonDeletedSelected = _selectedIds.any((id) {
+      final asset = allAssets.firstWhere((a) => a.id == id, orElse: () => allAssets.first);
+      return !asset.isDeleted;
+    });
+    
     return Container(
       color: Colors.grey[900],
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -199,13 +211,22 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
                 label: '捆绑',
                 onPressed: _bundleSelected,
               ),
-            // 删除按钮
-            _BottomButton(
-              icon: Icons.delete,
-              label: '删除',
-              color: Colors.red,
-              onPressed: _deleteSelected,
-            ),
+            // 恢复按钮 (有已删除的选中项时显示)
+            if (hasDeletedSelected)
+              _BottomButton(
+                icon: Icons.restore,
+                label: '恢复',
+                color: Colors.green,
+                onPressed: _restoreSelected,
+              ),
+            // 删除按钮 (有未删除的选中项时显示)
+            if (hasNonDeletedSelected)
+              _BottomButton(
+                icon: Icons.delete,
+                label: '删除',
+                color: Colors.red,
+                onPressed: _deleteSelected,
+              ),
           ],
         ),
       ),
@@ -314,6 +335,8 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
       final scrollOffset = _scrollController.offset;
       
       await ref.read(mediaAssetListProvider.notifier).bundleMedia(leadId, memberIds);
+      // 同时刷新 allMediaAssetListProvider
+      ref.invalidate(allMediaAssetListProvider);
       
       // 退出选择模式但保持滚动位置
       setState(() {
@@ -359,8 +382,10 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
       final scrollOffset = _scrollController.offset;
       
       for (final id in _selectedIds) {
-        await ref.read(mediaAssetListProvider.notifier).markDeleted(id);
+        await ref.read(mediaAssetListProvider.notifier).markDeleted(id, deleted: true);
       }
+      // 刷新 allMediaAssetListProvider
+      ref.invalidate(allMediaAssetListProvider);
       
       // 退出选择模式但保持滚动位置
       setState(() {
@@ -378,6 +403,34 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
         }
       });
     }
+  }
+
+  /// 恢复选中的已删除媒体文件
+  Future<void> _restoreSelected() async {
+    // 保存当前滚动位置
+    final scrollOffset = _scrollController.offset;
+    
+    for (final id in _selectedIds) {
+      await ref.read(mediaAssetListProvider.notifier).markDeleted(id, deleted: false);
+    }
+    // 刷新 allMediaAssetListProvider
+    ref.invalidate(allMediaAssetListProvider);
+    
+    // 退出选择模式但保持滚动位置
+    setState(() {
+      _isSelectionMode = false;
+      _selectedIds.clear();
+      _selectionOrder.clear();
+    });
+    
+    // 恢复滚动位置
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(
+          scrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        );
+      }
+    });
   }
 }
 

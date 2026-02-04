@@ -230,9 +230,30 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   Future<void> _toggleDelete(dynamic media) async {
     final isCurrentlyDeleted = media.isDeleted;
 
-    await ref
-        .read(mediaAssetListProvider.notifier)
-        .markDeleted(media.id, deleted: !isCurrentlyDeleted);
+    if (!isCurrentlyDeleted) {
+      // 标记删除 -> 自动跳到下一张（如果有）
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .markDeleted(media.id, deleted: true);
+      
+      // 刷新后检查当前索引是否需要调整
+      final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+      final currentIndex = ref.read(galleryCurrentIndexProvider);
+      
+      if (assets.isEmpty) {
+        // 没有可显示的文件了
+        await ref.read(galleryCurrentIndexProvider.notifier).update(0);
+      } else if (currentIndex >= assets.length) {
+        // 索引超出范围，调整到最后一张
+        await ref.read(galleryCurrentIndexProvider.notifier).update(assets.length - 1);
+      }
+      // 否则保持当前索引（自动显示下一张）
+    } else {
+      // 取消删除标记
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .markDeleted(media.id, deleted: false);
+    }
   }
 
   /// 打开详情页面
