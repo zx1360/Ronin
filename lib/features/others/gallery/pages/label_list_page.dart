@@ -530,12 +530,6 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
           _expandedIds.add(newParentId);
         });
       }
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('标签已移动')));
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
