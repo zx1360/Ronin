@@ -173,40 +173,46 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
                     ),
                   ),
 
-                  // 左侧导航按钮 - 上一张
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: constraints.maxWidth / 4,
-                    child: _NavigationButton(
-                      onTap: currentIndex > 0 ? widget.onPrevious : null,
-                      icon: Icons.chevron_left,
-                      alignment: Alignment.centerLeft,
-                    ),
-                  ),
-                  // 右侧导航按钮 - 下一张
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: constraints.maxWidth / 4,
-                    child: _NavigationButton(
-                      onTap: currentIndex < assets.length - 1 ? widget.onNext : null,
-                      icon: Icons.chevron_right,
-                      alignment: Alignment.centerRight,
-                    ),
-                  ),
-                  // 中心区域 - 用于切换工具栏和旋转
-                  Positioned(
-                    left: constraints.maxWidth / 4,
-                    right: constraints.maxWidth / 4,
-                    top: 0,
-                    bottom: 0,
-                    child: _CenterZoneGestureDetector(
-                      onSingleTap: widget.onToggleBars,
-                      onDoubleTap: _toggleRotation,
-                    ),
+                  // 手势覆盖层 - 使用 GestureDetector + translucent 让 PhotoView 缩放正常工作
+                  // TapGestureRecognizer 在检测到多指时会自动失败，不会与 ScaleGestureRecognizer 冲突
+                  Stack(
+                    children: [
+                      // 左侧导航按钮 - 上一张
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: constraints.maxWidth / 4,
+                        child: _SimpleNavigationButton(
+                          onTap: currentIndex > 0 ? widget.onPrevious : null,
+                          icon: Icons.chevron_left,
+                          alignment: Alignment.centerLeft,
+                        ),
+                      ),
+                      // 右侧导航按钮 - 下一张
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: constraints.maxWidth / 4,
+                        child: _SimpleNavigationButton(
+                          onTap: currentIndex < assets.length - 1 ? widget.onNext : null,
+                          icon: Icons.chevron_right,
+                          alignment: Alignment.centerRight,
+                        ),
+                      ),
+                      // 中心区域 - 用于切换工具栏和旋转
+                      Positioned(
+                        left: constraints.maxWidth / 4,
+                        right: constraints.maxWidth / 4,
+                        top: 0,
+                        bottom: 0,
+                        child: _SimpleCenterZone(
+                          onSingleTap: widget.onToggleBars,
+                          onDoubleTap: _toggleRotation,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -248,87 +254,38 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
   }
 }
 
-/// 中心区域手势检测器 - 处理单击和双击
-class _CenterZoneGestureDetector extends StatefulWidget {
+/// 简化的中心区域 - 处理单击和双击
+/// 使用 GestureDetector + HitTestBehavior.translucent 让 PhotoView 缩放正常工作
+/// TapGestureRecognizer 在检测到多指时会自动失败，不会与 ScaleGestureRecognizer 冲突
+class _SimpleCenterZone extends StatelessWidget {
   final VoidCallback? onSingleTap;
   final VoidCallback? onDoubleTap;
 
-  const _CenterZoneGestureDetector({
+  const _SimpleCenterZone({
     this.onSingleTap,
     this.onDoubleTap,
   });
 
   @override
-  State<_CenterZoneGestureDetector> createState() =>
-      _CenterZoneGestureDetectorState();
-}
-
-class _CenterZoneGestureDetectorState extends State<_CenterZoneGestureDetector> {
-  DateTime? _lastTapTime;
-  Offset? _lastTapPosition;
-  bool _isDragging = false;
-  static const _doubleTapTimeout = Duration(milliseconds: 300);
-  static const _tapSlop = 20.0; // 判断是否有移动
-
-  @override
   Widget build(BuildContext context) {
-    return Listener(
+    return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) {
-        _isDragging = false;
-        _lastTapPosition = event.position;
-      },
-      onPointerMove: (event) {
-        if (_lastTapPosition != null) {
-          final distance = (event.position - _lastTapPosition!).distance;
-          if (distance > _tapSlop) {
-            _isDragging = true;
-          }
-        }
-      },
-      onPointerUp: (event) {
-        // 如果发生了拖动则不算点击
-        if (_isDragging) {
-          _isDragging = false;
-          return;
-        }
-        _handleTap();
-      },
-      child: Container(color: Colors.transparent),
+      onTap: onSingleTap,
+      onDoubleTap: onDoubleTap,
+      child: const SizedBox.expand(),
     );
   }
-
-  void _handleTap() {
-    final now = DateTime.now();
-    final isDoubleTap = _lastTapTime != null &&
-        now.difference(_lastTapTime!) < _doubleTapTimeout;
-
-    if (isDoubleTap) {
-      // 双击 - 旋转图片
-      widget.onDoubleTap?.call();
-      _lastTapTime = null;
-    } else {
-      // 记录点击用于双击检测
-      _lastTapTime = now;
-
-      // 延迟处理单击，等待可能的双击
-      Future.delayed(_doubleTapTimeout, () {
-        if (_lastTapTime == now) {
-          // 没有发生双击，处理单击
-          widget.onSingleTap?.call();
-        }
-      });
-    }
-  }
 }
 
-/// 导航按钮 - 用于快速响应的上一张/下一张
-class _NavigationButton extends StatelessWidget {
+/// 简化的导航按钮 - 用于上一张/下一张
+/// 使用 GestureDetector + HitTestBehavior.translucent 让 PhotoView 缩放正常工作
+/// TapGestureRecognizer 在检测到多指时会自动失败，不会与 ScaleGestureRecognizer 冲突
+class _SimpleNavigationButton extends StatelessWidget {
   final VoidCallback? onTap;
   final IconData icon;
   final Alignment alignment;
 
-  const _NavigationButton({
+  const _SimpleNavigationButton({
     required this.onTap,
     required this.icon,
     required this.alignment,
@@ -336,23 +293,19 @@ class _NavigationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        splashColor: Colors.white12,
-        highlightColor: Colors.white10,
-        child: Container(
-          alignment: alignment,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: AnimatedOpacity(
-            opacity: onTap != null ? 0.3 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 40,
-            ),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: onTap,
+      child: Container(
+        alignment: alignment,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: AnimatedOpacity(
+          opacity: onTap != null ? 0.3 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 40,
           ),
         ),
       ),
