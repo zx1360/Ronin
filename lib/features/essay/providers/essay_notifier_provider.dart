@@ -225,6 +225,9 @@ class EssayService extends _$EssayService {
       ..add(message);
     final essay = originalEssay.copyWith(messages: updatedMessages);
     await state.essayBox.put(essay.id, essay);
+
+    // 更新当前显示的随笔
+    ref.read(contentServerProvider.notifier).switchEssay(essay);
   }
 
   /// 新增标签

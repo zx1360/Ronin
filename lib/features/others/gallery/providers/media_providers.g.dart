@@ -6,10 +6,10 @@ part of 'media_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$mediaAssetListHash() => r'297ba6c0c0bd638fea808b5c1b7bd6dd4060dc33';
+String _$mediaAssetListHash() => r'bf552028c78d71a7c5acf76d3d2aa1e4893489ff';
 
-/// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 排除已删除)
-/// 用于 gallery_page 的主浏览视图
+/// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
+/// 统一使用这个列表，索引保持稳定
 ///
 /// Copied from [MediaAssetList].
 @ProviderFor(MediaAssetList)
@@ -25,9 +25,10 @@ final mediaAssetListProvider =
 );
 
 typedef _$MediaAssetList = AutoDisposeAsyncNotifier<List<MediaAsset>>;
-String _$currentMediaAssetHash() => r'76f730c74e8f184265fe6e51f33335b6bfa8c016';
+String _$currentMediaAssetHash() => r'8a3c0029b21ded72ab4d944429865cb3eeb474d0';
 
 /// 当前媒体文件 Provider
+/// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）
 ///
 /// Copied from [CurrentMediaAsset].
 @ProviderFor(CurrentMediaAsset)
@@ -43,24 +44,5 @@ final currentMediaAssetProvider =
 );
 
 typedef _$CurrentMediaAsset = AutoDisposeNotifier<MediaAsset?>;
-String _$allMediaAssetListHash() => r'f7d71eacb11ac0de967c5f122bd44b9b6e6bd0f2';
-
-/// 全部媒体文件列表 Provider (包括已删除，仅主文件)
-/// 用于 medias_gridview_page 显示所有文件
-///
-/// Copied from [AllMediaAssetList].
-@ProviderFor(AllMediaAssetList)
-final allMediaAssetListProvider = AutoDisposeAsyncNotifierProvider<
-    AllMediaAssetList, List<MediaAsset>>.internal(
-  AllMediaAssetList.new,
-  name: r'allMediaAssetListProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$allMediaAssetListHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$AllMediaAssetList = AutoDisposeAsyncNotifier<List<MediaAsset>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

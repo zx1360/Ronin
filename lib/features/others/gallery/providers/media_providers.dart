@@ -7,34 +7,36 @@ part 'media_providers.g.dart';
 
 // ============ 媒体数据 Providers ============
 
-/// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 排除已删除)
-/// 用于 gallery_page 的主浏览视图
+/// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
+/// 统一使用这个列表，索引保持稳定
 @riverpod
 class MediaAssetList extends _$MediaAssetList {
   @override
   Future<List<MediaAsset>> build() async {
     final db = ref.watch(galleryDatabaseProvider);
-    return await db.getMediaAssets(excludeDeleted: true);
+    return await db.getMediaAssets(excludeDeleted: false);
   }
 
-  /// 刷新列表
-  Future<void> refresh() async {
+  /// 刷新列表，返回刷新后的数据
+  Future<List<MediaAsset>> refresh() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard(() async {
       final db = ref.read(galleryDatabaseProvider);
-      return await db.getMediaAssets(excludeDeleted: true);
+      return await db.getMediaAssets(excludeDeleted: false);
     });
+    state = result;
+    return result.valueOrNull ?? [];
   }
 
-  /// 标记删除
-  Future<void> markDeleted(String id, {bool deleted = true}) async {
+  /// 标记删除，返回刷新后的列表
+  Future<List<MediaAsset>> markDeleted(String id, {bool deleted = true}) async {
     final db = ref.read(galleryDatabaseProvider);
     await db.markMediaAssetDeleted(id, deleted: deleted);
     
     // 更新 modified_count
     await _updateModifiedCount(id);
     
-    await refresh();
+    return await refresh();
   }
 
   /// 捆绑媒体文件
@@ -69,6 +71,7 @@ class MediaAssetList extends _$MediaAssetList {
 }
 
 /// 当前媒体文件 Provider
+/// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）
 @riverpod
 class CurrentMediaAsset extends _$CurrentMediaAsset {
   @override
@@ -82,54 +85,65 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     return assets[index];
   }
 
-  /// 前进到下一个
+  /// 前进到下一个未删除的文件
   Future<bool> next() async {
     final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     final currentIndex = ref.read(galleryCurrentIndexProvider);
     
-    if (currentIndex < assets.length - 1) {
-      await ref.read(galleryCurrentIndexProvider.notifier).update(currentIndex + 1);
-      return true;
+    // 找下一个未删除的
+    for (int i = currentIndex + 1; i < assets.length; i++) {
+      if (!assets[i].isDeleted) {
+        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        return true;
+      }
     }
     return false;
   }
 
-  /// 返回上一个
+  /// 返回上一个未删除的文件
   Future<bool> previous() async {
+    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     final currentIndex = ref.read(galleryCurrentIndexProvider);
     
-    if (currentIndex > 0) {
-      await ref.read(galleryCurrentIndexProvider.notifier).update(currentIndex - 1);
-      return true;
+    // 找上一个未删除的
+    for (int i = currentIndex - 1; i >= 0; i--) {
+      if (!assets[i].isDeleted) {
+        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        return true;
+      }
     }
     return false;
   }
 
-  /// 跳转到指定位置
+  /// 跳转到指定位置（直接跳转，不检查删除状态）
   Future<void> jumpTo(int index) async {
     final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     if (index >= 0 && index < assets.length) {
       await ref.read(galleryCurrentIndexProvider.notifier).update(index);
     }
   }
-}
-
-/// 全部媒体文件列表 Provider (包括已删除，仅主文件)
-/// 用于 medias_gridview_page 显示所有文件
-@riverpod
-class AllMediaAssetList extends _$AllMediaAssetList {
-  @override
-  Future<List<MediaAsset>> build() async {
-    final db = ref.watch(galleryDatabaseProvider);
-    return await db.getMediaAssets(excludeDeleted: false);
-  }
-
-  /// 刷新列表
-  Future<void> refresh() async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final db = ref.read(galleryDatabaseProvider);
-      return await db.getMediaAssets(excludeDeleted: false);
-    });
+  
+  /// 跳转到下一个未删除的文件（从当前位置开始查找）
+  Future<void> skipToNextNonDeleted() async {
+    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    
+    if (assets.isEmpty) return;
+    
+    // 从当前位置向后找
+    for (int i = currentIndex; i < assets.length; i++) {
+      if (!assets[i].isDeleted) {
+        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        return;
+      }
+    }
+    // 向后没找到，从当前位置向前找
+    for (int i = currentIndex - 1; i >= 0; i--) {
+      if (!assets[i].isDeleted) {
+        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        return;
+      }
+    }
+    // 全部都被删除了，保持当前索引
   }
 }
