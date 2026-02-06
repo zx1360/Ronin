@@ -4,7 +4,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:photo_view/photo_view.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
@@ -133,14 +132,12 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
               color: Colors.black,
               child: Stack(
                 children: [
-                  // 主内容区 - 当前媒体 (带旋转)
+                  // 主内容区 - 当前媒体
                   Positioned.fill(
-                    child: RotatedBox(
-                      quarterTurns: _quarterTurns,
-                      child: _MediaItemView(
-                        key: ValueKey('${currentAsset.id}_$_quarterTurns'),
-                        asset: currentAsset,
-                      ),
+                    child: _MediaItemView(
+                      key: ValueKey('${currentAsset.id}_$_quarterTurns'),
+                      asset: currentAsset,
+                      rotationQuarterTurns: _quarterTurns,
                     ),
                   ),
 
@@ -316,10 +313,12 @@ class _SimpleNavigationButton extends StatelessWidget {
 /// 单个媒体项视图 (图片/视频)
 class _MediaItemView extends ConsumerStatefulWidget {
   final MediaAsset asset;
+  final int rotationQuarterTurns;
 
   const _MediaItemView({
     super.key,
     required this.asset,
+    this.rotationQuarterTurns = 0,
   });
 
   @override
@@ -428,6 +427,7 @@ class _MediaItemViewState extends ConsumerState<_MediaItemView> {
         imageUrl: imageUrl,
         asset: widget.asset,
         storage: storage,
+        rotationQuarterTurns: widget.rotationQuarterTurns,
       );
     }
 
@@ -501,11 +501,13 @@ class _NetworkImageWithLocalPlaceholder extends StatefulWidget {
   final String imageUrl;
   final MediaAsset asset;
   final GalleryStorageService storage;
+  final int rotationQuarterTurns;
 
   const _NetworkImageWithLocalPlaceholder({
     required this.imageUrl,
     required this.asset,
     required this.storage,
+    this.rotationQuarterTurns = 0,
   });
 
   @override
@@ -517,11 +519,24 @@ class _NetworkImageWithLocalPlaceholderState
     extends State<_NetworkImageWithLocalPlaceholder> {
   File? _placeholderFile;
   bool _isLoading = true;
+  
+  // 用于手动控制缩放和平移
+  final TransformationController _transformController = TransformationController();
+  
+  // 最小/最大缩放
+  static const double _minScale = 1.0;
+  static const double _maxScale = 4.0;
 
   @override
   void initState() {
     super.initState();
     _loadPlaceholder();
+  }
+  
+  @override
+  void dispose() {
+    _transformController.dispose();
+    super.dispose();
   }
 
   @override
@@ -529,6 +544,12 @@ class _NetworkImageWithLocalPlaceholderState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.asset.id != widget.asset.id) {
       _loadPlaceholder();
+      // 重置变换
+      _transformController.value = Matrix4.identity();
+    }
+    // 旋转变化时也重置变换
+    if (oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns) {
+      _transformController.value = Matrix4.identity();
     }
   }
 
@@ -559,20 +580,41 @@ class _NetworkImageWithLocalPlaceholderState
 
   @override
   Widget build(BuildContext context) {
-    // 确保在所有情况下都有黑色背景
+    // 使用 RotatedBox + InteractiveViewer 组合
+    // RotatedBox 处理布局（交换宽高）
+    // InteractiveViewer 处理缩放和平移，其手势在 RotatedBox 内部，坐标系正确
     return Container(
       color: Colors.black,
-      child: CachedNetworkImage(
-        imageUrl: widget.imageUrl,
-        imageBuilder: (context, imageProvider) => PhotoView(
-          imageProvider: imageProvider,
-          backgroundDecoration: const BoxDecoration(color: Colors.black),
-          minScale: PhotoViewComputedScale.contained,
-          maxScale: PhotoViewComputedScale.covered * 3,
-          initialScale: PhotoViewComputedScale.contained,
+      child: RotatedBox(
+        quarterTurns: widget.rotationQuarterTurns,
+        child: CachedNetworkImage(
+          imageUrl: widget.imageUrl,
+          imageBuilder: (context, imageProvider) => _buildInteractiveImage(
+            imageProvider,
+            ValueKey('photo_${widget.asset.id}_${widget.rotationQuarterTurns}'),
+          ),
+          placeholder: (context, url) => _buildPlaceholderOrLoading(),
+          errorWidget: (context, url, error) => _buildErrorOrPlaceholder(),
         ),
-        placeholder: (context, url) => _buildPlaceholderOrLoading(),
-        errorWidget: (context, url, error) => _buildErrorOrPlaceholder(),
+      ),
+    );
+  }
+  
+  Widget _buildInteractiveImage(ImageProvider imageProvider, Key key) {
+    return InteractiveViewer(
+      key: key,
+      transformationController: _transformController,
+      minScale: _minScale,
+      maxScale: _maxScale,
+      panEnabled: true,
+      scaleEnabled: true,
+      // 允许在边界内平移
+      boundaryMargin: const EdgeInsets.all(double.infinity),
+      child: Center(
+        child: Image(
+          image: imageProvider,
+          fit: BoxFit.contain,
+        ),
       ),
     );
   }
@@ -585,12 +627,17 @@ class _NetworkImageWithLocalPlaceholderState
     }
 
     if (_placeholderFile != null) {
-      return PhotoView(
-        imageProvider: FileImage(_placeholderFile!),
-        backgroundDecoration: const BoxDecoration(color: Colors.black),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 3,
-        initialScale: PhotoViewComputedScale.contained,
+      return InteractiveViewer(
+        key: ValueKey('placeholder_${widget.asset.id}_${widget.rotationQuarterTurns}'),
+        minScale: _minScale,
+        maxScale: _maxScale,
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        child: Center(
+          child: Image.file(
+            _placeholderFile!,
+            fit: BoxFit.contain,
+          ),
+        ),
       );
     }
 
@@ -601,12 +648,17 @@ class _NetworkImageWithLocalPlaceholderState
 
   Widget _buildErrorOrPlaceholder() {
     if (_placeholderFile != null) {
-      return PhotoView(
-        imageProvider: FileImage(_placeholderFile!),
-        backgroundDecoration: const BoxDecoration(color: Colors.black),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 3,
-        initialScale: PhotoViewComputedScale.contained,
+      return InteractiveViewer(
+        key: ValueKey('error_${widget.asset.id}_${widget.rotationQuarterTurns}'),
+        minScale: _minScale,
+        maxScale: _maxScale,
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        child: Center(
+          child: Image.file(
+            _placeholderFile!,
+            fit: BoxFit.contain,
+          ),
+        ),
       );
     }
 

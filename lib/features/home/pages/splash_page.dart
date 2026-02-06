@@ -31,8 +31,6 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
   // 初始化操作, 完成后跳转到HomePage.
   Future<void> _initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-await prefs.remove('gallery_current_index');
     // 初始化操作.
     await Hive.initFlutter();
     await PrefsService().initPrefs();
