@@ -1,15 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/pages/label_list_page.dart';
 import 'package:torrid/features/others/gallery/pages/media_detail_page.dart';
 import 'package:torrid/features/others/gallery/pages/medias_gridview_page.dart';
 import 'package:torrid/features/others/gallery/pages/setting_page.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
-import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/content_widget.dart';
 
 /// Gallery 模块主页面
@@ -22,6 +18,9 @@ class GalleryPage extends ConsumerStatefulWidget {
 }
 
 class _GalleryPageState extends ConsumerState<GalleryPage> {
+  /// 顶部/底部工具栏是否可见
+  bool _barsVisible = true;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +31,13 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   Future<void> _initStorage() async {
     final storage = ref.read(galleryStorageProvider);
     await storage.initDirectories();
+  }
+
+  /// 切换工具栏可见性
+  void _toggleBarsVisibility() {
+    setState(() {
+      _barsVisible = !_barsVisible;
+    });
   }
 
   @override
@@ -46,43 +52,55 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
-    final isPreviewAllowed = ref.watch(galleryPreviewAllowedProvider);
+
+    // 计算安全区域高度，用于手势区域排除
+    final mediaQuery = MediaQuery.of(context);
+    final topBarHeight = mediaQuery.padding.top + 56; // SafeArea + AppBar
+    final bottomBarHeight = mediaQuery.padding.bottom + 56 + 40; // SafeArea + BottomBar + TagBar
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 主体内容
-          Center(
+          // 全屏内容区 - ContentWidget 覆盖整个屏幕
+          Positioned.fill(
+            child: ContentWidget(
+              onToggleBars: _toggleBarsVisibility,
+              onPrevious: _goToPrevious,
+              onNext: _goToNext,
+              topExcludeHeight: _barsVisible ? topBarHeight : 0,
+              bottomExcludeHeight: _barsVisible ? bottomBarHeight : 0,
+            ),
+          ),
+
+          // 顶部导航栏 (可切换显示/隐藏)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            top: _barsVisible ? 0 : -topBarHeight,
+            left: 0,
+            right: 0,
+            child: _buildTopBar(context),
+          ),
+
+          // 底部区域 (标签栏 + 导航栏)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            bottom: _barsVisible ? 0 : -bottomBarHeight,
+            left: 0,
+            right: 0,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // 顶部导航栏
-                _buildTopBar(context),
-
-                // 主体内容, 展示当前媒体文件(图片/视频)
-                Expanded(
-                  child: Center(
-                    child: ContentWidget(
-                      onDoubleTap: currentMedia != null
-                          ? () => _openDetailPage(context)
-                          : null,
-                    ),
-                  ),
-                ),
-
                 // 当前媒体的标签显示
                 if (currentMedia != null)
                   _buildTagBar(currentTags.valueOrNull ?? []),
-
                 // 底部导航栏
                 _buildBottomBar(context, currentMedia),
               ],
             ),
           ),
-
-          // 预览小窗 (启用预览功能时显示)
-          if (isPreviewAllowed) const _NextMediaPreviewWidget(),
         ],
       ),
     );
@@ -266,6 +284,23 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
       MaterialPageRoute(builder: (_) => MediaDetailPage(asset: currentMedia)),
     );
   }
+
+  /// 跳转到上一张
+  void _goToPrevious() {
+    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    if (currentIndex > 0) {
+      ref.read(galleryCurrentIndexProvider.notifier).update(currentIndex - 1);
+    }
+  }
+
+  /// 跳转到下一张
+  void _goToNext() {
+    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+    if (currentIndex < assets.length - 1) {
+      ref.read(galleryCurrentIndexProvider.notifier).update(currentIndex + 1);
+    }
+  }
 }
 
 /// 底部栏按钮
@@ -300,131 +335,6 @@ class _BottomBarButton extends StatelessWidget {
             const SizedBox(height: 2),
             Text(label, style: TextStyle(color: effectiveColor, fontSize: 9)),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 下一个媒体文件预览小窗 (可拖拽)
-class _NextMediaPreviewWidget extends ConsumerStatefulWidget {
-  const _NextMediaPreviewWidget();
-
-  @override
-  ConsumerState<_NextMediaPreviewWidget> createState() =>
-      _NextMediaPreviewWidgetState();
-}
-
-class _NextMediaPreviewWidgetState
-    extends ConsumerState<_NextMediaPreviewWidget> {
-  /// 当前位置偏移
-  Offset _offset = const Offset(16, 100);
-
-  /// 预览图尺寸
-  static const double _previewSize = 80;
-
-  @override
-  Widget build(BuildContext context) {
-    final assetsAsync = ref.watch(mediaAssetListProvider);
-    final currentIndex = ref.watch(galleryCurrentIndexProvider);
-    final storage = ref.watch(galleryStorageProvider);
-
-    return assetsAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (assets) {
-        // 计算下一个媒体的索引
-        final nextIndex = currentIndex + 1;
-
-        // 如果是最后一个，不显示预览窗
-        if (nextIndex >= assets.length) {
-          return const SizedBox.shrink();
-        }
-
-        final nextAsset = assets[nextIndex];
-
-        return Positioned(
-          left: _offset.dx,
-          top: _offset.dy,
-          child: GestureDetector(
-            onPanUpdate: (details) {
-              setState(() {
-                _offset += details.delta;
-                // 限制在屏幕范围内
-                final screenSize = MediaQuery.of(context).size;
-                _offset = Offset(
-                  _offset.dx.clamp(0, screenSize.width - _previewSize),
-                  _offset.dy.clamp(0, screenSize.height - _previewSize - 100),
-                );
-              });
-            },
-            onTap: () {
-              // 点击跳转到下一个
-              ref.read(galleryCurrentIndexProvider.notifier).update(nextIndex);
-            },
-            child: Container(
-              width: _previewSize,
-              height: _previewSize,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white54, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
-                    blurRadius: 8,
-                    offset: const Offset(2, 2),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: FutureBuilder<File?>(
-                  future: _getPreviewFile(storage, nextAsset),
-                  builder: (context, snapshot) {
-                    if (snapshot.data != null) {
-                      return Image.file(
-                        snapshot.data!,
-                        fit: BoxFit.cover,
-                        cacheWidth: 160,
-                        errorBuilder: (_, __, ___) =>
-                            _buildPlaceholder(nextAsset),
-                      );
-                    }
-                    return _buildPlaceholder(nextAsset);
-                  },
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 获取预览图文件 (优先预览图 -> 原图)
-  Future<File?> _getPreviewFile(
-    GalleryStorageService storage,
-    MediaAsset asset,
-  ) async {
-    // 优先使用预览图
-    if (asset.previewPath != null) {
-      final previewFile = await storage.getPreviewFile(asset.previewPath!);
-      if (previewFile != null) return previewFile;
-    }
-
-    // 然后原图
-    return await storage.getMediaFile(asset.filePath);
-  }
-
-  /// 构建占位符
-  Widget _buildPlaceholder(MediaAsset asset) {
-    return Container(
-      color: Colors.grey[800],
-      child: Center(
-        child: Icon(
-          asset.isVideo ? Icons.videocam : Icons.image,
-          color: Colors.grey[600],
-          size: 32,
         ),
       ),
     );

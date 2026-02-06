@@ -131,21 +131,21 @@ class GalleryStorageService {
     return await file.exists() ? file : null;
   }
 
-  /// 删除媒体文件及其缩略图/预览图
+  /// 删除媒体文件及其缩略图/预览图 (已废弃，原图不再本地存储)
   Future<void> deleteMediaFiles({
     required String? filePath,
     required String? thumbPath,
     required String? previewPath,
   }) async {
-    final futures = <Future>[];
+    await deleteLocalFiles(thumbPath: thumbPath, previewPath: previewPath);
+  }
 
-    if (filePath != null) {
-      final path = await getLocalMediaPath(filePath);
-      final file = File(path);
-      if (await file.exists()) {
-        futures.add(file.delete());
-      }
-    }
+  /// 删除本地文件 (仅缩略图和预览图)
+  Future<void> deleteLocalFiles({
+    required String? thumbPath,
+    required String? previewPath,
+  }) async {
+    final futures = <Future>[];
 
     if (thumbPath != null) {
       final path = await getLocalThumbPath(thumbPath);
