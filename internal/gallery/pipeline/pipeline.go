@@ -362,30 +362,34 @@ func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 	return stats, nil
 }
 
-// moveAssetToDeleted 移动资产文件到删除目录
+// moveAssetToDeleted 移动资产文件到删除目录，删除缩略图和预览图
 func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset) error {
-	// 移动原文件
+	// 从 FilePath 中提取 yyyy-mm 目录（如 "2023-05/xxx.jpg" -> "2023-05"）
+	yearMonth := filepath.Dir(asset.FilePath)
+	if yearMonth == "." {
+		yearMonth = "unknown"
+	}
+
+	// 移动原文件到 deletedDir/trash/yyyy-mm/
 	srcMedia := filepath.Join(p.config.MediaDir, asset.FilePath)
-	dstMedia := filepath.Join(p.config.DeletedDir, asset.FilePath)
+	dstMedia := filepath.Join(p.config.DeletedDir, "trash", yearMonth, filepath.Base(asset.FilePath))
 	if err := moveFileWithDir(srcMedia, dstMedia); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("移动原文件失败: %w", err)
 	}
 
-	// 移动缩略图
+	// 删除缩略图（不再移动）
 	if asset.ThumbPath != nil && *asset.ThumbPath != "" {
 		srcThumb := filepath.Join(p.config.ThumbsDir, *asset.ThumbPath)
-		dstThumb := filepath.Join(p.config.DeletedDir, "thumbs", *asset.ThumbPath)
-		if err := moveFileWithDir(srcThumb, dstThumb); err != nil && !os.IsNotExist(err) {
-			log.Printf("移动缩略图失败: %v", err)
+		if err := os.Remove(srcThumb); err != nil && !os.IsNotExist(err) {
+			log.Printf("删除缩略图失败: %v", err)
 		}
 	}
 
-	// 移动预览图
+	// 删除预览图（不再移动）
 	if asset.PreviewPath != nil && *asset.PreviewPath != "" {
 		srcPreview := filepath.Join(p.config.PreviewDir, *asset.PreviewPath)
-		dstPreview := filepath.Join(p.config.DeletedDir, "previews", *asset.PreviewPath)
-		if err := moveFileWithDir(srcPreview, dstPreview); err != nil && !os.IsNotExist(err) {
-			log.Printf("移动预览图失败: %v", err)
+		if err := os.Remove(srcPreview); err != nil && !os.IsNotExist(err) {
+			log.Printf("删除预览图失败: %v", err)
 		}
 	}
 

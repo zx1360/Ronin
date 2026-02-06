@@ -30,8 +30,8 @@ var (
 func main() {
 	// 解析命令行参数
 	mode := flag.String("mode", "ingest", "运行模式: ingest(摄入) 或 execute(执行删除)")
-	concurrency := flag.Int("concurrency", 8, "并发处理数")
-	batchSize := flag.Int("batch", 200, "批量写入大小")
+	concurrency := flag.Int("concurrency", 16, "并发处理数")
+	batchSize := flag.Int("batch", 320, "批量写入大小")
 	flag.Parse()
 
 	// 打印配置信息
