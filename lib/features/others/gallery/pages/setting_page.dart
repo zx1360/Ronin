@@ -77,6 +77,12 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                         ],
                       ),
                     ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () {
+                        ref.invalidate(galleryStorageStatsProvider);
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -107,7 +113,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       children: [
                         const Text("数量: "),
                         SizedBox(
-                          width: 60,
+                          width: 100,
                           child: TextField(
                             controller: _downloadLimitController,
                             keyboardType: TextInputType.number,
@@ -123,7 +129,8 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       ],
                     ),
                     trailing: ElevatedButton(
-                      onPressed: syncProgress.status == SyncStatus.idle
+                      onPressed: syncProgress.status != SyncStatus.downloading &&
+                              syncProgress.status != SyncStatus.uploading
                           ? _handleDownload
                           : null,
                       child: const Text("下载"),
@@ -143,14 +150,14 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       data: (stats) => Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text("media_assets: ${stats.mediaCount} 条"),
-                          Text("tags: ${stats.tagCount} 条"),
-                          Text("media_tag_links: ${stats.linkCount} 条"),
+                          Text("media_assets: ${ref.watch(galleryCurrentIndexProvider)+1} 条"),
+                          Text("以及全量tags和关联media_tag_links."),
                         ],
                       ),
                     ),
                     trailing: ElevatedButton(
-                      onPressed: syncProgress.status == SyncStatus.idle &&
+                      onPressed: syncProgress.status != SyncStatus.downloading &&
+                              syncProgress.status != SyncStatus.uploading &&
                               (uploadStatsAsync.valueOrNull?.hasData ?? false)
                           ? _handleUpload
                           : null,

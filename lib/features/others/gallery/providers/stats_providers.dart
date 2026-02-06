@@ -7,7 +7,7 @@ part 'stats_providers.g.dart';
 // ============ 统计信息 Providers ============
 
 /// 数据库统计信息 Provider
-@riverpod
+@Riverpod(keepAlive: true)
 Future<GalleryDbStats> galleryDbStats(GalleryDbStatsRef ref) async {
   final db = ref.watch(galleryDatabaseProvider);
   
@@ -22,8 +22,8 @@ Future<GalleryDbStats> galleryDbStats(GalleryDbStatsRef ref) async {
   );
 }
 
-/// 文件存储统计信息 Provider
-@riverpod
+/// 文件存储统计信息 Provider (仅在手动刷新或操作后更新)
+@Riverpod(keepAlive: true)
 Future<GalleryStorageStats> galleryStorageStats(GalleryStorageStatsRef ref) async {
   final storage = ref.watch(galleryStorageProvider);
   return await storage.getStorageStats();
