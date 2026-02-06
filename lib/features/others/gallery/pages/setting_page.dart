@@ -147,13 +147,25 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                     subtitle: uploadStatsAsync.when(
                       loading: () => const Text("加载中..."),
                       error: (e, _) => Text("错误: $e"),
-                      data: (stats) => Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("media_assets: ${ref.watch(galleryCurrentIndexProvider)+1} 条"),
-                          Text("以及全量tags和关联media_tag_links."),
-                        ],
-                      ),
+                      data: (stats) {
+                        final currentIndex = ref.watch(galleryCurrentIndexProvider);
+                        final allAssets = ref.watch(mediaAssetListProvider).valueOrNull ?? [];
+                        final uploadCount = currentIndex + 1;
+                        // 计算前 uploadCount 条记录中被标记删除的数量
+                        final deletedCount = allAssets
+                            .take(uploadCount.clamp(0, allAssets.length))
+                            .where((a) => a.isDeleted)
+                            .length;
+                        
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("media_assets: $uploadCount 条"),
+                            Text("以及全量tags和关联media_tag_links."),
+                            Text("其中标记删除条数: $deletedCount"),
+                          ],
+                        );
+                      },
                     ),
                     trailing: ElevatedButton(
                       onPressed: syncProgress.status != SyncStatus.downloading &&

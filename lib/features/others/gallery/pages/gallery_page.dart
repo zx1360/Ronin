@@ -55,7 +55,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
     // 计算安全区域高度，用于手势区域排除
     final mediaQuery = MediaQuery.of(context);
-    final topBarHeight = mediaQuery.padding.top + 56; // SafeArea + AppBar
+    final topBarHeight = mediaQuery.padding.top + 44; // SafeArea + 紧凑顶部栏
     final bottomBarHeight = mediaQuery.padding.bottom + 56 + 40; // SafeArea + BottomBar + TagBar
 
     return Scaffold(
@@ -108,34 +108,46 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   /// 构建顶部导航栏
   Widget _buildTopBar(BuildContext context) {
+    final currentMedia = ref.watch(currentMediaAssetProvider);
+    final fileName = currentMedia?.filePath.split('/').last.split('\\').last ?? '';
+    
     return Container(
       color: Colors.black,
       child: SafeArea(
         bottom: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: IconButton(
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            children: [
+              // 返回按钮
+              IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
                 tooltip: "返回",
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: IconButton(
+              // 文件名 (占据中间空间)
+              Expanded(
+                child: Text(
+                  fileName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              // 设置按钮
+              IconButton(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const GallerySettingPage()),
                 ),
-                icon: const Icon(Icons.settings, color: Colors.white),
+                icon: const Icon(Icons.settings, color: Colors.white, size: 22),
                 tooltip: "设置",
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -249,23 +261,13 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     final isCurrentlyDeleted = media.isDeleted;
 
     if (!isCurrentlyDeleted) {
-      // 标记删除 -> 自动跳到下一张（如果有）
+      // 标记删除
       await ref
           .read(mediaAssetListProvider.notifier)
           .markDeleted(media.id, deleted: true);
       
-      // 刷新后检查当前索引是否需要调整
-      final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-      final currentIndex = ref.read(galleryCurrentIndexProvider);
-      
-      if (assets.isEmpty) {
-        // 没有可显示的文件了
-        await ref.read(galleryCurrentIndexProvider.notifier).update(0);
-      } else if (currentIndex >= assets.length) {
-        // 索引超出范围，调整到最后一张
-        await ref.read(galleryCurrentIndexProvider.notifier).update(assets.length - 1);
-      }
-      // 否则保持当前索引（自动显示下一张）
+      // 自动跳到下一个未删除的文件
+      await ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted();
     } else {
       // 取消删除标记
       await ref
@@ -285,21 +287,14 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     );
   }
 
-  /// 跳转到上一张
+  /// 跳转到上一张（自动跳过已删除）
   void _goToPrevious() {
-    final currentIndex = ref.read(galleryCurrentIndexProvider);
-    if (currentIndex > 0) {
-      ref.read(galleryCurrentIndexProvider.notifier).update(currentIndex - 1);
-    }
+    ref.read(currentMediaAssetProvider.notifier).previous();
   }
 
-  /// 跳转到下一张
+  /// 跳转到下一张（自动跳过已删除）
   void _goToNext() {
-    final currentIndex = ref.read(galleryCurrentIndexProvider);
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    if (currentIndex < assets.length - 1) {
-      ref.read(galleryCurrentIndexProvider.notifier).update(currentIndex + 1);
-    }
+    ref.read(currentMediaAssetProvider.notifier).next();
   }
 }
 

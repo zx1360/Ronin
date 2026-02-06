@@ -121,10 +121,23 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
           );
         }
 
-        // 预加载附近图片
-        _precacheNearbyImages(assets, currentIndex);
-
         final currentAsset = assets[currentIndex];
+        
+        // 如果当前文件已删除，自动跳到下一个未删除的
+        if (currentAsset.isDeleted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted();
+          });
+          return Container(
+            color: Colors.black,
+            child: const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+          );
+        }
+
+        // 预加载附近图片（跳过已删除的）
+        _precacheNearbyImages(assets, currentIndex);
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -170,8 +183,6 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
                     ),
                   ),
 
-                  // 手势覆盖层 - 使用 GestureDetector + translucent 让 PhotoView 缩放正常工作
-                  // TapGestureRecognizer 在检测到多指时会自动失败，不会与 ScaleGestureRecognizer 冲突
                   Stack(
                     children: [
                       // 左侧导航按钮 - 上一张
@@ -181,7 +192,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
                         bottom: 0,
                         width: constraints.maxWidth / 4,
                         child: _SimpleNavigationButton(
-                          onTap: currentIndex > 0 ? widget.onPrevious : null,
+                          onTap: _hasPreviousNonDeleted(assets, currentIndex) ? widget.onPrevious : null,
                           icon: Icons.chevron_left,
                           alignment: Alignment.centerLeft,
                         ),
@@ -193,7 +204,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
                         bottom: 0,
                         width: constraints.maxWidth / 4,
                         child: _SimpleNavigationButton(
-                          onTap: currentIndex < assets.length - 1 ? widget.onNext : null,
+                          onTap: _hasNextNonDeleted(assets, currentIndex) ? widget.onNext : null,
                           icon: Icons.chevron_right,
                           alignment: Alignment.centerRight,
                         ),
@@ -226,8 +237,24 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       _quarterTurns = _quarterTurns == 0 ? 1 : 0;
     });
   }
+  
+  /// 检查是否有上一个未删除的文件
+  bool _hasPreviousNonDeleted(List<MediaAsset> assets, int currentIndex) {
+    for (int i = currentIndex - 1; i >= 0; i--) {
+      if (!assets[i].isDeleted) return true;
+    }
+    return false;
+  }
+  
+  /// 检查是否有下一个未删除的文件
+  bool _hasNextNonDeleted(List<MediaAsset> assets, int currentIndex) {
+    for (int i = currentIndex + 1; i < assets.length; i++) {
+      if (!assets[i].isDeleted) return true;
+    }
+    return false;
+  }
 
-  /// 预加载附近图片 (当前位置前3个，后5个)
+  /// 预加载附近图片 (当前位置前3个，后5个，跳过已删除)
   void _precacheNearbyImages(List<MediaAsset> assets, int currentIndex) {
     final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
     
@@ -239,6 +266,9 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       if (i == currentIndex) continue; // 跳过当前图片
       
       final asset = assets[i];
+      // 跳过已删除的文件
+      if (asset.isDeleted) continue;
+      
       if (asset.isImage) {
         final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
         // 使用 CachedNetworkImageProvider 预缓存
@@ -252,8 +282,6 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
 }
 
 /// 简化的中心区域 - 处理单击和双击
-/// 使用 GestureDetector + HitTestBehavior.translucent 让 PhotoView 缩放正常工作
-/// TapGestureRecognizer 在检测到多指时会自动失败，不会与 ScaleGestureRecognizer 冲突
 class _SimpleCenterZone extends StatelessWidget {
   final VoidCallback? onSingleTap;
   final VoidCallback? onDoubleTap;
@@ -275,7 +303,6 @@ class _SimpleCenterZone extends StatelessWidget {
 }
 
 /// 简化的导航按钮 - 用于上一张/下一张
-/// 使用 GestureDetector + HitTestBehavior.translucent 让 PhotoView 缩放正常工作
 /// TapGestureRecognizer 在检测到多指时会自动失败，不会与 ScaleGestureRecognizer 冲突
 class _SimpleNavigationButton extends StatelessWidget {
   final VoidCallback? onTap;
@@ -608,8 +635,9 @@ class _NetworkImageWithLocalPlaceholderState
       maxScale: _maxScale,
       panEnabled: true,
       scaleEnabled: true,
-      // 允许在边界内平移
-      boundaryMargin: const EdgeInsets.all(double.infinity),
+      // 限制在边界内平移
+      boundaryMargin: EdgeInsets.zero,
+      constrained: true,
       child: Center(
         child: Image(
           image: imageProvider,
@@ -631,7 +659,8 @@ class _NetworkImageWithLocalPlaceholderState
         key: ValueKey('placeholder_${widget.asset.id}_${widget.rotationQuarterTurns}'),
         minScale: _minScale,
         maxScale: _maxScale,
-        boundaryMargin: const EdgeInsets.all(double.infinity),
+        boundaryMargin: EdgeInsets.zero,
+        constrained: true,
         child: Center(
           child: Image.file(
             _placeholderFile!,
@@ -652,7 +681,8 @@ class _NetworkImageWithLocalPlaceholderState
         key: ValueKey('error_${widget.asset.id}_${widget.rotationQuarterTurns}'),
         minScale: _minScale,
         maxScale: _maxScale,
-        boundaryMargin: const EdgeInsets.all(double.infinity),
+        boundaryMargin: EdgeInsets.zero,
+        constrained: true,
         child: Center(
           child: Image.file(
             _placeholderFile!,
@@ -678,7 +708,7 @@ class _NetworkImageWithLocalPlaceholderState
   }
 }
 
-/// 顶部信息栏
+/// 顶部信息栏 - 显示删除/捆绑标记
 class _TopInfoBar extends StatelessWidget {
   final int currentIndex;
   final int total;
@@ -692,33 +722,17 @@ class _TopInfoBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 如果没有需要显示的标记，返回空容器
+    final hasMarkers = (asset?.isDeleted ?? false) || asset?.groupId != null;
+    if (!hasMarkers) return const SizedBox.shrink();
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black54,
-            Colors.transparent,
-          ],
-        ),
-      ),
       child: SafeArea(
         bottom: false,
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            // 文件名
-            Expanded(
-              child: Text(
-                asset?.filePath.split('/').last.split('\\').last ?? '',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
             // 删除标记
             if (asset?.isDeleted ?? false)
               Container(

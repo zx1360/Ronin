@@ -30,14 +30,13 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
 
   /// 滚动控制器
   final ScrollController _scrollController = ScrollController();
+  
+  /// 是否已执行初始滚动
+  bool _hasScrolledToInitial = false;
 
   @override
   void initState() {
     super.initState();
-    // 打开时自动滚动到当前媒体文件位置
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToCurrentIndex();
-    });
   }
 
   @override
@@ -47,35 +46,62 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
   }
 
   /// 滚动到当前媒体文件所在行（使其位于第一行）
-  void _scrollToCurrentIndex() {
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final currentIndex = ref.read(galleryCurrentIndexProvider);
+  void _scrollToCurrentIndex({bool animate = true}) {
+    // 获取当前媒体
+    final currentMedia = ref.read(currentMediaAssetProvider);
+    if (currentMedia == null) return;
+    
+    // 在 mediaAssetListProvider 中找到当前媒体的位置
+    final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+    final indexInAll = allAssets.indexWhere((a) => a.id == currentMedia.id);
+    
+    if (indexInAll < 0 || allAssets.isEmpty) return;
+    if (!_scrollController.hasClients) return;
+    
     final columns = ref.read(galleryGridColumnsProvider);
     
-    if (assets.isEmpty || currentIndex < 0) return;
-    
     // 计算目标行
-    final row = currentIndex ~/ columns;
+    final row = indexInAll ~/ columns;
     // 计算每个格子的高度 (假设正方形)
     final screenWidth = MediaQuery.of(context).size.width;
     final itemSize = (screenWidth - 4 - (columns - 1) * 2) / columns; // padding + spacing
     final targetOffset = row * (itemSize + 2); // 加上间距
     
-    if (_scrollController.hasClients) {
+    // 获取最大滚动范围
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final clampedOffset = targetOffset.clamp(0.0, maxScroll);
+    
+    if (animate) {
       _scrollController.animateTo(
-        targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        clampedOffset,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
+    } else {
+      _scrollController.jumpTo(clampedOffset);
     }
+  }
+  
+  /// 在 GridView 首次渲染数据后执行初始滚动
+  void _performInitialScrollIfNeeded() {
+    if (_hasScrolledToInitial) return;
+    _hasScrolledToInitial = true;
+    
+    // 使用短延迟确保 GridView 完成布局和尺寸计算
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        _scrollToCurrentIndex(animate: false);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     // 使用包含已删除文件的列表
-    final assetsAsync = ref.watch(allMediaAssetListProvider);
+    final assetsAsync = ref.watch(mediaAssetListProvider);
     final columns = ref.watch(galleryGridColumnsProvider);
-    final currentIndex = ref.watch(galleryCurrentIndexProvider);
+    // 获取当前媒体的 ID，而不是索引
+    final currentMedia = ref.watch(currentMediaAssetProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -150,6 +176,9 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
             );
           }
 
+          // 数据加载完成后执行初始滚动
+          _performInitialScrollIfNeeded();
+
           return GridView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.all(2),
@@ -162,7 +191,8 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
             itemBuilder: (context, index) {
               final asset = assets[index];
               final isSelected = _selectedIds.contains(asset.id);
-              final isCurrent = index == currentIndex;
+              // 用 ID 判断是否为当前文件，而不是索引
+              final isCurrent = currentMedia?.id == asset.id;
               final selectionIndex = _selectionOrder.indexOf(asset.id);
 
               return _GridTile(
@@ -187,7 +217,7 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
   /// 构建底部操作栏
   Widget _buildBottomBar() {
     // 检查选中项中是否有已删除的
-    final allAssets = ref.read(allMediaAssetListProvider).valueOrNull ?? [];
+    final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     final hasDeletedSelected = _selectedIds.any((id) {
       final asset = allAssets.firstWhere((a) => a.id == id, orElse: () => allAssets.first);
       return asset.isDeleted;
@@ -238,7 +268,18 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
     if (_isSelectionMode) {
       _toggleSelection(asset.id);
     } else {
-      // 跳转到该媒体并返回
+      // 如果文件已删除，提示用户先恢复
+      if (asset.isDeleted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('该文件已删除，请先恢复'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+      
+      // 直接使用 index 跳转（现在 mediaAssetListProvider 包含所有文件）
       ref.read(galleryCurrentIndexProvider.notifier).update(index);
       Navigator.pop(context);
     }
@@ -335,8 +376,6 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
       final scrollOffset = _scrollController.offset;
       
       await ref.read(mediaAssetListProvider.notifier).bundleMedia(leadId, memberIds);
-      // 同时刷新 allMediaAssetListProvider
-      ref.invalidate(allMediaAssetListProvider);
       
       // 退出选择模式但保持滚动位置
       setState(() {
@@ -384,8 +423,6 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
       for (final id in _selectedIds) {
         await ref.read(mediaAssetListProvider.notifier).markDeleted(id, deleted: true);
       }
-      // 刷新 allMediaAssetListProvider
-      ref.invalidate(allMediaAssetListProvider);
       
       // 退出选择模式但保持滚动位置
       setState(() {
@@ -413,8 +450,6 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
     for (final id in _selectedIds) {
       await ref.read(mediaAssetListProvider.notifier).markDeleted(id, deleted: false);
     }
-    // 刷新 allMediaAssetListProvider
-    ref.invalidate(allMediaAssetListProvider);
     
     // 退出选择模式但保持滚动位置
     setState(() {
