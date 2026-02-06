@@ -53,8 +53,8 @@ dependencies:
 
   # ----媒体文件相关----
   # 视频播放
-  # chewie: ^1.12.1
-  # video_player: ^2.10.0
+  chewie: ^1.12.1
+  video_player: ^2.10.0
   # 本地图片选择
   image_picker: ^1.2.0
   # # 图片压缩
@@ -63,8 +63,8 @@ dependencies:
   photo_view: ^0.15.0
   # 图片处理库
   image_size_getter: ^2.4.1
-  # # 图片的网络、缓存
-  # cached_network_image: ^3.4.1
+  # 图片的网络缓存
+  cached_network_image: ^3.4.1
   # 图像处理库
   image: ^4.5.4
 

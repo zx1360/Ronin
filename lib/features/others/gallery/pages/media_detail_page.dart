@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +11,7 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/features/others/gallery/widgets/fullscreen_image_viewer.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 媒体文件详情页 - 更紧凑的UI设计
 class MediaDetailPage extends ConsumerStatefulWidget {
@@ -339,46 +341,59 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
 
   /// 构建预览图 (点击可全屏)
   Widget _buildPreviewImage(GalleryStorageService storage, MediaAsset asset, {bool showFullscreen = false}) {
+    // 获取网络图片 URL
+    final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
+    final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
+    
     return FutureBuilder<File?>(
-      future: _getDisplayFile(storage, asset),
+      future: _getLocalPlaceholder(storage, asset),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            height: 260,
-            color: Colors.grey[200],
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final file = snapshot.data;
-        if (file == null) {
-          return Container(
-            height: 260,
-            color: Colors.grey[200],
-            child: const Center(
-              child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
-            ),
-          );
-        }
-
+        final placeholderFile = snapshot.data;
+        
         return GestureDetector(
-          onTap: showFullscreen ? () => _openFullscreen(file, asset) : null,
+          onTap: showFullscreen ? () => _openFullscreen(imageUrl, asset, placeholderFile) : null,
           child: Hero(
             tag: 'image_${asset.id}',
             child: ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: Image.file(
-                file,
+              child: CachedNetworkImage(
+                imageUrl: imageUrl,
                 height: 260,
                 width: double.infinity,
                 fit: BoxFit.contain,
-                errorBuilder: (context, error, stack) => Container(
-                  height: 260,
-                  color: Colors.grey[200],
-                  child: const Center(
-                    child: Icon(Icons.error, size: 48, color: Colors.red),
-                  ),
-                ),
+                placeholder: (context, url) {
+                  if (placeholderFile != null) {
+                    return Image.file(
+                      placeholderFile,
+                      height: 260,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                    );
+                  }
+                  return Container(
+                    height: 260,
+                    color: Colors.grey[200],
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorWidget: (context, url, error) {
+                  // 加载失败时显示本地预览图
+                  if (placeholderFile != null) {
+                    return Image.file(
+                      placeholderFile,
+                      height: 260,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                    );
+                  }
+                  return Container(
+                    height: 260,
+                    color: Colors.grey[200],
+                    child: const Center(
+                      child: Icon(Icons.error, size: 48, color: Colors.red),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -387,34 +402,27 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
   }
   
-  /// 获取显示用的文件 (原图 -> 预览图 -> 缩略图)
-  Future<File?> _getDisplayFile(GalleryStorageService storage, MediaAsset asset) async {
-    // 优先使用原图
-    final mediaFile = await storage.getMediaFile(asset.filePath);
-    if (mediaFile != null) return mediaFile;
-    
-    // 然后预览图
+  /// 获取本地占位图 (优先预览图, 其次缩略图)
+  Future<File?> _getLocalPlaceholder(GalleryStorageService storage, MediaAsset asset) async {
     if (asset.previewPath != null) {
       final previewFile = await storage.getPreviewFile(asset.previewPath!);
       if (previewFile != null) return previewFile;
     }
-    
-    // 最后缩略图
     if (asset.thumbPath != null) {
       return await storage.getThumbFile(asset.thumbPath!);
     }
-    
     return null;
   }
   
   /// 打开全屏查看器
-  void _openFullscreen(File file, MediaAsset asset) {
+  void _openFullscreen(String imageUrl, MediaAsset asset, File? placeholderFile) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => FullscreenImageViewer(
-          file: file,
+          imageUrl: imageUrl,
           asset: asset,
+          placeholderFile: placeholderFile,
         ),
       ),
     );

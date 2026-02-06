@@ -24,7 +24,6 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isPreviewAllowed = ref.watch(galleryPreviewAllowedProvider);
     final dbStatsAsync = ref.watch(galleryDbStatsProvider);
     final storageStatsAsync = ref.watch(galleryStorageStatsProvider);
     final uploadStatsAsync = ref.watch(galleryUploadStatsProvider);
@@ -78,30 +77,6 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-
-          // 功能设置区
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("功能设置", style: Theme.of(context).textTheme.titleMedium),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text("启用预览小窗"),
-                    subtitle: const Text("小窗预览下一个媒体文件"),
-                    value: isPreviewAllowed,
-                    onChanged: (val) {
-                      ref.read(galleryPreviewAllowedProvider.notifier).toggle();
-                    },
                   ),
                 ],
               ),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
@@ -30,6 +31,8 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
   // 初始化操作, 完成后跳转到HomePage.
   Future<void> _initialize() async {
+    final prefs = await SharedPreferences.getInstance();
+await prefs.remove('gallery_current_index');
     // 初始化操作.
     await Hive.initFlutter();
     await PrefsService().initPrefs();

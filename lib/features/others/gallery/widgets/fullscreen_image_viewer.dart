@@ -1,17 +1,20 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 
 /// 全屏图片查看器 (支持缩放和双击放大)
 class FullscreenImageViewer extends StatefulWidget {
-  final File file;
+  final String imageUrl;
   final MediaAsset asset;
+  final File? placeholderFile;
 
   const FullscreenImageViewer({
     super.key,
-    required this.file,
+    required this.imageUrl,
     required this.asset,
+    this.placeholderFile,
   });
 
   @override
@@ -61,9 +64,31 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
           child: Center(
             child: Hero(
               tag: 'image_${widget.asset.id}',
-              child: Image.file(
-                widget.file,
+              child: CachedNetworkImage(
+                imageUrl: widget.imageUrl,
                 fit: BoxFit.contain,
+                placeholder: (context, url) {
+                  if (widget.placeholderFile != null) {
+                    return Image.file(
+                      widget.placeholderFile!,
+                      fit: BoxFit.contain,
+                    );
+                  }
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  );
+                },
+                errorWidget: (context, url, error) {
+                  if (widget.placeholderFile != null) {
+                    return Image.file(
+                      widget.placeholderFile!,
+                      fit: BoxFit.contain,
+                    );
+                  }
+                  return const Center(
+                    child: Icon(Icons.error, color: Colors.red, size: 48),
+                  );
+                },
               ),
             ),
           ),

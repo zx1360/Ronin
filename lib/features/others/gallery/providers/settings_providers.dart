@@ -9,7 +9,6 @@ part 'settings_providers.g.dart';
 class GalleryPrefsKeys {
   static const String modifiedCount = 'gallery_modified_count';
   static const String currentIndex = 'gallery_current_index';
-  static const String isPreviewAllowed = 'gallery_preview_allowed';
   static const String gridColumnCount = 'gallery_grid_columns';
 }
 
@@ -47,23 +46,6 @@ class GalleryCurrentIndex extends _$GalleryCurrentIndex {
     final prefs = PrefsService().prefs;
     await prefs.setInt(GalleryPrefsKeys.currentIndex, value);
     state = value;
-  }
-}
-
-/// 是否启用预览小窗
-@Riverpod(keepAlive: true)
-class GalleryPreviewAllowed extends _$GalleryPreviewAllowed {
-  @override
-  bool build() {
-    final prefs = PrefsService().prefs;
-    return prefs.getBool(GalleryPrefsKeys.isPreviewAllowed) ?? true;
-  }
-
-  Future<void> toggle() async {
-    final prefs = PrefsService().prefs;
-    final newValue = !state;
-    await prefs.setBool(GalleryPrefsKeys.isPreviewAllowed, newValue);
-    state = newValue;
   }
 }
 

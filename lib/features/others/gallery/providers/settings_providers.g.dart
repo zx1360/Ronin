@@ -44,25 +44,6 @@ final galleryCurrentIndexProvider =
 );
 
 typedef _$GalleryCurrentIndex = Notifier<int>;
-String _$galleryPreviewAllowedHash() =>
-    r'd45eb48db759eebeb1efc9ff91689c6215b778fb';
-
-/// 是否启用预览小窗
-///
-/// Copied from [GalleryPreviewAllowed].
-@ProviderFor(GalleryPreviewAllowed)
-final galleryPreviewAllowedProvider =
-    NotifierProvider<GalleryPreviewAllowed, bool>.internal(
-  GalleryPreviewAllowed.new,
-  name: r'galleryPreviewAllowedProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryPreviewAllowedHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryPreviewAllowed = Notifier<bool>;
 String _$galleryGridColumnsHash() =>
     r'7911eebfac5c3da40dab130ee2042944283b58b4';
 

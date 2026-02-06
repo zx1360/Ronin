@@ -134,8 +134,8 @@ class GallerySyncService extends _$GallerySyncService {
         await db.upsertMediaTagLinks(links);
       }
 
-      // 4. 下载媒体文件
-      final totalFiles = assets.length * 3; // 每个 asset 有3个文件
+      // 4. 下载媒体文件 (仅缩略图和预览图，原图通过网络实时加载)
+      final totalFiles = assets.length * 2; // 每个 asset 有2个文件 (缩略图+预览图)
       int downloadedFiles = 0;
 
       state = state.copyWith(
@@ -152,19 +152,8 @@ class GallerySyncService extends _$GallerySyncService {
           throw Exception('下载已取消');
         }
 
-        // 下载原图
-        downloadTasks.add(_downloadFile(
-          apiClient: apiClient,
-          path: '/api/gallery/${asset.id}/file',
-          saveFn: (bytes) => storage.saveMediaFile(
-            serverPath: asset.filePath,
-            bytes: bytes,
-          ),
-          onComplete: () {
-            downloadedFiles++;
-            state = state.copyWith(current: downloadedFiles);
-          },
-        ));
+        // 注意: 原图不再下载到本地，改为实时请求并通过 cached_network_image 缓存
+        // 仅下载缩略图和预览图
 
         // 下载缩略图
         if (asset.thumbPath != null) {
@@ -327,10 +316,9 @@ class GallerySyncService extends _$GallerySyncService {
         message: '正在清理本地数据...',
       );
 
-      // 4. 删除本地文件
+      // 4. 删除本地文件 (仅缩略图和预览图，原图不存储在本地)
       for (final asset in data.assets) {
-        await storage.deleteMediaFiles(
-          filePath: asset.filePath,
+        await storage.deleteLocalFiles(
           thumbPath: asset.thumbPath,
           previewPath: asset.previewPath,
         );
