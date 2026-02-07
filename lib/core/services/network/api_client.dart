@@ -7,11 +7,23 @@ import 'package:dio/dio.dart';
 class ApiClient {
   final Dio _dio = Dio();
   final String baseUrl;
+  final String? apiKey;
 
-  ApiClient({required this.baseUrl}) {
+  ApiClient({required this.baseUrl, this.apiKey}) {
     _dio.options.baseUrl = baseUrl;
     _dio.options.connectTimeout = const Duration(seconds: 8);
     _dio.options.receiveTimeout = const Duration(seconds: 15);
+    // 添加拦截器以在每个请求中添加 X-API-Key 头
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (apiKey != null && apiKey!.isNotEmpty) {
+            options.headers['X-API-Key'] = apiKey;
+          }
+          handler.next(options);
+        },
+      ),
+    );
   }
 
   // GET请求

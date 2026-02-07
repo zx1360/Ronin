@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/profile/second_page/data/data_transfer/data_transfer.dart';
+import 'package:torrid/features/profile/second_page/data/data_transfer.dart';
 import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 
 /// 数据传输页面

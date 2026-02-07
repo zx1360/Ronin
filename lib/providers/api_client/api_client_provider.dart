@@ -14,19 +14,37 @@ part 'api_client_provider.g.dart';
 class ApiClientManager extends _$ApiClientManager {
   @override
   ApiClient build() {
-    final prefs=PrefsService().prefs;
-    final host=prefs.getString("PC_HOST");
-    final port=prefs.getString("PC_PORT");
-    return ApiClient(baseUrl: "http://$host:$port");
+    final prefs = PrefsService().prefs;
+    final host = prefs.getString("PC_HOST") ?? "";
+    final port = prefs.getString("PC_PORT") ?? "";
+    final apiKey = prefs.getString("API_KEY");
+    // 只有当 host 和 port 都非空时才构建有效 URL
+    final baseUrl = (host.isNotEmpty && port.isNotEmpty)
+        ? "http://$host:$port"
+        : "";
+    return ApiClient(baseUrl: baseUrl, apiKey: apiKey);
   }
 
   String get address => state.baseUrl;
 
   Future<void> setAddr({required String host, required String port}) async {
-    final prefs=PrefsService().prefs;
+    final prefs = PrefsService().prefs;
     await prefs.setString("PC_HOST", host);
     await prefs.setString("PC_PORT", port);
-    state = ApiClient(baseUrl: "http://$host:$port");
+    final apiKey = prefs.getString("API_KEY");
+    state = ApiClient(baseUrl: "http://$host:$port", apiKey: apiKey);
+  }
+
+  Future<void> setApiKey(String apiKey) async {
+    final prefs = PrefsService().prefs;
+    await prefs.setString("API_KEY", apiKey);
+    // 重新构建 ApiClient 以应用新的 API Key
+    final host = prefs.getString("PC_HOST") ?? "";
+    final port = prefs.getString("PC_PORT") ?? "";
+    final baseUrl = (host.isNotEmpty && port.isNotEmpty)
+        ? "http://$host:$port"
+        : "";
+    state = ApiClient(baseUrl: baseUrl, apiKey: apiKey.isNotEmpty ? apiKey : null);
   }
 }
 

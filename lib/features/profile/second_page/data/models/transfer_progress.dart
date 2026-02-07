@@ -1,65 +1,43 @@
 /// 数据传输进度模型
-/// 
+///
 /// 用于跟踪同步/备份操作的进度状态。
 library;
 
 /// 传输操作类型
 enum TransferType {
-  sync,   // 同步到本地
+  sync, // 同步到本地
   backup, // 备份到PC
 }
 
 /// 传输目标类型
 enum TransferTarget {
+  all, // 所有数据
   booklet, // 打卡数据
-  essay,   // 随笔数据
-  all,     // 全部数据
+  essay, // 随笔数据
 }
 
 /// 传输状态
 enum TransferStatus {
-  idle,       // 空闲
-  preparing,  // 准备中
+  idle, // 空闲
+  preparing, // 准备中
   inProgress, // 传输中
-  retrying,   // 重试中
-  success,    // 成功
-  failed,     // 失败
-  cancelled,  // 已取消
+  retrying, // 重试中
+  success, // 成功
+  failed, // 失败
 }
 
 /// 传输进度
 class TransferProgress {
-  /// 传输操作类型
   final TransferType type;
-  
-  /// 传输目标类型
   final TransferTarget target;
-  
-  /// 当前状态
   final TransferStatus status;
-  
-  /// 总数量（文件/图片数量）
   final int total;
-  
-  /// 当前完成数量
   final int current;
-  
-  /// 当前操作描述
   final String currentMessage;
-  
-  /// 主要状态描述
   final String message;
-  
-  /// 失败的项目列表
   final List<FailedItem> failedItems;
-  
-  /// 错误信息
   final String? errorMessage;
-  
-  /// 开始时间
   final DateTime? startTime;
-  
-  /// 结束时间
   final DateTime? endTime;
 
   const TransferProgress({
@@ -76,54 +54,31 @@ class TransferProgress {
     this.endTime,
   });
 
-  /// 创建空进度对象
-  factory TransferProgress.empty() => const TransferProgress(
+  factory TransferProgress.idle() => const TransferProgress(
     type: TransferType.sync,
-    target: TransferTarget.all,
+    target: TransferTarget.booklet,
+    status: TransferStatus.idle,
   );
 
-  /// 是否正在进行中
-  bool get isInProgress => status == TransferStatus.inProgress || 
-                            status == TransferStatus.preparing ||
-                            status == TransferStatus.retrying;
-
-  /// 是否已完成（成功或失败）
-  bool get isCompleted => status == TransferStatus.success || 
-                          status == TransferStatus.failed;
-
-  /// 是否成功
+  bool get isIdle => status == TransferStatus.idle;
+  bool get isInProgress =>
+      status == TransferStatus.inProgress ||
+      status == TransferStatus.preparing ||
+      status == TransferStatus.retrying;
+  bool get isCompleted =>
+      status == TransferStatus.success || status == TransferStatus.failed;
   bool get isSuccess => status == TransferStatus.success;
-
-  /// 是否有失败项
   bool get hasFailedItems => failedItems.isNotEmpty;
-
-  /// 计算进度百分比 (0.0 - 1.0)
   double get progress => total > 0 ? current / total : 0.0;
-
-  /// 计算进度百分比 (0 - 100)
   int get progressPercent => (progress * 100).round();
 
-  /// 计算耗时
   Duration? get elapsed {
     if (startTime == null) return null;
-    final end = endTime ?? DateTime.now();
-    return end.difference(startTime!);
+    return (endTime ?? DateTime.now()).difference(startTime!);
   }
 
-  /// 格式化操作类型名称
-  String get typeName => switch (type) {
-    TransferType.sync => '同步',
-    TransferType.backup => '备份',
-  };
-
-  /// 格式化目标类型名称
-  String get targetName => switch (target) {
-    TransferTarget.booklet => '打卡',
-    TransferTarget.essay => '随笔',
-    TransferTarget.all => '全部',
-  };
-
-  /// 格式化状态名称
+  String get typeName => type == TransferType.sync ? '同步' : '备份';
+  String get targetName => target == TransferTarget.booklet ? '打卡' : '随笔';
   String get statusName => switch (status) {
     TransferStatus.idle => '就绪',
     TransferStatus.preparing => '准备中',
@@ -131,7 +86,6 @@ class TransferProgress {
     TransferStatus.retrying => '重试中',
     TransferStatus.success => '完成',
     TransferStatus.failed => '失败',
-    TransferStatus.cancelled => '已取消',
   };
 
   TransferProgress copyWith({
@@ -235,4 +189,19 @@ class TransferResult {
     failedItems: failedItems,
     elapsed: elapsed,
   );
+}
+
+/// 传输操作配置
+class TransferAction {
+  final TransferType type;
+  final TransferTarget target;
+  final String label;
+  final bool highlighted;
+
+  const TransferAction({
+    required this.type,
+    required this.target,
+    required this.label,
+    this.highlighted = false,
+  });
 }
