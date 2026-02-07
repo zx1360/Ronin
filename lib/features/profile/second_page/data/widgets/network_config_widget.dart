@@ -1,9 +1,15 @@
+/// 网络配置组件
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/providers/server_connect/server_conn_provider.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 
+/// 网络配置组件
+///
+/// 用于配置和测试与PC服务器的连接。
 class NetworkConfigWidget extends ConsumerStatefulWidget {
   const NetworkConfigWidget({super.key});
 
@@ -15,55 +21,60 @@ class NetworkConfigWidget extends ConsumerStatefulWidget {
 class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
   final _ipController = TextEditingController();
   final _portController = TextEditingController();
+  final _apiKeyController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // 读取ip, port存的值并test网络.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final prefs=PrefsService().prefs;
-      _ipController.text=prefs.getString("PC_HOST")??"";
-      _portController.text=prefs.getString("PC_PORT")??"";
-      ref.read(serverConnectorProvider.notifier).test();
+      _loadSavedAddress();
     });
   }
 
-  // 保存IP地址
+  void _loadSavedAddress() {
+    final prefs = PrefsService().prefs;
+    _ipController.text = prefs.getString("PC_HOST") ?? "";
+    _portController.text = prefs.getString("PC_PORT") ?? "";
+    _apiKeyController.text = prefs.getString("API_KEY") ?? "";
+    ref.read(serverConnectorProvider.notifier).test();
+  }
+
   Future<void> _saveAddress() async {
     final ip = _ipController.text.trim();
     final port = _portController.text.trim();
+    final apiKey = _apiKeyController.text.trim();
 
-    await ref.refresh(apiClientManagerProvider.notifier).setAddr(host: ip, port: port);
+    await ref
+        .refresh(apiClientManagerProvider.notifier)
+        .setAddr(host: ip, port: port);
+    await ref.read(apiClientManagerProvider.notifier).setApiKey(apiKey);
     ref.read(serverConnectorProvider.notifier).test();
-    // 显示保存成功提示
+
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('地址已保存.')));
+      ).showSnackBar(const SnackBar(content: Text('配置已保存')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isConnected = ref.watch(serverConnectorProvider)['connected'] as bool;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(0, 1)),
         ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 地址输入区域
           Expanded(
             child: Column(
               children: [
@@ -85,7 +96,17 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
                     hintStyle: TextStyle(color: Colors.grey),
                     contentPadding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  keyboardType: TextInputType.url,
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: _apiKeyController,
+                  decoration: const InputDecoration(
+                    hintText: '请输入API Key (可选)...',
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.grey),
+                    contentPadding: EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  keyboardType: TextInputType.text,
                 ),
               ],
             ),
@@ -95,10 +116,10 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
               children: [
                 Row(
                   children: [
-                    Text("连接状态: "),
+                    const Text("连接状态: "),
                     Icon(
                       Icons.circle,
-                      color: ref.watch(serverConnectorProvider)['connected']
+                      color: isConnected
                           ? Colors.lightGreenAccent
                           : Colors.amber,
                     ),
@@ -120,10 +141,5 @@ class _NetworkConfigWidgetState extends ConsumerState<NetworkConfigWidget> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }

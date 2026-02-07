@@ -1,13 +1,11 @@
 /// 传输进度指示器组件
-/// 
-/// 显示数据同步/备份的进度、状态和结果。
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
-import 'package:torrid/features/profile/second_page/data/providers/transfer_service.dart';
+import 'package:torrid/features/profile/second_page/data/services/transfer_controller.dart';
 
 /// 传输进度指示器组件
 class TransferProgressWidget extends ConsumerWidget {
@@ -15,16 +13,15 @@ class TransferProgressWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(transferStateProvider);
+    final progress = ref.watch(transferControllerProvider);
 
-    // 如果没有传输任务，不显示组件
-    if (progress.status == TransferStatus.idle) {
+    if (progress.isIdle) {
       return const SizedBox.shrink();
     }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
         color: _getBackgroundColor(progress.status),
         borderRadius: BorderRadius.circular(12),
@@ -40,23 +37,15 @@ class TransferProgressWidget extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 头部：状态图标和标题
-          _buildHeader(context, progress, ref),
-          
-          // 进度条（仅在进行中时显示）
-          if (progress.isInProgress) _buildProgressBar(progress),
-          
-          // 详细信息
-          _buildDetails(context, progress),
-          
-          // 操作按钮（失败时显示重试按钮）
-          if (progress.isCompleted) _buildActions(context, progress, ref),
+          _Header(progress: progress),
+          if (progress.isInProgress) _ProgressBar(progress: progress),
+          _Details(progress: progress),
+          if (progress.isCompleted) _Actions(progress: progress),
         ],
       ),
     );
   }
 
-  /// 获取背景色
   Color _getBackgroundColor(TransferStatus status) {
     return switch (status) {
       TransferStatus.success => Colors.green.shade50,
@@ -65,18 +54,22 @@ class TransferProgressWidget extends ConsumerWidget {
       _ => AppTheme.surfaceContainer,
     };
   }
+}
 
-  /// 构建头部
-  Widget _buildHeader(BuildContext context, TransferProgress progress, WidgetRef ref) {
+/// 头部组件
+class _Header extends ConsumerWidget {
+  final TransferProgress progress;
+
+  const _Header({required this.progress});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          // 状态图标
-          _buildStatusIcon(progress.status),
+          _StatusIcon(status: progress.status),
           const SizedBox(width: 12),
-          
-          // 标题和状态
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,12 +90,11 @@ class TransferProgressWidget extends ConsumerWidget {
               ],
             ),
           ),
-          
-          // 关闭按钮（完成后显示）
           if (progress.isCompleted)
             IconButton(
               icon: const Icon(Icons.close, size: 20),
-              onPressed: () => ref.read(transferStateProvider.notifier).reset(),
+              onPressed: () =>
+                  ref.read(transferControllerProvider.notifier).reset(),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -111,11 +103,26 @@ class TransferProgressWidget extends ConsumerWidget {
     );
   }
 
-  /// 构建状态图标
-  Widget _buildStatusIcon(TransferStatus status) {
+  Color _getStatusColor(TransferStatus status) {
     return switch (status) {
-      TransferStatus.preparing ||
-      TransferStatus.inProgress => const SizedBox(
+      TransferStatus.success => Colors.green.shade700,
+      TransferStatus.failed => Colors.red.shade700,
+      TransferStatus.retrying => Colors.orange.shade700,
+      _ => Colors.grey.shade600,
+    };
+  }
+}
+
+/// 状态图标
+class _StatusIcon extends StatelessWidget {
+  final TransferStatus status;
+
+  const _StatusIcon({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (status) {
+      TransferStatus.preparing || TransferStatus.inProgress => const SizedBox(
         width: 24,
         height: 24,
         child: CircularProgressIndicator(strokeWidth: 2),
@@ -135,27 +142,19 @@ class TransferProgressWidget extends ConsumerWidget {
         color: Colors.red,
         size: 24,
       ),
-      TransferStatus.cancelled => const Icon(
-        Icons.cancel,
-        color: Colors.grey,
-        size: 24,
-      ),
       _ => const SizedBox(width: 24, height: 24),
     };
   }
+}
 
-  /// 获取状态颜色
-  Color _getStatusColor(TransferStatus status) {
-    return switch (status) {
-      TransferStatus.success => Colors.green.shade700,
-      TransferStatus.failed => Colors.red.shade700,
-      TransferStatus.retrying => Colors.orange.shade700,
-      _ => Colors.grey.shade600,
-    };
-  }
+/// 进度条
+class _ProgressBar extends StatelessWidget {
+  final TransferProgress progress;
 
-  /// 构建进度条
-  Widget _buildProgressBar(TransferProgress progress) {
+  const _ProgressBar({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -187,10 +186,7 @@ class TransferProgressWidget extends ConsumerWidget {
               if (progress.total > 0)
                 Text(
                   '${progress.current}/${progress.total}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
             ],
           ),
@@ -198,75 +194,102 @@ class TransferProgressWidget extends ConsumerWidget {
       ),
     );
   }
+}
 
-  /// 构建详细信息
-  Widget _buildDetails(BuildContext context, TransferProgress progress) {
+/// 详细信息
+class _Details extends StatelessWidget {
+  final TransferProgress progress;
+
+  const _Details({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 当前操作
           if (progress.currentMessage.isNotEmpty && progress.isInProgress)
             Text(
               progress.currentMessage,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          
-          // 耗时
           if (progress.elapsed != null)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 '耗时: ${_formatDuration(progress.elapsed!)}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade500,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade500),
               ),
             ),
-          
-          // 错误信息
-          if (progress.errorMessage != null && progress.status == TransferStatus.failed)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      progress.errorMessage!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.red.shade700,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          
-          // 失败项目列表
+          if (progress.errorMessage != null &&
+              progress.status == TransferStatus.failed)
+            _ErrorMessage(message: progress.errorMessage!),
           if (progress.hasFailedItems && progress.isCompleted)
-            _buildFailedItemsList(context, progress.failedItems),
+            _FailedItemsList(items: progress.failedItems),
         ],
       ),
     );
   }
 
-  /// 构建失败项目列表
-  Widget _buildFailedItemsList(BuildContext context, List<FailedItem> items) {
+  String _formatDuration(Duration duration) {
+    if (duration.inMinutes >= 1) {
+      return '${duration.inMinutes}分${duration.inSeconds % 60}秒';
+    } else if (duration.inSeconds >= 1) {
+      return '${duration.inSeconds}秒';
+    } else {
+      return '${duration.inMilliseconds}毫秒';
+    }
+  }
+}
+
+/// 错误信息
+class _ErrorMessage extends StatelessWidget {
+  final String message;
+
+  const _ErrorMessage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.red.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 失败项列表
+class _FailedItemsList extends StatelessWidget {
+  final List<FailedItem> items;
+
+  const _FailedItemsList({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(8),
@@ -280,7 +303,11 @@ class TransferProgressWidget extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade700),
+              Icon(
+                Icons.warning_amber,
+                size: 16,
+                color: Colors.orange.shade700,
+              ),
               const SizedBox(width: 8),
               Text(
                 '${items.length} 个项目失败',
@@ -294,52 +321,62 @@ class TransferProgressWidget extends ConsumerWidget {
           ),
           if (items.length <= 3) ...[
             const SizedBox(height: 4),
-            ...items.map((item) => Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '• ${item.name}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.orange.shade800,
+            ...items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  '• ${item.name}',
+                  style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-            )),
+            ),
           ],
         ],
       ),
     );
   }
+}
 
-  /// 构建操作按钮
-  Widget _buildActions(BuildContext context, TransferProgress progress, WidgetRef ref) {
+/// 操作按钮
+class _Actions extends ConsumerWidget {
+  final TransferProgress progress;
+
+  const _Actions({required this.progress});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(transferControllerProvider.notifier);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // 重试按钮（仅失败时显示）
           if (progress.status == TransferStatus.failed)
             TextButton.icon(
-              onPressed: () => _retryTransfer(ref, progress),
+              onPressed: () => controller.execute(
+                type: progress.type,
+                target: progress.target,
+              ),
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('重试'),
               style: TextButton.styleFrom(
                 foregroundColor: Colors.orange.shade700,
               ),
             ),
-          
-          // 确认按钮
           TextButton.icon(
-            onPressed: () => ref.read(transferStateProvider.notifier).reset(),
+            onPressed: controller.reset,
             icon: Icon(
               progress.status == TransferStatus.success
                   ? Icons.check
                   : Icons.close,
               size: 18,
             ),
-            label: Text(progress.status == TransferStatus.success ? '完成' : '关闭'),
+            label: Text(
+              progress.status == TransferStatus.success ? '完成' : '关闭',
+            ),
             style: TextButton.styleFrom(
               foregroundColor: progress.status == TransferStatus.success
                   ? Colors.green.shade700
@@ -349,127 +386,5 @@ class TransferProgressWidget extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  /// 重试传输
-  void _retryTransfer(WidgetRef ref, TransferProgress progress) {
-    // 根据传输类型和目标重新触发对应的provider
-    switch (progress.target) {
-      case TransferTarget.booklet:
-        if (progress.type == TransferType.sync) {
-          ref.invalidate(syncBookletWithProgressProvider);
-        } else {
-          ref.invalidate(backupBookletWithProgressProvider);
-        }
-        break;
-      case TransferTarget.essay:
-        if (progress.type == TransferType.sync) {
-          ref.invalidate(syncEssayWithProgressProvider);
-        } else {
-          ref.invalidate(backupEssayWithProgressProvider);
-        }
-        break;
-      case TransferTarget.all:
-        if (progress.type == TransferType.sync) {
-          ref.invalidate(syncAllWithProgressProvider);
-        } else {
-          ref.invalidate(backupAllWithProgressProvider);
-        }
-        break;
-    }
-  }
-
-  /// 格式化时长
-  String _formatDuration(Duration duration) {
-    if (duration.inMinutes >= 1) {
-      return '${duration.inMinutes}分${duration.inSeconds % 60}秒';
-    } else if (duration.inSeconds >= 1) {
-      return '${duration.inSeconds}秒';
-    } else {
-      return '${duration.inMilliseconds}毫秒';
-    }
-  }
-}
-
-/// 简洁版传输状态提示组件（用于显示在底部）
-class TransferStatusBanner extends ConsumerWidget {
-  const TransferStatusBanner({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(transferStateProvider);
-
-    if (progress.status == TransferStatus.idle) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: _getBannerColor(progress.status),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            if (progress.isInProgress)
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            else
-              Icon(
-                _getBannerIcon(progress.status),
-                size: 16,
-                color: Colors.white,
-              ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                progress.isInProgress
-                    ? '${progress.message} ${progress.progressPercent}%'
-                    : progress.message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (progress.isCompleted)
-              TextButton(
-                onPressed: () => ref.read(transferStateProvider.notifier).reset(),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('关闭', style: TextStyle(fontSize: 12)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _getBannerColor(TransferStatus status) {
-    return switch (status) {
-      TransferStatus.success => Colors.green,
-      TransferStatus.failed => Colors.red,
-      TransferStatus.retrying => Colors.orange,
-      _ => AppTheme.primary,
-    };
-  }
-
-  IconData _getBannerIcon(TransferStatus status) {
-    return switch (status) {
-      TransferStatus.success => Icons.check_circle,
-      TransferStatus.failed => Icons.error,
-      TransferStatus.cancelled => Icons.cancel,
-      _ => Icons.info,
-    };
   }
 }
