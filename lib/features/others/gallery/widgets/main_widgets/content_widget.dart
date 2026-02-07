@@ -256,7 +256,9 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
 
   /// 预加载附近图片 (当前位置前3个，后5个，跳过已删除)
   void _precacheNearbyImages(List<MediaAsset> assets, int currentIndex) {
-    final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
+    final apiClient = ref.read(apiClientManagerProvider);
+    final baseUrl = apiClient.baseUrl;
+    final headers = apiClient.headers;
     
     // 计算预加载范围: 前3个，后5个
     final start = (currentIndex - 3).clamp(0, assets.length - 1);
@@ -273,7 +275,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
         final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
         // 使用 CachedNetworkImageProvider 预缓存
         precacheImage(
-          CachedNetworkImageProvider(imageUrl),
+          CachedNetworkImageProvider(imageUrl, headers: headers),
           context,
         );
       }
@@ -375,10 +377,15 @@ class _MediaItemViewState extends ConsumerState<_MediaItemView> {
 
   Future<void> _initVideoPlayer() async {
     try {
-      final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
+      final apiClient = ref.read(apiClientManagerProvider);
+      final baseUrl = apiClient.baseUrl;
+      final headers = apiClient.headers;
       final videoUrl = '$baseUrl/api/gallery/${widget.asset.id}/file';
       
-      _videoController = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+      _videoController = VideoPlayerController.networkUrl(
+        Uri.parse(videoUrl),
+        httpHeaders: headers,
+      );
       await _videoController!.initialize();
       
       _chewieController = ChewieController(
@@ -444,7 +451,9 @@ class _MediaItemViewState extends ConsumerState<_MediaItemView> {
   @override
   Widget build(BuildContext context) {
     final storage = ref.watch(galleryStorageProvider);
-    final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
+    final apiClient = ref.read(apiClientManagerProvider);
+    final baseUrl = apiClient.baseUrl;
+    final headers = apiClient.headers;
 
     // 图片类型 - 使用 CachedNetworkImage
     if (widget.asset.isImage) {
@@ -455,6 +464,7 @@ class _MediaItemViewState extends ConsumerState<_MediaItemView> {
         asset: widget.asset,
         storage: storage,
         rotationQuarterTurns: widget.rotationQuarterTurns,
+        httpHeaders: headers,
       );
     }
 
@@ -529,12 +539,14 @@ class _NetworkImageWithLocalPlaceholder extends StatefulWidget {
   final MediaAsset asset;
   final GalleryStorageService storage;
   final int rotationQuarterTurns;
+  final Map<String, String> httpHeaders;
 
   const _NetworkImageWithLocalPlaceholder({
     required this.imageUrl,
     required this.asset,
     required this.storage,
     this.rotationQuarterTurns = 0,
+    this.httpHeaders = const {},
   });
 
   @override
@@ -616,6 +628,7 @@ class _NetworkImageWithLocalPlaceholderState
         quarterTurns: widget.rotationQuarterTurns,
         child: CachedNetworkImage(
           imageUrl: widget.imageUrl,
+          httpHeaders: widget.httpHeaders,
           imageBuilder: (context, imageProvider) => _buildInteractiveImage(
             imageProvider,
             ValueKey('photo_${widget.asset.id}_${widget.rotationQuarterTurns}'),

@@ -26,6 +26,14 @@ class ApiClient {
     );
   }
 
+  /// 获取请求头（包含 API Key，用于第三方库如 CachedNetworkImage）
+  Map<String, String> get headers {
+    if (apiKey != null && apiKey!.isNotEmpty) {
+      return {'X-API-Key': apiKey!};
+    }
+    return {};
+  }
+
   // GET请求
   Future<Response> get(
     String path, {

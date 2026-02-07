@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 class ComicImage extends StatelessWidget {
   final String path;
   final bool isLocal;
-  const ComicImage({super.key, required this.path, required this.isLocal});
+  final Map<String, String> httpHeaders;
+  const ComicImage({super.key, required this.path, required this.isLocal, this.httpHeaders = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +28,7 @@ class ComicImage extends StatelessWidget {
     ):
     Image.network(
       path,
+      headers: httpHeaders,
       width: double.infinity,
       fit: BoxFit.fitWidth,
       errorBuilder: (context, error, stackTrace) {

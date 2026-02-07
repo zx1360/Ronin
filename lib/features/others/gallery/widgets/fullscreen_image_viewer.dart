@@ -9,12 +9,14 @@ class FullscreenImageViewer extends StatefulWidget {
   final String imageUrl;
   final MediaAsset asset;
   final File? placeholderFile;
+  final Map<String, String> httpHeaders;
 
   const FullscreenImageViewer({
     super.key,
     required this.imageUrl,
     required this.asset,
     this.placeholderFile,
+    this.httpHeaders = const {},
   });
 
   @override
@@ -66,6 +68,7 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
               tag: 'image_${widget.asset.id}',
               child: CachedNetworkImage(
                 imageUrl: widget.imageUrl,
+                httpHeaders: widget.httpHeaders,
                 fit: BoxFit.contain,
                 placeholder: (context, url) {
                   if (widget.placeholderFile != null) {

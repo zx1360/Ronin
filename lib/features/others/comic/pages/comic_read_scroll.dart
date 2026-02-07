@@ -19,6 +19,7 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/features/others/comic/common/controls_auto_hide_mixin.dart';
 import 'package:torrid/features/others/comic/common/reader_utils.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class ComicScrollPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
@@ -297,6 +298,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
   // 漫画内容部分构建
   Widget _buildScrollGallery(BuildContext context) {
     final maxWidth = MediaQuery.of(context).size.width;
+    final headers = ref.read(apiClientManagerProvider).headers;
 
     if (images.isEmpty) {
       return const Center(
@@ -316,7 +318,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         return SizedBox(
           width: maxWidth,
           height: height,
-          child: ComicImage(path: url, isLocal: widget.isLocal),
+          child: ComicImage(path: url, isLocal: widget.isLocal, httpHeaders: headers),
         );
       },
     );

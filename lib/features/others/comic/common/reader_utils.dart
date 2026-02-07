@@ -34,8 +34,10 @@ ImageProvider resolveImageProvider(
   if (isLocal) {
     return FileImage(File(image['path'] as String));
   }
-  final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
-  return NetworkImage("$baseUrl/static/${image['path']}");
+  final apiClient = ref.read(apiClientManagerProvider);
+  final baseUrl = apiClient.baseUrl;
+  final headers = apiClient.headers;
+  return NetworkImage("$baseUrl/static/${image['path']}", headers: headers);
 }
 
 /// 计算图片在指定最大宽度下的显示高度（宽度异常时回退为等于宽度）

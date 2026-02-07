@@ -342,7 +342,9 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
   /// 构建预览图 (点击可全屏)
   Widget _buildPreviewImage(GalleryStorageService storage, MediaAsset asset, {bool showFullscreen = false}) {
     // 获取网络图片 URL
-    final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
+    final apiClient = ref.read(apiClientManagerProvider);
+    final baseUrl = apiClient.baseUrl;
+    final headers = apiClient.headers;
     final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
     
     return FutureBuilder<File?>(
@@ -351,13 +353,14 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         final placeholderFile = snapshot.data;
         
         return GestureDetector(
-          onTap: showFullscreen ? () => _openFullscreen(imageUrl, asset, placeholderFile) : null,
+          onTap: showFullscreen ? () => _openFullscreen(imageUrl, asset, placeholderFile, headers) : null,
           child: Hero(
             tag: 'image_${asset.id}',
             child: ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: CachedNetworkImage(
                 imageUrl: imageUrl,
+                httpHeaders: headers,
                 height: 260,
                 width: double.infinity,
                 fit: BoxFit.contain,
@@ -415,7 +418,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
   }
   
   /// 打开全屏查看器
-  void _openFullscreen(String imageUrl, MediaAsset asset, File? placeholderFile) {
+  void _openFullscreen(String imageUrl, MediaAsset asset, File? placeholderFile, Map<String, String> httpHeaders) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -423,6 +426,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
           imageUrl: imageUrl,
           asset: asset,
           placeholderFile: placeholderFile,
+          httpHeaders: httpHeaders,
         ),
       ),
     );
