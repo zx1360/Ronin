@@ -31,8 +31,7 @@ func SetupRouter() *gin.Engine {
 
 	// API路由, 数据/操作
 	api := r.Group("/api")
-	// TODO: 开启API密钥验证
-	// .Use(util_handler.APIKeyAuth())
+	api.Use(util_handler.APIKeyAuth())
 	{
 		// 用户数据相关
 		userDataGroup := api.Group("/user-data")

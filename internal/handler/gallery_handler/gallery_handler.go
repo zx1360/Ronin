@@ -28,8 +28,8 @@ func FetchBatch(c *gin.Context) {
 	if err != nil || limit <= 0 {
 		limit = 50
 	}
-	if limit > 2000 {
-		limit = 2000 // 限制最大查询数量
+	if limit > 10000 {
+		limit = 10000 // 限制最大查询数量
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
