@@ -16,6 +16,7 @@ class CommonImageWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final apiClient = ref.read(apiClientManagerProvider);
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: isLocal
@@ -33,7 +34,8 @@ class CommonImageWidget extends ConsumerWidget {
               },
             )
           : Image.network(
-              "${ref.read(apiClientManagerProvider).baseUrl}/static/$imageUrl",
+              "${apiClient.baseUrl}/static/$imageUrl",
+              headers: apiClient.headers,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) =>
                   // 封面占位符
