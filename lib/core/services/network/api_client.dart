@@ -10,7 +10,10 @@ class ApiClient {
   final String? apiKey;
 
   ApiClient({required this.baseUrl, this.apiKey}) {
-    _dio.options.baseUrl = baseUrl;
+    // 只有当 baseUrl 非空时才设置，避免无效 URL 错误
+    if (baseUrl.isNotEmpty) {
+      _dio.options.baseUrl = baseUrl;
+    }
     _dio.options.connectTimeout = const Duration(seconds: 8);
     _dio.options.receiveTimeout = const Duration(seconds: 15);
     // 添加拦截器以在每个请求中添加 X-API-Key 头

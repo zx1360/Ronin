@@ -32,7 +32,11 @@ class ApiClientManager extends _$ApiClientManager {
     await prefs.setString("PC_HOST", host);
     await prefs.setString("PC_PORT", port);
     final apiKey = prefs.getString("API_KEY");
-    state = ApiClient(baseUrl: "http://$host:$port", apiKey: apiKey);
+    // 只有当 host 和 port 都非空时才构建有效 URL
+    final baseUrl = (host.isNotEmpty && port.isNotEmpty)
+        ? "http://$host:$port"
+        : "";
+    state = ApiClient(baseUrl: baseUrl, apiKey: apiKey);
   }
 
   Future<void> setApiKey(String apiKey) async {
