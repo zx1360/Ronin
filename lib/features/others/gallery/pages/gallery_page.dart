@@ -261,13 +261,14 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     final isCurrentlyDeleted = media.isDeleted;
 
     if (!isCurrentlyDeleted) {
-      // 标记删除
+      // 先跳转到下一个未删除的文件，再标记删除
+      // 这样 UI 会先显示下一张，不会闪烁 loading 状态
+      await ref.read(currentMediaAssetProvider.notifier).next();
+      
+      // 标记删除（乐观更新，无 loading）
       await ref
           .read(mediaAssetListProvider.notifier)
           .markDeleted(media.id, deleted: true);
-      
-      // 自动跳到下一个未删除的文件
-      await ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted();
     } else {
       // 取消删除标记
       await ref

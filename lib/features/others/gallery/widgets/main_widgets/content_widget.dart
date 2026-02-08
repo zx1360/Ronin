@@ -125,6 +125,29 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
         
         // 如果当前文件已删除，自动跳到下一个未删除的
         if (currentAsset.isDeleted) {
+          // 检查是否还有未删除的文件
+          final hasNonDeleted = assets.any((a) => !a.isDeleted);
+          if (!hasNonDeleted) {
+            // 所有文件都已删除，显示提示信息
+            return Container(
+              color: Colors.black,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.delete_outline, color: Colors.grey, size: 64),
+                    SizedBox(height: 16),
+                    Text(
+                      '所有文件已删除',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          
           WidgetsBinding.instance.addPostFrameCallback((_) {
             ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted();
           });
