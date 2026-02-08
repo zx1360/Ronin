@@ -182,6 +182,8 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
           return GridView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.all(2),
+            // 增加缓存范围，提前加载屏幕外的项目
+            cacheExtent: 500,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
               crossAxisSpacing: 2,
@@ -196,6 +198,7 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
               final selectionIndex = _selectionOrder.indexOf(asset.id);
 
               return _GridTile(
+                key: ValueKey(asset.id), // 使用 Key 保持 widget 状态
                 asset: asset,
                 isSelected: isSelected,
                 isCurrent: isCurrent,
@@ -469,8 +472,11 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
   }
 }
 
-/// 网格项
-class _GridTile extends ConsumerWidget {
+/// 缩略图文件缓存 (避免重复的文件系统检查)
+final Map<String, File?> _thumbnailCache = {};
+
+/// 网格项 - 使用 StatefulWidget 避免每次重建时重新加载缩略图
+class _GridTile extends ConsumerStatefulWidget {
   final MediaAsset asset;
   final bool isSelected;
   final bool isCurrent;
@@ -480,6 +486,7 @@ class _GridTile extends ConsumerWidget {
   final VoidCallback onLongPress;
 
   const _GridTile({
+    super.key,
     required this.asset,
     required this.isSelected,
     required this.isCurrent,
@@ -490,142 +497,187 @@ class _GridTile extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final storage = ref.watch(galleryStorageProvider);
+  ConsumerState<_GridTile> createState() => _GridTileState();
+}
 
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // 缩略图 (优先缩略图, fallback 到原图)
-          FutureBuilder<File?>(
-            future: _getThumbnailFile(storage),
-            builder: (context, snapshot) {
-              if (snapshot.data != null) {
-                return Image.file(
-                  snapshot.data!,
-                  fit: BoxFit.cover,
-                  cacheWidth: 200, // 限制缓存尺寸，提高性能
-                  errorBuilder: (context, error, stack) =>
-                      _buildPlaceholder(),
-                );
-              }
-              return _buildPlaceholder();
-            },
-          ),
+class _GridTileState extends ConsumerState<_GridTile> {
+  File? _thumbnailFile;
+  bool _isLoading = true;
 
-          // 选中边框
-          if (isSelected)
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary,
-                  width: 3,
+  @override
+  void initState() {
+    super.initState();
+    _loadThumbnail();
+  }
+
+  /// 加载缩略图（带缓存）
+  Future<void> _loadThumbnail() async {
+    final cacheKey = widget.asset.thumbPath ?? widget.asset.filePath;
+    
+    // 检查缓存
+    if (_thumbnailCache.containsKey(cacheKey)) {
+      if (mounted) {
+        setState(() {
+          _thumbnailFile = _thumbnailCache[cacheKey];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+    
+    // 加载缩略图
+    final storage = ref.read(galleryStorageProvider);
+    File? file;
+    
+    if (widget.asset.thumbPath != null) {
+      file = await storage.getThumbFile(widget.asset.thumbPath!);
+    }
+    
+    // 缓存结果
+    _thumbnailCache[cacheKey] = file;
+    
+    if (mounted) {
+      setState(() {
+        _thumbnailFile = file;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 缩略图
+            if (_isLoading)
+              _buildPlaceholder()
+            else if (_thumbnailFile != null)
+              Image.file(
+                _thumbnailFile!,
+                fit: BoxFit.cover,
+                cacheWidth: 150, // 优化内存：16列时每个缩略图很小
+                cacheHeight: 150,
+                errorBuilder: (context, error, stack) => _buildPlaceholder(),
+              )
+            else
+              _buildPlaceholder(),
+
+            // 选中边框
+            if (widget.isSelected)
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 3,
+                  ),
                 ),
               ),
-            ),
 
-          // 当前浏览位置指示
-          if (isCurrent && !isSelectionMode)
-            Positioned(
-              bottom: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Icon(
-                  Icons.visibility,
-                  color: Colors.white,
-                  size: 16,
+            // 当前浏览位置指示
+            if (widget.isCurrent && !widget.isSelectionMode)
+              Positioned(
+                bottom: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(
+                    Icons.visibility,
+                    color: Colors.white,
+                    size: 16,
+                  ),
                 ),
               ),
-            ),
 
-          // 选择模式下的勾选框
-          if (isSelectionMode)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.black54,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: isSelected
-                    ? Center(
-                        child: Text(
-                          selectionIndex?.toString() ?? '✓',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+            // 选择模式下的勾选框
+            if (widget.isSelectionMode)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: widget.isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.black54,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: widget.isSelected
+                      ? Center(
+                          child: Text(
+                            widget.selectionIndex?.toString() ?? '✓',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      )
-                    : null,
-              ),
-            ),
-
-          // 删除标记
-          if (asset.isDeleted)
-            Positioned(
-              top: 4,
-              left: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(4),
+                        )
+                      : null,
                 ),
-                child: const Icon(
-                  Icons.delete,
+              ),
+
+            // 删除标记
+            if (widget.asset.isDeleted)
+              Positioned(
+                top: 4,
+                left: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                    size: 12,
+                  ),
+                ),
+              ),
+
+            // 捆绑标记
+            if (widget.asset.groupId != null)
+              Positioned(
+                bottom: 4,
+                left: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(
+                    Icons.layers,
+                    color: Colors.white,
+                    size: 12,
+                  ),
+                ),
+              ),
+
+            // 视频标记
+            if (widget.asset.isVideo)
+              const Positioned(
+                bottom: 4,
+                right: 4,
+                child: Icon(
+                  Icons.play_circle_outline,
                   color: Colors.white,
-                  size: 12,
+                  size: 24,
                 ),
               ),
-            ),
-
-          // 捆绑标记
-          if (asset.groupId != null)
-            Positioned(
-              bottom: 4,
-              left: 4,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.amber,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Icon(
-                  Icons.layers,
-                  color: Colors.white,
-                  size: 12,
-                ),
-              ),
-            ),
-
-          // 视频标记
-          if (asset.isVideo)
-            const Positioned(
-              bottom: 4,
-              right: 4,
-              child: Icon(
-                Icons.play_circle_outline,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -634,22 +686,10 @@ class _GridTile extends ConsumerWidget {
     return Container(
       color: Colors.grey[800],
       child: Icon(
-        asset.isVideo ? Icons.videocam : Icons.image,
+        widget.asset.isVideo ? Icons.videocam : Icons.image,
         color: Colors.grey[600],
       ),
     );
-  }
-
-  /// 获取缩略图文件 (优先缩略图, fallback 到原图)
-  Future<File?> _getThumbnailFile(GalleryStorageService storage) async {
-    // 优先使用缩略图
-    if (asset.thumbPath != null) {
-      final thumbFile = await storage.getThumbFile(asset.thumbPath!);
-      if (thumbFile != null) return thumbFile;
-    }
-    
-    // 没有缩略图则使用原图
-    return await storage.getMediaFile(asset.filePath);
   }
 }
 

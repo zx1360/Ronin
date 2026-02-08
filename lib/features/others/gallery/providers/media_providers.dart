@@ -28,15 +28,26 @@ class MediaAssetList extends _$MediaAssetList {
     return result.valueOrNull ?? [];
   }
 
-  /// 标记删除，返回刷新后的列表
+  /// 标记删除（乐观更新，无加载状态）
   Future<List<MediaAsset>> markDeleted(String id, {bool deleted = true}) async {
+    // 1. 乐观更新：立即更新本地状态，避免 loading 闪烁
+    final currentList = state.valueOrNull ?? [];
+    final index = currentList.indexWhere((a) => a.id == id);
+    if (index >= 0) {
+      final updatedList = List<MediaAsset>.from(currentList);
+      updatedList[index] = currentList[index].copyWith(isDeleted: deleted);
+      state = AsyncValue.data(updatedList);
+    }
+    
+    // 2. 后台执行数据库操作
     final db = ref.read(galleryDatabaseProvider);
     await db.markMediaAssetDeleted(id, deleted: deleted);
     
-    // 更新 modified_count
+    // 3. 更新 modified_count
     await _updateModifiedCount(id);
     
-    return await refresh();
+    // 4. 静默刷新确保数据一致性（可选，如果数据库和本地状态已保持同步可以省略）
+    return state.valueOrNull ?? [];
   }
 
   /// 捆绑媒体文件
