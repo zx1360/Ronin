@@ -75,7 +75,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
           // 顶部导航栏 (可切换显示/隐藏)
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 0),
             curve: Curves.easeInOut,
             top: _barsVisible ? 0 : -topBarHeight,
             left: 0,
@@ -85,7 +85,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
           // 底部区域 (标签栏 + 导航栏)
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 0),
             curve: Curves.easeInOut,
             bottom: _barsVisible ? 0 : -bottomBarHeight,
             left: 0,

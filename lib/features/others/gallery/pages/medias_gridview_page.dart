@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
-import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 
 /// 媒体文件网格视图组件
 /// - 呈现图片/视频的缩略图 (对应 thumb_path)
