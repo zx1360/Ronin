@@ -16,7 +16,14 @@ class IoService {
   // 创建应用需要用到的所有目录.
   static Future<void> initDirs() async {
     final directory = await externalStorageDir;
-    final dirs = ["img_storage/booklet", "img_storage/essay", "comics"];
+    final dirs = [
+      "img_storage/booklet",
+      "img_storage/essay",
+      "comics",
+      "preferences/background",
+      "preferences/sidebar",
+      "preferences/avatar",
+    ];
     for (final dir in dirs) {
       await Directory(path.join(directory.path, dir)).create(recursive: true);
     }

@@ -393,7 +393,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
 
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(parentId == null ? '添加根标签' : '添加子标签'),
         content: TextField(
           controller: controller,
@@ -405,19 +405,25 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('取消'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('确定'),
           ),
         ],
       ),
     );
 
-    if (result != null && result.isNotEmpty) {
-      await _addTag(result, parentId);
+    // 延迟 dispose，确保对话框完全关闭
+    final savedResult = result;
+    Future.delayed(const Duration(milliseconds: 500), () {
+      controller.dispose();
+    });
+
+    if (savedResult != null && savedResult.isNotEmpty) {
+      await _addTag(savedResult, parentId);
     }
   }
 
@@ -460,7 +466,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
 
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('重命名标签'),
         content: TextField(
           controller: controller,
@@ -469,30 +475,36 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('取消'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('确定'),
           ),
         ],
       ),
     );
 
-    if (result != null && result.isNotEmpty && result != tag.name) {
+    // 延迟 dispose，确保对话框完全关闭
+    final savedResult = result;
+    Future.delayed(const Duration(milliseconds: 500), () {
+      controller.dispose();
+    });
+
+    if (savedResult != null && savedResult.isNotEmpty && savedResult != tag.name) {
       // 计算新的 full_path
       String newFullPath;
       if (tag.parentId == null) {
-        newFullPath = result;
+        newFullPath = savedResult;
       } else {
         final allTags = ref.read(tagTreeProvider).valueOrNull ?? [];
         final parent = allTags.firstWhere((t) => t.id == tag.parentId);
-        newFullPath = '${parent.fullPath}/$result';
+        newFullPath = '${parent.fullPath}/$savedResult';
       }
 
       final updatedTag = tag.copyWith(
-        name: result,
+        name: savedResult,
         fullPath: newFullPath,
         updatedAt: DateTime.now(),
       );

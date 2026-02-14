@@ -164,26 +164,6 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
                   size: 28,
                 ),
               ),
-            // 下一个标识
-            Positioned(
-              right: 4,
-              bottom: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'NEXT',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
