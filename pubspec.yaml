@@ -67,6 +67,8 @@ dependencies:
   cached_network_image: ^3.4.1
   # 图像处理库
   image: ^4.5.4
+  # 保存到相册
+  image_gallery_saver_plus: ^4.0.1
 
   # 音频播放
   audioplayers: ^6.1.0
