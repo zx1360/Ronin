@@ -1,9 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
@@ -548,62 +549,34 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         }
       }
 
-      // 获取源文件
-      final sourceFile = await storage.getMediaFile(widget.asset.filePath);
-      if (sourceFile == null) {
-        throw Exception('源文件不存在');
+      // 从网络下载文件
+      final apiClient = ref.read(apiClientManagerProvider);
+      final response = await apiClient.getBinary('/api/gallery/${_currentAsset.id}/file');
+      
+      if (response.data == null || response.data!.isEmpty) {
+        throw Exception('下载的文件数据为空');
       }
 
-      // 构建目标路径
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        throw Exception('无法访问外部存储');
+      final fileName = _getFileName(_currentAsset.filePath);
+      final Uint8List bytes = response.data!;
+      
+      // 使用 image_gallery_saver_plus 保存到相册并刷新
+      final result = await ImageGallerySaverPlus.saveImage(
+        bytes,
+        quality: 100,
+        name: p.basenameWithoutExtension(fileName),
+      );
+      
+      if (result['isSuccess'] != true) {
+        throw Exception('保存到相册失败');
       }
 
-      // 使用公共 Pictures 目录
-      final picturesDir = Directory('/storage/emulated/0/Pictures/Torrid/gallery');
-      if (!await picturesDir.exists()) {
-        await picturesDir.create(recursive: true);
-      }
-
-      final fileName = _getFileName(widget.asset.filePath);
-      final targetPath = p.join(picturesDir.path, fileName);
-      final targetFile = File(targetPath);
-
-      // 检查是否已存在
-      if (await targetFile.exists()) {
-        final overwrite = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('文件已存在'),
-            content: Text('文件 "$fileName" 已存在，是否覆盖？'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('覆盖'),
-              ),
-            ],
-          ),
-        );
-
-        if (overwrite != true) {
-          return;
-        }
-      }
-
-      // 复制文件
-      await sourceFile.copy(targetPath);
-
-      AppLogger().info('文件已下载到: $targetPath');
+      AppLogger().info('文件已保存到相册: ${result['filePath']}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已下载到: ${picturesDir.path}'),
+            content: const Text('已保存到相册'),
             action: SnackBarAction(
               label: '确定',
               onPressed: () {},
