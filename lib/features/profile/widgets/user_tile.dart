@@ -15,13 +15,12 @@ class UserTile extends StatelessWidget {
             backgroundImage: AssetImage("assets/icons/six.png"),
           ),
       
-          // TODO: 后期ref获取.
           title: Text(
-            "昵称: 谁才是超级小马",
+            "昵称: ",
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
           ),
           subtitle: Text(
-            "签名: 我将如闪电般归来.",
+            "签名: ",
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
           trailing: const Icon(

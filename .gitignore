@@ -45,4 +45,4 @@ app.*.map.json
 /android/app/release
 
 # 资源文件(图片等).
-# /assets/
+/assets/
