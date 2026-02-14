@@ -63,5 +63,24 @@ final galleryGridColumnsProvider =
 );
 
 typedef _$GalleryGridColumns = Notifier<int>;
+String _$galleryPreviewWindowEnabledHash() =>
+    r'5bb0b46de22e48d827b3ecb2b6eb3991f7e9432c';
+
+/// 预览小窗开关设置（默认开启）
+///
+/// Copied from [GalleryPreviewWindowEnabled].
+@ProviderFor(GalleryPreviewWindowEnabled)
+final galleryPreviewWindowEnabledProvider =
+    NotifierProvider<GalleryPreviewWindowEnabled, bool>.internal(
+  GalleryPreviewWindowEnabled.new,
+  name: r'galleryPreviewWindowEnabledProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryPreviewWindowEnabledHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryPreviewWindowEnabled = Notifier<bool>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

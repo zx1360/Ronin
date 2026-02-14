@@ -158,3 +158,24 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     // 全部都被删除了，保持当前索引
   }
 }
+
+/// 下一个未删除的媒体文件 Provider（用于预览小窗）
+/// 如果不存在下一个文件，返回 null
+@riverpod
+MediaAsset? nextMediaAsset(NextMediaAssetRef ref) {
+  final assets = ref.watch(mediaAssetListProvider).valueOrNull ?? [];
+  final currentIndex = ref.watch(galleryCurrentIndexProvider);
+  
+  if (assets.isEmpty || currentIndex < 0) {
+    return null;
+  }
+  
+  // 从当前位置+1 向后查找未删除的文件
+  for (int i = currentIndex + 1; i < assets.length; i++) {
+    if (!assets[i].isDeleted) {
+      return assets[i];
+    }
+  }
+  
+  return null;
+}

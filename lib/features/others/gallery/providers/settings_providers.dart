@@ -10,6 +10,7 @@ class GalleryPrefsKeys {
   static const String modifiedCount = 'gallery_modified_count';
   static const String currentIndex = 'gallery_current_index';
   static const String gridColumnCount = 'gallery_grid_columns';
+  static const String previewWindowEnabled = 'gallery_preview_window_enabled';
 }
 
 /// modified_count - 记录最后一次操作的媒体文件在队列中的位置
@@ -78,5 +79,28 @@ class GalleryGridColumns extends _$GalleryGridColumns {
     final prefs = PrefsService().prefs;
     await prefs.setInt(GalleryPrefsKeys.gridColumnCount, value);
     state = value;
+  }
+}
+
+/// 预览小窗开关设置（默认开启）
+@Riverpod(keepAlive: true)
+class GalleryPreviewWindowEnabled extends _$GalleryPreviewWindowEnabled {
+  @override
+  bool build() {
+    final prefs = PrefsService().prefs;
+    return prefs.getBool(GalleryPrefsKeys.previewWindowEnabled) ?? true;
+  }
+
+  Future<void> toggle() async {
+    final prefs = PrefsService().prefs;
+    final newValue = !state;
+    await prefs.setBool(GalleryPrefsKeys.previewWindowEnabled, newValue);
+    state = newValue;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    final prefs = PrefsService().prefs;
+    await prefs.setBool(GalleryPrefsKeys.previewWindowEnabled, enabled);
+    state = enabled;
   }
 }
