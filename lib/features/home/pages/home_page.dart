@@ -129,7 +129,7 @@ class _HomePageState extends State<HomePage>
               height: size.height,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: const AssetImage("assets/images/soldier.png"),
+                  image: const AssetImage("assets/images/2.jpg"),
                   fit: BoxFit.cover,
                   opacity: _imageOpacity,
                 ),
