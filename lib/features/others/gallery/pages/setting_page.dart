@@ -14,7 +14,7 @@ class GallerySettingPage extends ConsumerStatefulWidget {
 class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   // 下载数量控制
   final TextEditingController _downloadLimitController =
-      TextEditingController(text: '50');
+      TextEditingController(text: '200');
 
   @override
   void dispose() {
@@ -313,7 +313,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
   /// 处理下载
   Future<void> _handleDownload() async {
-    final limit = int.tryParse(_downloadLimitController.text) ?? 50;
+    final limit = int.tryParse(_downloadLimitController.text) ?? 200;
     await ref.read(gallerySyncServiceProvider.notifier).downloadBatch(limit: limit);
     
     // 刷新统计数据
