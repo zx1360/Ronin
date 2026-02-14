@@ -12,38 +12,69 @@ class AppSettings {
   // northstar传输相关.
   String ip;
   String port;
-  // 外观相关.(HomePage首页)
-  String motto;
-  List<String> bgImgRelativePaths;
+  
+  // 外观相关 - 背景图片（共用于SplashPage/HomePage）
+  // 存储相对路径，如 "preferences/background/xxx.jpg"
+  List<String> backgroundImages;
+  
+  // 外观相关 - 侧边栏背景图片
+  List<String> sidebarImages;
+  
+  // 座右铭列表
+  List<String> mottos;
+  
+  // 用户信息
+  String nickname;
+  String signature;
+  // 头像图片路径，为空时使用默认
+  String? avatarPath;
+  
   AppSettings({
     required this.ip,
     required this.port,
-    required this.motto,
-    required this.bgImgRelativePaths,
+    required this.backgroundImages,
+    required this.sidebarImages,
+    required this.mottos,
+    required this.nickname,
+    required this.signature,
+    this.avatarPath,
   });
 
   // copyWith方法
   AppSettings copyWith({
     String? ip,
     String? port,
-    String? motto,
-    List<String>? bgImgRelativePaths,
+    List<String>? backgroundImages,
+    List<String>? sidebarImages,
+    List<String>? mottos,
+    String? nickname,
+    String? signature,
+    String? avatarPath,
+    bool clearAvatar = false,
   }) {
     return AppSettings(
       ip: ip ?? this.ip,
       port: port ?? this.port,
-      motto: motto ?? this.motto,
-      bgImgRelativePaths: bgImgRelativePaths ?? this.bgImgRelativePaths,
+      backgroundImages: backgroundImages ?? this.backgroundImages,
+      sidebarImages: sidebarImages ?? this.sidebarImages,
+      mottos: mottos ?? this.mottos,
+      nickname: nickname ?? this.nickname,
+      signature: signature ?? this.signature,
+      avatarPath: clearAvatar ? null : (avatarPath ?? this.avatarPath),
     );
   }
 
-  // 偏好认值
+  // 偏好默认值
   factory AppSettings.defaultValue() {
     return AppSettings(
       ip: "",
       port: "",
-      motto: "理想如星, 虽不能及, 吾心往之.",
-      bgImgRelativePaths: ["assets/images/1.jpg"],
+      backgroundImages: [],
+      sidebarImages: [],
+      mottos: ["理想如星\n虽不能及,吾心往之"],
+      nickname: "未设置昵称",
+      signature: "这个人很懒，什么都没写~",
+      avatarPath: null,
     );
   }
 

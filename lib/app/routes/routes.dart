@@ -12,6 +12,8 @@ import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 import 'package:torrid/features/profile/pages/profile_page.dart';
 import 'package:torrid/features/profile/pages/profile_second_shell.dart';
 import 'package:torrid/features/profile/second_page/user/profile_user.dart';
+import 'package:torrid/features/profile/second_page/preferences/background_setting_page.dart';
+import 'package:torrid/features/profile/second_page/preferences/motto_setting_page.dart';
 import 'package:torrid/features/todo/pages/todo_page.dart';
 
 // 页面路径声明文件.
@@ -29,9 +31,8 @@ final List<RouteBase> routes = [
     path: "/home",
     name: "home",
     builder: (context, state) {
-      final int bgIndex =
-          int.tryParse(state.uri.queryParameters['bgIndex'] ?? "") ?? 1;
-      return HomePage(bgIndex: bgIndex);
+      final String? bgPath = state.uri.queryParameters['bgPath'];
+      return HomePage(bgPath: bgPath);
     },
   ),
 
@@ -81,6 +82,18 @@ final List<RouteBase> routes = [
         path: 'user',
         name: 'profile_user',
         builder: (context, state) => const ProfileUser(),
+      ),
+      // 背景图片设置
+      GoRoute(
+        path: 'background',
+        name: 'profile_background',
+        builder: (context, state) => const BackgroundSettingPage(),
+      ),
+      // 座右铭设置
+      GoRoute(
+        path: 'motto',
+        name: 'profile_motto',
+        builder: (context, state) => const MottoSettingPage(),
       ),
       ...profilePages.map(
         (config) => GoRoute(

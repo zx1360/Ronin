@@ -45,6 +45,7 @@ class _NetworkMdBuilderState extends State<NetworkMdBuilder> {
   String? _errorMessage;
 
   late final Dio _dio;
+  late CancelToken _cancelToken;
 
   @override
   void initState() {
@@ -56,6 +57,7 @@ class _NetworkMdBuilderState extends State<NetworkMdBuilder> {
         headers: widget.headers,
       ),
     );
+    _cancelToken = CancelToken();
     _loadMarkdownFromNetwork();
   }
 
@@ -64,47 +66,60 @@ class _NetworkMdBuilderState extends State<NetworkMdBuilder> {
     super.didUpdateWidget(oldWidget);
     // URL 变化时重新加载
     if (oldWidget.url != widget.url) {
+      _cancelToken.cancel();
+      _cancelToken = CancelToken();
       _loadMarkdownFromNetwork();
     }
   }
 
   @override
   void dispose() {
+    _cancelToken.cancel();
     _dio.close();
     super.dispose();
   }
 
   /// 从网络加载 Markdown 内容
   Future<void> _loadMarkdownFromNetwork() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
-      final response = await _dio.get<String>(widget.url);
+      final response = await _dio.get<String>(widget.url, cancelToken: _cancelToken);
 
       if (response.statusCode == 200 && response.data != null) {
-        setState(() {
-          _content = response.data;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _content = response.data;
+            _isLoading = false;
+          });
+        }
       } else {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = '请求失败：状态码 ${response.statusCode}';
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = '请求失败：状态码 ${response.statusCode}';
+          });
+        }
       }
     } on DioException catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = _formatDioError(e);
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = _formatDioError(e);
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = '加载失败：${e.toString()}';
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = '加载失败：${e.toString()}';
+        });
+      }
     }
   }
 
