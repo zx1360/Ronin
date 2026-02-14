@@ -6,6 +6,7 @@ import 'package:torrid/features/booklet/pages/booklet_page.dart';
 import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
 import 'package:torrid/features/read/pages/read_page.dart';
+import 'package:torrid/features/library/pages/library_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
@@ -14,7 +15,6 @@ import 'package:torrid/features/profile/pages/profile_second_shell.dart';
 import 'package:torrid/features/profile/second_page/user/profile_user.dart';
 import 'package:torrid/features/profile/second_page/preferences/background_setting_page.dart';
 import 'package:torrid/features/profile/second_page/preferences/motto_setting_page.dart';
-import 'package:torrid/features/todo/pages/todo_page.dart';
 
 // 页面路径声明文件.
 final List<RouteBase> routes = [
@@ -53,9 +53,9 @@ final List<RouteBase> routes = [
 
   // 待办页,
   GoRoute(
-    path: "/todo",
-    name: "todo",
-    builder: (context, state) => const TodoPage(),
+    path: "/library",
+    name: "library",
+    builder: (context, state) => const LibraryPage(),
   ),
 
   // 阅读页,

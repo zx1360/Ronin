@@ -11,11 +11,9 @@ import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/todo/models/task_list.dart';
 // gallery库
 // comic漫画
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
-import 'package:torrid/features/todo/models/todo_task.dart';
 // changya 随机唱歌音频
 import 'package:torrid/features/read/models/changya/changya_user.dart';
 import 'package:torrid/features/read/models/changya/changya_song.dart';
@@ -34,15 +32,9 @@ class HiveService {
   static const String yearSummaryBoxName = 'yearSummaries';
   static const String labelBoxName = 'labels';
   static const String essayBoxName = 'essays';
-  // todo待办
-  static const String taskListsBoxName = 'taskLists';
-  static const String todoTasksBoxName = 'todoTasks';
   // lathe倒计时
   static const String countdownTimerBoxName = 'countdownTimers';
   // ----非常用
-  // gallery库
-  static const String infoBoxName = "mediaInfo";
-  static const String statusBoxName = "mediaStatus";
   // comic漫画
   static const String comicPrefBoxName = "comicPreference";
   static const String comicBoxName = "comicInfo";
@@ -65,20 +57,12 @@ class HiveService {
     Hive.registerAdapter(LabelAdapter());
     Hive.registerAdapter(EssayAdapter());
     Hive.registerAdapter(MessageAdapter());
-    // todo待办
-    Hive.registerAdapter(PriorityAdapter());
-    Hive.registerAdapter(RepeatTypeAdapter());
-    Hive.registerAdapter(TodoStepAdapter());
-    Hive.registerAdapter(TodoTaskAdapter());
-    Hive.registerAdapter(ListThemeColorAdapter());
-    Hive.registerAdapter(TaskListAdapter());
-    // gallery库
     
     // comic漫画
     Hive.registerAdapter(ComicInfoAdapter());
     Hive.registerAdapter(ChapterInfoAdapter());
     Hive.registerAdapter(ComicPreferenceAdapter());
-    // changya
+    // read-changya
     Hive.registerAdapter(ChangyaUserAdapter());
     Hive.registerAdapter(ChangyaSongAdapter());
     Hive.registerAdapter(ChangyaAudioAdapter());
@@ -94,25 +78,12 @@ class HiveService {
     await Hive.openBox<YearSummary>(yearSummaryBoxName);
     await Hive.openBox<Label>(labelBoxName);
     await Hive.openBox<Essay>(essayBoxName);
-
-    // todo 模块
-    await Hive.openBox<TaskList>(taskListsBoxName);
-    await Hive.openBox<TodoTask>(todoTasksBoxName);
     
     await Hive.openBox<ChangyaRecord>(changyaBoxName);
     await Hive.openBox<CountdownTimerModel>(countdownTimerBoxName);
   }
 
   // ----非常用Box----
-  static Future<void> initGallery() async {
-    // if (!Hive.isBoxOpen(infoBoxName)) {
-    //   await Hive.openBox<Info>(infoBoxName);
-    // }
-    // if (!Hive.isBoxOpen(statusBoxName)) {
-    //   await Hive.openBox<Status>(statusBoxName);
-    // }
-  }
-
   static Future<void> initComic() async {
     if (!Hive.isBoxOpen(comicPrefBoxName)) {
       await Hive.openBox<ComicPreference>(comicPrefBoxName);
