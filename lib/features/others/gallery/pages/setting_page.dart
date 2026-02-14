@@ -91,6 +91,35 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
           const SizedBox(height: AppSpacing.md),
 
+          // 显示设置
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "显示设置",
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.picture_in_picture_alt),
+                    title: const Text("预览小窗"),
+                    subtitle: const Text("显示下一个媒体文件的缩略图预览"),
+                    value: ref.watch(galleryPreviewWindowEnabledProvider),
+                    onChanged: (value) {
+                      ref.read(galleryPreviewWindowEnabledProvider.notifier)
+                          .setEnabled(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+
           // 数据同步区
           Card(
             child: Padding(

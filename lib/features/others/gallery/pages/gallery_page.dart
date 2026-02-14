@@ -7,6 +7,7 @@ import 'package:torrid/features/others/gallery/pages/medias_gridview_page.dart';
 import 'package:torrid/features/others/gallery/pages/setting_page.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/content_widget.dart';
+import 'package:torrid/features/others/gallery/widgets/preview_window_widget.dart';
 
 /// Gallery 模块主页面
 /// 媒体文件队列排序规则: 按照 media_assets 表的 captured_at 时间升序排列
@@ -101,6 +102,12 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
               ],
             ),
           ),
+
+          // 预览小窗 - 仅在启用且存在下一个文件时显示
+          if (ref.watch(galleryPreviewWindowEnabledProvider))
+            PreviewWindowWidget(
+              onTap: _goToNext,
+            ),
         ],
       ),
     );

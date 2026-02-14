@@ -6,7 +6,25 @@ part of 'media_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$mediaAssetListHash() => r'bf552028c78d71a7c5acf76d3d2aa1e4893489ff';
+String _$nextMediaAssetHash() => r'acdb3ec4201686aefa772a53c6440c68b4f6e22e';
+
+/// 下一个未删除的媒体文件 Provider（用于预览小窗）
+/// 如果不存在下一个文件，返回 null
+///
+/// Copied from [nextMediaAsset].
+@ProviderFor(nextMediaAsset)
+final nextMediaAssetProvider = AutoDisposeProvider<MediaAsset?>.internal(
+  nextMediaAsset,
+  name: r'nextMediaAssetProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$nextMediaAssetHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef NextMediaAssetRef = AutoDisposeProviderRef<MediaAsset?>;
+String _$mediaAssetListHash() => r'6beabfb55f86d0bf35e0aba72f2da16a5e7d15e6';
 
 /// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
 /// 统一使用这个列表，索引保持稳定
