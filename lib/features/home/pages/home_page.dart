@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
+import 'package:torrid/features/home/widgets/default_background.dart';
 import 'package:torrid/features/home/widgets/menu_button.dart';
 
 // 将魔法数字提取为常量，提高可维护性
@@ -50,9 +51,9 @@ class _HomePageState extends ConsumerState<HomePage>
     const ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
     const ButtonInfo(name: "随笔", icon: Icons.description, route: "essay"),
     const ButtonInfo(
-      name: "待办",
-      icon: IconData(0xe62e, fontFamily: "iconfont"),
-      route: "todo",
+      name: "库存",
+      icon: IconData(0xf0ac, fontFamily: "iconfont"),
+      route: "library",
     ),
     const ButtonInfo(name: "阅读", icon: Icons.newspaper, route: "news"),
     const ButtonInfo(
@@ -164,80 +165,7 @@ class _HomePageState extends ConsumerState<HomePage>
 
   /// 构建主背景
   Widget _buildMainBackground() {
-    // 优先使用自定义背景图
-    if (_bgFile != null) {
-      return Image.file(
-        _bgFile!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildDefaultMainBackground(),
-      );
-    }
-    return _buildDefaultMainBackground();
-  }
-
-  /// 默认主背景（简约渐变 + TORRID logo）
-  Widget _buildDefaultMainBackground() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppTheme.primary.withAlpha(200),
-            AppTheme.primaryContainer,
-            AppTheme.surface,
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 应用logo或图标
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(230),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primary.withAlpha(60),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.local_fire_department_rounded,
-                size: 60,
-                color: AppTheme.primary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'TORRID',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primary,
-                letterSpacing: 4,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '热情生活，每一天',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppTheme.onSurfaceVariant,
-                letterSpacing: 2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return BackgroundWidget(imageFile: _bgFile);
   }
 
   /// 构建侧边菜单

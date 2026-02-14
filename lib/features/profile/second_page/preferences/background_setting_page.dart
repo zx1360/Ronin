@@ -293,48 +293,59 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     );
   }
 
-  /// 选择并添加图片
+  /// 选择并添加图片（支持多选）
   Future<void> _pickAndAddImage() async {
     final category = _tabController.index == 0
         ? ImageCategory.background
         : ImageCategory.sidebar;
 
     try {
-      final XFile? picked = await _picker.pickImage(
-        source: ImageSource.gallery,
+      final List<XFile> pickedList = await _picker.pickMultiImage(
         maxWidth: 1920,
         maxHeight: 1920,
         imageQuality: 85,
       );
 
-      if (picked == null) return;
+      if (pickedList.isEmpty) return;
 
       setState(() => _isLoading = true);
 
-      final bytes = await picked.readAsBytes();
-      final ext = p.extension(picked.path).toLowerCase();
-      final fileName = '${_uuid.v4()}$ext';
-
       final notifier = ref.read(appSettingsProvider.notifier);
-      bool success;
+      int successCount = 0;
+      int failCount = 0;
 
-      if (category == ImageCategory.background) {
-        success = await notifier.addBackgroundImage(bytes, fileName);
-      } else {
-        success = await notifier.addSidebarImage(bytes, fileName);
+      for (final picked in pickedList) {
+        final bytes = await picked.readAsBytes();
+        final ext = p.extension(picked.path).toLowerCase();
+        final fileName = '${_uuid.v4()}$ext';
+
+        bool success;
+        if (category == ImageCategory.background) {
+          success = await notifier.addBackgroundImage(bytes, fileName);
+        } else {
+          success = await notifier.addSidebarImage(bytes, fileName);
+        }
+
+        if (success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
       }
 
       if (mounted) {
         setState(() => _isLoading = false);
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('图片添加成功')),
-          );
+        String message;
+        if (failCount == 0) {
+          message = '成功添加 $successCount 张图片';
+        } else if (successCount == 0) {
+          message = '图片添加失败';
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('图片添加失败')),
-          );
+          message = '添加 $successCount 张成功，$failCount 张失败';
         }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
       }
     } catch (e) {
       if (mounted) {
