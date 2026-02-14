@@ -107,22 +107,12 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
-    - assets/files/
-    # - assets/videos/
     - assets/icons/
   fonts:
     # 楷体  自然美感, 适合小段落,副标题.
     - family: kaiti
       fonts:
         - asset: assets/fonts/kaiti.ttf
-    # 新宋  清晰规整, 适合正文
-    - family: xinsong
-      fonts:
-        - asset: assets/fonts/xinsong.ttc
-    # 仿宋  庄重典雅, 适合典籍引用.
-    - family: fangsong
-      fonts:
-        - asset: assets/fonts/fangsong.ttf
     # iconfont
     - family: iconfont
       fonts:

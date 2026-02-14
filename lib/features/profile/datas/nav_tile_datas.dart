@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/profile/second_page/about/profile_about.dart';
-import 'package:torrid/features/profile/second_page/account/profile_account.dart';
 import 'package:torrid/features/profile/second_page/data/data_transfer.dart';
 import 'package:torrid/features/profile/second_page/preferences/profile_preferences.dart';
 
@@ -30,8 +29,8 @@ final List<ProfilePageConfig> profilePages = [
   ProfilePageConfig(
     name: 'profile_preferences',
     path: 'preferences',
-    title: '首选项',
-    subtitle: '自定义背景图片、标题',
+    title: '偏好设置',
+    subtitle: '自定义偏好配置',
     icon: Icons.room_preferences,
     builder: (context) => const ProfilePreferences(),
   ),
@@ -42,14 +41,6 @@ final List<ProfilePageConfig> profilePages = [
     subtitle: '备份或同步',
     icon: Icons.laptop_chromebook_outlined,
     builder: (context) => const DataTransferPage(),
-  ),
-  ProfilePageConfig(
-    name: 'profile_account',
-    path: 'account',
-    title: '账户',
-    subtitle: '管理您的账户信息',
-    icon: Icons.account_circle,
-    builder: (context) => const ProfileAccount(),
   ),
   // 关于
   ProfilePageConfig(
