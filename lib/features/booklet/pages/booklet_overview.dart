@@ -342,7 +342,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
         child: Container(
           decoration: BoxDecoration(
             image: DecorationImage(
-              image: const AssetImage('assets/images/2.jpg'),
+              image: const AssetImage('assets/images/1.png'),
               fit: BoxFit.cover,
               opacity: 0.15,
             ),

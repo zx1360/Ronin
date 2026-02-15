@@ -30,9 +30,6 @@ class _ProfilePageState extends State<ProfilePage> {
           // 用户信息区域
           UserTile(),
 
-          // 主要设置区域. TODO;
-          MainSettingSection(),
-
           // 其他设置区域
           SectionTile(
             title: "其他设置",

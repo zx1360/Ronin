@@ -11,10 +11,7 @@ import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
 /// 图片类型枚举
-enum ImageCategory {
-  background,
-  sidebar,
-}
+enum ImageCategory { background, sidebar }
 
 /// 背景图片设置页面
 /// 管理背景图和侧边栏图
@@ -22,7 +19,8 @@ class BackgroundSettingPage extends ConsumerStatefulWidget {
   const BackgroundSettingPage({super.key});
 
   @override
-  ConsumerState<BackgroundSettingPage> createState() => _BackgroundSettingPageState();
+  ConsumerState<BackgroundSettingPage> createState() =>
+      _BackgroundSettingPageState();
 }
 
 class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
@@ -46,10 +44,14 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('背景图片设置'),
         bottom: TabBar(
+          labelColor: colorScheme.onPrimary,
+          unselectedLabelColor: colorScheme.onPrimary.withAlpha(179),
+          indicatorColor: colorScheme.onPrimary,
           controller: _tabController,
           tabs: const [
             Tab(text: '主页背景'),
@@ -69,9 +71,7 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
           if (_isLoading)
             Container(
               color: Colors.black26,
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: const Center(child: CircularProgressIndicator()),
             ),
         ],
       ),
@@ -142,26 +142,16 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.image_outlined,
-            size: 80,
-            color: AppTheme.outline,
-          ),
+          Icon(Icons.image_outlined, size: 80, color: AppTheme.outline),
           const SizedBox(height: AppSpacing.md),
           Text(
             '暂无$title图片',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppTheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 16, color: AppTheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             '点击右下角按钮添加图片',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppTheme.outline,
-            ),
+            style: TextStyle(fontSize: 14, color: AppTheme.outline),
           ),
           const SizedBox(height: AppSpacing.lg),
           OutlinedButton.icon(
@@ -175,7 +165,11 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
   }
 
   /// 单张图片显示
-  Widget _buildSingleImage(File file, String relativePath, ImageCategory category) {
+  Widget _buildSingleImage(
+    File file,
+    String relativePath,
+    ImageCategory category,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -206,10 +200,7 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
           const SizedBox(height: AppSpacing.md),
           Text(
             '当前使用此图片作为背景',
-            style: TextStyle(
-              color: AppTheme.onSurfaceVariant,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: AppTheme.onSurfaceVariant, fontSize: 14),
           ),
         ],
       ),
@@ -217,7 +208,11 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
   }
 
   /// 构建图片卡片
-  Widget _buildImageCard(File file, String relativePath, ImageCategory category) {
+  Widget _buildImageCard(
+    File file,
+    String relativePath,
+    ImageCategory category,
+  ) {
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 2,
@@ -251,18 +246,12 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withAlpha(150),
-                  ],
+                  colors: [Colors.transparent, Colors.black.withAlpha(150)],
                 ),
               ),
               child: Text(
                 p.basename(file.path),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -283,11 +272,7 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
         onTap: () => _confirmDelete(relativePath, category),
         child: const Padding(
           padding: EdgeInsets.all(6),
-          child: Icon(
-            Icons.delete_outline,
-            color: Colors.white,
-            size: 20,
-          ),
+          child: Icon(Icons.delete_outline, color: Colors.white, size: 20),
         ),
       ),
     );
@@ -343,22 +328,25 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
         } else {
           message = '添加 $successCount 张成功，$failCount 张失败';
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('操作失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('操作失败: $e')));
       }
     }
   }
 
   /// 确认删除
-  Future<void> _confirmDelete(String relativePath, ImageCategory category) async {
+  Future<void> _confirmDelete(
+    String relativePath,
+    ImageCategory category,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -392,9 +380,9 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(success ? '删除成功' : '删除失败')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(success ? '删除成功' : '删除失败')));
       }
     }
   }
