@@ -370,10 +370,20 @@ func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset) error {
 		yearMonth = "unknown"
 	}
 
+	// 确保目标目录存在
+	trashDir := filepath.Join(p.config.DeletedDir, "trash", yearMonth)
+	if err := os.MkdirAll(trashDir, 0755); err != nil {
+		return fmt.Errorf("创建目标目录失败: %w", err)
+	}
+
+	// 生成唯一文件名（处理重名）
+	originalFileName := filepath.Base(asset.FilePath)
+	uniqueFileName := generateUniqueFileName(trashDir, originalFileName)
+
 	// 移动原文件到 deletedDir/trash/yyyy-mm/
 	srcMedia := filepath.Join(p.config.MediaDir, asset.FilePath)
-	dstMedia := filepath.Join(p.config.DeletedDir, "trash", yearMonth, filepath.Base(asset.FilePath))
-	if err := moveFileWithDir(srcMedia, dstMedia); err != nil && !os.IsNotExist(err) {
+	dstMedia := filepath.Join(trashDir, uniqueFileName)
+	if err := moveFile(srcMedia, dstMedia); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("移动原文件失败: %w", err)
 	}
 
@@ -396,11 +406,17 @@ func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset) error {
 	return nil
 }
 
-// moveToDeleted 移动文件到删除目录
+// moveToDeleted 移动文件到删除目录（处理重名）
 func (p *Pipeline) moveToDeleted(filePath string) error {
-	fileName := filepath.Base(filePath)
-	dst := filepath.Join(p.config.DeletedDir, "duplicates", fileName)
-	return moveFileWithDir(filePath, dst)
+	duplicatesDir := filepath.Join(p.config.DeletedDir, "duplicates")
+	if err := os.MkdirAll(duplicatesDir, 0755); err != nil {
+		return fmt.Errorf("创建重复文件目录失败: %w", err)
+	}
+
+	originalFileName := filepath.Base(filePath)
+	uniqueFileName := generateUniqueFileName(duplicatesDir, originalFileName)
+	dst := filepath.Join(duplicatesDir, uniqueFileName)
+	return moveFile(filePath, dst)
 }
 
 // cleanEmptyDirs 清理空目录
@@ -459,8 +475,8 @@ func (p *Pipeline) ensureDirectories() error {
 	return nil
 }
 
-// generateUniqueFileName 生成唯一文件名
-func (p *Pipeline) generateUniqueFileName(dir, originalName string) string {
+// generateUniqueFileName 生成唯一文件名（全局函数，供多处复用）
+func generateUniqueFileName(dir, originalName string) string {
 	name := originalName
 	ext := filepath.Ext(originalName)
 	baseName := strings.TrimSuffix(originalName, ext)
@@ -474,6 +490,11 @@ func (p *Pipeline) generateUniqueFileName(dir, originalName string) string {
 		name = fmt.Sprintf("%s_%d%s", baseName, counter, ext)
 		counter++
 	}
+}
+
+// Pipeline.generateUniqueFileName 方法版本（向后兼容）
+func (p *Pipeline) generateUniqueFileName(dir, originalName string) string {
+	return generateUniqueFileName(dir, originalName)
 }
 
 // moveFile 移动文件
