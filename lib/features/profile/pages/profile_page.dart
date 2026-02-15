@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/features/profile/widgets/main_setting_section.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 import 'package:torrid/features/profile/widgets/nav_tile.dart';
 import 'package:torrid/features/profile/widgets/section_tile.dart';
