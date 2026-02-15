@@ -30,11 +30,10 @@ class _ProfilePageState extends State<ProfilePage> {
           // 用户信息区域
           UserTile(),
 
-          // 其他设置区域
+          // 设置区域
           SectionTile(
-            title: "其他设置",
-            children: profilePages
-                .take(2)
+            title: "设置",
+            children: settingPages
                 .map((c) => NavTile(context: context, config: c))
                 .toList(),
           ),
@@ -42,8 +41,7 @@ class _ProfilePageState extends State<ProfilePage> {
           // 关于区域
           SectionTile(
             title: "关于",
-            children: profilePages
-                .skip(2)
+            children: aboutPages
                 .map((c) => NavTile(context: context, config: c))
                 .toList(),
           ),
