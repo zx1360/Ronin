@@ -7,19 +7,18 @@ part of 'prefs_service.dart';
 // **************************************************************************
 
 AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => AppSettings(
-      ip: json['ip'] as String? ?? '',
-      port: json['port'] as String? ?? '',
-      backgroundImages: (json['backgroundImages'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ?? [],
-      sidebarImages: (json['sidebarImages'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ?? [],
-      mottos: (json['mottos'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ?? ["理想如星\n虽不能及,吾心往之"],
-      nickname: json['nickname'] as String? ?? "未设置昵称",
-      signature: json['signature'] as String? ?? "这个人很懒，什么都没写~",
+      ip: json['ip'] as String,
+      port: json['port'] as String,
+      backgroundImages: (json['backgroundImages'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      sidebarImages: (json['sidebarImages'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      mottos:
+          (json['mottos'] as List<dynamic>).map((e) => e as String).toList(),
+      nickname: json['nickname'] as String,
+      signature: json['signature'] as String,
       avatarPath: json['avatarPath'] as String?,
     );
 

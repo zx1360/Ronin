@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/features/profile/widgets/section_tile.dart';
 
 // 构建带开关的列表项
 class SwitchTile extends StatelessWidget {

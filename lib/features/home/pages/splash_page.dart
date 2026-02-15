@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/services/storage/cache_service.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
@@ -42,6 +43,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       // TODO: 改到特定页面再加载, 处理好时机关系.
       HiveService.initComic(),
     ]);
+
+    // 初始化缓存服务并执行启动清理（异步执行，不阻塞启动流程）
+    CacheService().init().then((_) {
+      CacheService().performStartupCleanup();
+    });
 
     // 获取个性化背景图
     final personalizationService = PersonalizationService();
