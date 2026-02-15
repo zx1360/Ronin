@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:torrid/features/profile/second_page/about/profile_about.dart';
 import 'package:torrid/features/profile/second_page/data/data_transfer.dart';
+import 'package:torrid/features/profile/second_page/network/profile_network.dart';
 import 'package:torrid/features/profile/second_page/preferences/profile_preferences.dart';
+import 'package:torrid/features/profile/second_page/storage/profile_storage.dart';
 
 
 // 页面配置模型：统一管理页面元信息
@@ -24,8 +26,8 @@ class ProfilePageConfig {
 }
 
 // 所有页面的配置列表：集中管理路由和页面信息
-final List<ProfilePageConfig> profilePages = [
-  // 其他设置
+final List<ProfilePageConfig> settingPages = [
+  // 设置
   ProfilePageConfig(
     name: 'profile_preferences',
     path: 'preferences',
@@ -35,6 +37,22 @@ final List<ProfilePageConfig> profilePages = [
     builder: (context) => const ProfilePreferences(),
   ),
   ProfilePageConfig(
+    name: 'profile_storage',
+    path: 'storage',
+    title: '存储设置',
+    subtitle: '管理应用存储空间',
+    icon: Icons.storage_outlined,
+    builder: (context) => const ProfileStorage(),
+  ),
+  ProfilePageConfig(
+    name: 'profile_network',
+    path: 'network',
+    title: '网络设置',
+    subtitle: '管理网络连接',
+    icon: Icons.wifi,
+    builder: (context) => const ProfileNetwork(),
+  ),
+  ProfilePageConfig(
     name: 'profile_data',
     path: 'data',
     title: '数据',
@@ -42,6 +60,8 @@ final List<ProfilePageConfig> profilePages = [
     icon: Icons.laptop_chromebook_outlined,
     builder: (context) => const DataTransferPage(),
   ),
+];
+final List<ProfilePageConfig> aboutPages = [
   // 关于
   ProfilePageConfig(
     name: 'profile_about',

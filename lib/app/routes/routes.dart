@@ -95,7 +95,21 @@ final List<RouteBase> routes = [
         name: 'profile_motto',
         builder: (context, state) => const MottoSettingPage(),
       ),
-      ...profilePages.map(
+      // 其他二级设置页.
+      ...settingPages.map(
+        (config) => GoRoute(
+          path: config.path,
+          name: config.name,
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return ProfileDetailShell(
+              title: extra?['title'] ?? config.title,
+              child: config.builder(context),
+            );
+          },
+        ),
+      ),
+      ...aboutPages.map(
         (config) => GoRoute(
           path: config.path,
           name: config.name,
