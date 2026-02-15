@@ -47,7 +47,7 @@ final List<ProfilePageConfig> profilePages = [
     name: 'profile_about',
     path: 'about',
     title: '关于应用',
-    subtitle: '版本1.0.0',
+    subtitle: '阅读在线应用文档',
     icon: Icons.info,
     builder: (context) => const ProfileAbout(),
   ),

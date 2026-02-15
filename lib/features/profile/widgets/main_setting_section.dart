@@ -41,24 +41,3 @@ class SwitchTile extends StatelessWidget {
     );
   }
 }
-
-// 主要设置部分
-class MainSettingSection extends StatelessWidget {
-  const MainSettingSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionTile(
-      title: "主要设置",
-      children: [
-        SwitchTile(
-          title: '通知',
-          subtitle: '接收应用通知',
-          value: false,
-          onChanged: (value) {},
-          icon: Icons.notifications,
-        ),
-      ],
-    );
-  }
-}

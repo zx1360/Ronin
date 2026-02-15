@@ -5,6 +5,7 @@ import 'package:torrid/features/read/views/utilities_view.dart';
 import 'package:torrid/features/read/views/hotlists_view.dart';
 import 'package:torrid/features/read/views/entertainment_view.dart';
 
+// TODO: 挑选更优质有内容的在线api. 替换当前不常用的页面.
 class ReadPage extends StatelessWidget {
   const ReadPage({super.key});
 
