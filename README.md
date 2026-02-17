@@ -146,7 +146,7 @@ PS: 除了某些页面手动点击"保存"按钮后, 保存在外部公共空间
 
 **设定服务端的地址端口, 备份/同步数据.**
 
-![Screenshot_2026-02-14-22-34-44-746_com.example.to](./md_assets/Screenshot_2026-02-14-22-34-44-746_com.example.to.jpg)
+<img src="./md_assets/Screenshot_2026-02-14-22-34-44-746_com.example.to.jpg" width=50% />
 
 # 反馈问题
 

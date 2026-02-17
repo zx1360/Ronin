@@ -23,7 +23,7 @@ class ComicPreference {
     required this.comicId,
     required this.chapterIndex,
     @Deprecated('保留仅为兼容旧数据') this.pageIndex = 0, // 改为可选，默认值为0
-    this.flipReading = true,
+    this.flipReading = false,
   });
 
   ComicPreference copyWith({
