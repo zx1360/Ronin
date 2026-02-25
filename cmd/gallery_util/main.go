@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	galleryDir = "F:\\Assests\\Gallery"
+	galleryDir = "D:\\Assests\\Gallery"
 )
 
 var (
