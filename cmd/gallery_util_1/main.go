@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	galleryDir  = "F:\\Assests\\Gallery"
+	galleryDir  = "D:\\Assests\\Gallery"
 	PreviewSize = 256 // 预览图最大边改为 256
 	JpegQuality = 85
 )
