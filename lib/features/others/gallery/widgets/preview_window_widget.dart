@@ -44,9 +44,20 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
   Widget build(BuildContext context) {
     final nextAsset = ref.watch(nextMediaAssetProvider);
 
-    // 如果没有下一个媒体文件，不渲染小窗
+    // 如果没有下一个媒体文件，返回不可见的 Positioned
+    // 保持 Stack 中始终返回 Positioned 类型，避免父数据不一致导致布局异常
     if (nextAsset == null) {
-      return const SizedBox.shrink();
+      // 清理缩略图状态
+      if (_lastAssetId != null) {
+        _lastAssetId = null;
+        _thumbFile = null;
+        _isLoadingThumb = false;
+      }
+      return Positioned(
+        right: _position.dx,
+        bottom: _position.dy,
+        child: const SizedBox.shrink(),
+      );
     }
 
     // 预加载本地缩略图
