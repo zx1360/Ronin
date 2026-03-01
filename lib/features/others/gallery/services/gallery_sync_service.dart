@@ -4,7 +4,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/batch_data.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'gallery_sync_service.g.dart';
@@ -311,40 +313,28 @@ class GallerySyncService extends _$GallerySyncService {
         throw Exception('服务器响应错误: ${response.statusCode}');
       }
 
-      state = state.copyWith(
-        current: data.assets.length,
-        message: '正在清理本地数据...',
-      );
-
-      // 4. 删除本地文件 (仅缩略图和预览图，原图不存储在本地)
-      for (final asset in data.assets) {
-        await storage.deleteLocalFiles(
-          thumbPath: asset.thumbPath,
-          previewPath: asset.previewPath,
-        );
-      }
-
-      // 5. 清理空目录
-      await storage.cleanupEmptyDirectories();
-
-      // 6. 删除已上传的数据库记录 (部分删除，非全量清空)
-      final uploadedMediaIds = data.assets.map((a) => a.id).toList();
-      await db.deleteUploadedData(uploadedMediaIds);
-
-      // 7. 重置状态到 0
-      await ref.read(galleryModifiedCountProvider.notifier).reset();
-      await ref.read(galleryCurrentIndexProvider.notifier).update(0);
-      
-      // 8. 刷新数据
-      ref.invalidate(mediaAssetListProvider);
-      ref.invalidate(tagTreeProvider);
-
+      // 4. 服务端确认成功，先更新 UI 状态
       state = SyncProgress(
         status: SyncStatus.success,
         message: '成功上传 ${data.assets.length} 条记录',
         current: data.assets.length,
         total: data.assets.length,
       );
+
+      // 5. 删除已上传的数据库记录 (部分删除，非全量清空)
+      final uploadedMediaIds = data.assets.map((a) => a.id).toList();
+      await db.deleteUploadedData(uploadedMediaIds);
+
+      // 6. 重置状态到 0
+      await ref.read(galleryModifiedCountProvider.notifier).reset();
+      await ref.read(galleryCurrentIndexProvider.notifier).update(0);
+      
+      // 7. 刷新数据
+      ref.invalidate(mediaAssetListProvider);
+      ref.invalidate(tagTreeProvider);
+
+      // 8. 后台静默删除本地缩略图和预览图文件 (不阻塞 UI)
+      _deleteLocalFilesInBackground(data.assets, storage);
 
       AppLogger().info('Gallery 上传完成: ${data.assets.length} 条记录');
       return true;
@@ -367,6 +357,35 @@ class GallerySyncService extends _$GallerySyncService {
   /// 重置状态
   void resetStatus() {
     state = const SyncProgress();
+  }
+
+  /// 后台静默删除已上传媒体的本地缩略图和预览图
+  void _deleteLocalFilesInBackground(
+    List<MediaAsset> assets,
+    GalleryStorageService storage,
+  ) {
+    // fire-and-forget，不阻塞 UI
+    Future(() async {
+      int deletedCount = 0;
+      for (final asset in assets) {
+        try {
+          await storage.deleteLocalFiles(
+            thumbPath: asset.thumbPath,
+            previewPath: asset.previewPath,
+          );
+          deletedCount++;
+        } catch (e) {
+          AppLogger().error('删除本地文件失败 [${asset.id}]: $e');
+        }
+      }
+      // 清理空目录
+      try {
+        await storage.cleanupEmptyDirectories();
+      } catch (e) {
+        AppLogger().error('清理空目录失败: $e');
+      }
+      AppLogger().info('后台删除完成: $deletedCount/${assets.length} 个媒体的本地文件已清理');
+    });
   }
 }
 

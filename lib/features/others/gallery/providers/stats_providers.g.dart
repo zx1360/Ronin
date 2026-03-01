@@ -23,24 +23,24 @@ final galleryDbStatsProvider = FutureProvider<GalleryDbStats>.internal(
 );
 
 typedef GalleryDbStatsRef = FutureProviderRef<GalleryDbStats>;
-String _$galleryStorageStatsHash() =>
-    r'4c545e89cb08af6a02968125bf78960501fea14f';
+String _$galleryCachedStorageStatsHash() =>
+    r'86fda8df347d6d88695f56155293830b6c0dc009';
 
-/// 文件存储统计信息 Provider (仅在手动刷新或操作后更新)
+/// 文件存储统计信息 (持久化缓存, 仅在手动刷新或数据同步后更新)
 ///
-/// Copied from [galleryStorageStats].
-@ProviderFor(galleryStorageStats)
-final galleryStorageStatsProvider =
-    FutureProvider<GalleryStorageStats>.internal(
-  galleryStorageStats,
-  name: r'galleryStorageStatsProvider',
+/// Copied from [GalleryCachedStorageStats].
+@ProviderFor(GalleryCachedStorageStats)
+final galleryCachedStorageStatsProvider =
+    NotifierProvider<GalleryCachedStorageStats, GalleryStorageStats>.internal(
+  GalleryCachedStorageStats.new,
+  name: r'galleryCachedStorageStatsProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
       ? null
-      : _$galleryStorageStatsHash,
+      : _$galleryCachedStorageStatsHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef GalleryStorageStatsRef = FutureProviderRef<GalleryStorageStats>;
+typedef _$GalleryCachedStorageStats = Notifier<GalleryStorageStats>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
