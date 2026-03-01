@@ -242,16 +242,13 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
     );
   }
 
-  /// 兜底方案：使用预览图而非原图，减少缓存占用
+  /// 兜底方案：使用原图
   Widget _buildFallbackThumbnail(MediaAsset asset) {
     final apiClient = ref.read(apiClientManagerProvider);
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
 
-    // 使用预览图 API 而非原图，避免缓存膨胀
-    final imageUrl = asset.previewPath != null
-        ? '$baseUrl/api/gallery/${asset.id}/preview'
-        : '$baseUrl/api/gallery/${asset.id}/file';
+    final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
 
     return CachedNetworkImage(
       imageUrl: imageUrl,

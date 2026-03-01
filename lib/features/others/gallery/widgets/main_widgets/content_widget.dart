@@ -319,7 +319,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
   }
 
   /// 预加载附近图片 (当前位置前2个，后3个，跳过已删除)
-  /// 使用预览图而非原图，减少缓存占用；通过去重集合避免重复请求
+  /// 通过去重集合避免重复请求
   void _precacheNearbyImages(List<MediaAsset> assets, int currentIndex) {
     if (!mounted) return;
 
@@ -341,10 +341,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       _precachedIds.add(asset.id);
 
       if (asset.isImage) {
-        // 使用预览图 URL 而非原图，大幅减少缓存体积
-        final imageUrl = asset.previewPath != null
-            ? '$baseUrl/api/gallery/${asset.id}/preview'
-            : '$baseUrl/api/gallery/${asset.id}/file';
+        final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
         precacheImage(
           CachedNetworkImageProvider(imageUrl, headers: headers),
           context,
