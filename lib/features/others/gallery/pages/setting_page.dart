@@ -15,6 +15,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   // 下载数量控制
   final TextEditingController _downloadLimitController =
       TextEditingController(text: '200');
+  bool _isRefreshingStorage = false;
 
   @override
   void dispose() {
@@ -25,7 +26,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   @override
   Widget build(BuildContext context) {
     final dbStatsAsync = ref.watch(galleryDbStatsProvider);
-    final storageStatsAsync = ref.watch(galleryStorageStatsProvider);
+    final storageStats = ref.watch(galleryCachedStorageStatsProvider);
     final uploadStatsAsync = ref.watch(galleryUploadStatsProvider);
     final syncProgress = ref.watch(gallerySyncServiceProvider);
 
@@ -66,23 +67,23 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.folder),
                     title: const Text("文件系统占用:"),
-                    subtitle: storageStatsAsync.when(
-                      loading: () => const Text("加载中..."),
-                      error: (e, _) => Text("错误: $e"),
-                      data: (stats) => Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("文件数量: ${stats.fileCount}"),
-                          Text("占用大小: ${stats.formattedSize}"),
-                        ],
-                      ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("文件数量: ${storageStats.fileCount}"),
+                        Text("占用大小: ${storageStats.formattedSize}"),
+                      ],
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: () {
-                        ref.invalidate(galleryStorageStatsProvider);
-                      },
-                    ),
+                    trailing: _isRefreshingStorage
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.refresh),
+                            onPressed: _handleRefreshStorageStats,
+                          ),
                   ),
                 ],
               ),
@@ -340,6 +341,37 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     );
   }
 
+  /// 刷新文件存储统计
+  Future<void> _handleRefreshStorageStats() async {
+    setState(() => _isRefreshingStorage = true);
+    try {
+      await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '文件统计已刷新: '
+              '${ref.read(galleryCachedStorageStatsProvider).fileCount} 个文件, '
+              '${ref.read(galleryCachedStorageStatsProvider).formattedSize}',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('刷新失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRefreshingStorage = false);
+    }
+  }
+
   /// 处理下载
   Future<void> _handleDownload() async {
     final limit = int.tryParse(_downloadLimitController.text) ?? 200;
@@ -347,8 +379,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     
     // 刷新统计数据
     ref.invalidate(galleryDbStatsProvider);
-    ref.invalidate(galleryStorageStatsProvider);
     ref.invalidate(galleryUploadStatsProvider);
+    try {
+      await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
+    } catch (_) {}
   }
 
   /// 处理上传
@@ -363,8 +397,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       
       // 刷新统计数据
       ref.invalidate(galleryDbStatsProvider);
-      ref.invalidate(galleryStorageStatsProvider);
       ref.invalidate(galleryUploadStatsProvider);
+      try {
+        await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
+      } catch (_) {}
     }
   }
 
@@ -406,7 +442,9 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       await storage.clearAllFiles();
       
       // 刷新数据
-      ref.invalidate(galleryStorageStatsProvider);
+      try {
+        await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
+      } catch (_) {}
 
     }
   }
@@ -434,8 +472,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       ref.invalidate(mediaAssetListProvider);
       ref.invalidate(tagTreeProvider);
       ref.invalidate(galleryDbStatsProvider);
-      ref.invalidate(galleryStorageStatsProvider);
       ref.invalidate(galleryUploadStatsProvider);
+      try {
+        await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
+      } catch (_) {}
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
