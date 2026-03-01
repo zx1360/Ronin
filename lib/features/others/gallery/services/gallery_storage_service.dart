@@ -32,7 +32,6 @@ class GalleryStorageService {
       IoService.ensureDirExists('$_galleryRoot/$_thumbDir'),
       IoService.ensureDirExists('$_galleryRoot/$_previewDir'),
     ]);
-    AppLogger().info('Gallery 存储目录初始化完成');
   }
 
   // ============ 路径转换 ============

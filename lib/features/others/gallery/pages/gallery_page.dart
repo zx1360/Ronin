@@ -57,22 +57,31 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     // 计算安全区域高度，用于手势区域排除
     final mediaQuery = MediaQuery.of(context);
     final topBarHeight = mediaQuery.padding.top + 44; // SafeArea + 紧凑顶部栏
-    final bottomBarHeight = mediaQuery.padding.bottom + 56 + 40; // SafeArea + BottomBar + TagBar
+    final bottomBarHeight =
+        mediaQuery.padding.bottom + 56 + 40; // SafeArea + BottomBar + TagBar
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 全屏内容区 - ContentWidget 覆盖整个屏幕
-          Positioned.fill(
-            child: ContentWidget(
-              onToggleBars: _toggleBarsVisibility,
-              onPrevious: _goToPrevious,
-              onNext: _goToNext,
-              topExcludeHeight: _barsVisible ? topBarHeight : 0,
-              bottomExcludeHeight: _barsVisible ? bottomBarHeight : 0,
-            ),
-          ),
+          currentMedia == null
+              ? Center(
+                  child: Text(
+                    '暂无内容',
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                )
+              :
+                // 全屏内容区 - ContentWidget 覆盖整个屏幕
+                Positioned.fill(
+                  child: ContentWidget(
+                    onToggleBars: _toggleBarsVisibility,
+                    onPrevious: _goToPrevious,
+                    onNext: _goToNext,
+                    topExcludeHeight: _barsVisible ? topBarHeight : 0,
+                    bottomExcludeHeight: _barsVisible ? bottomBarHeight : 0,
+                  ),
+                ),
 
           // 顶部导航栏 (可切换显示/隐藏)
           AnimatedPositioned(
@@ -105,9 +114,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
           // 预览小窗 - 仅在启用且存在下一个文件时显示
           if (ref.watch(galleryPreviewWindowEnabledProvider))
-            PreviewWindowWidget(
-              onTap: _goToNext,
-            ),
+            PreviewWindowWidget(onTap: _goToNext),
         ],
       ),
     );
@@ -116,8 +123,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   /// 构建顶部导航栏
   Widget _buildTopBar(BuildContext context) {
     final currentMedia = ref.watch(currentMediaAssetProvider);
-    final fileName = currentMedia?.filePath.split('/').last.split('\\').last ?? '';
-    
+    final fileName =
+        currentMedia?.filePath.split('/').last.split('\\').last ?? '';
+
     return Container(
       color: Colors.black,
       child: SafeArea(
@@ -129,17 +137,18 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
               // 返回按钮
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 tooltip: "返回",
               ),
               // 文件名 (占据中间空间)
               Expanded(
                 child: Text(
                   fileName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
@@ -271,7 +280,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
       // 先跳转到下一个未删除的文件，再标记删除
       // 这样 UI 会先显示下一张，不会闪烁 loading 状态
       await ref.read(currentMediaAssetProvider.notifier).next();
-      
+
       // 标记删除（乐观更新，无 loading）
       await ref
           .read(mediaAssetListProvider.notifier)
