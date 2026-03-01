@@ -8,6 +8,7 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -98,10 +99,42 @@ func (p *Processor) Process(fileInfo *model.FileInfo, mediaPath string, yearMont
 	}, nil
 }
 
+// openImageWithFallback 打开图片，原生解码失败时用 ffmpeg 转为标准 JPEG 再解码
+func (p *Processor) openImageWithFallback(srcPath string) (image.Image, error) {
+	src, err := imaging.Open(srcPath, imaging.AutoOrientation(true))
+	if err == nil {
+		return src, nil
+	}
+
+	// 原生解码失败，使用 ffmpeg 后备
+	log.Printf("原生解码失败 (%v)，使用 ffmpeg 后备: %s", err, filepath.Base(srcPath))
+
+	tempJPEG := filepath.Join(os.TempDir(), fmt.Sprintf("gallery_conv_%d_%s.jpg",
+		os.Getpid(), strings.TrimSuffix(filepath.Base(srcPath), filepath.Ext(srcPath))))
+	defer os.Remove(tempJPEG)
+
+	cmd := exec.Command(p.ffmpegPath,
+		"-i", srcPath,
+		"-qmin", "1",
+		"-q:v", "2",
+		"-y",
+		tempJPEG,
+	)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("ffmpeg 转换图片失败: %w, 输出: %s", err, string(output))
+	}
+
+	src, err = imaging.Open(tempJPEG, imaging.AutoOrientation(true))
+	if err != nil {
+		return nil, fmt.Errorf("打开 ffmpeg 转换后的图片失败: %w", err)
+	}
+	return src, nil
+}
+
 // processImage 处理静态图片
 func (p *Processor) processImage(srcPath, thumbPath, previewPath string) error {
-	// 打开源图片
-	src, err := imaging.Open(srcPath, imaging.AutoOrientation(true))
+	// 打开源图片（原生解码失败时自动 ffmpeg 后备）
+	src, err := p.openImageWithFallback(srcPath)
 	if err != nil {
 		return fmt.Errorf("打开图片失败: %w", err)
 	}
