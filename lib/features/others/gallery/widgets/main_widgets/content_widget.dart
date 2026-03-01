@@ -47,6 +47,12 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
   /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270°)
   int _quarterTurns = 0;
 
+  /// 已预缓存的资源ID集合（避免重复请求）
+  final Set<String> _precachedIds = {};
+
+  /// 上次预缓存时的索引
+  int? _lastPrecacheIndex;
+
   @override
   Widget build(BuildContext context) {
     final assetsAsync = ref.watch(mediaAssetListProvider);
@@ -114,8 +120,15 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       return _handleDeletedAsset(assets);
     }
 
-    // 预加载附近图片（跳过已删除的）
-    _precacheNearbyImages(assets, currentIndex);
+    // 预加载附近图片（在 post frame callback 中执行，不在 build 中直接调用）
+    if (_lastPrecacheIndex != currentIndex) {
+      _lastPrecacheIndex = currentIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _precacheNearbyImages(assets, currentIndex);
+        }
+      });
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -162,19 +175,21 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
               ),
 
               // 手势操作层 - 根据媒体类型选择不同交互方式
-              if (currentAsset.isVideo)
-                _VideoControlOverlay(
-                  onPrevious: _hasPreviousNonDeleted(assets, currentIndex)
-                      ? widget.onPrevious
-                      : null,
-                  onNext: _hasNextNonDeleted(assets, currentIndex)
-                      ? widget.onNext
-                      : null,
-                  onRotate: _toggleRotation,
-                  onToggleBars: widget.onToggleBars,
-                )
-              else
-                _buildGestureLayer(assets, currentIndex, constraints),
+              // 使用 Positioned.fill 确保手势层覆盖全屏，避免作为非定位子组件导致 0x0 布局
+              Positioned.fill(
+                child: currentAsset.isVideo
+                    ? _VideoControlOverlay(
+                        onPrevious: _hasPreviousNonDeleted(assets, currentIndex)
+                            ? widget.onPrevious
+                            : null,
+                        onNext: _hasNextNonDeleted(assets, currentIndex)
+                            ? widget.onNext
+                            : null,
+                        onRotate: _toggleRotation,
+                        onToggleBars: widget.onToggleBars,
+                      )
+                    : _buildGestureLayer(assets, currentIndex, constraints),
+              ),
             ],
           ),
         );
@@ -303,14 +318,17 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     return false;
   }
 
-  /// 预加载附近图片 (当前位置前3个，后5个，跳过已删除)
+  /// 预加载附近图片 (当前位置前2个，后3个，跳过已删除)
+  /// 使用预览图而非原图，减少缓存占用；通过去重集合避免重复请求
   void _precacheNearbyImages(List<MediaAsset> assets, int currentIndex) {
+    if (!mounted) return;
+
     final apiClient = ref.read(apiClientManagerProvider);
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
 
-    final start = (currentIndex - 3).clamp(0, assets.length - 1);
-    final end = (currentIndex + 5).clamp(0, assets.length - 1);
+    final start = (currentIndex - 2).clamp(0, assets.length - 1);
+    final end = (currentIndex + 3).clamp(0, assets.length - 1);
 
     for (int i = start; i <= end; i++) {
       if (i == currentIndex) continue;
@@ -318,13 +336,29 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       final asset = assets[i];
       if (asset.isDeleted) continue;
 
+      // 跳过已经预缓存过的
+      if (_precachedIds.contains(asset.id)) continue;
+      _precachedIds.add(asset.id);
+
       if (asset.isImage) {
-        final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
+        // 使用预览图 URL 而非原图，大幅减少缓存体积
+        final imageUrl = asset.previewPath != null
+            ? '$baseUrl/api/gallery/${asset.id}/preview'
+            : '$baseUrl/api/gallery/${asset.id}/file';
         precacheImage(
           CachedNetworkImageProvider(imageUrl, headers: headers),
           context,
-        );
+        ).catchError((_) {
+          // 预缓存失败时移除记录，下次可重试
+          _precachedIds.remove(asset.id);
+        });
       }
+    }
+
+    // 限制去重集合大小，防止内存无限增长
+    if (_precachedIds.length > 200) {
+      final toRemove = _precachedIds.take(_precachedIds.length - 100).toList();
+      _precachedIds.removeAll(toRemove);
     }
   }
 }

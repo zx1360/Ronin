@@ -44,9 +44,20 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
   Widget build(BuildContext context) {
     final nextAsset = ref.watch(nextMediaAssetProvider);
 
-    // 如果没有下一个媒体文件，不渲染小窗
+    // 如果没有下一个媒体文件，返回不可见的 Positioned
+    // 保持 Stack 中始终返回 Positioned 类型，避免父数据不一致导致布局异常
     if (nextAsset == null) {
-      return const SizedBox.shrink();
+      // 清理缩略图状态
+      if (_lastAssetId != null) {
+        _lastAssetId = null;
+        _thumbFile = null;
+        _isLoadingThumb = false;
+      }
+      return Positioned(
+        right: _position.dx,
+        bottom: _position.dy,
+        child: const SizedBox.shrink(),
+      );
     }
 
     // 预加载本地缩略图
@@ -231,13 +242,16 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
     );
   }
 
-  /// 兜底方案：使用原图
+  /// 兜底方案：使用预览图而非原图，减少缓存占用
   Widget _buildFallbackThumbnail(MediaAsset asset) {
     final apiClient = ref.read(apiClientManagerProvider);
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
 
-    final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
+    // 使用预览图 API 而非原图，避免缓存膨胀
+    final imageUrl = asset.previewPath != null
+        ? '$baseUrl/api/gallery/${asset.id}/preview'
+        : '$baseUrl/api/gallery/${asset.id}/file';
 
     return CachedNetworkImage(
       imageUrl: imageUrl,
