@@ -1,3 +1,5 @@
+// 预览图重新生成工具
+
 package main
 
 import (
