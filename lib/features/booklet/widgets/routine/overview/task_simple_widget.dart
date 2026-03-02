@@ -12,6 +12,7 @@ class TaskSimpleWidget extends StatelessWidget {
     required this.description,
     required this.imgUrl,
     this.completionCount,
+    this.isSelected = false,
   });
 
   final String title;
@@ -19,16 +20,31 @@ class TaskSimpleWidget extends StatelessWidget {
   final String imgUrl;
   /// 任务完成次数，可选参数
   final int? completionCount;
+  /// 是否被选中（用于筛选日历）
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.yellow.shade50,
+        color: isSelected ? Colors.amber.shade50 : Colors.yellow.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.yellow.shade200),
+        border: Border.all(
+          color: isSelected ? Colors.amber.shade600 : Colors.yellow.shade200,
+          width: isSelected ? 2 : 1,
+        ),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: Colors.amber.withAlpha(40),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

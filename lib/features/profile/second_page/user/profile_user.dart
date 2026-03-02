@@ -10,6 +10,8 @@ import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
+import 'package:torrid/features/booklet/providers/providers.dart';
+import 'package:torrid/features/essay/providers/status_provider.dart' as essay_status;
 
 /// 用户信息编辑页面
 class ProfileUser extends ConsumerStatefulWidget {
@@ -58,6 +60,10 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
                   icon: Icons.edit_note_outlined,
                   onTap: () => _editSignature(settings.signature),
                 ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // 使用数据概览
+                _buildUsageOverview(),
               ],
             ),
           ),
@@ -197,6 +203,157 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
         onTap: onTap,
       ),
     );
+  }
+
+  /// 使用数据概览
+  Widget _buildUsageOverview() {
+    // 打卡数据
+    final latestStyle = ref.watch(latestStyleProvider);
+    final allStyles = ref.watch(allStylesProvider);
+    final allRecords = ref.watch(allRecordsProvider);
+    
+    // 随笔数据
+    final yearSummaries = ref.watch(essay_status.summariesProvider);
+    
+    final totalEssayCount = yearSummaries.fold<int>(0, (sum, y) => sum + y.essayCount);
+    final totalWordCount = yearSummaries.fold<int>(0, (sum, y) => sum + y.wordCount);
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights, color: AppTheme.primary, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  '我的足迹',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            
+            // 打卡模块统计
+            _buildSectionLabel(Icons.check_circle_outline, '打卡'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatTile(
+                    '打卡计划',
+                    '${allStyles.length}',
+                    Icons.style,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatTile(
+                    '累计打卡',
+                    '${allRecords.length}',
+                    Icons.calendar_today,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatTile(
+                    '当前连续',
+                    latestStyle != null
+                        ? '${ref.watch(currentStreakProvider(latestStyle.id))}'
+                        : '0',
+                    Icons.local_fire_department,
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // 随笔模块统计
+            _buildSectionLabel(Icons.edit_note, '随笔'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatTile(
+                    '总篇数',
+                    '$totalEssayCount',
+                    Icons.article_outlined,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatTile(
+                    '总字数',
+                    _formatNumber(totalWordCount),
+                    Icons.text_fields,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatTile(
+                    '跨越年份',
+                    '${yearSummaries.length}',
+                    Icons.date_range,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildSectionLabel(IconData icon, String label) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppTheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: AppTheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildStatTile(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: AppTheme.primary.withAlpha(180)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: AppTheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  String _formatNumber(int number) {
+    if (number >= 10000) {
+      return '${(number / 10000).toStringAsFixed(1)}万';
+    }
+    return number.toString();
   }
 
   /// 显示头像选项
