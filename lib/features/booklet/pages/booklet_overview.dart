@@ -38,6 +38,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
   List<Record> _relatedRecords = []; // 当前样式的所有打卡记录（按日期倒序）
   final ImagePicker _imagePicker = ImagePicker(); // 图片选择器
   final List<TextEditingController> _titleControllers = []; // 新建样式时的任务标题控制器
+  String? _selectedTaskId; // 当前选中的任务ID（用于筛选日历展示）
 
   late RoutineService _server;
 
@@ -60,6 +61,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
     if (newStyleId != _currentStyle?.id) {
       setState(() {
         _currentStyle = ref.read(styleByIdProvider(newStyleId!));
+        _selectedTaskId = null; // 切换样式时重置任务筛选
       });
     }
   }
@@ -388,8 +390,31 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                 CompactStyleOverview(currentStyle: _currentStyle),
                 const SizedBox(height: 6),
 
-                // 打卡样式的任务展示
-                if (_currentStyle != null)
+                // 打卡样式的任务展示（点击可筛选日历）
+                if (_currentStyle != null) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('打卡任务', style: noteTitle),
+                      ),
+                      if (_selectedTaskId != null)
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _selectedTaskId = null;
+                            });
+                          },
+                          icon: const Icon(Icons.clear, size: 14),
+                          label: Text('清除筛选', style: noteSmall),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF8B5A2B),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 32),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
                   Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
@@ -402,25 +427,45 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                       itemBuilder: (context, index) {
                         Task task = _currentStyle!.tasks[index];
                         final completionCount = taskCompletionCounts[task.id] ?? 0;
-                        return TaskSimpleWidget(
-                          title: task.title,
-                          description: task.description,
-                          imgUrl: task.image,
-                          completionCount: completionCount,
+                        final isSelected = _selectedTaskId == task.id;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              if (_selectedTaskId == task.id) {
+                                _selectedTaskId = null; // 再次点击取消选中
+                              } else {
+                                _selectedTaskId = task.id;
+                              }
+                            });
+                          },
+                          child: TaskSimpleWidget(
+                            title: task.title,
+                            description: task.description,
+                            imgUrl: task.image,
+                            completionCount: completionCount,
+                            isSelected: isSelected,
+                          ),
                         );
                       },
                     ),
                   ),
+                ],
 
                 const SizedBox(height: 18),
 
                 // 打卡记录日历
-                Text('打卡记录总览', style: noteTitle),
+                Text(
+                  _selectedTaskId != null
+                      ? '「${_currentStyle!.tasks.firstWhere((t) => t.id == _selectedTaskId, orElse: () => _currentStyle!.tasks.first).title}」完成记录'
+                      : '打卡记录总览',
+                  style: noteTitle,
+                ),
                 const SizedBox(height: 12),
                 CheckinCalendar(
                   context: context,
                   style: _currentStyle,
                   records: _relatedRecords,
+                  selectedTaskId: _selectedTaskId,
                 ),
               ],
           )

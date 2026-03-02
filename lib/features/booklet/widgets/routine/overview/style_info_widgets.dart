@@ -86,13 +86,15 @@ Widget buildStatItem(String title, String value) {
 
 /// 构建打卡计划信息卡片（展示核心统计数据）
 /// [currentStyle]：当前选中的样式（为空时不显示）
-class CompactStyleOverview extends StatelessWidget {
+class CompactStyleOverview extends ConsumerWidget {
   final Style? currentStyle;
   const CompactStyleOverview({super.key, required this.currentStyle});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (currentStyle == null) return const SizedBox.shrink();
+
+    final currentStreak = ref.watch(currentStreakProvider(currentStyle!.id));
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -102,7 +104,7 @@ class CompactStyleOverview extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.brown.withAlpha(20), // 0.08透明度→20（255*0.08≈20）
+            color: Colors.brown.withAlpha(20),
             blurRadius: 2,
             offset: const Offset(0, 1),
           ),
@@ -111,29 +113,66 @@ class CompactStyleOverview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('打卡计划概览', style: noteTitle),
+          Row(
+            children: [
+              Text('打卡计划概览', style: noteTitle),
+              const Spacer(),
+              // 当前连续打卡高亮
+              if (currentStreak > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: currentStreak >= 7
+                        ? Colors.orange.shade100
+                        : Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: currentStreak >= 7
+                          ? Colors.orange.shade400
+                          : Colors.amber.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.local_fire_department,
+                        size: 14,
+                        color: currentStreak >= 7
+                            ? Colors.deepOrange
+                            : Colors.orange,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        '连续 $currentStreak 天',
+                        style: noteSmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: currentStreak >= 7
+                              ? Colors.deepOrange.shade700
+                              : Colors.orange.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
           const Divider(color: Color(0xFFD4C8B8), height: 12, thickness: 0.8),
 
-          // 3列网格展示统计数据
+          // 统计数据网格
           GridView.count(
             physics: const NeverScrollableScrollPhysics(),
             shrinkWrap: true,
             padding: EdgeInsets.only(top: 5, left: 5, right: 5),
-
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 8,
             childAspectRatio: 4,
             children: [
-              // buildStatItem(
-              //   '开始日期',
-              //   fullDateFormatter.format(currentStyle.startDate).split(' ')[0],
-              // ),
               buildStatItem('有效打卡', '${currentStyle!.validCheckIn} 天'),
               buildStatItem('全完成', '${currentStyle!.fullyDone} 次'),
               buildStatItem('最长连续', '${currentStyle!.longestStreak} 天'),
               buildStatItem('最长全完成', '${currentStyle!.longestFullyStreak} 天'),
-              // buildStatItem('任务数', '${currentStyle.tasks.length} 个'),
             ],
           ),
         ],

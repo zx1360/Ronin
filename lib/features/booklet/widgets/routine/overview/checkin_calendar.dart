@@ -9,11 +9,14 @@ class CheckinCalendar extends StatelessWidget {
   final BuildContext context;
   final Style? style;
   final List<Record> records;
+  /// 选中的任务ID，用于筛选日历展示单个任务的完成情况
+  final String? selectedTaskId;
   const CheckinCalendar({
     super.key,
     required this.context,
     required this.style,
     required this.records,
+    this.selectedTaskId,
   });
 
   /// 构建星期标题（一 ~ 日）
@@ -53,6 +56,7 @@ class CheckinCalendar extends StatelessWidget {
 
   /// 根据日期获取打卡状态（返回颜色索引，对应checkInColors）
   /// [date]：目标日期
+  /// 当 selectedTaskId 不为空时，仅判断该任务的完成情况
   int _getCheckInStatusIndex(DateTime date) {
     if (style == null) return 0;
 
@@ -61,6 +65,12 @@ class CheckinCalendar extends StatelessWidget {
       return 0;
     }
     final targetRecord = targetRecords.first;
+
+    // 单任务筛选模式
+    if (selectedTaskId != null) {
+      final isCompleted = targetRecord.taskCompletion[selectedTaskId] ?? false;
+      return isCompleted ? 1 : 5; // 完成=绿色，未完成=红色
+    }
 
     // 计算未完成任务数
     final totalTasks = style!.tasks.length;
