@@ -4,10 +4,8 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
-import 'package:path/path.dart' as p;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
@@ -534,21 +532,11 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     }
   }
 
-  /// 下载到相册
+  /// 下载到公共存储目录
   Future<void> _downloadToGallery(GalleryStorageService storage) async {
     setState(() => _isDownloading = true);
 
     try {
-      // 请求存储权限
-      final status = await Permission.storage.request();
-      if (!status.isGranted) {
-        // 尝试请求照片权限 (Android 13+)
-        final photosStatus = await Permission.photos.request();
-        if (!photosStatus.isGranted) {
-          throw Exception('需要存储权限才能下载文件');
-        }
-      }
-
       // 从网络下载文件
       final apiClient = ref.read(apiClientManagerProvider);
       final response = await apiClient.getBinary('/api/gallery/${_currentAsset.id}/file');
@@ -560,23 +548,23 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       final fileName = _getFileName(_currentAsset.filePath);
       final Uint8List bytes = response.data!;
       
-      // 使用 image_gallery_saver_plus 保存到相册并刷新
-      final result = await ImageGallerySaverPlus.saveImage(
-        bytes,
-        quality: 100,
-        name: p.basenameWithoutExtension(fileName),
+      // 保存到 /storage/emulated/0/Pictures/torrid/gallery
+      final file = await PublicStorageService.saveBytes(
+        subDir: PublicStorageService.dirGallery,
+        fileName: fileName,
+        bytes: bytes,
       );
       
-      if (result['isSuccess'] != true) {
-        throw Exception('保存到相册失败');
+      if (file == null) {
+        throw Exception('保存到公共目录失败，请检查存储权限');
       }
 
-      AppLogger().info('文件已保存到相册: ${result['filePath']}');
+      AppLogger().info('文件已保存: ${file.path}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('已保存到相册'),
+            content: Text('已保存到 ${file.path}'),
             action: SnackBarAction(
               label: '确定',
               onPressed: () {},

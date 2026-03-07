@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import 'package:torrid/features/home/back_handler.dart';
 import 'package:torrid/features/home/pages/home_page.dart';
 
 import 'package:torrid/features/booklet/pages/booklet_page.dart';
@@ -23,7 +24,7 @@ final List<RouteBase> routes = [
   GoRoute(
     path: "/splash",
     name: "splash",
-    builder: (context, state) => const SplashPage(),
+    builder: (context, state) => const BackHandler(child: SplashPage()),
   ),
   // 栈底页: 桌面页
   // HOME页.
@@ -32,7 +33,7 @@ final List<RouteBase> routes = [
     name: "home",
     builder: (context, state) {
       final String? bgPath = state.uri.queryParameters['bgPath'];
-      return HomePage(bgPath: bgPath);
+      return BackHandler(child: HomePage(bgPath: bgPath));
     },
   ),
 
