@@ -1,11 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 import 'package:torrid/core/modals/snack_bar.dart';
-import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/utils/file_relates.dart';
-import 'package:torrid/core/utils/util.dart';
+import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/image_preview.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
@@ -174,18 +170,20 @@ Future<void> _downloadImageUsingClient(
       return;
     }
 
-    final dir = await IoService.externalStorageDir;
     final fileName =
-        '${sanitizeDirectoryName(fileBaseName.replaceAll(' ', '_'))}_${getTodayDateString()}.jpg';
-    final file = File(p.join(dir.path, "api_medias", fileName));
+        PublicStorageService.generateDateFileName(fileBaseName, 'jpg');
+    final file = await PublicStorageService.saveBytes(
+      subDir: PublicStorageService.dirBing,
+      fileName: fileName,
+      bytes: bytes,
+    );
 
-    if (await file.exists()) {
-      await file.delete();
+    if (file != null) {
+      if (context.mounted) displaySnackBar(context, '已保存到：${file.path}');
+    } else {
+      if (context.mounted) displaySnackBar(context, '保存失败，请检查存储权限');
     }
-    await IoService.ensureDirExists("api_medias");
-    await file.writeAsBytes(bytes);
-    displaySnackBar(context, '已保存到：${file.path}');
   } catch (e) {
-    displaySnackBar(context, '下载出错：$e');
+    if (context.mounted) displaySnackBar(context, '下载出错：$e');
   }
 }

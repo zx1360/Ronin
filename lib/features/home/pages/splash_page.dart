@@ -40,9 +40,6 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     await Future.wait([
       IoService.initDirs(),
       HiveService.init(),
-      // TODO: 改到特定页面再加载, 处理好时机关系.
-      HiveService.initComic(),
-      HiveService.initLathe(),
     ]);
 
     // 初始化缓存服务并执行启动清理（异步执行，不阻塞启动流程）

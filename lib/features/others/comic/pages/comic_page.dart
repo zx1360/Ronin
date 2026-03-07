@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
@@ -18,8 +19,23 @@ class ComicPage extends ConsumerStatefulWidget {
 
 class _ComicPageState extends ConsumerState<ComicPage> {
   bool isInProgress = false;
-  // 加载在线漫画
   bool isOnlineComicsLoaded = false;
+  bool _isHiveInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initHive();
+  }
+
+  Future<void> _initHive() async {
+    await HiveService.initComic();
+    if (mounted) {
+      setState(() {
+        _isHiveInitialized = true;
+      });
+    }
+  }
 
   Future<void> initInfos() async {
     final option = await showOptionsDialog(
@@ -57,6 +73,13 @@ class _ComicPageState extends ConsumerState<ComicPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isHiveInitialized) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('漫画阅读'), centerTitle: true),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final comicInfos = ref.watch(comicInfosProvider);
     final onlineComicsAsync = isOnlineComicsLoaded
         ? ref.watch(comicsOnlineProvider)

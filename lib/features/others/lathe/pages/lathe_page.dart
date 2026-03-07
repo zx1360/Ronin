@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/storage/hive_service.dart';
 import '../providers/countdown_timer_provider.dart';
 import '../services/lathe_notification_service.dart';
 import '../widgets/countdown_timer_card.dart';
@@ -39,13 +40,17 @@ class _LathePageState extends ConsumerState<LathePage> with WidgetsBindingObserv
   }
 
   Future<void> _initializeServices() async {
+    // 初始化 Hive 倒计时 Box
+    await HiveService.initLathe();
     // 初始化通知服务
     await LatheNotificationService.instance.initialize();
     await LatheNotificationService.instance.requestPermission();
     
-    setState(() {
-      _isInitialized = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
   }
 
   @override
