@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// TODO:我的法克, 只有页面栈底层的页面才是两次回退返回桌面, 其他的是回到前一个页面.
 class BackHandler extends StatefulWidget {
   final Widget child;
 
