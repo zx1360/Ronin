@@ -39,8 +39,6 @@ class HiveService {
   static const String comicPrefBoxName = "comicPreference";
   static const String comicBoxName = "comicInfo";
   static const String chapterBoxName = "chapterInfo";
-  // changya 随机唱歌音频
-  static const String changyaBoxName = 'changyaRecords';
 
   // ----常用Box----
   static Future<void> init() async {
@@ -62,11 +60,6 @@ class HiveService {
     Hive.registerAdapter(ComicInfoAdapter());
     Hive.registerAdapter(ChapterInfoAdapter());
     Hive.registerAdapter(ComicPreferenceAdapter());
-    // read-changya
-    Hive.registerAdapter(ChangyaUserAdapter());
-    Hive.registerAdapter(ChangyaSongAdapter());
-    Hive.registerAdapter(ChangyaAudioAdapter());
-    Hive.registerAdapter(ChangyaRecordAdapter());
     // lathe倒计时
     Hive.registerAdapter(CountdownTimerStatusAdapter());
     Hive.registerAdapter(CountdownTimerModelAdapter());
@@ -78,9 +71,6 @@ class HiveService {
     await Hive.openBox<YearSummary>(yearSummaryBoxName);
     await Hive.openBox<Label>(labelBoxName);
     await Hive.openBox<Essay>(essayBoxName);
-    
-    await Hive.openBox<ChangyaRecord>(changyaBoxName);
-    await Hive.openBox<CountdownTimerModel>(countdownTimerBoxName);
   }
 
   // ----非常用Box----
@@ -93,6 +83,12 @@ class HiveService {
     }
     if (!Hive.isBoxOpen(chapterBoxName)) {
       await Hive.openBox<ChapterInfo>(chapterBoxName);
+    }
+  }
+
+  static Future<void> initLathe()async{
+    if (!Hive.isBoxOpen(countdownTimerBoxName)) {
+      await Hive.openBox<CountdownTimerModel>(countdownTimerBoxName);
     }
   }
 }
