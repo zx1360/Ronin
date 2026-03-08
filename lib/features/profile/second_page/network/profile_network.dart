@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/spacing.dart';
+import 'package:torrid/core/services/network/cert_trust.dart';
 import 'package:torrid/providers/network_config/network_config_provider.dart';
 
 /// 网络设置页面
@@ -288,7 +289,7 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
 
     final dio = Dio(
       BaseOptions(
-        baseUrl: 'http://$host:$port',
+        baseUrl: 'https://$host:$port',
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 8),
         headers: widget.apiKey.isNotEmpty
@@ -296,6 +297,7 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
             : const {},
       ),
     );
+    dio.httpClientAdapter = CertTrust.createAdapter();
 
     bool connected = false;
     try {

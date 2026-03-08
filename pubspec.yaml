@@ -110,6 +110,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/cert/
   fonts:
     # 楷体  自然美感, 适合小段落,副标题.
     - family: kaiti
