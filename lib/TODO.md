@@ -2,8 +2,9 @@ treasure页:
 与monarch联动, 以后引入photoprism, 根据tags或文本识别内容检索图片, 类似小米相册plus.
 对于图片类的提供拖拽四边裁切功能, (将相关数据发送至monarch让gallery执行).
 
-
-
+read-api:
+https://www.tmini.net/apidata?id=18
+https://www.tmini.net/apidata?id=19
 
 prompt:
 我正在使用flutter开发自用的安卓应用, 你能分析出我现有项目的这个模块___现有逻辑吗? 在理解的基础上做出如下漏洞修复或修改:
