@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:torrid/core/services/network/cert_trust.dart';
 
 // 通过riverpod提供此实例以使同一时间只有一个Dio实例.
 class ApiClient {
@@ -16,6 +17,8 @@ class ApiClient {
     }
     _dio.options.connectTimeout = const Duration(seconds: 8);
     _dio.options.receiveTimeout = const Duration(seconds: 15);
+    // 配置 Dio 信任自签证书
+    _dio.httpClientAdapter = CertTrust.createAdapter();
     // 添加拦截器以在每个请求中添加 X-API-Key 头
     _dio.interceptors.add(
       InterceptorsWrapper(

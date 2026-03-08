@@ -20,7 +20,7 @@ class ApiClientManager extends _$ApiClientManager {
     final apiKey = prefs.getString("API_KEY");
     // 只有当 host 和 port 都非空时才构建有效 URL
     final baseUrl = (host.isNotEmpty && port.isNotEmpty)
-        ? "http://$host:$port"
+        ? "https://$host:$port"
         : "";
     return ApiClient(baseUrl: baseUrl, apiKey: apiKey);
   }
@@ -34,7 +34,7 @@ class ApiClientManager extends _$ApiClientManager {
     final apiKey = prefs.getString("API_KEY");
     // 只有当 host 和 port 都非空时才构建有效 URL
     final baseUrl = (host.isNotEmpty && port.isNotEmpty)
-        ? "http://$host:$port"
+        ? "https://$host:$port"
         : "";
     state = ApiClient(baseUrl: baseUrl, apiKey: apiKey);
   }
@@ -46,7 +46,7 @@ class ApiClientManager extends _$ApiClientManager {
     final host = prefs.getString("PC_HOST") ?? "";
     final port = prefs.getString("PC_PORT") ?? "";
     final baseUrl = (host.isNotEmpty && port.isNotEmpty)
-        ? "http://$host:$port"
+        ? "https://$host:$port"
         : "";
     state = ApiClient(baseUrl: baseUrl, apiKey: apiKey.isNotEmpty ? apiKey : null);
   }
