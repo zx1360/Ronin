@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
@@ -15,8 +16,15 @@ import (
 func SetupRouter() *gin.Engine {
 	// gin.SetMode(gin.ReleaseMode) // 切换到发布模式	(终端打印信息更少)
 	r := gin.Default()
-	// TODO: 加入Nginx后, 配置信任的代理地址,
-	r.SetTrustedProxies([]string{"127.0.0.1"}) // 信任本地代理
+
+	// CORS 跨域配置（HTTPS自签证书场景）
+	r.Use(cors.New(cors.Config{
+		AllowAllOrigins: true,
+		AllowMethods:    []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:    []string{"Origin", "Content-Type", "X-API-Key", "Authorization"},
+		ExposeHeaders:   []string{"Content-Length", "Content-Disposition"},
+		AllowCredentials: false,
+	}))
 
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)
@@ -31,7 +39,9 @@ func SetupRouter() *gin.Engine {
 
 	// API路由, 数据/操作
 	api := r.Group("/api")
-	api.Use(util_handler.APIKeyAuth())
+	if !config.IsLocalMode {
+		api.Use(util_handler.APIKeyAuth())
+	}
 	{
 		// 用户数据相关
 		userDataGroup := api.Group("/user-data")
@@ -64,6 +74,12 @@ func SetupRouter() *gin.Engine {
 			galleryGroup.GET("/:id/:type", gallery_handler.FetchMediaAsset)
 			// 客户端推送数据
 			galleryGroup.POST("/push", gallery_handler.Push)
+		}
+
+		// 库存页相关
+		_ = api.Group("/library")
+		{
+
 		}
 
 		// 工具api

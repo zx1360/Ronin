@@ -26,6 +26,9 @@ type DbConfig struct {
 	DbName     string
 }
 
+// 运行模式
+var IsLocalMode bool
+
 // 向外暴露数据对象
 var (
 	AppConf AppConfig
