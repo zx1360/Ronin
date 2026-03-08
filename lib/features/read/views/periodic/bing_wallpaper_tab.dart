@@ -90,7 +90,7 @@ class BingWallpaperTab extends ConsumerWidget {
                             context,
                             ref,
                             cover4k,
-                            (title ?? 'bing_4k'),
+                            ("${title ?? 'bing'}_4k"),
                           );
                         },
                         icon: const Icon(Icons.download),
@@ -113,7 +113,7 @@ class BingWallpaperTab extends ConsumerWidget {
                             context,
                             ref,
                             cover,
-                            (title ?? 'bing_cover'),
+                            ("${title ?? 'bing'}_cover"),
                           );
                         },
                         icon: const Icon(Icons.download),
