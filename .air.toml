@@ -5,7 +5,7 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = []
+  args_bin = ["-mode", "local"]
   bin = "tmp\\main.exe"
   cmd = "go build -o ./tmp/main.exe ./cmd/main.go"
   entrypoint = "./cmd/main.go"

@@ -14,7 +14,8 @@ type AppConfig struct {
 
 // 网络配置
 type NetConfig struct {
-	LocalPort string
+	LocalPort      string
+	LocalDebugPort string
 }
 
 // 数据库配置
@@ -47,6 +48,7 @@ func Load() error {
 
 	// 网络配置
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")
+	NetConf.LocalDebugPort = os.Getenv("LOCAL_DEBUG_PORT")
 
 	// 数据库连接配置
 	DbConf.DbIP = os.Getenv("DB_IP")
