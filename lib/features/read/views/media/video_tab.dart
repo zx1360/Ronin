@@ -19,7 +19,9 @@ class VideoTab extends ConsumerStatefulWidget {
 
 class _VideoTabState extends ConsumerState<VideoTab>
     with AutomaticKeepAliveClientMixin {
+  int _groupIndex = 0;
   int _sourceIndex = 0;
+
   String? _videoUrl;
   bool _loading = false;
   bool _downloading = false;
@@ -30,7 +32,8 @@ class _VideoTabState extends ConsumerState<VideoTab>
   bool _playerReady = false;
   String? _playerError;
 
-  RandomMediaSource get _source => kVideoApiSources[_sourceIndex];
+  MediaApiGroup get _group => kVideoGroups[_groupIndex];
+  RandomMediaSource get _source => _group.sources[_sourceIndex];
 
   @override
   bool get wantKeepAlive => true;
@@ -59,8 +62,15 @@ class _VideoTabState extends ConsumerState<VideoTab>
         children: [
           const SectionTitle(title: '随机视频', icon: Icons.videocam_outlined),
           const SizedBox(height: AppSpacing.sm),
-          _buildApiSelector(),
-          const SizedBox(height: AppSpacing.md),
+          // 仅在有多个分组时显示选择器
+          if (kVideoGroups.length > 1) ...[
+            _buildGroupSelector(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (_group.sources.length > 1) ...[
+            _buildSourceSelector(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           _buildActionButtons(),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -73,19 +83,50 @@ class _VideoTabState extends ConsumerState<VideoTab>
     );
   }
 
-  Widget _buildApiSelector() {
+  Widget _buildGroupSelector() {
     return DropdownButtonFormField<int>(
-      initialValue: _sourceIndex,
+      initialValue: _groupIndex,
       decoration: const InputDecoration(
-        labelText: 'API 源',
+        labelText: 'API 提供方',
         border: OutlineInputBorder(),
         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       ),
       isExpanded: true,
-      items: List.generate(kVideoApiSources.length, (i) {
+      items: List.generate(kVideoGroups.length, (i) {
         return DropdownMenuItem(
           value: i,
-          child: Text(kVideoApiSources[i].label),
+          child: Text(kVideoGroups[i].name, overflow: TextOverflow.ellipsis),
+        );
+      }),
+      onChanged: (v) {
+        if (v == null) return;
+        _disposePlayer();
+        setState(() {
+          _groupIndex = v;
+          _sourceIndex = 0;
+          _videoUrl = null;
+          _error = null;
+          _playerError = null;
+        });
+      },
+    );
+  }
+
+  Widget _buildSourceSelector() {
+    return DropdownButtonFormField<int>(
+      key: ValueKey('vsrc_$_groupIndex'),
+      initialValue: _sourceIndex,
+      decoration: const InputDecoration(
+        labelText: '分类',
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      ),
+      isExpanded: true,
+      items: List.generate(_group.sources.length, (i) {
+        return DropdownMenuItem(
+          value: i,
+          child:
+              Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
         );
       }),
       onChanged: (v) {
@@ -175,24 +216,19 @@ class _VideoTabState extends ConsumerState<VideoTab>
           borderRadius: BorderRadius.circular(12),
         ),
         alignment: Alignment.center,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 40),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                '视频加载失败',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              FilledButton.tonal(
-                onPressed: () => _openInBrowser(_videoUrl!),
-                child: const Text('在浏览器中打开'),
-              ),
-            ],
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 40),
+            const SizedBox(height: AppSpacing.sm),
+            Text('视频加载失败',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton.tonal(
+              onPressed: () => _openInBrowser(_videoUrl!),
+              child: const Text('在浏览器中打开'),
+            ),
+          ],
         ),
       );
     }
@@ -232,7 +268,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
       await _initPlayer(url);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '获取失败：$e');
+      setState(() => _error = '$e'.replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

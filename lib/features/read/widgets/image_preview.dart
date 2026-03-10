@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 
-Future<void> showImagePreview(BuildContext context, String imageUrl) async {
+Future<void> showImagePreview(
+  BuildContext context,
+  String imageUrl, {
+  Map<String, String>? headers,
+}) async {
   await showDialog(
     context: context,
     builder: (ctx) => Dialog(
@@ -10,7 +14,7 @@ Future<void> showImagePreview(BuildContext context, String imageUrl) async {
       child: Stack(
         children: [
           PhotoView(
-            imageProvider: NetworkImage(imageUrl),
+            imageProvider: NetworkImage(imageUrl, headers: headers),
             backgroundDecoration: const BoxDecoration(color: Colors.black),
           ),
           Positioned(
