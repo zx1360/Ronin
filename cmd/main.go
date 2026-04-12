@@ -13,7 +13,8 @@ func main() {
 
 	// 加载配置（确保config.NetworkConf已正确配置）
 	config.Load()
-	config.IsLocalMode = *mode == "local"
+	// config.IsLocalMode = *mode == "local"
+	config.IsLocalMode = false && *mode == "local"
 
 	db.Init(config.DbConf)
 	defer db.Close()
