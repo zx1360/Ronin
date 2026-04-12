@@ -63,7 +63,7 @@ class _ShellPageState extends State<ShellPage> {
   Future<void> _initSystemTray() async {
     try {
       await _systemTray.initSystemTray(
-        iconPath: "assets/icons/48.ico",
+        iconPath: "assets/icons/six.ico",
         toolTip: "northstar北极星",
       );
       await _menu.buildFrom([

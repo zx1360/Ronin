@@ -27,7 +27,7 @@ class SideNavbar extends StatelessWidget {
               padding: const EdgeInsets.all(12.0),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.asset("assets/icons/48.ico", width: 48, height: 48),
+                child: Image.asset("assets/icons/six.ico", width: 48, height: 48),
               ),
             ),
           ),
