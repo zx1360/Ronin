@@ -2,8 +2,6 @@ package router
 
 import (
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -33,7 +31,7 @@ func SetupRouter() *gin.Engine {
 	// r.Use(static.Serve("/static/", static.LocalFile(config.AppConf.StaticDir, false)))
 
 	// 前端路由	资源/页面
-	r.GET("/index", func(ctx *gin.Context) {
+	r.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
 			"message": "假设是个index.html页面",
 		})
@@ -87,17 +85,6 @@ func SetupRouter() *gin.Engine {
 		// 工具api
 		api.GET("/test", util_handler.Test)
 	}
-
-	// 未命中现有路由时，兜底转发到本地 Immich（占用根路径 /）
-	immichURL, _ := url.Parse("http://127.0.0.1:2283")
-	immichProxy := httputil.NewSingleHostReverseProxy(immichURL)
-	immichProxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
-		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte("immich upstream unavailable"))
-	}
-	r.NoRoute(func(ctx *gin.Context) {
-		immichProxy.ServeHTTP(ctx.Writer, ctx.Request)
-	})
 
 	return r
 }
