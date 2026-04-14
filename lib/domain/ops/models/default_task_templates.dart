@@ -1,0 +1,137 @@
+import 'package:northstar/domain/ops/models/arg_preset.dart';
+import 'package:northstar/domain/ops/models/task_profile.dart';
+
+List<TaskProfile> buildDefaultTaskTemplates() {
+  return const <TaskProfile>[
+    TaskProfile(
+      id: 'monarch-local',
+      type: TaskType.monarch,
+      name: 'Monarch Local',
+      executablePath: '',
+      workingDirectory: '',
+      presets: <ArgPreset>[
+        ArgPreset(id: 'local', name: 'Local', args: <String>['-mode', 'local']),
+      ],
+      selectedPresetId: 'local',
+      dangerousOperation: false,
+      hiddenByDefault: false,
+      supportsGracefulStop: true,
+    ),
+    TaskProfile(
+      id: 'monarch-https',
+      type: TaskType.monarch,
+      name: 'Monarch HTTPS',
+      executablePath: '',
+      workingDirectory: '',
+      presets: <ArgPreset>[
+        ArgPreset(id: 'https', name: 'Default', args: <String>[]),
+      ],
+      selectedPresetId: 'https',
+      dangerousOperation: false,
+      hiddenByDefault: false,
+      supportsGracefulStop: true,
+    ),
+    TaskProfile(
+      id: 'gallery-main',
+      type: TaskType.gallery,
+      name: 'Gallery',
+      executablePath: '',
+      workingDirectory: '',
+      presets: <ArgPreset>[
+        ArgPreset(
+          id: 'ingest',
+          name: 'Gallery Ingest',
+          args: <String>[
+            '-mode',
+            'ingest',
+            '-gallery-root',
+            r'D:\Assests\Gallery',
+            '-concurrency',
+            '10',
+            '-batch',
+            '160',
+          ],
+        ),
+        ArgPreset(
+          id: 'execute',
+          name: 'Gallery Execute',
+          args: <String>[
+            '-mode',
+            'execute',
+            '-gallery-root',
+            r'D:\Assests\Gallery',
+            '-concurrency',
+            '10',
+            '-batch',
+            '160',
+          ],
+        ),
+      ],
+      selectedPresetId: 'ingest',
+      dangerousOperation: true,
+      hiddenByDefault: false,
+      supportsGracefulStop: true,
+    ),
+    TaskProfile(
+      id: 'comic-indexer',
+      type: TaskType.comicIndexer,
+      name: 'Comic Indexer',
+      executablePath: '',
+      workingDirectory: '',
+      presets: <ArgPreset>[
+        ArgPreset(
+          id: 'refresh',
+          name: 'Comic Refresh',
+          args: <String>[
+            '-mode',
+            'refresh',
+            '-root',
+            r'D:\products\Go\monarch\static\comics',
+          ],
+        ),
+        ArgPreset(
+          id: 'full-reindex',
+          name: 'Comic FullReindex',
+          args: <String>[
+            '-mode',
+            'full-reindex',
+            '-root',
+            r'D:\products\Go\monarch\static\comics',
+          ],
+        ),
+      ],
+      selectedPresetId: 'refresh',
+      dangerousOperation: true,
+      hiddenByDefault: false,
+      supportsGracefulStop: false,
+    ),
+    TaskProfile(
+      id: 'gallery-util-1',
+      type: TaskType.galleryUtil1,
+      name: 'GalleryUtil1',
+      executablePath: '',
+      workingDirectory: '',
+      presets: <ArgPreset>[
+        ArgPreset(id: 'default', name: 'Default', args: <String>['-concurrency', '10']),
+      ],
+      selectedPresetId: 'default',
+      dangerousOperation: false,
+      hiddenByDefault: true,
+      supportsGracefulStop: false,
+    ),
+    TaskProfile(
+      id: 'gallery-util-2',
+      type: TaskType.galleryUtil2,
+      name: 'GalleryUtil2',
+      executablePath: '',
+      workingDirectory: '',
+      presets: <ArgPreset>[
+        ArgPreset(id: 'default', name: 'Default', args: <String>['-concurrency', '10']),
+      ],
+      selectedPresetId: 'default',
+      dangerousOperation: false,
+      hiddenByDefault: true,
+      supportsGracefulStop: true,
+    ),
+  ];
+}

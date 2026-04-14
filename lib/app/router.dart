@@ -4,7 +4,7 @@ import 'package:northstar/app/routes.dart';
 import 'package:northstar/shared/widgets/shell/shell_page.dart';
 
 final GoRouter router = GoRouter(
-  initialLocation: "/home",
+  initialLocation: "/dashboard",
   routes: [
     StatefulShellRoute.indexedStack(
       branches: [

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:northstar/features/home/pages/home_page.dart';
-import 'package:northstar/features/overview/pages/overview_page.dart';
-import 'package:northstar/features/comic/pages/comic_page.dart';
-import 'package:northstar/features/server/pages/server_page.dart';
-import 'package:northstar/features/profile/pages/profile_page.dart';
+import 'package:northstar/ui/ops/pages/dashboard_page.dart';
+import 'package:northstar/ui/ops/pages/task_manager_page.dart';
+import 'package:northstar/ui/ops/pages/logs_page.dart';
+import 'package:northstar/ui/ops/pages/settings_page.dart';
 import 'package:northstar/features/help/pages/help_page.dart';
 
 
@@ -26,40 +25,36 @@ class AppRoute {
 
 // 所有路由定义
 final List<AppRoute> routes = [
-  // 首页
+  // Dashboard
   AppRoute(
-    path: '/home',
-    name: 'home',
+    path: '/dashboard',
+    name: 'dashboard',
     icon: IconData(0xe625, fontFamily: 'iconfont'),
-    builder: (context, state) => const HomePage(),
+    builder: (context, state) => const DashboardPage(),
   ),
-  // 信息总览页
+
+  // 任务管理
   AppRoute(
-    path: '/overview',
-    name: 'overview',
+    path: '/tasks',
+    name: 'tasks',
     icon: IconData(0xe62f, fontFamily: 'iconfont'),
-    builder: (context, state) => const OverviewPage(),
+    builder: (context, state) => const TaskManagerPage(),
   ),
-  // 漫画相关页
+
+  // 日志
   AppRoute(
-    path: '/comic',
-    name: 'comic',
+    path: '/logs',
+    name: 'logs',
     icon: IconData(0xe600, fontFamily: 'iconfont'),
-    builder: (context, state) => const ComicPage(),
+    builder: (context, state) => const LogsPage(),
   ),
-  // web服务页
+
+  // 设置
   AppRoute(
-    path: '/server',
-    name: 'server',
+    path: '/settings',
+    name: 'settings',
     icon: IconData(0xf0ac, fontFamily: 'iconfont'),
-    builder: (context, state) => const ServerPage(),
-  ),
-  // 偏好设置页
-  AppRoute(
-    path: '/profile',
-    name: 'profile',
-    icon: IconData(0xe6b7, fontFamily: 'iconfont'),
-    builder: (context, state) => const ProfilePage(),
+    builder: (context, state) => const SettingsPage(),
   ),
   
   // 帮助页.
