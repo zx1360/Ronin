@@ -16,33 +16,46 @@ import (
 )
 
 const (
-	galleryDir = "D:\\Assests\\Gallery"
+	defaultGalleryDir = "D:\\Assests\\Gallery"
 )
 
-var (
-	deletedDir = filepath.Join(galleryDir, "Deleted")
-	mediaDir   = filepath.Join(galleryDir, "Media")
-	previewDir = filepath.Join(galleryDir, "Preview")
-	rawDir     = filepath.Join(galleryDir, "Raw")
-	thumbsDir  = filepath.Join(galleryDir, "Thumbs")
-)
+type galleryPaths struct {
+	deletedDir string
+	mediaDir   string
+	previewDir string
+	rawDir     string
+	thumbsDir  string
+}
+
+func buildGalleryPaths(root string) galleryPaths {
+	return galleryPaths{
+		deletedDir: filepath.Join(root, "Deleted"),
+		mediaDir:   filepath.Join(root, "Media"),
+		previewDir: filepath.Join(root, "Preview"),
+		rawDir:     filepath.Join(root, "Raw"),
+		thumbsDir:  filepath.Join(root, "Thumbs"),
+	}
+}
 
 func main() {
 	// 解析命令行参数
 	mode := flag.String("mode", "ingest", "运行模式: ingest(摄入) 或 execute(执行删除)")
+	galleryDir := flag.String("gallery-root", defaultGalleryDir, "Gallery 根目录")
 	concurrency := flag.Int("concurrency", 10, "并发处理数")
 	batchSize := flag.Int("batch", 160, "批量写入大小")
 	flag.Parse()
 
+	paths := buildGalleryPaths(*galleryDir)
+
 	// 打印配置信息
 	fmt.Println("========== Gallery CLI ==========")
 	fmt.Printf("运行模式: %s\n", *mode)
-	fmt.Printf("Gallery 目录: %s\n", galleryDir)
-	fmt.Printf("  - Raw (待处理): %s\n", rawDir)
-	fmt.Printf("  - Media (媒体): %s\n", mediaDir)
-	fmt.Printf("  - Thumbs (缩略图): %s\n", thumbsDir)
-	fmt.Printf("  - Preview (预览图): %s\n", previewDir)
-	fmt.Printf("  - Deleted (已删除): %s\n", deletedDir)
+	fmt.Printf("Gallery 目录: %s\n", *galleryDir)
+	fmt.Printf("  - Raw (待处理): %s\n", paths.rawDir)
+	fmt.Printf("  - Media (媒体): %s\n", paths.mediaDir)
+	fmt.Printf("  - Thumbs (缩略图): %s\n", paths.thumbsDir)
+	fmt.Printf("  - Preview (预览图): %s\n", paths.previewDir)
+	fmt.Printf("  - Deleted (已删除): %s\n", paths.deletedDir)
 	fmt.Println("=================================")
 
 	// 初始化数据库连接
@@ -64,11 +77,11 @@ func main() {
 
 	// 创建流水线配置
 	pipelineConfig := pipeline.Config{
-		RawDir:      rawDir,
-		MediaDir:    mediaDir,
-		ThumbsDir:   thumbsDir,
-		PreviewDir:  previewDir,
-		DeletedDir:  deletedDir,
+		RawDir:      paths.rawDir,
+		MediaDir:    paths.mediaDir,
+		ThumbsDir:   paths.thumbsDir,
+		PreviewDir:  paths.previewDir,
+		DeletedDir:  paths.deletedDir,
 		Concurrency: *concurrency,
 		BatchSize:   *batchSize,
 	}
