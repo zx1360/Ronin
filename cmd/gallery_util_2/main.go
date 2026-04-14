@@ -1,3 +1,4 @@
+// !!! 一次性工具, 已无用.
 // 缩略图/预览图修复工具
 // 扫描 mediaDir 中所有媒体文件对应的数据库记录，
 // 对 thumb_path 或 preview_path 为空或物理文件不存在的记录，
@@ -67,7 +68,7 @@ type AssetRecord struct {
 	MimeType    *string
 	IsDeleted   bool
 	SyncCount   int
-	GroupID      *uuid.UUID
+	GroupID     *uuid.UUID
 }
 
 func main() {
