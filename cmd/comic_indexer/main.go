@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 
 	"gizmos/internal/comics/indexer"
@@ -10,34 +11,36 @@ import (
 
 // 配置项（全局唯一配置点）
 const (
-	comicRoot = "D:\\products\\Go\\monarch\\static\\comics"
+	defaultComicRoot = "D:\\products\\Go\\monarch\\static\\comics"
 )
 
-// 运行模式切换：按需手动切换调用
-// 1) indexer.IndexIncrementalByChapter(comicRoot)
-// 2) indexer.IndexIncrementalByComic(comicRoot)
-// 3) indexer.IndexFullReindex(comicRoot)
-// 4) indexer.IndexRefresh(comicRoot)
 func main() {
+	mode := flag.String("mode", "refresh", "运行模式: chapter-incremental | comic-incremental | full-reindex | refresh")
+	comicRoot := flag.String("root", defaultComicRoot, "漫画根目录")
+	flag.Parse()
+
 	db.Init(config.DbConf)
 	defer db.Close()
 
-	// 手动切换不同模式：选择其一调用
-	// 章节级增量（按章节跳过已存在章节）
-	// err := indexer.IndexIncrementalByChapter(comicRoot)
+	fmt.Printf("漫画索引任务启动: mode=%s root=%s\n", *mode, *comicRoot)
 
-	// 漫画级增量（已有整本漫画则整本跳过）
-	// err := indexer.IndexIncrementalByComic(comicRoot)
-
-	// 全量重建索引（清表后重建）
-	// err := indexer.IndexFullReindex(comicRoot)
-
-	// 刷新更新（对齐磁盘变化，支持新增与硬删除）
-	err := indexer.IndexRefresh(comicRoot)
+	var err error
+	switch *mode {
+	case "chapter-incremental":
+		err = indexer.IndexIncrementalByChapter(*comicRoot)
+	case "comic-incremental":
+		err = indexer.IndexIncrementalByComic(*comicRoot)
+	case "full-reindex":
+		err = indexer.IndexFullReindex(*comicRoot)
+	case "refresh":
+		err = indexer.IndexRefresh(*comicRoot)
+	default:
+		err = fmt.Errorf("未知 mode: %s (可选: chapter-incremental, comic-incremental, full-reindex, refresh)", *mode)
+	}
 
 	if err != nil {
-		fmt.Printf("❌ 运行失败: %v\n", err)
+		fmt.Printf("运行失败: %v\n", err)
 		return
 	}
-	fmt.Println("🎉 运行完成！")
+	fmt.Println("运行完成")
 }
