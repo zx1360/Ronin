@@ -84,6 +84,7 @@ func SetupRouter() *gin.Engine {
 
 		// 工具api
 		api.GET("/test", util_handler.Test)
+		api.GET("/ops/overview", util_handler.SystemOverview)
 	}
 
 	return r
