@@ -23,7 +23,7 @@ func init() {
 	godotenv.Load()
 
 	// 数据库连接配置
-	DbConf.DbIP = os.Getenv("DB_HOST")
+	DbConf.DbIP = os.Getenv("DB_IP")
 	DbConf.DbPort = os.Getenv("DB_PORT")
 	DbConf.DbUser = os.Getenv("DB_USER")
 	DbConf.DbPassword = os.Getenv("DB_PASSWORD")
