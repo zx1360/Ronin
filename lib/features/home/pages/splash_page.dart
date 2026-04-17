@@ -11,6 +11,7 @@ import 'package:torrid/core/services/storage/cache_service.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
+import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
 import 'package:torrid/features/home/widgets/default_background.dart';
 
 // 启动屏, 最快速度显示
@@ -40,7 +41,9 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     await Future.wait([
       IoService.initDirs(),
       HiveService.init(),
+      HiveService.initComic(),
     ]);
+    await ref.read(comicDownloadTasksProvider.notifier).initialize();
 
     // 初始化缓存服务并执行启动清理（异步执行，不阻塞启动流程）
     CacheService().init().then((_) {
@@ -50,11 +53,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
     // 获取个性化背景图
     final personalizationService = PersonalizationService();
     _backgroundPath = personalizationService.getRandomBackgroundImage();
-    
+
     if (_backgroundPath != null) {
       _backgroundFile = await IoService.getImageFile(_backgroundPath!);
     }
-    
+
     if (mounted) {
       setState(() {});
       // 稍微延迟以显示背景
@@ -70,11 +73,13 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.light, 
-      statusBarColor: Colors.transparent,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.light,
+        statusBarColor: Colors.transparent,
+      ),
+    );
 
     return Container(
       constraints: const BoxConstraints.expand(),

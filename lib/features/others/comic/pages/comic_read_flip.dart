@@ -1,9 +1,9 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path;
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
@@ -19,6 +19,7 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/features/others/comic/common/controls_auto_hide_mixin.dart';
 import 'package:torrid/features/others/comic/common/reader_utils.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class ComicReadPage extends ConsumerStatefulWidget {
   final ComicInfo comicInfo;
@@ -49,9 +50,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
   // 图片加载相关
   int _currentImageIndex = 0;
   late PageController _pageController;
+  bool _isSaving = false;
   // 自动关闭操作栏计时器
   final Duration switchImgDuration = const Duration(milliseconds: 300);
-  
 
   @override
   void initState() {
@@ -73,6 +74,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
   @override
   void dispose() {
     disposeControlsTimer();
+    _pageController.dispose();
     // 退出时恢复系统UI
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
@@ -116,7 +118,11 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
       });
       cancelControlsTimer();
       init();
-      _pageController.animateToPage(0, duration: switchImgDuration, curve: Curves.easeInOut);
+      _pageController.animateToPage(
+        0,
+        duration: switchImgDuration,
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -132,41 +138,83 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
       });
       cancelControlsTimer();
       init();
-      _pageController.animateToPage(0, duration: switchImgDuration, curve: Curves.easeInOut);
+      _pageController.animateToPage(
+        0,
+        duration: switchImgDuration,
+        curve: Curves.easeInOut,
+      );
     }
   }
 
+  Future<List<int>> _fetchOnlineImageBytes(String imagePath) async {
+    final normalizedPath = imagePath.startsWith('/')
+        ? imagePath.substring(1)
+        : imagePath;
+    final response = await ref
+        .read(apiClientManagerProvider)
+        .getBinary('/static/$normalizedPath');
+    if (response.statusCode != 200 || response.data == null) {
+      throw Exception('在线图片下载失败');
+    }
+    return response.data!;
+  }
+
   // 保存图片.
-  Future<void> _saveThisImage(BuildContext context) async {
+  Future<void> _saveThisImage() async {
+    if (_isSaving || images.isEmpty) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
     try {
-      // 获取当前图片文件
-      final sourceFile = File(images[_currentImageIndex]['path']);
-      if (!await sourceFile.exists()) {
-        if (mounted) {
-          displaySnackBar(context, "图片文件不存在");
-        }
-        return;
+      final imagePath = images[_currentImageIndex]['path']?.toString() ?? '';
+      if (imagePath.isEmpty) {
+        throw Exception('图片路径为空');
       }
 
+      final extName = path.extension(imagePath).replaceFirst('.', '');
+      final safeExt = extName.isEmpty ? 'png' : extName;
+
       // 生成保存的文件名（漫画名_章节号_页码.扩展名）
-      final fileExtension = sourceFile.path.split('.').last;
       final fileName =
           "${widget.comicInfo.comicName}_"
           "第${currentChapter.chapterIndex}章_"
           "第${_currentImageIndex + 1}页."
-          "$fileExtension";
-      ComicSaverService.saveFlipImageToPublic(
-        images[_currentImageIndex]['path'],
-        fileName,
-      );
-      if (mounted) {
+          "$safeExt";
+
+      bool saved;
+      if (widget.isLocal) {
+        final sourceFile = File(imagePath);
+        if (!await sourceFile.exists()) {
+          throw Exception('图片文件不存在');
+        }
+        saved = await ComicSaverService.saveFlipImageToPublic(
+          sourceFile.path,
+          fileName,
+        );
+      } else {
+        final bytes = await _fetchOnlineImageBytes(imagePath);
+        saved = await ComicSaverService.saveImageBytesToPublic(bytes, fileName);
+      }
+
+      if (!mounted) return;
+      if (saved) {
         displaySnackBar(context, "图片已保存: $fileName");
+      } else {
+        displaySnackBar(context, '保存失败');
       }
     } catch (e) {
       if (mounted) {
         displaySnackBar(context, "保存失败: ${e.toString()}");
       }
       AppLogger().error("保存图片错误: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
@@ -227,9 +275,9 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
                 comicName: widget.comicInfo.comicName,
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
-                totalNum:
-                    imageCount,
-                saveFunc: widget.isLocal ? () => _saveThisImage(context) : null,
+                totalNum: imageCount,
+                saveFunc: () => _saveThisImage(),
+                isMerging: _isSaving,
               ),
 
             // 底部控制栏 - 只有当图片数量大于1时才显示进度条和翻页按钮
@@ -273,7 +321,11 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
     final indicesToPrecache = [currentIndex - 1, currentIndex + 1];
     for (final i in indicesToPrecache) {
       if (i >= 0 && i < images.length) {
-        final imageProvider = resolveImageProvider(images[i], widget.isLocal, ref);
+        final imageProvider = resolveImageProvider(
+          images[i],
+          widget.isLocal,
+          ref,
+        );
         precacheImage(imageProvider, context);
       }
     }
@@ -285,16 +337,21 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
     }
 
     return PhotoViewGallery.builder(
-      key: ValueKey('comic_gallery_${currentChapter.id}_${currentChapter.chapterIndex}'),
+      key: ValueKey(
+        'comic_gallery_${currentChapter.id}_${currentChapter.chapterIndex}',
+      ),
       itemCount: images.length,
       builder: (context, index) {
-        final ImageProvider imageProvider =
-            resolveImageProvider(images[index], widget.isLocal, ref);
+        final ImageProvider imageProvider = resolveImageProvider(
+          images[index],
+          widget.isLocal,
+          ref,
+        );
         return PhotoViewGalleryPageOptions(
           imageProvider: imageProvider,
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 2,
-          tightMode: true
+          tightMode: true,
         );
       },
       scrollPhysics: const ClampingScrollPhysics(),

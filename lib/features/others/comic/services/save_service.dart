@@ -26,4 +26,17 @@ class ComicSaverService {
       fileName: filename,
     );
   }
+
+  /// 将内存中的图片字节保存到公共空间
+  static Future<bool> saveImageBytesToPublic(
+    List<int> bytes,
+    String fileName,
+  ) async {
+    final result = await PublicStorageService.saveBytes(
+      subDir: PublicStorageService.dirComic,
+      fileName: fileName,
+      bytes: bytes,
+    );
+    return result != null;
+  }
 }

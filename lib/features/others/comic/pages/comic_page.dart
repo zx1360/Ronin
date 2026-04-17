@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
+import 'package:torrid/features/others/comic/pages/comic_download_tasks_page.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
+import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
@@ -30,6 +32,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
 
   Future<void> _initHive() async {
     await HiveService.initComic();
+    await ref.read(comicDownloadTasksProvider.notifier).initialize();
     if (mounted) {
       setState(() {
         _isHiveInitialized = true;
@@ -84,12 +87,60 @@ class _ComicPageState extends ConsumerState<ComicPage> {
     final onlineComicsAsync = isOnlineComicsLoaded
         ? ref.watch(comicsOnlineProvider)
         : null;
+    final downloadTasks = ref.watch(comicDownloadTasksProvider);
+    final activeDownloadTaskCount = downloadTasks
+        .where((task) => task.hasActiveWork)
+        .length;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('漫画阅读'),
         centerTitle: true,
-        actions: [IconButton(onPressed: initInfos, icon: Icon(Icons.refresh))],
+        actions: [
+          if (activeDownloadTaskCount > 0)
+            IconButton(
+              tooltip: '查看下载任务',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ComicDownloadTasksPage(),
+                  ),
+                );
+              },
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.downloading_rounded),
+                  Positioned(
+                    right: -8,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        activeDownloadTaskCount > 99
+                            ? '99+'
+                            : '$activeDownloadTaskCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          IconButton(onPressed: initInfos, icon: const Icon(Icons.refresh)),
+        ],
       ),
       body: isInProgress
           ? ProgressIndicatorWidget()

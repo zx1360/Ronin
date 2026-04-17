@@ -1,6 +1,10 @@
-import 'dart:async';
+import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
@@ -53,9 +57,12 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
   // 状态量
   int _currentImageIndex = 0;
   bool _isMerging = false;
+  bool _isCustomRangeSelecting = false;
+  double? _customRangeStartOffset;
 
   // 实现交互界面
   final ScrollController _scrollController = ScrollController();
+  final TransformationController _zoomController = TransformationController();
 
   /// 用于存储每一张图片在列表中的累计高度，方便快速计算滚动位置
   final List<double> _imageOffsets = [];
@@ -73,6 +80,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
     disposeControlsTimer();
     _scrollController.removeListener(_onScroll); // 移除监听器
     _scrollController.dispose();
+    _zoomController.dispose();
     super.dispose();
   }
 
@@ -101,41 +109,357 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
   // 重置计时器
   // 由 ControlsAutoHideMixin 提供
 
+  bool get _isZoomed {
+    final scale = _zoomController.value.getMaxScaleOnAxis();
+    return (scale - 1.0).abs() > 0.01;
+  }
+
+  Future<bool> _restoreZoomBeforeSaveIfNeeded() async {
+    if (!_isZoomed) return false;
+
+    final anchorOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : 0.0;
+    _zoomController.value = Matrix4.identity();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final target = anchorOffset.clamp(0.0, maxExtent).toDouble();
+      _scrollController.jumpTo(target);
+    });
+
+    if (mounted) {
+      displaySnackBar(context, '已恢复默认缩放，请再次点击保存');
+    }
+    return true;
+  }
+
+  ({int startIndex, int endIndex}) _calculateVisibleRange({
+    required double visibleTop,
+    required double visibleBottom,
+  }) {
+    if (images.isEmpty || _imageOffsets.length < 2) {
+      return (startIndex: 0, endIndex: 0);
+    }
+
+    int startIndex =
+        _imageOffsets.indexWhere((offset) => offset > visibleTop) - 1;
+    int endIndex =
+        _imageOffsets.indexWhere((offset) => offset >= visibleBottom) - 1;
+
+    startIndex = startIndex >= 0 ? startIndex : 0;
+    endIndex = endIndex < 0 ? images.length - 1 : endIndex;
+    if (endIndex < startIndex) {
+      endIndex = startIndex;
+    }
+
+    return (startIndex: startIndex, endIndex: endIndex);
+  }
+
+  Future<Uint8List> _loadImageBytes(Map<String, dynamic> image) async {
+    final rawPath = image['path']?.toString() ?? '';
+    if (rawPath.isEmpty) {
+      throw Exception('图片路径为空');
+    }
+
+    if (widget.isLocal) {
+      final file = File(rawPath);
+      if (!await file.exists()) {
+        throw Exception('本地图片不存在: $rawPath');
+      }
+      return file.readAsBytes();
+    }
+
+    final normalizedPath = rawPath.startsWith('/')
+        ? rawPath.substring(1)
+        : rawPath;
+    final response = await ref
+        .read(apiClientManagerProvider)
+        .getBinary('/static/$normalizedPath');
+    if (response.statusCode != 200 || response.data == null) {
+      throw Exception('在线图片下载失败: $rawPath');
+    }
+    return response.data!;
+  }
+
+  Uint8List _mergeSegmentsToPng(List<img.Image> segments) {
+    if (segments.isEmpty) {
+      throw Exception('没有可合并的图片内容');
+    }
+
+    final targetWidth = segments.first.width;
+    final normalized = <img.Image>[];
+    int totalHeight = 0;
+
+    for (final segment in segments) {
+      final normalizedSegment = segment.width == targetWidth
+          ? segment
+          : img.copyResize(segment, width: targetWidth);
+      normalized.add(normalizedSegment);
+      totalHeight += normalizedSegment.height;
+    }
+
+    final merged = img.Image(width: targetWidth, height: totalHeight);
+    int currentY = 0;
+    for (final segment in normalized) {
+      img.compositeImage(merged, segment, dstX: 0, dstY: currentY);
+      currentY += segment.height;
+    }
+
+    return Uint8List.fromList(img.encodePng(merged));
+  }
+
+  Future<Uint8List> _buildMergedBytesForWholeImages({
+    required int startIndex,
+    required int endIndex,
+  }) async {
+    final segments = <img.Image>[];
+    for (int i = startIndex; i <= endIndex; i++) {
+      final bytes = await _loadImageBytes(images[i]);
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        throw Exception('图片解码失败: ${images[i]['path']}');
+      }
+      segments.add(decoded);
+    }
+    return _mergeSegmentsToPng(segments);
+  }
+
+  List<_CropSegment> _collectCropSegments({
+    required double startOffset,
+    required double endOffset,
+  }) {
+    if (_imageOffsets.length < 2) return const [];
+
+    final maxOffset = _imageOffsets.last;
+    final clampedStart = startOffset.clamp(0.0, maxOffset).toDouble();
+    final clampedEnd = endOffset.clamp(0.0, maxOffset).toDouble();
+    if (clampedEnd <= clampedStart) return const [];
+
+    final result = <_CropSegment>[];
+    for (int i = 0; i < images.length; i++) {
+      final imageTop = _imageOffsets[i];
+      final imageBottom = _imageOffsets[i + 1];
+      final overlapTop = max(imageTop, clampedStart);
+      final overlapBottom = min(imageBottom, clampedEnd);
+      if (overlapBottom <= overlapTop) continue;
+
+      result.add(
+        _CropSegment(
+          imageIndex: i,
+          displayTop: overlapTop - imageTop,
+          displayBottom: overlapBottom - imageTop,
+        ),
+      );
+    }
+    return result;
+  }
+
+  Future<Uint8List> _buildMergedBytesForCroppedRange({
+    required double startOffset,
+    required double endOffset,
+  }) async {
+    final maxWidth = MediaQuery.of(context).size.width;
+    final segments = _collectCropSegments(
+      startOffset: startOffset,
+      endOffset: endOffset,
+    );
+    if (segments.isEmpty) {
+      throw Exception('选区内没有有效图片内容');
+    }
+
+    final croppedImages = <img.Image>[];
+    for (final segment in segments) {
+      final imageMeta = images[segment.imageIndex];
+      final bytes = await _loadImageBytes(imageMeta);
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        throw Exception('图片解码失败: ${imageMeta['path']}');
+      }
+
+      final displayHeight = computeImageHeight(imageMeta, maxWidth);
+      if (displayHeight <= 0) continue;
+
+      final ratio = decoded.height / displayHeight;
+      final topPx = (segment.displayTop * ratio)
+          .round()
+          .clamp(0, decoded.height - 1)
+          .toInt();
+      final bottomPx = (segment.displayBottom * ratio)
+          .round()
+          .clamp(topPx + 1, decoded.height)
+          .toInt();
+
+      final cropHeight = bottomPx - topPx;
+      if (cropHeight <= 0) continue;
+
+      final cropped = img.copyCrop(
+        decoded,
+        x: 0,
+        y: topPx,
+        width: decoded.width,
+        height: cropHeight,
+      );
+      croppedImages.add(cropped);
+    }
+
+    if (croppedImages.isEmpty) {
+      throw Exception('选区裁剪后没有有效内容');
+    }
+
+    return _mergeSegmentsToPng(croppedImages);
+  }
+
   // 图片保存(连带上下的完整保存)
-  Future<void> _saveImage() async {
+  Future<void> _saveWholeVisibleImages() async {
+    if (images.isEmpty || _imageOffsets.length < 2) return;
+
     try {
       final screenHeight = MediaQuery.of(context).size.height;
       final visibleTop = _scrollController.offset;
       final visibleBottom = visibleTop + screenHeight;
-      int startIndex =
-          _imageOffsets.indexWhere((offset) => offset > visibleTop) - 1;
-      int endIndex =
-          _imageOffsets.indexWhere((offset) => offset >= visibleBottom) - 1;
-      startIndex = startIndex >= 0 ? startIndex : 0;
-      endIndex = endIndex < 0 ? images.length - 1 : endIndex;
+      final range = _calculateVisibleRange(
+        visibleTop: visibleTop,
+        visibleBottom: visibleBottom,
+      );
 
-      final imagePaths = <String>[];
-      for (int i = startIndex; i <= endIndex; i++) {
-        imagePaths.add(images[i]['path']);
-      }
       final filename =
-          "${widget.comicInfo.comicName}_第${currentChapter.chapterIndex}章_${startIndex + 1}-${endIndex + 1}";
+          "${widget.comicInfo.comicName}_第${currentChapter.chapterIndex}章_${range.startIndex + 1}-${range.endIndex + 1}.png";
       setState(() {
         _isMerging = true;
       });
-      await ComicSaverService.saveScrollImagesToPublic(imagePaths, filename);
+
+      final mergedBytes = await _buildMergedBytesForWholeImages(
+        startIndex: range.startIndex,
+        endIndex: range.endIndex,
+      );
+      final saved = await ComicSaverService.saveImageBytesToPublic(
+        mergedBytes,
+        filename,
+      );
+
       if (!mounted) return;
-      displaySnackBar(context, "图片已保存: $filename");
+      if (saved) {
+        displaySnackBar(context, "图片已保存: $filename");
+      } else {
+        displaySnackBar(context, '保存失败');
+      }
     } catch (e) {
       if (mounted) {
         displaySnackBar(context, "保存失败: ${e.toString()}");
       }
       AppLogger().error("保存图片错误: $e");
     } finally {
-      setState(() {
-        _isMerging = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isMerging = false;
+        });
+      }
     }
+  }
+
+  Future<void> _saveCustomSelectedRange() async {
+    if (images.isEmpty || _customRangeStartOffset == null) return;
+
+    final startOffset = _customRangeStartOffset!;
+    final endOffset =
+        _scrollController.offset + MediaQuery.of(context).size.height;
+
+    if (endOffset <= startOffset + 1) {
+      displaySnackBar(context, '结束位置必须在起始位置之后');
+      return;
+    }
+
+    final segments = _collectCropSegments(
+      startOffset: startOffset,
+      endOffset: endOffset,
+    );
+    if (segments.isEmpty) {
+      displaySnackBar(context, '当前选区没有可保存内容');
+      return;
+    }
+
+    final startIndex = segments.first.imageIndex;
+    final endIndex = segments.last.imageIndex;
+    final fileName =
+        "${widget.comicInfo.comicName}_第${currentChapter.chapterIndex}章_${startIndex + 1}-${endIndex + 1}.png";
+
+    try {
+      setState(() {
+        _isMerging = true;
+      });
+
+      final mergedBytes = await _buildMergedBytesForCroppedRange(
+        startOffset: startOffset,
+        endOffset: endOffset,
+      );
+
+      final saved = await ComicSaverService.saveImageBytesToPublic(
+        mergedBytes,
+        fileName,
+      );
+
+      if (!mounted) return;
+      if (saved) {
+        displaySnackBar(context, "图片已保存: $fileName");
+      } else {
+        displaySnackBar(context, '保存失败');
+      }
+    } catch (e) {
+      if (mounted) {
+        displaySnackBar(context, "保存失败: ${e.toString()}");
+      }
+      AppLogger().error('自定义区间保存失败: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isMerging = false;
+          _isCustomRangeSelecting = false;
+          _customRangeStartOffset = null;
+        });
+      }
+    }
+  }
+
+  void _cancelCustomRangeSelection() {
+    if (!_isCustomRangeSelecting) return;
+    setState(() {
+      _isCustomRangeSelecting = false;
+      _customRangeStartOffset = null;
+    });
+    if (mounted) {
+      displaySnackBar(context, '已取消自定义保存');
+    }
+  }
+
+  Future<void> _onPrimarySavePressed() async {
+    if (_isMerging) return;
+    if (await _restoreZoomBeforeSaveIfNeeded()) return;
+
+    if (_isCustomRangeSelecting) {
+      _cancelCustomRangeSelection();
+      return;
+    }
+
+    await _saveWholeVisibleImages();
+  }
+
+  Future<void> _onSecondarySavePressed() async {
+    if (_isMerging || images.isEmpty) return;
+    if (await _restoreZoomBeforeSaveIfNeeded()) return;
+    if (!mounted) return;
+
+    if (!_isCustomRangeSelecting) {
+      setState(() {
+        _isCustomRangeSelecting = true;
+        _customRangeStartOffset = _scrollController.offset;
+      });
+      displaySnackBar(context, '起点已锁定，请滑动到末端后再次点击按钮');
+      return;
+    }
+
+    await _saveCustomSelectedRange();
   }
 
   /// 滚动监听事件处理
@@ -195,8 +519,11 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
     if (chapterIndex <= 0) return;
     chapterIndex--;
     currentChapter = chapters[chapterIndex];
+    _zoomController.value = Matrix4.identity();
     setState(() {
       _currentImageIndex = 0;
+      _isCustomRangeSelecting = false;
+      _customRangeStartOffset = null;
     });
     _listviewKey = UniqueKey();
     setState(() {
@@ -214,8 +541,11 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
     if (chapterIndex >= chapters.length - 1) return;
     chapterIndex++;
     currentChapter = chapters[chapterIndex];
+    _zoomController.value = Matrix4.identity();
     setState(() {
       _currentImageIndex = 0;
+      _isCustomRangeSelecting = false;
+      _customRangeStartOffset = null;
     });
     _listviewKey = UniqueKey();
     setState(() {
@@ -266,7 +596,21 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
                 chapterName: currentChapter.dirName,
                 currentNum: _currentImageIndex,
                 totalNum: imageCount,
-                saveFunc: widget.isLocal ? () => _saveImage() : null,
+                saveFunc: _onPrimarySavePressed,
+                primaryIcon: _isCustomRangeSelecting
+                    ? Icons.close_rounded
+                    : Icons.save_alt_rounded,
+                primaryIconColor: _isCustomRangeSelecting
+                    ? Colors.redAccent.shade100
+                    : Colors.white,
+                primaryTooltip: _isCustomRangeSelecting
+                    ? '取消自定义保存'
+                    : '保存当前可见内容',
+                secondarySaveFunc: _onSecondarySavePressed,
+                secondaryIcon: Icons.crop_rounded,
+                secondaryTooltip: _isCustomRangeSelecting
+                    ? '完成自定义保存'
+                    : '自定义起止保存',
                 isMerging: _isMerging,
               ),
 
@@ -305,22 +649,46 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
-    return ListView.builder(
-      key: _listviewKey,
-      controller: _scrollController,
-      physics: const BouncingScrollPhysics(),
-      itemCount: images.length,
-      itemBuilder: (context, index) {
-        final image = images[index];
-        final url = resolveImageUrl(image, widget.isLocal, ref);
-        // 抽离后的通用高度计算
-        final height = computeImageHeight(image, maxWidth);
-        return SizedBox(
-          width: maxWidth,
-          height: height,
-          child: ComicImage(path: url, isLocal: widget.isLocal, httpHeaders: headers),
-        );
-      },
+    return InteractiveViewer(
+      transformationController: _zoomController,
+      panEnabled: false,
+      scaleEnabled: true,
+      minScale: 1.0,
+      maxScale: 3.0,
+      alignment: Alignment.topCenter,
+      child: ListView.builder(
+        key: _listviewKey,
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(),
+        itemCount: images.length,
+        itemBuilder: (context, index) {
+          final image = images[index];
+          final url = resolveImageUrl(image, widget.isLocal, ref);
+          // 抽离后的通用高度计算
+          final height = computeImageHeight(image, maxWidth);
+          return SizedBox(
+            width: maxWidth,
+            height: height,
+            child: ComicImage(
+              path: url,
+              isLocal: widget.isLocal,
+              httpHeaders: headers,
+            ),
+          );
+        },
+      ),
     );
   }
+}
+
+class _CropSegment {
+  final int imageIndex;
+  final double displayTop;
+  final double displayBottom;
+
+  const _CropSegment({
+    required this.imageIndex,
+    required this.displayTop,
+    required this.displayBottom,
+  });
 }
