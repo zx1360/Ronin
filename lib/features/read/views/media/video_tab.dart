@@ -5,6 +5,7 @@ import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/core/utils/file_relates.dart';
 import 'package:torrid/features/read/models/random_media_api.dart';
+import 'package:torrid/features/read/services/media_error_helper.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -125,8 +126,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
       items: List.generate(_group.sources.length, (i) {
         return DropdownMenuItem(
           value: i,
-          child:
-              Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
+          child: Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
         );
       }),
       onChanged: (v) {
@@ -199,9 +199,9 @@ class _VideoTabState extends ConsumerState<VideoTab>
         const SizedBox(height: AppSpacing.xs),
         SelectableText(
           _videoUrl!,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
         ),
       ],
     );
@@ -221,8 +221,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
           children: [
             const Icon(Icons.error_outline, size: 40),
             const SizedBox(height: AppSpacing.sm),
-            Text('视频加载失败',
-                style: Theme.of(context).textTheme.bodyMedium),
+            Text('视频加载失败', style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: AppSpacing.sm),
             FilledButton.tonal(
               onPressed: () => _openInBrowser(_videoUrl!),
@@ -268,7 +267,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
       await _initPlayer(url);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e'.replaceAll('Exception: ', ''));
+      setState(() => _error = MediaErrorHelper.toUserMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -306,8 +305,10 @@ class _VideoTabState extends ConsumerState<VideoTab>
       final extFromUrl = uri == null ? '' : getFileExtension(uri.path);
       final ext = extFromUrl.isNotEmpty ? extFromUrl : 'mp4';
 
-      final fileName =
-          PublicStorageService.generateUniqueFileName('video', ext);
+      final fileName = PublicStorageService.generateUniqueFileName(
+        'video',
+        ext,
+      );
       final file = await PublicStorageService.saveBytes(
         subDir: PublicStorageService.dirApi,
         fileName: fileName,
