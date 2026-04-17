@@ -7,7 +7,14 @@ class TopControllBar extends StatelessWidget {
   final int currentNum;
   final int totalNum;
   final bool? isMerging;
-  final Function? saveFunc;
+  final VoidCallback? saveFunc;
+  final IconData primaryIcon;
+  final Color? primaryIconColor;
+  final String? primaryTooltip;
+  final VoidCallback? secondarySaveFunc;
+  final IconData? secondaryIcon;
+  final Color? secondaryIconColor;
+  final String? secondaryTooltip;
 
   const TopControllBar({
     super.key,
@@ -17,6 +24,13 @@ class TopControllBar extends StatelessWidget {
     required this.totalNum,
     required this.saveFunc,
     this.isMerging,
+    this.primaryIcon = Icons.save_alt_rounded,
+    this.primaryIconColor,
+    this.primaryTooltip,
+    this.secondarySaveFunc,
+    this.secondaryIcon,
+    this.secondaryIconColor,
+    this.secondaryTooltip,
   });
 
   @override
@@ -69,18 +83,39 @@ class TopControllBar extends StatelessWidget {
             ),
 
             // 保存当前图片按钮
-            if (saveFunc != null)
-              IconButton(
-              icon: Icon(
-                Icons.save_alt_rounded,
-                color: isMerging ?? false ? Colors.grey : Colors.white,
-              ),
-              onPressed: () {
-                if (isMerging ?? false) return;
-                saveFunc!();
-              },
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (secondarySaveFunc != null && secondaryIcon != null)
+                  IconButton(
+                    tooltip: secondaryTooltip,
+                    icon: Icon(
+                      secondaryIcon,
+                      color: isMerging ?? false
+                          ? Colors.grey
+                          : (secondaryIconColor ?? Colors.white),
+                    ),
+                    onPressed: () {
+                      if (isMerging ?? false) return;
+                      secondarySaveFunc!();
+                    },
+                  ),
+                if (saveFunc != null)
+                  IconButton(
+                    tooltip: primaryTooltip,
+                    icon: Icon(
+                      primaryIcon,
+                      color: isMerging ?? false
+                          ? Colors.grey
+                          : (primaryIconColor ?? Colors.white),
+                    ),
+                    onPressed: () {
+                      if (isMerging ?? false) return;
+                      saveFunc!();
+                    },
+                  ),
+              ],
             ),
-            
           ],
         ),
       ),

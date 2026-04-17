@@ -2,6 +2,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Official Flutter engine artifacts repository (fallback when mirror misses a revision)
+        maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
+        // 清华镜像（可选，增强稳定性）
+        maven { url = uri("https://mirrors.tuna.tsinghua.edu.cn/flutter") }
     }
 }
 

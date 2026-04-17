@@ -14,6 +14,9 @@ import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/others/comic/provider/box_provider.dart';
 import 'package:torrid/features/others/comic/provider/service_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
+import 'package:torrid/features/others/comic/services/comic_servic.dart';
+import 'package:torrid/features/others/comic/services/io_comic_service.dart';
+import 'package:torrid/features/others/comic/services/io_image_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/providers/progress/progress.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
@@ -27,9 +30,9 @@ part 'notifier_provider.g.dart';
 // ============================================================================
 
 /// Comic 模块的数据仓库
-/// 
+///
 /// 封装对 [ComicPreference]、[ComicInfo]、[ChapterInfo] 三个 Box 的访问。
-/// 
+///
 /// **重构说明**: 原名 `Cashier`，重命名为语义更清晰的 `ComicRepository`。
 class ComicRepository {
   final Box<ComicPreference> prefBox;
@@ -48,7 +51,7 @@ class ComicRepository {
 // ============================================================================
 
 /// Comic 模块的核心服务
-/// 
+///
 /// 提供以下功能：
 /// - 阅读偏好管理
 /// - 漫画下载与保存
@@ -57,7 +60,7 @@ class ComicRepository {
 class ComicService extends _$ComicService {
   /// 最大并发下载数
   static const int _maxConcurrent = 5;
-  
+
   /// 批次间延迟
   static const Duration _requestDelay = Duration(milliseconds: 100);
 
@@ -105,7 +108,7 @@ class ComicService extends _$ComicService {
   // --------------------------------------------------------------------------
 
   /// 下载整部漫画并保存到本地
-  /// 
+  ///
   /// 下载流程：
   /// 1. 获取下载清单
   /// 2. 创建目录结构
@@ -125,15 +128,17 @@ class ComicService extends _$ComicService {
     final externalPath = (await IoService.externalStorageDir).path;
     final comicRootDir = path.join("comics", comicInfo.comicName);
     final chaptersData = manifestResponse.data as List;
-    
-    ref.read(progressServiceProvider.notifier).setProgress(
-      Progress(
-        current: 0,
-        total: comicInfo.chapterCount,
-        currentMessage: "准备中...",
-        message: "下载整本漫画中...",
-      ),
-    );
+
+    ref
+        .read(progressServiceProvider.notifier)
+        .setProgress(
+          Progress(
+            current: 0,
+            total: comicInfo.chapterCount,
+            currentMessage: "准备中...",
+            message: "下载整本漫画中...",
+          ),
+        );
 
     try {
       await IoService.ensureDirExists(comicRootDir);
@@ -141,7 +146,9 @@ class ComicService extends _$ComicService {
       // 收集所有图片下载任务
       final allImageTasks = <Future<int> Function()>[];
       for (final chapter in chaptersData) {
-        final chapterInfo = ChapterInfo.fromJson(chapter as Map<String, dynamic>);
+        final chapterInfo = ChapterInfo.fromJson(
+          chapter as Map<String, dynamic>,
+        );
         chapters[chapterInfo.id] = chapterInfo;
 
         final chapterDir = path.join(comicRootDir, chapterInfo.dirName);
@@ -218,7 +225,7 @@ class ComicService extends _$ComicService {
         image['path'] = localImagePath;
         return chapterInfo.chapterIndex;
       }
-      
+
       await _saveImageToLocal(imageUrl, relativePath);
       image['path'] = localImagePath;
       return chapterInfo.chapterIndex;
@@ -250,15 +257,20 @@ class ComicService extends _$ComicService {
     for (int i = 0; i < batches.length; i++) {
       final batch = batches[i];
       final results = await Future.wait(batch.map((task) => task()));
-      final currChapter = results.fold(-1, (prev, elem) => elem > prev ? elem : prev);
-      
+      final currChapter = results.fold(
+        -1,
+        (prev, elem) => elem > prev ? elem : prev,
+      );
+
       if (currChapter > ref.read(progressServiceProvider).current) {
-        ref.read(progressServiceProvider.notifier).increaseProgress(
-          current: currChapter,
-          currentMessage: "已下载至章节 $currChapter",
-        );
+        ref
+            .read(progressServiceProvider.notifier)
+            .increaseProgress(
+              current: currChapter,
+              currentMessage: "已下载至章节 $currChapter",
+            );
       }
-      
+
       if (i < batches.length - 1) {
         await Future.delayed(delayBetweenBatches);
       }
@@ -266,7 +278,9 @@ class ComicService extends _$ComicService {
   }
 
   /// 重试失败的图片下载
-  Future<void> _retryFailedImages(List<Map<String, dynamic>> failedImages) async {
+  Future<void> _retryFailedImages(
+    List<Map<String, dynamic>> failedImages,
+  ) async {
     for (final failed in failedImages) {
       try {
         await _saveImageToLocal(
@@ -312,20 +326,165 @@ class ComicService extends _$ComicService {
   }
 
   /// 增量刷新元数据（只处理变动）
-  /// 
-  /// 删除目录不存在的记录，添加新发现的漫画。
+  ///
+  /// 以章节为最小粒度进行增量更新：
+  /// - 删除本地目录已不存在的漫画及其章节
+  /// - 对仍存在的漫画，比对并更新章节增删改
+  /// - 新发现的漫画按全量方式入库
   Future<void> refreshChanged() async {
-    final deleted = await ref.read(deletedInfosProvider.future);
-    await state.prefBox.deleteAll(deleted['prefs'] as List);
-    await state.comicInfoBox.deleteAll(deleted['comics'] as List);
-    await state.chapterInfoBox.deleteAll(deleted['chapters'] as List);
+    final externalDir = await IoService.externalStorageDir;
+    final comicsDir = Directory(path.join(externalDir.path, 'comics'));
 
-    final infos = await ref.read(newInfosProvider.future);
-    await state.comicInfoBox.putAll(
-      infos['comicInfos'] as Map<dynamic, ComicInfo>,
-    );
-    await state.chapterInfoBox.putAll(
-      infos['chapterInfos'] as Map<dynamic, ChapterInfo>,
-    );
+    if (!await comicsDir.exists()) {
+      await state.prefBox.clear();
+      await state.comicInfoBox.clear();
+      await state.chapterInfoBox.clear();
+      return;
+    }
+
+    final comicEntities = await comicsDir
+        .list()
+        .where((entity) => entity is Directory)
+        .toList();
+    final comicDirs = comicEntities.cast<Directory>();
+
+    final existingComics = state.comicInfoBox.values.toList();
+    final existingComicByName = {
+      for (final comic in existingComics) comic.comicName: comic,
+    };
+
+    final comicNamesOnDisk = comicDirs
+        .map((dir) => dir.path.split(Platform.pathSeparator).last)
+        .toSet();
+
+    final deletedComicIds = existingComics
+        .where((comic) => !comicNamesOnDisk.contains(comic.comicName))
+        .map((comic) => comic.id)
+        .toList();
+
+    if (deletedComicIds.isNotEmpty) {
+      await state.prefBox.deleteAll(deletedComicIds);
+      await state.comicInfoBox.deleteAll(deletedComicIds);
+
+      final chapterIdsToDelete = state.chapterInfoBox.values
+          .where((chapter) => deletedComicIds.contains(chapter.comicId))
+          .map((chapter) => chapter.id)
+          .toList();
+      if (chapterIdsToDelete.isNotEmpty) {
+        await state.chapterInfoBox.deleteAll(chapterIdsToDelete);
+      }
+    }
+
+    final existingChapterByComic = <String, Map<String, ChapterInfo>>{};
+    for (final chapter in state.chapterInfoBox.values) {
+      final chapterMap = existingChapterByComic.putIfAbsent(
+        chapter.comicId,
+        () => <String, ChapterInfo>{},
+      );
+      chapterMap[chapter.dirName] = chapter;
+    }
+
+    final comicsToUpsert = <String, ComicInfo>{};
+    final chaptersToUpsert = <String, ChapterInfo>{};
+    final chapterIdsToDelete = <String>[];
+
+    for (final comicDir in comicDirs) {
+      final comicName = comicDir.path.split(Platform.pathSeparator).last;
+      final existingComic = existingComicByName[comicName];
+      final comicId =
+          existingComic?.id ??
+          ComicInfo.newOne(
+            comicName: comicName,
+            coverImage: '',
+            chapterCount: 0,
+            imageCount: 0,
+          ).id;
+
+      final chapterEntities = await comicDir
+          .list()
+          .where((entity) => entity is Directory)
+          .toList();
+      final chapterDirs = chapterEntities.cast<Directory>();
+      chapterDirs.sort((a, b) {
+        final aName = a.path.split(Platform.pathSeparator).last;
+        final bName = b.path.split(Platform.pathSeparator).last;
+        return getChapterIndex(aName).compareTo(getChapterIndex(bName));
+      });
+
+      final existingChapters = existingChapterByComic[comicId] ?? {};
+      final seenChapterNames = <String>{};
+
+      int imageCount = 0;
+      String coverImage = '';
+
+      for (final chapterDir in chapterDirs) {
+        final chapterName = chapterDir.path.split(Platform.pathSeparator).last;
+        final chapterIndex = getChapterIndex(chapterName);
+        seenChapterNames.add(chapterName);
+
+        final images = await scanImages(chapterDir);
+        imageCount += images.length;
+
+        if (coverImage.isEmpty && images.isNotEmpty) {
+          coverImage = images.first['path']?.toString() ?? '';
+        }
+
+        final existingChapter = existingChapters[chapterName];
+        if (existingChapter != null) {
+          chaptersToUpsert[existingChapter.id] = existingChapter.copyWith(
+            chapterIndex: chapterIndex,
+            dirName: chapterName,
+            images: images,
+            imageCount: images.length,
+          );
+        } else {
+          final chapterInfo = ChapterInfo.newOne(
+            comicId: comicId,
+            chapterIndex: chapterIndex,
+            dirName: chapterName,
+            images: images,
+            imageCount: images.length,
+          );
+          chaptersToUpsert[chapterInfo.id] = chapterInfo;
+        }
+      }
+
+      for (final entry in existingChapters.entries) {
+        if (!seenChapterNames.contains(entry.key)) {
+          chapterIdsToDelete.add(entry.value.id);
+        }
+      }
+
+      if (coverImage.isEmpty) {
+        coverImage = await findFirstImage(comicDir);
+      }
+
+      final comicInfo = existingComic != null
+          ? existingComic.copyWith(
+              coverImage: coverImage.isNotEmpty
+                  ? coverImage
+                  : existingComic.coverImage,
+              chapterCount: chapterDirs.length,
+              imageCount: imageCount,
+            )
+          : ComicInfo(
+              id: comicId,
+              comicName: comicName,
+              coverImage: coverImage,
+              chapterCount: chapterDirs.length,
+              imageCount: imageCount,
+            );
+      comicsToUpsert[comicInfo.id] = comicInfo;
+    }
+
+    if (chapterIdsToDelete.isNotEmpty) {
+      await state.chapterInfoBox.deleteAll(chapterIdsToDelete);
+    }
+    if (chaptersToUpsert.isNotEmpty) {
+      await state.chapterInfoBox.putAll(chaptersToUpsert);
+    }
+    if (comicsToUpsert.isNotEmpty) {
+      await state.comicInfoBox.putAll(comicsToUpsert);
+    }
   }
 }
