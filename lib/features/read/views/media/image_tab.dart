@@ -4,6 +4,7 @@ import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/core/utils/file_relates.dart';
 import 'package:torrid/features/read/models/random_media_api.dart';
+import 'package:torrid/features/read/services/media_error_helper.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/image_preview.dart';
 import 'package:torrid/core/constants/spacing.dart';
@@ -39,9 +40,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
   }
 
   void _initParamValues() {
-    _paramValues = {
-      for (final p in _source.params) p.key: p.defaultValue,
-    };
+    _paramValues = {for (final p in _source.params) p.key: p.defaultValue};
   }
 
   void _onGroupChanged(int index) {
@@ -78,10 +77,12 @@ class _ImageTabState extends ConsumerState<ImageTab>
             const SizedBox(height: AppSpacing.sm),
             _buildSourceSelector(),
           ],
-          ..._source.params.map((p) => Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: _buildParamWidget(p),
-              )),
+          ..._source.params.map(
+            (p) => Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: _buildParamWidget(p),
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           _buildActionButtons(),
           if (_error != null) ...[
@@ -131,8 +132,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
       items: List.generate(_group.sources.length, (i) {
         return DropdownMenuItem(
           value: i,
-          child:
-              Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
+          child: Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
         );
       }),
       onChanged: (v) {
@@ -142,8 +142,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
   }
 
   Widget _buildParamWidget(ApiParam param) {
-    final widgetKey =
-        ValueKey('p_${_groupIndex}_${_sourceIndex}_${param.key}');
+    final widgetKey = ValueKey('p_${_groupIndex}_${_sourceIndex}_${param.key}');
 
     if (param.isTextInput) {
       return TextFormField(
@@ -152,8 +151,10 @@ class _ImageTabState extends ConsumerState<ImageTab>
           labelText: param.label,
           hintText: param.hint ?? '可选',
           border: const OutlineInputBorder(),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 14,
+          ),
         ),
         initialValue: _paramValues[param.key] ?? '',
         onChanged: (v) => _paramValues[param.key] = v,
@@ -166,8 +167,10 @@ class _ImageTabState extends ConsumerState<ImageTab>
       decoration: InputDecoration(
         labelText: param.label,
         border: const OutlineInputBorder(),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 14,
+        ),
       ),
       isExpanded: true,
       items: param.options!
@@ -182,7 +185,9 @@ class _ImageTabState extends ConsumerState<ImageTab>
   // ──────── 操作按钮 ────────
 
   Widget _buildActionButtons() {
-    return Row(
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
       children: [
         FilledButton.icon(
           onPressed: _loading ? null : _fetchImage,
@@ -195,7 +200,6 @@ class _ImageTabState extends ConsumerState<ImageTab>
               : const Icon(Icons.refresh),
           label: const Text('获取图片'),
         ),
-        const SizedBox(width: AppSpacing.sm),
         OutlinedButton.icon(
           onPressed: (_imageUrl == null || _loading || _downloading)
               ? null
@@ -250,8 +254,10 @@ class _ImageTabState extends ConsumerState<ImageTab>
                   children: [
                     const Icon(Icons.broken_image_outlined, size: 48),
                     const SizedBox(height: AppSpacing.sm),
-                    Text('图片加载失败',
-                        style: Theme.of(context).textTheme.bodyMedium),
+                    Text(
+                      '图片加载失败',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   ],
                 ),
               ),
@@ -259,7 +265,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
                 if (progress == null) return child;
                 final percent = progress.expectedTotalBytes != null
                     ? progress.cumulativeBytesLoaded /
-                        progress.expectedTotalBytes!
+                          progress.expectedTotalBytes!
                     : null;
                 return Container(
                   height: 200,
@@ -273,9 +279,9 @@ class _ImageTabState extends ConsumerState<ImageTab>
         const SizedBox(height: AppSpacing.xs),
         SelectableText(
           _imageUrl!,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
         ),
       ],
     );
@@ -296,7 +302,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
       setState(() => _imageUrl = url);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e'.replaceAll('Exception: ', ''));
+      setState(() => _error = MediaErrorHelper.toUserMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
