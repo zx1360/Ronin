@@ -6,9 +6,6 @@ read-api:
 https://www.tmini.net/apidata?id=18
 https://www.tmini.net/apidata?id=19
 
-comic:
-下拉阅读的自定义截屏, 点一下以屏幕顶端开始, 点第二下以屏幕底部结束, 合成新图片保存.(命名规则.)
-下拉阅读的缩放功能.
 
 prompt:
 我正在使用flutter开发自用的安卓应用, 你能分析出我现有项目的这个模块___现有逻辑吗? 在理解的基础上做出如下漏洞修复或修改:

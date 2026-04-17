@@ -59,6 +59,10 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
   bool _isMerging = false;
   bool _isCustomRangeSelecting = false;
   double? _customRangeStartOffset;
+  bool _viewerInteracting = false;
+  bool _zoomGestureMode = false;
+  int _activePointerCount = 0;
+  bool _isApplyingTransformClamp = false;
 
   // 实现交互界面
   final ScrollController _scrollController = ScrollController();
@@ -73,12 +77,14 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
     init();
     // 初始化滚动监听器
     _scrollController.addListener(_onScroll);
+    _zoomController.addListener(_onZoomMatrixChanged);
   }
 
   @override
   void dispose() {
     disposeControlsTimer();
     _scrollController.removeListener(_onScroll); // 移除监听器
+    _zoomController.removeListener(_onZoomMatrixChanged);
     _scrollController.dispose();
     _zoomController.dispose();
     super.dispose();
@@ -111,7 +117,125 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
 
   bool get _isZoomed {
     final scale = _zoomController.value.getMaxScaleOnAxis();
-    return (scale - 1.0).abs() > 0.01;
+    return _zoomGestureMode || (scale - 1.0).abs() > 0.01;
+  }
+
+  bool get _shouldLockListScroll {
+    // 仅在多指缩放过程中锁定 ListView，避免缩放手势被滚动抢占。
+    return _activePointerCount > 1;
+  }
+
+  bool get _enableViewerPan {
+    // 缩放后允许通过 InteractiveViewer 拖拽查看细节。
+    return _isZoomed || _activePointerCount > 1;
+  }
+
+  void _onZoomMatrixChanged() {
+    if (_isApplyingTransformClamp || !mounted) return;
+    _clampViewerTransform();
+  }
+
+  void _clampViewerTransform() {
+    if (!mounted) return;
+
+    final matrix = _zoomController.value.clone();
+    final scale = matrix.getMaxScaleOnAxis();
+    final viewportSize = context.size;
+    if (viewportSize == null) return;
+
+    final viewportRect = Rect.fromLTWH(
+      0,
+      0,
+      viewportSize.width,
+      viewportSize.height,
+    );
+    final transformedRect = MatrixUtils.transformRect(matrix, viewportRect);
+
+    // 回到初始缩放后，清空残留位移。
+    if (scale <= 1.0001) {
+      final hasOffset =
+          matrix.storage[12].abs() > 0.01 || matrix.storage[13].abs() > 0.01;
+      if (hasOffset) {
+        _isApplyingTransformClamp = true;
+        _zoomController.value = Matrix4.identity();
+        _isApplyingTransformClamp = false;
+      }
+      return;
+    }
+
+    double dx = 0.0;
+
+    // 当内容宽度大于屏幕时，保证左右都不露黑边。
+    if (transformedRect.width > viewportRect.width + 0.01) {
+      if (transformedRect.left > viewportRect.left) {
+        dx = viewportRect.left - transformedRect.left;
+      } else if (transformedRect.right < viewportRect.right) {
+        dx = viewportRect.right - transformedRect.right;
+      }
+    } else {
+      // 缩放后的内容宽度不足屏幕时，保持水平居中。
+      dx = viewportRect.center.dx - transformedRect.center.dx;
+    }
+
+    // 纵向拖动交给 ListView，自身不保留纵向位移。
+    final dy = viewportRect.top - transformedRect.top;
+
+    final changed = dx.abs() > 0.01 || dy.abs() > 0.01;
+    if (changed) {
+      matrix.storage[12] += dx;
+      matrix.storage[13] += dy;
+      _isApplyingTransformClamp = true;
+      _zoomController.value = matrix;
+      _isApplyingTransformClamp = false;
+    }
+  }
+
+  void _syncZoomGestureMode() {
+    _clampViewerTransform();
+    final scale = _zoomController.value.getMaxScaleOnAxis();
+    final zoomedNow = (scale - 1.0).abs() > 0.01;
+    if (zoomedNow == _zoomGestureMode || !mounted) return;
+    setState(() {
+      _zoomGestureMode = zoomedNow;
+    });
+  }
+
+  void _onPointerDown(PointerDownEvent _) {
+    final prev = _activePointerCount;
+    _activePointerCount++;
+    if (prev <= 1 && _activePointerCount > 1 && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onPointerUpOrCancel(PointerEvent _) {
+    final prev = _activePointerCount;
+    _activePointerCount = max(0, _activePointerCount - 1);
+    if (prev > 1 && _activePointerCount <= 1 && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onViewerInteractionStart(ScaleStartDetails _) {
+    if (!mounted || _viewerInteracting) return;
+    setState(() {
+      _viewerInteracting = true;
+    });
+  }
+
+  void _onViewerInteractionUpdate(ScaleUpdateDetails _) {
+    _syncZoomGestureMode();
+  }
+
+  void _onViewerInteractionEnd(ScaleEndDetails _) {
+    if (!mounted) return;
+    _clampViewerTransform();
+    final scale = _zoomController.value.getMaxScaleOnAxis();
+    final zoomedNow = (scale - 1.0).abs() > 0.01;
+    setState(() {
+      _viewerInteracting = false;
+      _zoomGestureMode = zoomedNow;
+    });
   }
 
   Future<bool> _restoreZoomBeforeSaveIfNeeded() async {
@@ -121,6 +245,13 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         ? _scrollController.offset
         : 0.0;
     _zoomController.value = Matrix4.identity();
+    if (mounted) {
+      setState(() {
+        _zoomGestureMode = false;
+        _viewerInteracting = false;
+        _activePointerCount = 0;
+      });
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
@@ -524,6 +655,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
       _currentImageIndex = 0;
       _isCustomRangeSelecting = false;
       _customRangeStartOffset = null;
+      _zoomGestureMode = false;
+      _viewerInteracting = false;
+      _activePointerCount = 0;
     });
     _listviewKey = UniqueKey();
     setState(() {
@@ -546,6 +680,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
       _currentImageIndex = 0;
       _isCustomRangeSelecting = false;
       _customRangeStartOffset = null;
+      _zoomGestureMode = false;
+      _viewerInteracting = false;
+      _activePointerCount = 0;
     });
     _listviewKey = UniqueKey();
     setState(() {
@@ -649,33 +786,46 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
-    return InteractiveViewer(
-      transformationController: _zoomController,
-      panEnabled: false,
-      scaleEnabled: true,
-      minScale: 1.0,
-      maxScale: 3.0,
-      alignment: Alignment.topCenter,
-      child: ListView.builder(
-        key: _listviewKey,
-        controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
-        itemCount: images.length,
-        itemBuilder: (context, index) {
-          final image = images[index];
-          final url = resolveImageUrl(image, widget.isLocal, ref);
-          // 抽离后的通用高度计算
-          final height = computeImageHeight(image, maxWidth);
-          return SizedBox(
-            width: maxWidth,
-            height: height,
-            child: ComicImage(
-              path: url,
-              isLocal: widget.isLocal,
-              httpHeaders: headers,
-            ),
-          );
-        },
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerUp: _onPointerUpOrCancel,
+      onPointerCancel: _onPointerUpOrCancel,
+      child: InteractiveViewer(
+        transformationController: _zoomController,
+        panEnabled: _enableViewerPan,
+        panAxis: PanAxis.horizontal,
+        scaleEnabled: true,
+        minScale: 1.0,
+        maxScale: 4.0,
+        clipBehavior: Clip.hardEdge,
+        boundaryMargin: EdgeInsets.zero,
+        alignment: Alignment.topLeft,
+        onInteractionStart: _onViewerInteractionStart,
+        onInteractionUpdate: _onViewerInteractionUpdate,
+        onInteractionEnd: _onViewerInteractionEnd,
+        child: ListView.builder(
+          key: _listviewKey,
+          controller: _scrollController,
+          physics: _shouldLockListScroll
+              ? const NeverScrollableScrollPhysics()
+              : const BouncingScrollPhysics(),
+          itemCount: images.length,
+          itemBuilder: (context, index) {
+            final image = images[index];
+            final url = resolveImageUrl(image, widget.isLocal, ref);
+            // 抽离后的通用高度计算
+            final height = computeImageHeight(image, maxWidth);
+            return SizedBox(
+              width: maxWidth,
+              height: height,
+              child: ComicImage(
+                path: url,
+                isLocal: widget.isLocal,
+                httpHeaders: headers,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
