@@ -21,6 +21,12 @@ type dirUsage struct {
 }
 
 // SystemOverview 返回服务端基础运维信息，便于桌面端统一展示。
+// @Summary 获取服务端运行概览
+// @Tags util
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /api/ops/overview [get]
 func SystemOverview(c *gin.Context) {
 	staticUsage := collectDirUsage(config.AppConf.StaticDir)
 	galleryRootUsage := collectDirUsage(config.AppConf.GalleryDir)

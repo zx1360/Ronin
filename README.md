@@ -38,6 +38,12 @@ cd gizmos
 go build ./...
 ```
 
+参考文档（References）生成：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
+```
+
 # 依赖的数据库
 
 **PostgreSQL18.0**

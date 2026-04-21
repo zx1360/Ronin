@@ -12,14 +12,15 @@ import (
 // SyncHandler 处理数据同步请求
 // @Summary 同步指定模块的数据
 // @Description 读取指定模块的所有JSON配置文件，合并后返回
-// @Tags sync
+// @Tags user-data
 // @Accept json
 // @Produce json
+// @Security ApiKeyAuth
 // @Param module path string true "模块名称"
 // @Success 200 {object} map[string]interface{} "成功返回合并后的JSON数据"
 // @Failure 404 {object} map[string]string "模块未找到"
 // @Failure 500 {object} map[string]string "服务器内部错误"
-// @Router /sync/{module} [get]
+// @Router /api/user-data/sync/{module} [get]
 func SyncHandler(c *gin.Context) {
 	moduleName := c.Param("module")
 	moduleConfig := FindModuleConfigByName(moduleName)

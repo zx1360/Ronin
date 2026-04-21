@@ -12,6 +12,20 @@ import (
 
 // BackupHandler 处理指定模块的数据备份请求
 // 接收 multipart/form-data 格式请求，包含 JSON 数据和图片文件，覆盖保存到对应路径
+// @Summary 备份指定模块的数据
+// @Description 接收模块 JSON 数据与图片文件并覆盖保存到服务器目录
+// @Tags user-data
+// @Accept mpfd
+// @Produce json
+// @Security ApiKeyAuth
+// @Param module path string true "模块名称"
+// @Param jsonData formData string true "JSON 字段集合，键名对应目标文件名（不含扩展名）"
+// @Param files formData file false "待上传的图片文件（可多文件）"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/user-data/backup/{module} [post]
 func BackupHandler(c *gin.Context) {
 	// 1. 获取 URL 路径中的模块名参数
 	moduleName := c.Param("module")
