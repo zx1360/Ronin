@@ -1,6 +1,6 @@
 ﻿# CLI Help Snapshot
 
-- GeneratedAt: 2026-04-20T06:55:07+08:00
+- GeneratedAt: 2026-04-21T08:51:24+08:00
 - WorkingDir: D:\products\Go\monarch\gizmos
 - Command: go run ./cmd/comic_indexer -h
 - ExitCode: 0
