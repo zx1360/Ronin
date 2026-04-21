@@ -37,7 +37,8 @@ final List<AppRoute> routes = [
   AppRoute(
     path: '/tasks',
     name: 'tasks',
-    icon: IconData(0xe62f, fontFamily: 'iconfont'),
+    // icon: IconData(0xe62f, fontFamily: 'iconfont'),
+    icon: Icons.task_alt_rounded,
     builder: (context, state) => const TaskManagerPage(),
   ),
 
@@ -45,7 +46,7 @@ final List<AppRoute> routes = [
   AppRoute(
     path: '/logs',
     name: 'logs',
-    icon: IconData(0xe600, fontFamily: 'iconfont'),
+    icon: IconData(0xe627, fontFamily: 'iconfont'),
     builder: (context, state) => const LogsPage(),
   ),
 
@@ -53,7 +54,8 @@ final List<AppRoute> routes = [
   AppRoute(
     path: '/settings',
     name: 'settings',
-    icon: IconData(0xf0ac, fontFamily: 'iconfont'),
+    // icon: IconData(0xf0ac, fontFamily: 'iconfont'),
+    icon: Icons.settings,
     builder: (context, state) => const SettingsPage(),
   ),
   
