@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-04-19T22:55:04Z",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/",
+      "handler": "monarch/internal/router.SetupRouter.func1"
+    },
+    {
+      "method": "GET",
+      "path": "/api/comic/chapter-info/:chapter-id",
+      "handler": "monarch/internal/handler/comic_handler.FetchImagesWithChapterId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/comic/comic-info",
+      "handler": "monarch/internal/handler/comic_handler.FetchAllComicInfos"
+    },
+    {
+      "method": "GET",
+      "path": "/api/comic/comic-info/:comic-id",
+      "handler": "monarch/internal/handler/comic_handler.FetchChaptersWithComicId"
+    },
+    {
+      "method": "GET",
+      "path": "/api/comic/download/:comic-id",
+      "handler": "monarch/internal/handler/comic_handler.DownloadComic"
+    },
+    {
+      "method": "GET",
+      "path": "/api/comic/meta-info",
+      "handler": "monarch/internal/handler/comic_handler.FetchComicMetadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/gallery/:id/:type",
+      "handler": "monarch/internal/handler/gallery_handler.FetchMediaAsset"
+    },
+    {
+      "method": "GET",
+      "path": "/api/gallery/batch",
+      "handler": "monarch/internal/handler/gallery_handler.FetchBatch"
+    },
+    {
+      "method": "POST",
+      "path": "/api/gallery/push",
+      "handler": "monarch/internal/handler/gallery_handler.Push"
+    },
+    {
+      "method": "GET",
+      "path": "/api/gallery/tags",
+      "handler": "monarch/internal/handler/gallery_handler.FetchAllTags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ops/overview",
+      "handler": "monarch/internal/handler/util_handler.SystemOverview"
+    },
+    {
+      "method": "GET",
+      "path": "/api/test",
+      "handler": "monarch/internal/handler/util_handler.Test"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user-data/backup/:module",
+      "handler": "monarch/internal/handler/data_handler.BackupHandler"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-data/sync/:module",
+      "handler": "monarch/internal/handler/data_handler.SyncHandler"
+    },
+    {
+      "method": "GET",
+      "path": "/static/*filepath",
+      "handler": "github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1"
+    },
+    {
+      "method": "HEAD",
+      "path": "/static/*filepath",
+      "handler": "github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1"
+    }
+  ]
+}
