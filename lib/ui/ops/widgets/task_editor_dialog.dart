@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:northstar/application/ops/providers/core_services_provider.dart';
@@ -9,10 +11,7 @@ import 'package:northstar/shared/utils/util_service.dart';
 class TaskEditorDialog extends ConsumerStatefulWidget {
   final TaskProfile? initial;
 
-  const TaskEditorDialog({
-    super.key,
-    this.initial,
-  });
+  const TaskEditorDialog({super.key, this.initial});
 
   @override
   ConsumerState<TaskEditorDialog> createState() => _TaskEditorDialogState();
@@ -39,7 +38,9 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
 
     _nameController = TextEditingController(text: initial?.name ?? '');
     _exeController = TextEditingController(text: initial?.executablePath ?? '');
-    _workingDirController = TextEditingController(text: initial?.workingDirectory ?? '');
+    _workingDirController = TextEditingController(
+      text: initial?.workingDirectory ?? '',
+    );
 
     _type = initial?.type ?? TaskType.custom;
     _dangerousOperation = initial?.dangerousOperation ?? false;
@@ -53,7 +54,9 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
           _PresetFormItem(
             id: preset.id,
             nameController: TextEditingController(text: preset.name),
-            argsController: TextEditingController(text: toArgumentLine(preset.args)),
+            argsController: TextEditingController(
+              text: toArgumentLine(preset.args),
+            ),
           ),
         );
       }
@@ -143,7 +146,10 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                   Expanded(
                     child: TextField(
                       controller: _workingDirController,
-                      decoration: const InputDecoration(labelText: '工作目录'),
+                      decoration: const InputDecoration(
+                        labelText: '工作目录 (可选)',
+                        hintText: '留空则使用程序默认工作目录',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -209,9 +215,11 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                       .map(
                         (item) => DropdownMenuItem<String>(
                           value: item.id,
-                          child: Text(item.nameController.text.trim().isEmpty
-                              ? item.id
-                              : item.nameController.text.trim()),
+                          child: Text(
+                            item.nameController.text.trim().isEmpty
+                                ? item.id
+                                : item.nameController.text.trim(),
+                          ),
                         ),
                       )
                       .toList(growable: false),
@@ -237,7 +245,9 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                             Expanded(
                               child: TextField(
                                 controller: item.nameController,
-                                decoration: const InputDecoration(labelText: '预设名称'),
+                                decoration: const InputDecoration(
+                                  labelText: '预设名称',
+                                ),
                                 onChanged: (_) {
                                   setState(() {});
                                 },
@@ -258,7 +268,8 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                           controller: item.argsController,
                           decoration: const InputDecoration(
                             labelText: '参数字符串',
-                            hintText: '-mode ingest -gallery-root "D:\\Assets\\Gallery"',
+                            hintText:
+                                '-mode ingest -gallery-root "D:\\Assets\\Gallery"',
                           ),
                         ),
                       ],
@@ -270,7 +281,9 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     _error,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
             ],
@@ -282,26 +295,28 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
-        ElevatedButton(
-          onPressed: _save,
-          child: const Text('保存'),
-        ),
+        ElevatedButton(onPressed: _save, child: const Text('保存')),
       ],
     );
   }
 
   Future<void> _pickExecutable() async {
     final picker = ref.read(pathPickerServiceProvider);
+    final initialDirectory = _initialExecutableDirectory();
     final path = await picker.pickExecutable(
-      initialDirectory: _workingDirController.text.trim().isEmpty
-          ? null
-          : _workingDirController.text.trim(),
+      initialDirectory: initialDirectory,
     );
     if (path == null || !mounted) {
       return;
     }
     setState(() {
       _exeController.text = path;
+      if (_workingDirController.text.trim().isEmpty) {
+        final parentPath = File(path).parent.path;
+        if (Directory(parentPath).existsSync()) {
+          _workingDirController.text = parentPath;
+        }
+      }
     });
   }
 
@@ -309,7 +324,7 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
     final picker = ref.read(pathPickerServiceProvider);
     final path = await picker.pickDirectory(
       initialDirectory: _workingDirController.text.trim().isEmpty
-          ? null
+          ? _initialExecutableDirectory()
           : _workingDirController.text.trim(),
     );
     if (path == null || !mounted) {
@@ -318,6 +333,29 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
     setState(() {
       _workingDirController.text = path;
     });
+  }
+
+  String? _initialExecutableDirectory() {
+    final executablePath = _exeController.text.trim();
+    if (executablePath.isEmpty) {
+      return null;
+    }
+
+    try {
+      final parentPath = File(executablePath).parent.path;
+      if (parentPath.trim().isEmpty) {
+        return null;
+      }
+
+      final directory = Directory(parentPath);
+      if (!directory.existsSync()) {
+        return null;
+      }
+
+      return directory.path;
+    } catch (_) {
+      return null;
+    }
   }
 
   void _addPreset() {
@@ -409,10 +447,6 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
         return 'Gallery';
       case TaskType.comicIndexer:
         return 'Comic Indexer';
-      case TaskType.galleryUtil1:
-        return 'Gallery Util 1';
-      case TaskType.galleryUtil2:
-        return 'Gallery Util 2';
       case TaskType.custom:
         return 'Custom';
     }

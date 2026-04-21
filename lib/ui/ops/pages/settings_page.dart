@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:northstar/application/ops/providers/ops_settings_provider.dart';
@@ -5,6 +7,7 @@ import 'package:northstar/application/ops/providers/task_profiles_provider.dart'
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';
+import 'package:path/path.dart' as path;
 import 'package:northstar/shared/widgets/heading/heading.dart';
 import 'package:northstar/ui/ops/widgets/task_editor_dialog.dart';
 
@@ -37,6 +40,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final settingsController = ref.read(opsSettingsControllerProvider.notifier);
     final tasks = ref.watch(taskProfilesControllerProvider);
     final taskController = ref.read(taskProfilesControllerProvider.notifier);
+    final executableName = path
+        .basename(Platform.resolvedExecutable)
+        .toLowerCase();
+    final basePath =
+        executableName == 'flutter_tester.exe' || executableName == 'dart.exe'
+        ? Directory.current.path
+        : File(Platform.resolvedExecutable).parent.path;
+    final storagePathHint =
+        '$basePath${Platform.pathSeparator}northstar_data${Platform.pathSeparator}ops';
 
     _syncControllersIfNeeded(settings);
 
@@ -56,7 +68,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('接口设置', style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          '接口设置',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _apiBaseUrlController,
@@ -96,7 +111,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         TextField(
                           controller: _intervalController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: '自动刷新间隔(秒)'),
+                          decoration: const InputDecoration(
+                            labelText: '自动刷新间隔(秒)',
+                          ),
                           onChanged: (_) {
                             _dirty = true;
                           },
@@ -107,17 +124,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             ElevatedButton.icon(
                               onPressed: () async {
                                 final parsedSeconds =
-                                    int.tryParse(_intervalController.text.trim()) ?? 10;
+                                    int.tryParse(
+                                      _intervalController.text.trim(),
+                                    ) ??
+                                    10;
                                 final safeSeconds = parsedSeconds < 3
                                     ? 3
-                                    : (parsedSeconds > 3600 ? 3600 : parsedSeconds);
+                                    : (parsedSeconds > 3600
+                                          ? 3600
+                                          : parsedSeconds);
                                 await settingsController.update(
                                   apiBaseUrl: _apiBaseUrlController.text.trim(),
                                   apiKey: _apiKeyController.text.trim(),
                                   autoRefreshSeconds: safeSeconds,
                                 );
                                 _dirty = false;
-                                _syncedToken = _buildToken(ref.read(opsSettingsControllerProvider));
+                                _syncedToken = _buildToken(
+                                  ref.read(opsSettingsControllerProvider),
+                                );
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('设置已保存')),
@@ -134,6 +158,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 10),
+                        SelectableText(
+                          '本地配置目录: $storagePathHint',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -147,7 +176,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       children: [
                         Row(
                           children: [
-                            Text('任务配置管理', style: Theme.of(context).textTheme.titleMedium),
+                            Text(
+                              '任务配置管理',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
                             const Spacer(),
                             OutlinedButton.icon(
                               onPressed: () async {
@@ -173,7 +205,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               contentPadding: EdgeInsets.zero,
                               title: Text(task.name),
                               subtitle: Text(
-                                task.executablePath.isEmpty ? '(未设置exe路径)' : task.executablePath,
+                                task.executablePath.isEmpty
+                                    ? '(未设置exe路径)'
+                                    : task.executablePath,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -183,12 +217,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                   IconButton(
                                     tooltip: '编辑',
                                     onPressed: () async {
-                                      final updated = await showDialog<TaskProfile>(
-                                        context: context,
-                                        builder: (_) => TaskEditorDialog(initial: task),
-                                      );
+                                      final updated =
+                                          await showDialog<TaskProfile>(
+                                            context: context,
+                                            builder: (_) =>
+                                                TaskEditorDialog(initial: task),
+                                          );
                                       if (updated != null) {
-                                        await taskController.upsertTask(updated);
+                                        await taskController.upsertTask(
+                                          updated,
+                                        );
                                       }
                                     },
                                     icon: const Icon(Icons.edit_outlined),
@@ -203,21 +241,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                           content: Text('确认删除 ${task.name} 吗？'),
                                           actions: [
                                             TextButton(
-                                              onPressed: () => Navigator.of(context).pop(false),
+                                              onPressed: () => Navigator.of(
+                                                context,
+                                              ).pop(false),
                                               child: const Text('取消'),
                                             ),
                                             ElevatedButton(
-                                              onPressed: () => Navigator.of(context).pop(true),
+                                              onPressed: () => Navigator.of(
+                                                context,
+                                              ).pop(true),
                                               child: const Text('删除'),
                                             ),
                                           ],
                                         ),
                                       );
                                       if (confirmed == true) {
-                                        await taskController.removeTask(task.id);
+                                        await taskController.removeTask(
+                                          task.id,
+                                        );
                                       }
                                     },
-                                    icon: const Icon(Icons.delete_outline_rounded),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                    ),
                                   ),
                                 ],
                               ),

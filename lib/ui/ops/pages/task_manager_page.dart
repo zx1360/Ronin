@@ -25,8 +25,12 @@ class _TaskManagerPageState extends ConsumerState<TaskManagerPage> {
   Widget build(BuildContext context) {
     final tasks = ref.watch(taskProfilesControllerProvider);
 
-    final visibleTasks = tasks.where((task) => !task.hiddenByDefault).toList(growable: false);
-    final hiddenTasks = tasks.where((task) => task.hiddenByDefault).toList(growable: false);
+    final visibleTasks = tasks
+        .where((task) => !task.hiddenByDefault)
+        .toList(growable: false);
+    final hiddenTasks = tasks
+        .where((task) => task.hiddenByDefault)
+        .toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,7 +50,10 @@ class _TaskManagerPageState extends ConsumerState<TaskManagerPage> {
                       label: const Text('新增任务'),
                     ),
                     const SizedBox(width: 10),
-                    Text('共 ${tasks.length} 个任务', style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      '共 ${tasks.length} 个任务',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppDimens.spacingL),
@@ -96,15 +103,25 @@ class _TaskCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final runtimeBoard = ref.watch(runtimeProcessControllerProvider);
-    final runtimeController = ref.read(runtimeProcessControllerProvider.notifier);
+    final runtimeController = ref.read(
+      runtimeProcessControllerProvider.notifier,
+    );
     final taskController = ref.read(taskProfilesControllerProvider.notifier);
 
-    final runtime = runtimeBoard.runtimes[task.id] ?? RuntimeProcessState.idle(task.id);
+    final runtime =
+        runtimeBoard.runtimes[task.id] ?? RuntimeProcessState.idle(task.id);
     final preset = task.selectedPreset;
-    final exeExists = task.executablePath.isNotEmpty && File(task.executablePath).existsSync();
-    final dirExists = task.workingDirectory.isNotEmpty && Directory(task.workingDirectory).existsSync();
+    final exeExists =
+        task.executablePath.isNotEmpty &&
+        File(task.executablePath).existsSync();
+    final configuredWorkingDirectory = task.workingDirectory.trim();
+    final hasConfiguredWorkingDirectory = configuredWorkingDirectory.isNotEmpty;
+    final workingDirectoryValid =
+        hasConfiguredWorkingDirectory &&
+        _directoryExists(configuredWorkingDirectory);
 
-    final isRunning = runtime.status == RuntimeStatus.running ||
+    final isRunning =
+        runtime.status == RuntimeStatus.running ||
         runtime.status == RuntimeStatus.starting ||
         runtime.status == RuntimeStatus.stopping;
 
@@ -117,7 +134,10 @@ class _TaskCard extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(task.name, style: Theme.of(context).textTheme.titleMedium),
+                  child: Text(
+                    task.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
                 RuntimeStatusBadge(status: runtime.status),
                 const SizedBox(width: 8),
@@ -134,8 +154,10 @@ class _TaskCard extends ConsumerWidget {
                   label: exeExists ? 'exe路径有效' : 'exe路径无效',
                 ),
                 _PathChip(
-                  ok: dirExists,
-                  label: dirExists ? '工作目录有效' : '工作目录无效',
+                  ok: !hasConfiguredWorkingDirectory || workingDirectoryValid,
+                  label: hasConfiguredWorkingDirectory
+                      ? (workingDirectoryValid ? '工作目录有效' : '工作目录无效')
+                      : '工作目录: 默认',
                 ),
                 if (task.dangerousOperation)
                   const _PathChip(ok: false, label: '危险任务'),
@@ -170,7 +192,11 @@ class _TaskCard extends ConsumerWidget {
             const SizedBox(height: 8),
             SelectableText('当前参数字符串: ${preset.argsText}'),
             const SizedBox(height: 4),
-            SelectableText('实际工作目录: ${task.workingDirectory.isEmpty ? '(未设置)' : task.workingDirectory}'),
+            SelectableText(
+              hasConfiguredWorkingDirectory
+                  ? '启动工作目录: $configuredWorkingDirectory (手动)'
+                  : '启动工作目录: (默认)',
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -192,10 +218,17 @@ class _TaskCard extends ConsumerWidget {
                             return;
                           }
 
-                          final result = await runtimeController.startTask(task);
+                          final result = await runtimeController.startTask(
+                            task,
+                          );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(result.message ?? (result.ok ? '已启动' : '启动失败'))),
+                              SnackBar(
+                                content: Text(
+                                  result.message ??
+                                      (result.ok ? '已启动' : '启动失败'),
+                                ),
+                              ),
                             );
                           }
                         },
@@ -209,7 +242,9 @@ class _TaskCard extends ConsumerWidget {
                           final result = await runtimeController.stopTask(task);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(result.message ?? '已发送停止命令')),
+                              SnackBar(
+                                content: Text(result.message ?? '已发送停止命令'),
+                              ),
                             );
                           }
                         }
@@ -246,11 +281,13 @@ class _TaskCard extends ConsumerWidget {
                               content: Text('确认删除任务 ${task.name} 吗？'),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.of(context).pop(false),
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
                                   child: const Text('取消'),
                                 ),
                                 ElevatedButton(
-                                  onPressed: () => Navigator.of(context).pop(true),
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
                                   child: const Text('删除'),
                                 ),
                               ],
@@ -275,6 +312,14 @@ class _TaskCard extends ConsumerWidget {
       ),
     );
   }
+
+  bool _directoryExists(String path) {
+    try {
+      return Directory(path).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 class _PathChip extends StatelessWidget {
@@ -285,7 +330,9 @@ class _PathChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = ok ? Colors.greenAccent.shade400 : Theme.of(context).colorScheme.error;
+    final color = ok
+        ? Colors.greenAccent.shade400
+        : Theme.of(context).colorScheme.error;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

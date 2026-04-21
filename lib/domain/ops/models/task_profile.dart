@@ -1,13 +1,6 @@
 import 'package:northstar/domain/ops/models/arg_preset.dart';
 
-enum TaskType {
-  monarch,
-  gallery,
-  comicIndexer,
-  galleryUtil1,
-  galleryUtil2,
-  custom,
-}
+enum TaskType { monarch, gallery, comicIndexer, custom }
 
 class TaskProfile {
   final String id;
@@ -93,8 +86,8 @@ class TaskProfile {
       executablePath: (json['executablePath'] ?? '').toString(),
       workingDirectory: (json['workingDirectory'] ?? '').toString(),
       presets: presets,
-      selectedPresetId:
-          (json['selectedPresetId'] ?? fallbackPresetId).toString(),
+      selectedPresetId: (json['selectedPresetId'] ?? fallbackPresetId)
+          .toString(),
       dangerousOperation: json['dangerousOperation'] == true,
       hiddenByDefault: json['hiddenByDefault'] == true,
       supportsGracefulStop: json['supportsGracefulStop'] == true,

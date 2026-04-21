@@ -13,7 +13,8 @@ String? extractModeFromPreset(ArgPreset preset) {
 bool requiresDangerConfirmation(TaskProfile task, ArgPreset preset) {
   final mode = extractModeFromPreset(preset);
 
-  if (task.type == TaskType.gallery && mode == 'execute') {
+  if (task.type == TaskType.gallery &&
+      (mode == 'execute' || mode == 'refresh')) {
     return true;
   }
 

@@ -14,11 +14,7 @@ class ProcessStartResult {
   final int? pid;
   final String? error;
 
-  const ProcessStartResult._({
-    required this.ok,
-    this.pid,
-    this.error,
-  });
+  const ProcessStartResult._({required this.ok, this.pid, this.error});
 
   factory ProcessStartResult.success(int pid) {
     return ProcessStartResult._(ok: true, pid: pid);
@@ -36,7 +32,8 @@ class WindowsProcessManager {
 
   bool get hasRunningProcess => _running.isNotEmpty;
 
-  List<int> get runningPids => _running.values.map((item) => item.process.pid).toList(growable: false);
+  List<int> get runningPids =>
+      _running.values.map((item) => item.process.pid).toList(growable: false);
 
   Future<ProcessStartResult> start({
     required TaskProfile task,
@@ -53,29 +50,35 @@ class WindowsProcessManager {
       return ProcessStartResult.failure('请先配置可执行文件路径');
     }
 
-    final workingDirectory = task.workingDirectory.trim();
-    if (workingDirectory.isEmpty) {
-      return ProcessStartResult.failure('请先配置工作目录');
-    }
-
     final executableExists = await File(executablePath).exists();
     if (!executableExists) {
       return ProcessStartResult.failure('可执行文件不存在: $executablePath');
     }
 
-    final directoryExists = await Directory(workingDirectory).exists();
-    if (!directoryExists) {
-      return ProcessStartResult.failure('工作目录不存在: $workingDirectory');
+    final workingDirectory = task.workingDirectory.trim();
+    if (workingDirectory.isNotEmpty) {
+      final directoryExists = await Directory(workingDirectory).exists();
+      if (!directoryExists) {
+        return ProcessStartResult.failure('工作目录不存在: $workingDirectory');
+      }
     }
 
     Process process;
     try {
-      process = await Process.start(
-        executablePath,
-        preset.args,
-        runInShell: false,
-        workingDirectory: workingDirectory,
-      );
+      if (workingDirectory.isEmpty) {
+        process = await Process.start(
+          executablePath,
+          preset.args,
+          runInShell: false,
+        );
+      } else {
+        process = await Process.start(
+          executablePath,
+          preset.args,
+          runInShell: false,
+          workingDirectory: workingDirectory,
+        );
+      }
     } catch (error) {
       return ProcessStartResult.failure('启动失败: $error');
     }
@@ -88,39 +91,39 @@ class WindowsProcessManager {
         taskId: task.id,
         time: DateTime.now(),
         streamType: LogStreamType.system,
-        text: '进程已启动, PID=${process.pid}',
+        text: workingDirectory.isEmpty
+            ? '进程已启动, PID=${process.pid}, CWD=(默认)'
+            : '进程已启动, PID=${process.pid}, CWD=$workingDirectory',
       ),
     );
 
-    running.stdoutSub = utf8
-        .decoder
+    running.stdoutSub = utf8.decoder
         .bind(process.stdout)
         .transform(const LineSplitter())
         .listen((line) {
-      onLog(
-        ProcessLogEntry(
-          taskId: task.id,
-          time: DateTime.now(),
-          streamType: LogStreamType.stdout,
-          text: line,
-        ),
-      );
-    });
+          onLog(
+            ProcessLogEntry(
+              taskId: task.id,
+              time: DateTime.now(),
+              streamType: LogStreamType.stdout,
+              text: line,
+            ),
+          );
+        });
 
-    running.stderrSub = utf8
-        .decoder
+    running.stderrSub = utf8.decoder
         .bind(process.stderr)
         .transform(const LineSplitter())
         .listen((line) {
-      onLog(
-        ProcessLogEntry(
-          taskId: task.id,
-          time: DateTime.now(),
-          streamType: LogStreamType.stderr,
-          text: line,
-        ),
-      );
-    });
+          onLog(
+            ProcessLogEntry(
+              taskId: task.id,
+              time: DateTime.now(),
+              streamType: LogStreamType.stderr,
+              text: line,
+            ),
+          );
+        });
 
     running.exitCodeFuture = process.exitCode.then((exitCode) async {
       await _remove(task.id);
@@ -157,10 +160,12 @@ class WindowsProcessManager {
       }
     }
 
-    await Process.run(
-      'taskkill',
-      <String>['/PID', '${running.process.pid}', '/T', '/F'],
-    );
+    await Process.run('taskkill', <String>[
+      '/PID',
+      '${running.process.pid}',
+      '/T',
+      '/F',
+    ]);
 
     await _waitForExit(running, const Duration(seconds: 2));
   }
@@ -172,10 +177,7 @@ class WindowsProcessManager {
       if (running == null) {
         continue;
       }
-      await stop(
-        taskId: taskId,
-        supportsGracefulStop: false,
-      );
+      await stop(taskId: taskId, supportsGracefulStop: false);
     }
   }
 
