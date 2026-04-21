@@ -19,6 +19,16 @@ import (
 
 // FetchBatch 处理 GET /api/gallery/batch 请求
 // 响应指定数量的媒体资产 + 全量标签 + 对应的标签关联关系
+// @Summary 分页获取媒体批次数据
+// @Description 返回媒体资产、全量标签及媒体标签关联
+// @Tags gallery
+// @Produce json
+// @Security ApiKeyAuth
+// @Param limit query int false "返回条数（默认 50，最大 10000）"
+// @Param offset query int false "偏移量（默认 0）"
+// @Success 200 {object} model.BatchData
+// @Failure 500 {object} map[string]string
+// @Router /api/gallery/batch [get]
 func FetchBatch(c *gin.Context) {
 	// 解析分页参数
 	limitStr := c.DefaultQuery("limit", "50")
@@ -75,6 +85,13 @@ func FetchBatch(c *gin.Context) {
 
 // FetchAllTags 处理 GET /api/gallery/tags 请求
 // 响应完整的标签树
+// @Summary 获取完整标签树
+// @Tags gallery
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} model.TagsResponse
+// @Failure 500 {object} map[string]string
+// @Router /api/gallery/tags [get]
 func FetchAllTags(c *gin.Context) {
 	tags, err := gallery_repo.FetchAllTags()
 	if err != nil {
@@ -96,6 +113,17 @@ func downloadFile(c *gin.Context, filePath string) {
 	c.File(filePath)
 }
 
+// @Summary 下载媒体原图/缩略图/预览图
+// @Tags gallery
+// @Produce application/octet-stream
+// @Security ApiKeyAuth
+// @Param id path string true "媒体ID (UUID)"
+// @Param type path string true "文件类型: file | thumb | preview"
+// @Success 200 {file} file
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/gallery/{id}/{type} [get]
 func FetchMediaAsset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -143,6 +171,17 @@ func FetchMediaAsset(c *gin.Context) {
 // Push 处理 POST /api/gallery/push 请求
 // 接收客户端上传的数据，更新数据库
 // 使用事务确保三个表操作的原子性
+// @Summary 推送媒体与标签数据
+// @Description 客户端全量/增量推送媒体资产、标签和标签关联
+// @Tags gallery
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param body body model.BatchData true "推送数据"
+// @Success 200 {object} model.PushResponse
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/gallery/push [post]
 func Push(c *gin.Context) {
 	var req model.BatchData
 	if err := c.ShouldBindJSON(&req); err != nil {

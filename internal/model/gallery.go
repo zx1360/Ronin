@@ -116,6 +116,11 @@ type BatchData struct {
 	MediaTagLinks []MediaTagLink `json:"media_tag_links"`
 }
 
+// TagsResponse /api/gallery/tags 响应结构
+type TagsResponse struct {
+	Tags []Tag `json:"tags"`
+}
+
 // PushResponse /api/gallery/push 响应结构
 type PushResponse struct {
 	Success bool   `json:"success"`
