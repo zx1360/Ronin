@@ -228,3 +228,119 @@ func (r *Repository) CountAssets(ctx context.Context) (total int64, deleted int6
 	err = db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM gallery.media_assets WHERE is_deleted = true`).Scan(&deleted)
 	return
 }
+
+// GetAllAssets 获取所有媒体资产（包含 is_deleted=true 记录）
+func (r *Repository) GetAllAssets(ctx context.Context) ([]*model.MediaAsset, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
+		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		FROM gallery.media_assets
+		ORDER BY file_path, id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var assets []*model.MediaAsset
+	for rows.Next() {
+		asset := &model.MediaAsset{}
+		err := rows.Scan(
+			&asset.ID,
+			&asset.CreatedAt,
+			&asset.UpdatedAt,
+			&asset.CapturedAt,
+			&asset.FilePath,
+			&asset.ThumbPath,
+			&asset.PreviewPath,
+			&asset.Hash,
+			&asset.SizeBytes,
+			&asset.MimeType,
+			&asset.IsDeleted,
+			&asset.SyncCount,
+			&asset.GroupID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, asset)
+	}
+
+	return assets, rows.Err()
+}
+
+// GetActiveAssets 获取未删除的媒体资产
+func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
+		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		FROM gallery.media_assets
+		WHERE is_deleted = false
+		ORDER BY file_path, id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var assets []*model.MediaAsset
+	for rows.Next() {
+		asset := &model.MediaAsset{}
+		err := rows.Scan(
+			&asset.ID,
+			&asset.CreatedAt,
+			&asset.UpdatedAt,
+			&asset.CapturedAt,
+			&asset.FilePath,
+			&asset.ThumbPath,
+			&asset.PreviewPath,
+			&asset.Hash,
+			&asset.SizeBytes,
+			&asset.MimeType,
+			&asset.IsDeleted,
+			&asset.SyncCount,
+			&asset.GroupID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, asset)
+	}
+
+	return assets, rows.Err()
+}
+
+// UpdateMediaAssetFull 显式更新媒体资产所有字段
+func (r *Repository) UpdateMediaAssetFull(ctx context.Context, asset *model.MediaAsset) error {
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE gallery.media_assets SET
+			created_at   = $1,
+			updated_at   = $2,
+			captured_at  = $3,
+			file_path    = $4,
+			thumb_path   = $5,
+			preview_path = $6,
+			hash         = $7,
+			size_bytes   = $8,
+			mime_type    = $9,
+			is_deleted   = $10,
+			sync_count   = $11,
+			group_id     = $12
+		WHERE id = $13
+	`,
+		asset.CreatedAt,
+		asset.UpdatedAt,
+		asset.CapturedAt,
+		asset.FilePath,
+		asset.ThumbPath,
+		asset.PreviewPath,
+		asset.Hash,
+		asset.SizeBytes,
+		asset.MimeType,
+		asset.IsDeleted,
+		asset.SyncCount,
+		asset.GroupID,
+		asset.ID,
+	)
+	return err
+}

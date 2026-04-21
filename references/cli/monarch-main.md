@@ -1,13 +1,13 @@
 ﻿# CLI Help Snapshot
 
-- GeneratedAt: 2026-04-20T06:55:05+08:00
+- GeneratedAt: 2026-04-21T08:51:20+08:00
 - WorkingDir: D:\products\Go\monarch
 - Command: go run ./cmd/main.go -h
 - ExitCode: 0
 
 ```text
-Usage of C:\Users\puzzledAx\AppData\Local\go-build\fc\fcd7f710875e67c3fdac6939355df1fbe06a3b1ab0a5f2d5bc3d02ec630f9582-d\main.exe:
+Usage of C:\Users\PUZZLE~1\AppData\Local\Temp\go-build1731733995\b001\exe\main.exe:
   -mode string
-    	启动模式: local=本地开发(HTTP+无鉴权)
+    	启动模式: local=本地开发(HTTP+无鉴权), 默认生产模式(HTTPS+鉴权)
 ```
 
