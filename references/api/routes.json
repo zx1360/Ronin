@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-21T00:51:17Z",
+  "generated_at": "2026-04-22T04:42:54Z",
   "routes": [
     {
       "method": "GET",
@@ -8,68 +8,138 @@
     },
     {
       "method": "GET",
-      "path": "/api/comic/chapter-info/:chapter-id",
+      "path": "/API/comic/chapter-info/:chapter-id",
       "handler": "monarch/internal/handler/comic_handler.FetchImagesWithChapterId"
     },
     {
       "method": "GET",
-      "path": "/api/comic/comic-info",
+      "path": "/API/comic/comic-info",
       "handler": "monarch/internal/handler/comic_handler.FetchAllComicInfos"
     },
     {
       "method": "GET",
-      "path": "/api/comic/comic-info/:comic-id",
+      "path": "/API/comic/comic-info/:comic-id",
       "handler": "monarch/internal/handler/comic_handler.FetchChaptersWithComicId"
     },
     {
       "method": "GET",
-      "path": "/api/comic/download/:comic-id",
+      "path": "/API/comic/download/:comic-id",
       "handler": "monarch/internal/handler/comic_handler.DownloadComic"
     },
     {
       "method": "GET",
-      "path": "/api/comic/meta-info",
+      "path": "/API/comic/meta-info",
       "handler": "monarch/internal/handler/comic_handler.FetchComicMetadata"
     },
     {
       "method": "GET",
-      "path": "/api/gallery/:id/:type",
+      "path": "/API/gallery/:id/:type",
       "handler": "monarch/internal/handler/gallery_handler.FetchMediaAsset"
     },
     {
       "method": "GET",
-      "path": "/api/gallery/batch",
+      "path": "/API/gallery/batch",
       "handler": "monarch/internal/handler/gallery_handler.FetchBatch"
     },
     {
       "method": "POST",
-      "path": "/api/gallery/push",
+      "path": "/API/gallery/push",
       "handler": "monarch/internal/handler/gallery_handler.Push"
     },
     {
       "method": "GET",
-      "path": "/api/gallery/tags",
+      "path": "/API/gallery/tags",
       "handler": "monarch/internal/handler/gallery_handler.FetchAllTags"
     },
     {
       "method": "GET",
-      "path": "/api/ops/overview",
+      "path": "/API/ops/overview",
       "handler": "monarch/internal/handler/util_handler.SystemOverview"
     },
     {
       "method": "GET",
-      "path": "/api/test",
+      "path": "/API/test",
       "handler": "monarch/internal/handler/util_handler.Test"
     },
     {
       "method": "POST",
-      "path": "/api/user-data/backup/:module",
+      "path": "/API/user-data/backup/:module",
       "handler": "monarch/internal/handler/data_handler.BackupHandler"
     },
     {
       "method": "GET",
-      "path": "/api/user-data/sync/:module",
+      "path": "/API/user-data/sync/:module",
       "handler": "monarch/internal/handler/data_handler.SyncHandler"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "GET",
+      "path": "/api",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "HEAD",
+      "path": "/api",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "POST",
+      "path": "/api",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "PUT",
+      "path": "/api",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/*proxyPath",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "GET",
+      "path": "/api/*proxyPath",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/*proxyPath",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/*proxyPath",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/*proxyPath",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "POST",
+      "path": "/api/*proxyPath",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/*proxyPath",
+      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
     },
     {
       "method": "GET",
