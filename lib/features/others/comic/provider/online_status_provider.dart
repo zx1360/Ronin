@@ -18,7 +18,7 @@ part 'online_status_provider.g.dart';
 @riverpod
 Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
   final response = await ref.read(
-    fetcherProvider(path: "/api/comic/comic-info").future,
+    fetcherProvider(path: "/API/comic/comic-info").future,
   );
   if (response == null) {
     throw Exception("获取在线漫画列表失败");
@@ -36,7 +36,7 @@ Future<List<ChapterInfo>> onlineChaptersWithComicId(
   required String comicId,
 }) async {
   final response = await ref.read(
-    fetcherProvider(path: "/api/comic/comic-info/$comicId").future,
+    fetcherProvider(path: "/API/comic/comic-info/$comicId").future,
   );
   if (response == null) {
     return [];
@@ -54,7 +54,7 @@ Future<List<Map<String, dynamic>>> onlineImagesWithChapterId(
   required String chapterId,
 }) async {
   final response = await ref.read(
-    fetcherProvider(path: "/api/comic/chapter-info/$chapterId").future,
+    fetcherProvider(path: "/API/comic/chapter-info/$chapterId").future,
   );
   if (response == null) {
     return [];

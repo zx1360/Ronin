@@ -103,7 +103,7 @@ class GallerySyncService extends _$GallerySyncService {
 
       // 2. 请求 batch 数据
       final response = await apiClient.get(
-        '/api/gallery/batch',
+        "/API/gallery/batch",
         queryParams: {'limit': limit, 'offset': offset},
         cancelToken: _cancelToken,
       );
@@ -161,7 +161,7 @@ class GallerySyncService extends _$GallerySyncService {
         if (asset.thumbPath != null) {
           downloadTasks.add(_downloadFile(
             apiClient: apiClient,
-            path: '/api/gallery/${asset.id}/thumb',
+            path: "/API/gallery/${asset.id}/thumb",
             saveFn: (bytes) => storage.saveThumbFile(
               serverPath: asset.thumbPath!,
               bytes: bytes,
@@ -179,7 +179,7 @@ class GallerySyncService extends _$GallerySyncService {
         if (asset.previewPath != null) {
           downloadTasks.add(_downloadFile(
             apiClient: apiClient,
-            path: '/api/gallery/${asset.id}/preview',
+            path: "/API/gallery/${asset.id}/preview",
             saveFn: (bytes) => storage.savePreviewFile(
               serverPath: asset.previewPath!,
               bytes: bytes,
@@ -304,7 +304,7 @@ class GallerySyncService extends _$GallerySyncService {
 
       // 3. 发送到服务端 (使用 postJson 直接发送 JSON body)
       final response = await apiClient.postJson(
-        '/api/gallery/push',
+        "/API/gallery/push",
         data: uploadPayload.toJson(),
         cancelToken: _cancelToken,
       );
