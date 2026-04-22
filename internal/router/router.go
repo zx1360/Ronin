@@ -37,6 +37,9 @@ func SetupRouter() *gin.Engine {
 		})
 	})
 
+	// Immich 代理路由
+	registerImmichProxyRoutes(r)
+
 	// API路由, 数据/操作
 	api := r.Group("/API")
 	if !config.IsLocalMode {
