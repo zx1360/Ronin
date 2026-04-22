@@ -11,7 +11,7 @@ class OpsApiClient {
 
   /// 根据 URL 协议请求监控接口：http 使用普通连接，https 使用内置证书信任连接。
   Future<OpsOverview> fetchOverview(OpsSettings settings) async {
-    final uri = _buildUri(settings.apiBaseUrl, '/api/ops/overview');
+    final uri = _buildUri(settings.apiBaseUrl, '/API/ops/overview');
     final client = await _buildHttpClient(uri);
 
     final headers = <String, String>{
