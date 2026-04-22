@@ -161,8 +161,13 @@ func (r *Refresher) step1CleanupInvalidSources(ctx context.Context, stats *Stats
 		}
 
 		srcPath, ok := resolveRelativePath(r.config.MediaDir, asset.FilePath)
-		if ok {
+		if !ok {
+			// 路径为空、非法或越界时，按无效记录处理。
+		} else {
 			if _, statErr := os.Stat(srcPath); statErr == nil {
+				continue
+			} else if !os.IsNotExist(statErr) {
+				log.Printf("[Step1] 跳过记录: 源文件检查失败(非不存在错误): id=%s, file_path=%q, err=%v", asset.ID, asset.FilePath, statErr)
 				continue
 			}
 		}

@@ -38,7 +38,7 @@ func SetupRouter() *gin.Engine {
 	})
 
 	// API路由, 数据/操作
-	api := r.Group("/api")
+	api := r.Group("/API")
 	if !config.IsLocalMode {
 		api.Use(util_handler.APIKeyAuth())
 	}
