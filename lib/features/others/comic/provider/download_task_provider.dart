@@ -306,7 +306,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     List<dynamic> manifestRows;
     try {
       final response = await apiClient.get(
-        '/api/comic/download/${task.comicId}',
+        "/API/comic/download/${task.comicId}",
         cancelToken: manifestToken,
       );
       if (response.statusCode != 200 || response.data is! List) {

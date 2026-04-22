@@ -117,7 +117,7 @@ class ComicService extends _$ComicService {
   /// 5. 保存元数据
   Future<void> downloadAndSaveComic({required ComicInfo comicInfo}) async {
     final manifestResponse = await ref.read(
-      fetcherProvider(path: "/api/comic/download/${comicInfo.id}").future,
+      fetcherProvider(path: "/API/comic/download/${comicInfo.id}").future,
     );
     if (manifestResponse == null || manifestResponse.statusCode != 200) {
       throw Exception("获取下载清单失败");

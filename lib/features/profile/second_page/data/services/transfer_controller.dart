@@ -119,7 +119,7 @@ class TransferController extends _$TransferController {
     try {
       // 1. 获取数据
       final resp = await ref.read(
-        fetcherProvider(path: "/api/user-data/sync/booklet").future,
+        fetcherProvider(path: "/API/user-data/sync/booklet").future,
       );
       if (resp == null || resp.statusCode != 200) {
         throw Exception("获取打卡数据失败");
@@ -174,7 +174,7 @@ class TransferController extends _$TransferController {
     try {
       // 1. 获取数据
       final resp = await ref.read(
-        fetcherProvider(path: "/api/user-data/sync/essay").future,
+        fetcherProvider(path: "/API/user-data/sync/essay").future,
       );
       if (resp == null || resp.statusCode != 200) {
         throw Exception("获取随笔数据失败");
@@ -252,7 +252,7 @@ class TransferController extends _$TransferController {
       );
 
       final result = await _uploadData(
-        path: "/api/user-data/backup/booklet",
+        path: "/API/user-data/backup/booklet",
         jsonData: data,
         files: files,
       );
@@ -293,7 +293,7 @@ class TransferController extends _$TransferController {
       );
 
       final result = await _uploadData(
-        path: "/api/user-data/backup/essay",
+        path: "/API/user-data/backup/essay",
         jsonData: data,
         files: files,
       );

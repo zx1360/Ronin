@@ -539,7 +539,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     try {
       // 从网络下载文件
       final apiClient = ref.read(apiClientManagerProvider);
-      final response = await apiClient.getBinary('/api/gallery/${_currentAsset.id}/file');
+      final response = await apiClient.getBinary("/API/gallery/${_currentAsset.id}/file");
       
       if (response.data == null || response.data!.isEmpty) {
         throw Exception('下载的文件数据为空');

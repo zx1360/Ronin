@@ -301,7 +301,7 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
 
     bool connected = false;
     try {
-      final resp = await dio.get('/api/test');
+      final resp = await dio.get("/API/test");
       connected = resp.statusCode == 200;
     } catch (_) {
       connected = false;
