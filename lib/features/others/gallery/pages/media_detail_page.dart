@@ -344,7 +344,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     final apiClient = ref.read(apiClientManagerProvider);
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
-    final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
+    final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
     
     return FutureBuilder<File?>(
       future: _getLocalPlaceholder(storage, asset),

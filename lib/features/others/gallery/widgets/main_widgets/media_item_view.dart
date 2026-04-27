@@ -27,7 +27,7 @@ class MediaItemView extends ConsumerWidget {
 
     // 图片类型 - 使用 NetworkImageWidget
     if (asset.isImage) {
-      final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
+      final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
 
       return NetworkImageWidget(
         key: ValueKey('image_${asset.id}_$rotationQuarterTurns'),

@@ -1,4 +1,4 @@
-/// 批量获取响应模型 - 对应 GET /api/gallery/batch 的响应
+/// 批量获取响应模型 - 对应 GET /API/gallery/batch 的响应
 library;
 
 import 'package:json_annotation/json_annotation.dart';

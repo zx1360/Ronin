@@ -77,7 +77,7 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
       final apiClient = ref.read(apiClientManagerProvider);
       final baseUrl = apiClient.baseUrl;
       final headers = apiClient.headers;
-      final videoUrl = '$baseUrl/api/gallery/${widget.asset.id}/file';
+      final videoUrl = '$baseUrl/API/gallery/${widget.asset.id}/file';
 
       final controller = VideoPlayerController.networkUrl(
         Uri.parse(videoUrl),

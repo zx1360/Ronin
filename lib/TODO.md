@@ -1,3 +1,8 @@
+基于immich http的二次开发:
+https://api.immich.app/endpoints/api-keys
+http://localhost:2283/doc
+http://localhost:2283/api/spec.json
+
 treasure页:
 与monarch联动, 以后引入photoprism, 根据tags或文本识别内容检索图片, 类似小米相册plus.
 对于图片类的提供拖拽四边裁切功能, (将相关数据发送至monarch让gallery执行).

@@ -341,7 +341,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       _precachedIds.add(asset.id);
 
       if (asset.isImage) {
-        final imageUrl = '$baseUrl/api/gallery/${asset.id}/file';
+        final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
         precacheImage(
           CachedNetworkImageProvider(imageUrl, headers: headers),
           context,
