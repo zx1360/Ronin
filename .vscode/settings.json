@@ -1,0 +1,40 @@
+{
+  "chat.tools.terminal.autoApprove": {
+    "/^git count-objects -vH$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git rev-list --objects --all \\| git cat-file --batch-check='%\\(objecttype\\) %\\(objectname\\) %\\(objectsize\\) %\\(rest\\)' \\| Select-String '\\^blob' \\| ForEach-Object \\{ \\$_\\.Line \\} \\| ForEach-Object \\{ \\$parts = \\$_ -split ' '; \\[pscustomobject\\]@\\{size=\\[int64\\]\\$parts\\[2\\]; hash=\\$parts\\[1\\]; path=\\(\\$parts\\[3\\.\\.\\(\\$parts\\.Length-1\\)\\] -join ' '\\)\\} \\} \\| Sort-Object size -Descending \\| Select-Object -First 20$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git rm --cached -r -- tmp; git rm --cached -- '\\*\\.exe'$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^Get-Command git-filter-repo$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^python -m pip install git-filter-repo$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git add \\.gitignore; git commit -m \"Ignore tmp and exe artifacts\"$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git rm -r --cached -- tmp; git rm --cached -- \"\\*\\.exe\"$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git filter-repo --force --path tmp/ --path-glob \"\\*\\.exe\" --invert-paths$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^git reflog expire --expire=now --all; git gc --prune=now --aggressive$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
+  }
+}
