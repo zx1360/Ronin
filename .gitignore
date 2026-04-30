@@ -4,3 +4,12 @@ static/
 .env
 # 证书和私钥
 cert/
+
+# 构建产物与临时目录
+tmp/
+*.exe
+
+.venv/
+venv/
+env/
+__pycache__/
