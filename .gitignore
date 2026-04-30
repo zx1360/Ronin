@@ -8,7 +8,7 @@ cert/
 # 构建产物与临时目录
 tmp/
 *.exe
-
+# Python虚拟环境
 .venv/
 venv/
 env/
