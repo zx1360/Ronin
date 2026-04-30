@@ -17,6 +17,11 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+# Python虚拟环境
+.venv/
+venv/
+env/
+__pycache__/
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
