@@ -15,11 +15,13 @@ import (
 	"strings"
 	"sync"
 
+	_ "golang.org/x/image/webp"
+
 	"gizmos/internal/comics/model"
 )
 
 const (
-	supportImageExts = ".jpg,.jpeg,.png,.gif"
+	supportImageExts = ".jpg,.jpeg,.png,.gif,.webp"
 	maxConcurrency   = 32
 )
 
