@@ -11,6 +11,9 @@
 		{
 			"name": "Desktop App(Flutter)",
 			"path": "desktop"
+		},
+		{
+			"path": "."
 		}
 	],
 	"settings": {
