@@ -1,0 +1,58 @@
+{
+	"folders": [
+		{
+			"name": "Backend(Go)",
+			"path": "backend"
+		},
+		{
+			"name": "Android App(Flutter)",
+			"path": "android"
+		},
+		{
+			"name": "Desktop App(Flutter)",
+			"path": "desktop"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true,
+			"**/.dart_tool": true,
+			"**/build": true,
+			"**/.idea": true,
+			"**/.fvm": true,
+			"**/.vscode": true,
+			"**/.venv": true,
+			"**/.flutter-plugins": true,
+      "**/.flutter-plugins-dependencies": true,
+      "**/.packages": true,
+
+			"**/.metadata": true,
+			"**/android/.gradle": true,
+			"*.lnk": true,
+		},
+		"search.exclude": {
+			"**/build": true,
+			"**/.dart_tool": true,
+			"**/vendor": true,
+
+			"**/.dart_tool/**": true,
+			"**/*.exe": true,
+			"**/*.log": true,
+			"**/android/.gradle": true,
+			"**/.flutter-plugins": true,
+      "**/.flutter-plugins-dependencies": true,
+      "**/.packages": true,
+		}
+	},
+	"files.watcherExclude": {
+      "**/.git/objects/**": true,
+      "**/.git/subtree-cache/**": true,
+      "**/.dart_tool/**": true,
+      "**/build/**": true,
+      "**/vendor/**": true,
+      "**/android/.gradle/**": true,
+      "**/ios/Pods/**": true,
+      "**/coverage/**": true,
+      "**/*.exe": true
+    }
+}
