@@ -1,0 +1,499 @@
+basePath: /
+definitions:
+  model.BatchData:
+    properties:
+      media_assets:
+        items:
+          $ref: '#/definitions/model.MediaAsset'
+        type: array
+      media_tag_links:
+        items:
+          $ref: '#/definitions/model.MediaTagLink'
+        type: array
+      tags:
+        items:
+          $ref: '#/definitions/model.Tag'
+        type: array
+    type: object
+  model.ChapterInfo:
+    properties:
+      chapter_index:
+        type: integer
+      comic_id:
+        type: string
+      dir_name:
+        type: string
+      id:
+        type: string
+      image_count:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/model.ImageInfo'
+        type: array
+    type: object
+  model.ComicInfo:
+    properties:
+      chapter_count:
+        type: integer
+      cover_image:
+        type: string
+      id:
+        type: string
+      image_count:
+        type: integer
+      title:
+        type: string
+    type: object
+  model.ComicTotalMetaData:
+    properties:
+      book_count:
+        type: integer
+      total_chapter_count:
+        type: integer
+      total_image_count:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  model.ImageInfo:
+    properties:
+      height:
+        type: integer
+      path:
+        type: string
+      width:
+        type: integer
+    type: object
+  model.MediaAsset:
+    properties:
+      captured_at:
+        type: string
+      created_at:
+        type: string
+      file_path:
+        type: string
+      group_id:
+        type: string
+      hash:
+        items:
+          type: integer
+        type: array
+      id:
+        type: string
+      is_deleted:
+        type: boolean
+      message:
+        type: string
+      mime_type:
+        type: string
+      preview_path:
+        type: string
+      size_bytes:
+        type: integer
+      sync_count:
+        type: integer
+      thumb_path:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  model.MediaTagLink:
+    properties:
+      media_id:
+        type: string
+      tag_id:
+        type: string
+    type: object
+  model.PushResponse:
+    properties:
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  model.Tag:
+    properties:
+      created_at:
+        type: string
+      full_path:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      parent_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  model.TagsResponse:
+    properties:
+      tags:
+        items:
+          $ref: '#/definitions/model.Tag'
+        type: array
+    type: object
+info:
+  contact: {}
+  description: Go HTTP server as the single source of truth for client integration.
+  title: Monarch API
+  version: "1.0"
+paths:
+  /api/comic/chapter-info/{chapter-id}:
+    get:
+      parameters:
+      - description: 章节ID
+        in: path
+        name: chapter-id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.ChapterInfo'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取指定章节详情（含图片）
+      tags:
+      - comic
+  /api/comic/comic-info:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.ComicInfo'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: 获取全部漫画列表
+      tags:
+      - comic
+  /api/comic/comic-info/{comic-id}:
+    get:
+      parameters:
+      - description: 漫画ID
+        in: path
+        name: comic-id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.ChapterInfo'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: 获取指定漫画的章节列表
+      tags:
+      - comic
+  /api/comic/download/{comic-id}:
+    get:
+      parameters:
+      - description: 漫画ID
+        in: path
+        name: comic-id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.ChapterInfo'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: 下载整部漫画清单
+      tags:
+      - comic
+  /api/comic/meta-info:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.ComicTotalMetaData'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取漫画汇总元数据
+      tags:
+      - comic
+  /api/gallery/{id}/{type}:
+    get:
+      parameters:
+      - description: 媒体ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: '文件类型: file | thumb | preview'
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 下载媒体原图/缩略图/预览图
+      tags:
+      - gallery
+  /api/gallery/batch:
+    get:
+      description: 返回媒体资产、全量标签及媒体标签关联
+      parameters:
+      - description: 返回条数（默认 50，最大 10000）
+        in: query
+        name: limit
+        type: integer
+      - description: 偏移量（默认 0）
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.BatchData'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 分页获取媒体批次数据
+      tags:
+      - gallery
+  /api/gallery/push:
+    post:
+      consumes:
+      - application/json
+      description: 客户端全量/增量推送媒体资产、标签和标签关联
+      parameters:
+      - description: 推送数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.BatchData'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.PushResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 推送媒体与标签数据
+      tags:
+      - gallery
+  /api/gallery/tags:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.TagsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取完整标签树
+      tags:
+      - gallery
+  /api/ops/overview:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取服务端运行概览
+      tags:
+      - util
+  /api/test:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 健康检查
+      tags:
+      - util
+  /api/user-data/backup/{module}:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 接收模块 JSON 数据与图片文件并覆盖保存到服务器目录
+      parameters:
+      - description: 模块名称
+        in: path
+        name: module
+        required: true
+        type: string
+      - description: JSON 字段集合，键名对应目标文件名（不含扩展名）
+        in: formData
+        name: jsonData
+        required: true
+        type: string
+      - description: 待上传的图片文件（可多文件）
+        in: formData
+        name: files
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 备份指定模块的数据
+      tags:
+      - user-data
+  /api/user-data/sync/{module}:
+    get:
+      consumes:
+      - application/json
+      description: 读取指定模块的所有JSON配置文件，合并后返回
+      parameters:
+      - description: 模块名称
+        in: path
+        name: module
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功返回合并后的JSON数据
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: 模块未找到
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 同步指定模块的数据
+      tags:
+      - user-data
+schemes:
+- http
+- https
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
+swagger: "2.0"
