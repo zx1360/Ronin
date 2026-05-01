@@ -23,4 +23,4 @@ powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
 
 ## 数据库信息
 
-本地运行PostgreSQL18.0, 数据表以及触发器相关定义可查看`./README_db.md`文件.
+本地运行PostgreSQL18.0, 数据表以及触发器相关定义可查看`./AGENTS_DB.md`文件.
