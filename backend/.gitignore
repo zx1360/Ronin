@@ -1,0 +1,15 @@
+# 媒体文件数据
+static/
+# 敏感配置信息
+.env
+# 证书和私钥
+cert/
+
+# 构建产物与临时目录
+tmp/
+*.exe
+# Python虚拟环境
+.venv/
+venv/
+env/
+__pycache__/
