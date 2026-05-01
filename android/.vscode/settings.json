@@ -1,0 +1,24 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^git rev-parse --is-inside-work-tree; git count-objects -vH$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git rev-list --objects --all \\| git cat-file --batch-check='%\\(objecttype\\) %\\(objectname\\) %\\(objectsize\\) %\\(rest\\)' \\| Sort-Object \\{\\[int64\\]\\(\\$_\\.Split\\(' '\\)\\[2\\]\\)\\} -Descending \\| Select-Object -First 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git filter-repo --help$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^d:/products/flutter/torrid/\\.venv/Scripts/python\\.exe -m git_filter_repo --path-glob 'assets/fonts/\\*\\.ttf' --path-glob 'assets/fonts/\\*\\.ttc' --path-glob 'assets/images/\\*\\.jpg' --path-glob 'assets/images/\\*\\.png' --path-glob 'assets/videos/\\*\\.mp4' --path-glob 'md_assets/\\*\\.jpg' --path-glob 'md_assets/\\*\\.png' --invert-paths --force$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git count-objects -vH$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
