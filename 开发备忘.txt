@@ -1,0 +1,5 @@
+comics 封面图可替换, northstar+monarch同步更改.
+
+postgres:
+删去comic_summary 数据表.
+可考虑删去comic_books.chapter_count/imagecount和comic_chapters.image_count字段. 而采用实时计算.
