@@ -52,7 +52,7 @@ final List<RouteBase> routes = [
     builder: (context, state) => const EssayBrowsePage(),
   ),
 
-  // 待办页,
+  // 库存页,
   GoRoute(
     path: "/library",
     name: "library",
