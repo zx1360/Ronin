@@ -1,0 +1,66 @@
+name: northstar
+description: "A new Flutter project."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # ----windows----
+  # 应用窗口管理
+  window_manager: ^0.5.1
+  # 托盘管理
+  system_tray: ^2.0.0
+
+
+  # ----运行依赖----
+  # 状态管理riverpod
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+  # 本地数据持久化
+  shared_preferences: ^2.5.3
+  # 路由管理
+  go_router: ^16.2.4
+  # 工具包类别
+  path: ^1.9.1
+  logging: ^1.3.0
+  # 文件选择器
+  file_picker: ^10.3.3
+
+
+  # ----网络相关----
+  # 网络请求
+  http: ^1.5.0
+
+  # ----更好的显示----
+  # 时间格式化
+  intl: ^0.20.2
+
+  cupertino_icons: ^1.0.8
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  # 开发时依赖
+  build_runner: ^2.4.6
+  riverpod_generator: ^2.3.9
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/cert/
+    - assets/images/
+    - assets/icons/
+
+  fonts:
+    # iconfont图标文字
+    - family: iconfont
+      fonts:
+        - asset: assets/fonts/iconfont.ttf
