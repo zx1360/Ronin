@@ -16,6 +16,8 @@ import (
 	"gizmos/internal/service/db"
 )
 
+// TODO: 修改, 此处不要用默认路径+启动参数变更.
+// 在桌面ui初次使用时从用户获取, 否则当前目录下的下一级目录. (持久化保存.)
 const (
 	defaultGalleryDir = "D:\\Assests\\Gallery"
 )

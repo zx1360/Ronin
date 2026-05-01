@@ -1,5 +1,20 @@
+gallery模块:
+对于图片, 提供裁切/涂鸦. (后端做好支持, 也许需要重构通信json结构之类的).
+对于视频, 提供简单的去头去尾的剪辑, 以及选取开始帧结束帧生成新小视频片段.
+添加图片旋转功能, 改变图片的方向.
+
+northstar:
+可以之后考虑一下要不要存到appdata里, 或者是应用目录里. (稍微清理一下appdata的northstar数据, 有15份).
 comics 封面图可替换, northstar+monarch同步更改.
 
 postgres:
 删去comic_summary 数据表.
 可考虑删去comic_books.chapter_count/imagecount和comic_chapters.image_count字段. 而采用实时计算.
+
+
+
+
+
+--------------
+zx1360.github.io
+问ds, 也许加点网页功能.
