@@ -1,0 +1,41 @@
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 临时文件
+*.tmp
+*.bak
+*.log
+
+# 通用构建输出（每个项目内部已有更具体的，但这里兜底）
+**/build/
+**/dist/
+**/out/
+
+# 依赖缓存（兜底）
+**/node_modules/
+**/vendor/
+
+# Flutter 生成的插件文件（如果子项目没忽略干净）
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.metadata
+
+# Dart
+**/.dart_tool/
+**/.pub/
+
+# Go 编译产物
+*.exe
+*.test
+*.out
+
+# 测试覆盖率
+**/coverage/
+
+# 环境变量文件（绝对不要提交）
+.env
+.env.*
