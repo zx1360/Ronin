@@ -17,16 +17,32 @@ gallery模块:
 添加图片旋转功能, 改变图片的方向.
 
 ## Desktop App:
-northstar:
-可以之后考虑一下要不要存到appdata里, 或者是应用目录里. (稍微清理一下appdata的northstar数据, 有15份).
-comics 封面图可替换, northstar+monarch同步更改.
+
 
 ## 数据库:
-postgres:
-删去comic_summary 数据表.
-可考虑删去comic_books.chapter_count/imagecount和comic_chapters.image_count字段. 而采用实时计算.
 
 
+
+----
+3. 后端数据库(涉及数据表结构变动, 先给出表结构更改sql和迁移sql我完成更改后你再执行后续操作):
+删去comic_summary数据表, 如果有依赖于该表数据的地方, 替换为实时计算得出.
+考虑维护难度和数据同一性方面, 是否推荐删去comic_books.chapter_count/imagecount和comic_chapters.image_count字段. 而采用实时计算?
+更改漫画资源的数据表结构. 新增isPublic, readed布尔字段, 新增source的text字段.
+desktop: 
+任务管理页删除对于危险操作时的输入指定内容以确认运行的功能, 只需当前保留ui层对于标记为危险操作的提示即可.
+新增一个ComicsPage, 漫画资源页. 由两部分组成:
+一是内容是管理当前的漫画资源.
+对于每个漫画可以设置其isPublic值(在安卓端, 标记为isPublic=false的漫画隐藏掉). 
+选中某个漫画并点击"删除"按钮, 将从文件系统中删除该本漫画的资源, 一并删除该本漫画资源在数据库中的所有相关记录.
+当前每个漫画的封面图路径cover_image值默认为该本漫画第一章节第一个图片, 添加封面图可替换的功能, 调出文件选择器实现. (该字段的值时一个相对路径, 处理好可能的问题.)
+二是漫画连载追踪页面.
+可以根据设定的source字段(漫画网站的该漫画详细页url)选择某一预输入的爬虫脚本(python/或者打包的exe).增量更新. 并在安卓端如果已下载该漫画可以点击增量更新下载.(monarch->torrid).
+android:
+漫画模块, 对于某漫画的详细页, 添加"标记readed"的逻辑, 表示该漫画已看完.
+右上角按钮呼出的菜单加入一个"同步状态", 将本地标记为readed的漫画信息发送给后端服务器, 并检查所有已存于本地的漫画在服务器是否有更多新章节, 如果有则自动加入下载队列开始增量更新.
+backend:
+做好相应的接口和实现.
+----
 
 
 
