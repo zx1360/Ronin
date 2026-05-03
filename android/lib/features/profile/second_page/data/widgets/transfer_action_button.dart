@@ -76,11 +76,13 @@ class TransferActionButton extends ConsumerWidget {
 
   IconData _getIcon() {
     if (action.type == TransferType.sync) {
-      return isAll
-          ? Icons.download
-          : action.target == TransferTarget.booklet
-          ? Icons.check_circle
-          : Icons.note;
+      if (isAll) return Icons.download;
+      return switch (action.target) {
+        TransferTarget.booklet => Icons.check_circle,
+        TransferTarget.essay => Icons.note,
+        TransferTarget.preferences => Icons.tune,
+        _ => Icons.download,
+      };
     } else {
       return isAll ? Icons.upload : Icons.upload_file;
     }
