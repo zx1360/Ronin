@@ -207,6 +207,14 @@ class _SyncSection extends ConsumerWidget {
             label: "同步随笔",
           ),
         ),
+        const SizedBox(height: AppSpacing.sm),
+        TransferActionButton(
+          action: TransferAction(
+            type: TransferType.sync,
+            target: TransferTarget.preferences,
+            label: "同步偏好",
+          ),
+        ),
       ],
     );
   }
@@ -243,6 +251,14 @@ class _BackupSection extends ConsumerWidget {
             type: TransferType.backup,
             target: TransferTarget.essay,
             label: "备份随笔",
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TransferActionButton(
+          action: TransferAction(
+            type: TransferType.backup,
+            target: TransferTarget.preferences,
+            label: "备份偏好",
           ),
         ),
       ],

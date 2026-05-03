@@ -15,7 +15,7 @@ class OpsSettings {
     return const OpsSettings(
       apiBaseUrl: 'http://127.0.0.1:7275',
       apiKey: '',
-      autoRefreshSeconds: 10,
+      autoRefreshSeconds: 300,
       hideApiKey: true,
     );
   }
@@ -39,9 +39,9 @@ class OpsSettings {
       apiBaseUrl: (json['apiBaseUrl'] ?? 'http://127.0.0.1:7275').toString(),
       apiKey: (json['apiKey'] ?? '').toString(),
       autoRefreshSeconds: int.tryParse(
-            (json['autoRefreshSeconds'] ?? '10').toString(),
+            (json['autoRefreshSeconds'] ?? '300').toString(),
           ) ??
-          10,
+          300,
       hideApiKey: json['hideApiKey'] != false,
     );
   }

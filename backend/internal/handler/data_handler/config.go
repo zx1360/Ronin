@@ -35,6 +35,13 @@ var Modules = []ModuleConfig{
 		},
 		ImageDir: filepath.Join(AppDir, "static", "img_storage", "essay"),
 	},
+	{
+		Name: "preferences",
+		JSONFiles: []string{
+			filepath.Join(AppDir, "static", "preferences", "preferences.json"),
+		},
+		ImageDir: filepath.Join(AppDir, "static", "img_storage", "preferences"),
+	},
 	// 在这里添加更多模块...
 	// {
 	//  Name: "new_module",
