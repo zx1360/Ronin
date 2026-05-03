@@ -11,7 +11,7 @@ import (
 
 // 配置项（全局唯一配置点）
 const (
-	defaultComicRoot = "D:\\products\\Go\\monarch\\static\\comics"
+	defaultComicRoot = "D:\\products\\Ronin\\backend\\static\\comics"
 )
 
 func main() {
