@@ -62,11 +62,6 @@ zx1360.github.io
 
 # 提示词模板:
 
-[改动描述]
-请帮我完成以下跨项目改动：
-1. backend: 
-2. android: 
-
 项目结构参考各目录下的 AGENTS.md，
 契约文件参考 backend/references/api/。
 
@@ -76,4 +71,7 @@ zx1360.github.io
 - android: android/AGENTS.md
 - desktop: desktop/AGENTS.md
 
-
+[改动描述]
+请帮我完成以下跨项目改动：
+1. backend: 
+2. android: 
