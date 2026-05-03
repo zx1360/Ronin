@@ -5,6 +5,7 @@
 /// 使用 Notifier 模式避免 Provider 初始化时修改其他 Provider 的问题。
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -16,6 +17,9 @@ import 'package:torrid/features/profile/second_page/data/models/transfer_progres
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/services/personalization/personalization_service.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/providers/personalization/personalization_providers.dart';
 
 part 'transfer_controller.g.dart';
 
@@ -68,6 +72,9 @@ class TransferController extends _$TransferController {
     // 同步随笔
     results.add(await _syncEssay());
 
+    // 同步偏好
+    results.add(await _syncPreferences());
+
     return _combineResults(results, TransferType.sync, startTime);
   }
 
@@ -86,6 +93,9 @@ class TransferController extends _$TransferController {
     // 备份随笔
     results.add(await _backupEssay());
 
+    // 备份偏好
+    results.add(await _backupPreferences());
+
     return _combineResults(results, TransferType.backup, startTime);
   }
 
@@ -103,6 +113,7 @@ class TransferController extends _$TransferController {
       TransferTarget.all => throw StateError('Use syncAll() for all targets'),
       TransferTarget.booklet => _syncBooklet(),
       TransferTarget.essay => _syncEssay(),
+      TransferTarget.preferences => _syncPreferences(),
     };
   }
 
@@ -225,6 +236,7 @@ class TransferController extends _$TransferController {
       TransferTarget.all => throw StateError('Use backupAll() for all targets'),
       TransferTarget.booklet => _backupBooklet(),
       TransferTarget.essay => _backupEssay(),
+      TransferTarget.preferences => _backupPreferences(),
     };
   }
 
@@ -308,6 +320,297 @@ class TransferController extends _$TransferController {
         elapsed: DateTime.now().difference(startTime),
       );
     }
+  }
+
+  // ===========================================================================
+  // 私有方法 - 偏好设置同步/备份
+  // ===========================================================================
+
+  Future<TransferResult> _syncPreferences() async {
+    final startTime = DateTime.now();
+
+    _updateState(
+      type: TransferType.sync,
+      target: TransferTarget.preferences,
+      status: TransferStatus.preparing,
+      message: '正在获取偏好数据...',
+    );
+
+    try {
+      // 1. 获取数据
+      final resp = await ref.read(
+        fetcherProvider(path: "/API/user-data/sync/preferences").future,
+      );
+      if (resp == null || resp.statusCode != 200) {
+        throw Exception("获取偏好数据失败");
+      }
+
+      // 2. 收集图片URL（扁平化，服务器端存储为扁平的）
+      final data = resp.data;
+      final imageUrls = _extractPreferencesImageUrls(data);
+
+      // 3. 下载图片到 img_storage/preferences/ （扁平目录）
+      if (imageUrls.isNotEmpty) {
+        final result = await _downloadImages(
+          urls: imageUrls,
+          relativeDir: "img_storage/preferences",
+        );
+
+        if (!result.success) {
+          _completeTransfer(false, result.message, result.failedItems);
+          return result._withElapsed(startTime);
+        }
+      }
+
+      // 4. 图片下载完成后，应用到本地（会重建子目录结构）
+      await _applyPreferencesData(data);
+
+      _completeTransfer(true, '偏好数据同步完成');
+      return TransferResult.success(
+        message: '偏好数据同步成功',
+        successCount: imageUrls.length,
+        elapsed: DateTime.now().difference(startTime),
+      );
+    } catch (e) {
+      AppLogger().error("同步偏好数据出错: $e");
+      _completeTransfer(false, '偏好同步失败', null, e.toString());
+      return TransferResult.failed(
+        message: '偏好同步失败: $e',
+        elapsed: DateTime.now().difference(startTime),
+      );
+    }
+  }
+
+  Future<TransferResult> _backupPreferences() async {
+    final startTime = DateTime.now();
+
+    try {
+      // 打包偏好数据
+      final packData = await _packPreferencesData();
+
+      // 收集图片文件
+      final externalDir = await IoService.externalStorageDir;
+      final List<File> files = [];
+      for (final imgPath in packData.imagePaths) {
+        final f = File(p.join(externalDir.path, imgPath));
+        if (await f.exists()) {
+          files.add(f);
+        }
+      }
+
+      _updateState(
+        type: TransferType.backup,
+        target: TransferTarget.preferences,
+        status: TransferStatus.preparing,
+        total: files.length + 1,
+        message: '正在备份偏好数据...',
+      );
+
+      final result = await _uploadData(
+        path: "/API/user-data/backup/preferences",
+        jsonData: packData.jsonData,
+        files: files,
+      );
+
+      _completeTransfer(result.success, result.message);
+      return result._withElapsed(startTime);
+    } catch (e) {
+      AppLogger().error("备份偏好数据出错: $e");
+      _completeTransfer(false, '偏好备份失败', null, e.toString());
+      return TransferResult.failed(
+        message: '偏好备份失败: $e',
+        elapsed: DateTime.now().difference(startTime),
+      );
+    }
+  }
+
+  /// 应用偏好数据到本地
+  /// 下载的图片在 img_storage/preferences/ 扁平目录中，需要按路径重组到子目录
+  Future<void> _applyPreferencesData(Map<String, dynamic> data) async {
+    final prefsData = data['preferences'];
+    if (prefsData == null || prefsData is! Map) return;
+
+    final externalDir = await IoService.externalStorageDir;
+    final flatDir = p.join(externalDir.path, 'img_storage', 'preferences');
+
+    // 辅助函数：将扁平目录中的图片移动到目标子目录路径
+    Future<String?> relocateImage(String targetPath) async {
+      if (targetPath.isEmpty) return targetPath;
+      final basename = p.basename(targetPath);
+      final flatFile = File(p.join(flatDir, basename));
+      if (!await flatFile.exists()) return targetPath; // 文件不存在则保留原路径
+      final destFile = File(p.join(externalDir.path, targetPath));
+      if (await destFile.exists()) await destFile.delete();
+      final destDir = destFile.parent;
+      if (!await destDir.exists()) await destDir.create(recursive: true);
+      await flatFile.copy(destFile.path);
+      await flatFile.delete(); // 清理扁平目录中的临时文件
+      return targetPath;
+    }
+
+    // 合并背景图片列表
+    final bgList = (prefsData['backgroundImages'] as List?)
+        ?.map((e) => e.toString())
+        .toList() ?? [];
+    // 合并侧边栏图片列表
+    final sbList = (prefsData['sidebarImages'] as List?)
+        ?.map((e) => e.toString())
+        .toList() ?? [];
+    // 合并座右铭列表
+    final mottoList = (prefsData['mottos'] as List?)
+        ?.map((e) => e.toString())
+        .toList() ?? [];
+    // 昵称、签名、头像
+    final nickname = (prefsData['nickname'] ?? '').toString();
+    final signature = (prefsData['signature'] ?? '').toString();
+    final rawAvatarPath = prefsData['avatarPath']?.toString() ?? '';
+
+    // 移动背景图片到正确子目录
+    final relocatedBg = <String>[];
+    for (final img in bgList) {
+      if (img.isNotEmpty) {
+        final relocated = await relocateImage(img);
+        if (relocated != null) relocatedBg.add(relocated);
+      }
+    }
+    // 移动侧边栏图片到正确子目录
+    final relocatedSb = <String>[];
+    for (final img in sbList) {
+      if (img.isNotEmpty) {
+        final relocated = await relocateImage(img);
+        if (relocated != null) relocatedSb.add(relocated);
+      }
+    }
+    // 移动头像
+    final relocatedAvatar = rawAvatarPath.isNotEmpty
+        ? await relocateImage(rawAvatarPath)
+        : null;
+
+    final service = PersonalizationService();
+    final settings = service.getSettings();
+
+    final merged = settings.copyWith(
+      backgroundImages: relocatedBg,
+      sidebarImages: relocatedSb,
+      mottos: mottoList.isNotEmpty ? mottoList : settings.mottos,
+      nickname: nickname.isNotEmpty ? nickname : settings.nickname,
+      signature: signature.isNotEmpty ? signature : settings.signature,
+      avatarPath: relocatedAvatar?.isNotEmpty == true ? relocatedAvatar : null,
+    );
+
+    await service.saveSettings(merged);
+
+    // 同步网络配置
+    final networkConfig = prefsData['networkConfig'];
+    if (networkConfig is Map<String, dynamic>) {
+      final prefs = PrefsService().prefs;
+      final apiKey = networkConfig['apiKey'];
+      if (apiKey != null && apiKey.toString().isNotEmpty) {
+        await prefs.setString('API_KEY', apiKey.toString());
+      }
+      final hostList = networkConfig['hostList'];
+      if (hostList != null && hostList.toString().isNotEmpty) {
+        await prefs.setString('PC_HOST_LIST', hostList.toString());
+      }
+      final activeIndex = networkConfig['activeIndex'];
+      if (activeIndex != null) {
+        await prefs.setInt('PC_ACTIVE_INDEX', int.tryParse(activeIndex.toString()) ?? 0);
+      }
+    }
+
+    // 清理扁平下载目录
+    _cleanupFlatDir(flatDir);
+
+    // 通知 appSettingsProvider 刷新，让 UI 即时响应
+    ref.read(appSettingsProvider.notifier).refresh();
+
+    AppLogger().info("偏好数据同步完成");
+  }
+
+  /// 清理扁平下载目录中的残留文件
+  Future<void> _cleanupFlatDir(String flatDir) async {
+    try {
+      final dir = Directory(flatDir);
+      if (await dir.exists()) {
+        final entities = await dir.list().toList();
+        if (entities.isEmpty) {
+          await dir.delete(recursive: true);
+        }
+      }
+    } catch (_) {
+      // 忽略清理错误
+    }
+  }
+
+  /// 打包偏好数据用于备份
+  Future<_PreferencesPackData> _packPreferencesData() async {
+    final service = PersonalizationService();
+    final settings = service.getSettings();
+    final prefs = PrefsService().prefs;
+
+    // 打包网络配置
+    final networkConfig = {
+      'apiKey': prefs.getString('API_KEY') ?? '',
+      'hostList': prefs.getString('PC_HOST_LIST') ?? '',
+      'activeIndex': prefs.getInt('PC_ACTIVE_INDEX') ?? 0,
+    };
+
+    // 打包偏好 JSON
+    final preferencesJson = {
+      'backgroundImages': settings.backgroundImages,
+      'sidebarImages': settings.sidebarImages,
+      'mottos': settings.mottos,
+      'nickname': settings.nickname,
+      'signature': settings.signature,
+      'avatarPath': settings.avatarPath ?? '',
+      'networkConfig': networkConfig,
+    };
+
+    // 收集所有图片路径
+    final imagePaths = <String>[
+      ...settings.backgroundImages,
+      ...settings.sidebarImages,
+      if (settings.avatarPath != null) settings.avatarPath!,
+    ];
+
+    // 遵循与 booklet/essay 一致的 packUp 契约：
+    // 以 jsonData 为 key，整个 JSON 对象序列化为字符串
+    return _PreferencesPackData(
+      jsonData: {
+        'jsonData': jsonEncode({
+          'preferences': preferencesJson,
+        }),
+      },
+      imagePaths: imagePaths,
+    );
+  }
+
+  /// 提取偏好数据中的图片URL
+  List<String> _extractPreferencesImageUrls(dynamic data) {
+    final urls = <String>[];
+    final prefs = data['preferences'];
+    if (prefs is Map) {
+      // 背景图片
+      final bgList = prefs['backgroundImages'] as List? ?? [];
+      for (final img in bgList) {
+        if (img != null && img.toString().isNotEmpty) {
+          urls.add('img_storage/preferences/${p.basename(img.toString())}');
+        }
+      }
+      // 侧边栏图片
+      final sbList = prefs['sidebarImages'] as List? ?? [];
+      for (final img in sbList) {
+        if (img != null && img.toString().isNotEmpty) {
+          urls.add('img_storage/preferences/${p.basename(img.toString())}');
+        }
+      }
+      // 头像
+      final avatar = prefs['avatarPath']?.toString();
+      if (avatar != null && avatar.isNotEmpty) {
+        urls.add('img_storage/preferences/${p.basename(avatar)}');
+      }
+    }
+    return urls;
   }
 
   // ===========================================================================
@@ -659,4 +962,15 @@ extension _TransferResultExtension on TransferResult {
       elapsed: DateTime.now().difference(startTime),
     );
   }
+}
+
+/// 偏好数据打包结果（内部使用）
+class _PreferencesPackData {
+  final Map<String, dynamic> jsonData;
+  final List<String> imagePaths;
+
+  const _PreferencesPackData({
+    required this.jsonData,
+    required this.imagePaths,
+  });
 }

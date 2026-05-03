@@ -103,7 +103,7 @@ class OpsOverviewController extends _$OpsOverviewController {
 
   void _restartTimer(int seconds) {
     _timer?.cancel();
-    final safeSeconds = seconds <= 0 ? 10 : seconds;
+    final safeSeconds = seconds <= 0 ? 300 : seconds;
     _timer = Timer.periodic(Duration(seconds: safeSeconds), (_) async {
       await refresh();
     });

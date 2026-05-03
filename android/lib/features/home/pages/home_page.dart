@@ -6,8 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
+import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/home/widgets/default_background.dart';
 import 'package:torrid/features/home/widgets/menu_button.dart';
+import 'package:torrid/providers/personalization/personalization_providers.dart';
 
 // 将魔法数字提取为常量，提高可维护性
 const double _menuWidthRatio = 0.7;
@@ -46,6 +48,7 @@ class _HomePageState extends ConsumerState<HomePage>
   String? _sidebarImagePath;
   File? _bgFile;
   File? _sidebarFile;
+  bool _isReloading = false; // 防止并发重载
 
   final List<ButtonInfo> _buttonInfos = [
     const ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
@@ -82,26 +85,40 @@ class _HomePageState extends ConsumerState<HomePage>
       end: 0.5,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
-    // 初始化个性化配置
-    _initPersonalization();
+    // 初始化个性化配置（首次加载）
+    _reloadPersonalization();
   }
 
-  /// 初始化个性化配置
-  Future<void> _initPersonalization() async {
-    _motto = _personalizationService.getRandomMotto();
-    _sidebarImagePath = _personalizationService.getRandomSidebarImage();
+  /// 重新加载个性化配置（背景、侧边栏、座右铭）
+  Future<void> _reloadPersonalization() async {
+    if (_isReloading) return;
+    _isReloading = true;
+    try {
+      _motto = _personalizationService.getRandomMotto();
+      _sidebarImagePath = _personalizationService.getRandomSidebarImage();
 
-    // 加载背景图片文件
-    if (widget.bgPath != null && widget.bgPath!.isNotEmpty) {
-      _bgFile = await IoService.getImageFile(widget.bgPath!);
+      // 优先使用传入的 bgPath，否则随机选择
+      final bgPath = widget.bgPath;
+      final effectivePath = (bgPath != null && bgPath.isNotEmpty)
+          ? bgPath
+          : _personalizationService.getRandomBackgroundImage();
+
+      if (effectivePath != null && effectivePath.isNotEmpty) {
+        _bgFile = await IoService.getImageFile(effectivePath);
+      } else {
+        _bgFile = null;
+      }
+
+      if (_sidebarImagePath != null) {
+        _sidebarFile = await IoService.getImageFile(_sidebarImagePath!);
+      } else {
+        _sidebarFile = null;
+      }
+
+      if (mounted) setState(() {});
+    } finally {
+      _isReloading = false;
     }
-
-    // 加载侧边栏图片文件
-    if (_sidebarImagePath != null) {
-      _sidebarFile = await IoService.getImageFile(_sidebarImagePath!);
-    }
-
-    if (mounted) setState(() {});
   }
 
   @override
@@ -128,6 +145,13 @@ class _HomePageState extends ConsumerState<HomePage>
 
   @override
   Widget build(BuildContext context) {
+    // 监听偏好设置变化，即时刷新背景图 / 座右铭
+    ref.listen<AppSettings>(appSettingsProvider, (prev, next) {
+      if (prev != next) {
+        _reloadPersonalization();
+      }
+    });
+
     final size = MediaQuery.of(context).size;
     final menuWidth = size.width * _menuWidthRatio;
 

@@ -45,6 +45,32 @@
 			"**/.flutter-plugins": true,
       "**/.flutter-plugins-dependencies": true,
       "**/.packages": true,
+		},
+		"chat.tools.terminal.autoApprove": {
+			"/^cd d:\\\\products\\\\Ronin\\\\backend; go build \\./\\.\\.\\.$/": {
+				"approve": true,
+				"matchCommandLine": true
+			},
+			"/^Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; cd d:\\\\products\\\\Ronin\\\\backend; \\.\\\\references\\\\scripts\\\\generate_refs\\.ps1$/": {
+				"approve": true,
+				"matchCommandLine": true
+			},
+			"/^cd d:\\\\products\\\\Ronin\\\\backend; go vet \\./\\.\\.\\.$/": {
+				"approve": true,
+				"matchCommandLine": true
+			},
+			"/^Push-Location d:\\\\products\\\\Ronin\\\\android; flutter analyze lib/features/home/pages/home_page\\.dart; Pop-Location$/": {
+				"approve": true,
+				"matchCommandLine": true
+			},
+			"/^Push-Location d:\\\\products\\\\Ronin\\\\android; flutter analyze lib/features/home/pages/splash_page\\.dart lib/features/profile/second_page/data/services/transfer_controller\\.dart; Pop-Location$/": {
+				"approve": true,
+				"matchCommandLine": true
+			},
+			"/^Push-Location d:\\\\products\\\\Ronin\\\\android; flutter analyze lib/features/home/pages/home_page\\.dart lib/features/home/pages/splash_page\\.dart lib/features/profile/second_page/data/services/transfer_controller\\.dart lib/features/profile/second_page/data/models/transfer_progress\\.dart lib/features/profile/second_page/data/views/data_transfer_page\\.dart lib/features/profile/second_page/data/widgets/transfer_action_button\\.dart; Pop-Location$/": {
+				"approve": true,
+				"matchCommandLine": true
+			}
 		}
 	},
 	"files.watcherExclude": {

@@ -14,6 +14,7 @@ enum TransferTarget {
   all, // 所有数据
   booklet, // 打卡数据
   essay, // 随笔数据
+  preferences, // 偏好数据
 }
 
 /// 传输状态
@@ -78,7 +79,12 @@ class TransferProgress {
   }
 
   String get typeName => type == TransferType.sync ? '同步' : '备份';
-  String get targetName => target == TransferTarget.booklet ? '打卡' : '随笔';
+  String get targetName => switch (target) {
+    TransferTarget.booklet => '打卡',
+    TransferTarget.essay => '随笔',
+    TransferTarget.preferences => '偏好',
+    TransferTarget.all => '所有',
+  };
   String get statusName => switch (status) {
     TransferStatus.idle => '就绪',
     TransferStatus.preparing => '准备中',
