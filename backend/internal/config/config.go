@@ -10,6 +10,7 @@ import (
 type AppConfig struct {
 	StaticDir  string
 	GalleryDir string
+	ComicDir   string
 }
 
 // 网络配置
@@ -45,6 +46,7 @@ func Load() error {
 	// 应用配置
 	AppConf.StaticDir = os.Getenv("STATIC_DIR")
 	AppConf.GalleryDir = os.Getenv("GALLERY_DIR")
+	AppConf.ComicDir = os.Getenv("COMIC_DIR")
 
 	// 网络配置
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")

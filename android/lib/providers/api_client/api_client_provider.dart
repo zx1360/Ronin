@@ -100,7 +100,7 @@ Future<Response<Uint8List>?> bytesFetcher(
   }
 }
 
-// send方法提供者
+// send方法提供者(使用multipart form, 用于文件+JSON混合上传)
 @riverpod
 Future<Response?> sender(
   SenderRef ref, {
@@ -122,6 +122,28 @@ Future<Response?> sender(
     return resp;
   } catch (e) {
     AppLogger().error("send出错: $e");
+    return null;
+  }
+}
+
+// jsonSender方法提供者(使用application/json body, 用于纯JSON请求)
+@riverpod
+Future<Response?> jsonSender(
+  JsonSenderRef ref, {
+  required String path,
+  required Map<String, dynamic> data,
+  CancelToken? cancelToken,
+}) async {
+  final apiClient = ref.watch(apiClientManagerProvider);
+  try {
+    final resp = await apiClient.postJson(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+    );
+    return resp;
+  } catch (e) {
+    AppLogger().error("jsonSend出错: $e");
     return null;
   }
 }
