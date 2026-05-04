@@ -70,6 +70,10 @@
 			"/^Push-Location d:\\\\products\\\\Ronin\\\\android; flutter analyze lib/features/home/pages/home_page\\.dart lib/features/home/pages/splash_page\\.dart lib/features/profile/second_page/data/services/transfer_controller\\.dart lib/features/profile/second_page/data/models/transfer_progress\\.dart lib/features/profile/second_page/data/views/data_transfer_page\\.dart lib/features/profile/second_page/data/widgets/transfer_action_button\\.dart; Pop-Location$/": {
 				"approve": true,
 				"matchCommandLine": true
+			},
+			"/^Push-Location d:\\\\products\\\\Ronin\\\\android ; flutter analyze 2>&1 ; Pop-Location$/": {
+				"approve": true,
+				"matchCommandLine": true
 			}
 		}
 	},

@@ -589,7 +589,168 @@ class _SenderProviderElement extends AutoDisposeFutureProviderElement<Response?>
       (origin as SenderProvider).onSendProgress;
 }
 
-String _$apiClientManagerHash() => r'507c1cee3043afed0108145df8221f66d8f4c62e';
+String _$jsonSenderHash() => r'ef612a9f9c36a2b6b26d5dd476603176f4a07d7c';
+
+/// See also [jsonSender].
+@ProviderFor(jsonSender)
+const jsonSenderProvider = JsonSenderFamily();
+
+/// See also [jsonSender].
+class JsonSenderFamily extends Family<AsyncValue<Response?>> {
+  /// See also [jsonSender].
+  const JsonSenderFamily();
+
+  /// See also [jsonSender].
+  JsonSenderProvider call({
+    required String path,
+    required Map<String, dynamic> data,
+    CancelToken? cancelToken,
+  }) {
+    return JsonSenderProvider(
+      path: path,
+      data: data,
+      cancelToken: cancelToken,
+    );
+  }
+
+  @override
+  JsonSenderProvider getProviderOverride(
+    covariant JsonSenderProvider provider,
+  ) {
+    return call(
+      path: provider.path,
+      data: provider.data,
+      cancelToken: provider.cancelToken,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'jsonSenderProvider';
+}
+
+/// See also [jsonSender].
+class JsonSenderProvider extends AutoDisposeFutureProvider<Response?> {
+  /// See also [jsonSender].
+  JsonSenderProvider({
+    required String path,
+    required Map<String, dynamic> data,
+    CancelToken? cancelToken,
+  }) : this._internal(
+          (ref) => jsonSender(
+            ref as JsonSenderRef,
+            path: path,
+            data: data,
+            cancelToken: cancelToken,
+          ),
+          from: jsonSenderProvider,
+          name: r'jsonSenderProvider',
+          debugGetCreateSourceHash:
+              const bool.fromEnvironment('dart.vm.product')
+                  ? null
+                  : _$jsonSenderHash,
+          dependencies: JsonSenderFamily._dependencies,
+          allTransitiveDependencies:
+              JsonSenderFamily._allTransitiveDependencies,
+          path: path,
+          data: data,
+          cancelToken: cancelToken,
+        );
+
+  JsonSenderProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.path,
+    required this.data,
+    required this.cancelToken,
+  }) : super.internal();
+
+  final String path;
+  final Map<String, dynamic> data;
+  final CancelToken? cancelToken;
+
+  @override
+  Override overrideWith(
+    FutureOr<Response?> Function(JsonSenderRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: JsonSenderProvider._internal(
+        (ref) => create(ref as JsonSenderRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        path: path,
+        data: data,
+        cancelToken: cancelToken,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<Response?> createElement() {
+    return _JsonSenderProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is JsonSenderProvider &&
+        other.path == path &&
+        other.data == data &&
+        other.cancelToken == cancelToken;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, path.hashCode);
+    hash = _SystemHash.combine(hash, data.hashCode);
+    hash = _SystemHash.combine(hash, cancelToken.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+mixin JsonSenderRef on AutoDisposeFutureProviderRef<Response?> {
+  /// The parameter `path` of this provider.
+  String get path;
+
+  /// The parameter `data` of this provider.
+  Map<String, dynamic> get data;
+
+  /// The parameter `cancelToken` of this provider.
+  CancelToken? get cancelToken;
+}
+
+class _JsonSenderProviderElement
+    extends AutoDisposeFutureProviderElement<Response?> with JsonSenderRef {
+  _JsonSenderProviderElement(super.provider);
+
+  @override
+  String get path => (origin as JsonSenderProvider).path;
+  @override
+  Map<String, dynamic> get data => (origin as JsonSenderProvider).data;
+  @override
+  CancelToken? get cancelToken => (origin as JsonSenderProvider).cancelToken;
+}
+
+String _$apiClientManagerHash() => r'010afd2685ce1486e5736f506a5195716dfb3f31';
 
 /// See also [ApiClientManager].
 @ProviderFor(ApiClientManager)
