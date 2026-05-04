@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-03T12:57:12Z",
+  "generated_at": "2026-05-04T15:24:45Z",
   "routes": [
     {
       "method": "GET",
@@ -12,14 +12,29 @@
       "handler": "monarch/internal/handler/comic_handler.FetchImagesWithChapterId"
     },
     {
+      "method": "POST",
+      "path": "/API/comic/check-updates",
+      "handler": "monarch/internal/handler/comic_handler.CheckNewChapters"
+    },
+    {
       "method": "GET",
       "path": "/API/comic/comic-info",
       "handler": "monarch/internal/handler/comic_handler.FetchAllComicInfos"
     },
     {
+      "method": "DELETE",
+      "path": "/API/comic/comic-info/:comic-id",
+      "handler": "monarch/internal/handler/comic_handler.DeleteComic"
+    },
+    {
       "method": "GET",
       "path": "/API/comic/comic-info/:comic-id",
       "handler": "monarch/internal/handler/comic_handler.FetchChaptersWithComicId"
+    },
+    {
+      "method": "PUT",
+      "path": "/API/comic/comic-info/:comic-id",
+      "handler": "monarch/internal/handler/comic_handler.UpdateComic"
     },
     {
       "method": "GET",
@@ -30,6 +45,11 @@
       "method": "GET",
       "path": "/API/comic/meta-info",
       "handler": "monarch/internal/handler/comic_handler.FetchComicMetadata"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comic/sync-readed",
+      "handler": "monarch/internal/handler/comic_handler.SyncComicReaded"
     },
     {
       "method": "GET",
@@ -65,6 +85,16 @@
       "method": "POST",
       "path": "/API/user-data/backup/:module",
       "handler": "monarch/internal/handler/data_handler.BackupHandler"
+    },
+    {
+      "method": "GET",
+      "path": "/API/user-data/essay/incremental",
+      "handler": "monarch/internal/handler/data_handler.GetEssayIncremental"
+    },
+    {
+      "method": "GET",
+      "path": "/API/user-data/essay/search",
+      "handler": "monarch/internal/handler/data_handler.SearchEssays"
     },
     {
       "method": "GET",

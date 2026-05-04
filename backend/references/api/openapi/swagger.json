@@ -54,6 +54,48 @@
                 }
             }
         },
+        "/api/comic/check-updates": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comic"
+                ],
+                "summary": "检查漫画增量更新",
+                "parameters": [
+                    {
+                        "description": "漫画ID-\u003e本地章节数",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/comic/comic-info": {
             "get": {
                 "security": [
@@ -115,6 +157,86 @@
                         }
                     }
                 }
+            },
+            "put": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comic"
+                ],
+                "summary": "更新漫画信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "漫画ID",
+                        "name": "comic-id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新字段",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ComicUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comic"
+                ],
+                "summary": "删除漫画及其所有关联数据",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "漫画ID",
+                        "name": "comic-id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
             }
         },
         "/api/comic/download/{comic-id}": {
@@ -172,6 +294,45 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/model.ComicTotalMetaData"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/comic/sync-readed": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "comic"
+                ],
+                "summary": "同步漫画已读状态",
+                "parameters": [
+                    {
+                        "description": "已读漫画ID列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ComicSyncRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -441,7 +602,7 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "接收模块 JSON 数据与图片文件并覆盖保存到服务器目录",
+                "description": "接收模块数据并写入数据库",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -521,7 +682,7 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "读取指定模块的所有JSON配置文件，合并后返回",
+                "description": "从数据库读取指定模块的数据",
                 "consumes": [
                     "application/json"
                 ],
@@ -543,23 +704,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "成功返回合并后的JSON数据",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
                         }
                     },
                     "404": {
-                        "description": "模块未找到",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "服务器内部错误",
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -636,8 +788,29 @@
                 "image_count": {
                     "type": "integer"
                 },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "readed": {
+                    "type": "boolean"
+                },
+                "source": {
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "model.ComicSyncRequest": {
+            "type": "object",
+            "properties": {
+                "readed_ids": {
+                    "description": "标记为已读的漫画 ID 列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -654,6 +827,23 @@
                     "type": "integer"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.ComicUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "cover_image": {
+                    "type": "string"
+                },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "readed": {
+                    "type": "boolean"
+                },
+                "source": {
                     "type": "string"
                 }
             }
