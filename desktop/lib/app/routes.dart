@@ -33,6 +33,14 @@ final List<AppRoute> routes = [
     builder: (context, state) => const DashboardPage(),
   ),
 
+  // 日志
+  AppRoute(
+    path: '/logs',
+    name: 'logs',
+    icon: IconData(0xe627, fontFamily: 'iconfont'),
+    builder: (context, state) => const LogsPage(),
+  ),
+
   // 任务管理
   AppRoute(
     path: '/tasks',
@@ -40,14 +48,6 @@ final List<AppRoute> routes = [
     // icon: IconData(0xe62f, fontFamily: 'iconfont'),
     icon: Icons.task_alt_rounded,
     builder: (context, state) => const TaskManagerPage(),
-  ),
-
-  // 日志
-  AppRoute(
-    path: '/logs',
-    name: 'logs',
-    icon: IconData(0xe627, fontFamily: 'iconfont'),
-    builder: (context, state) => const LogsPage(),
   ),
 
   // 设置

@@ -127,7 +127,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                     int.tryParse(
                                       _intervalController.text.trim(),
                                     ) ??
-                                    10;
+                                    300;
                                 final safeSeconds = parsedSeconds < 3
                                     ? 3
                                     : (parsedSeconds > 3600
