@@ -1,6 +1,9 @@
 # 此文件为待办备忘以及agent提示词模板, 不必作为上下文参考.
 
 # TODO:
+## monarch:
+
+
 ## torrid:
 基于immich http的二次开发:
 https://api.immich.app/endpoints/api-keys
@@ -17,6 +20,11 @@ gallery模块:
 添加图片旋转功能, 改变图片的方向.
 
 ## Desktop App:
+应用上修改并保存自动刷新间隔不会立刻生效, 需要终止应用再打开才可以. 修复.
+左侧导航栏顺序, 2漫画, 3日志, 4任务.
+
+-- 二是漫画连载追踪页面.
+可以根据设定的source字段(漫画网站的该漫画详细页url)选择某一预输入的爬虫脚本(python/或者打包的exe).增量更新. 并在安卓端如果已下载该漫画可以点击增量更新下载.(monarch->torrid).
 
 
 ## 数据库:
@@ -55,15 +63,6 @@ zx1360.github.io
 
 
 # 提示词模板:
-
-项目结构参考各目录下的 AGENTS.md，
-契约文件参考 backend/references/api/。
-
-项目结构和协同契约见：
-- 总览: AGENTS.md
-- backend: backend/AGENTS.md, backend/references/
-- android: android/AGENTS.md
-- desktop: desktop/AGENTS.md
 
 [改动描述]
 请帮我完成以下跨项目改动：
