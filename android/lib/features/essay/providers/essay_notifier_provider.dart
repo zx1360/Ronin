@@ -12,7 +12,6 @@ import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
-import 'package:torrid/providers/network_service/network_provider.dart';
 import 'package:torrid/core/models/message.dart';
 
 part 'essay_notifier_provider.g.dart';
@@ -250,7 +249,8 @@ class EssayService extends _$EssayService {
 
   /// 从服务器同步数据
   /// 
-  /// 清空本地数据后导入服务器数据，同时下载相关图片。
+  /// 清空本地数据后导入服务器数据。
+  /// 注意：图片下载由 TransferController._downloadImages 统一处理（带进度），此处仅导入数据。
   Future<void> syncData(dynamic json) async {
     await state.summaryBox.clear();
     await state.labelBox.clear();
@@ -280,26 +280,6 @@ class EssayService extends _$EssayService {
         labels: essayData.labels.map((label) => labelIdMap[label]!).toList(),
       );
       await state.essayBox.put(essayData.id, essayData);
-    }
-    
-    // 下载相关图片
-    await _downloadEssayImages();
-  }
-
-  /// 下载随笔中的图片
-  Future<void> _downloadEssayImages() async {
-    final urls = <String>[];
-    for (final essay in state.essayBox.values) {
-      urls.addAll(essay.imgs);
-    }
-    
-    if (urls.isNotEmpty) {
-      await ref.read(
-        saveFromRelativeUrlsProvider(
-          urls: urls,
-          relativeDir: "img_storage/essay",
-        ).future,
-      );
     }
   }
 

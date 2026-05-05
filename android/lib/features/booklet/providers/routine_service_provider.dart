@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:hive/hive.dart';
 
-import 'package:torrid/providers/network_service/network_provider.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/providers/data_source_provider.dart';
@@ -181,6 +180,7 @@ class RoutineService extends _$RoutineService {
   // ==================== 数据同步 ====================
 
   /// 数据同步，替换为外部数据
+  /// 注意：图片下载由 TransferController._downloadImages 统一处理（带进度），此处仅导入数据
   Future<void> syncData(dynamic json) async {
     await state.styleBox.clear();
     await state.recordBox.clear();
@@ -196,19 +196,6 @@ class RoutineService extends _$RoutineService {
     for (dynamic record in jsonRecords) {
       Record record_ = Record.fromJson(record);
       await state.recordBox.put(record_.id, record_);
-    }
-    
-    // 将其中的 task 图片文件同时保存到本地
-    final List<String> urls = [];
-    for (var style in state.styleBox.values) {
-      style.tasks.where((task) => task.image.isNotEmpty).forEach((task) {
-        urls.add(task.image);
-      });
-    }
-    if (urls.isNotEmpty) {
-      await ref.read(
-        saveFromRelativeUrlsProvider(urls: urls, relativeDir: "img_storage/booklet").future,
-      );
     }
   }
 

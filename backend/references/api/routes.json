@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-05T11:54:08Z",
+  "generated_at": "2026-05-05T13:43:50Z",
   "routes": [
     {
       "method": "GET",
@@ -80,6 +80,11 @@
       "method": "POST",
       "path": "/API/user-data/backup/:module",
       "handler": "monarch/internal/handler/data_handler.BackupHandler"
+    },
+    {
+      "method": "POST",
+      "path": "/API/user-data/check-images/:module",
+      "handler": "monarch/internal/handler/data_handler.CheckImagesHandler"
     },
     {
       "method": "GET",

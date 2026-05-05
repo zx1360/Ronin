@@ -1,5 +1,23 @@
 basePath: /
 definitions:
+  data_handler.CheckImagesRequest:
+    properties:
+      filenames:
+        items:
+          type: string
+        type: array
+    type: object
+  data_handler.CheckImagesResponse:
+    properties:
+      existing:
+        items:
+          type: string
+        type: array
+      missing:
+        items:
+          type: string
+        type: array
+    type: object
   model.BatchData:
     properties:
       media_assets:
@@ -558,6 +576,41 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 备份指定模块的数据
+      tags:
+      - user-data
+  /api/user-data/check-images/{module}:
+    post:
+      consumes:
+      - application/json
+      description: 接收文件名列表，返回哪些已存在、哪些缺失（用于增量上传）
+      parameters:
+      - description: 模块名称
+        in: path
+        name: module
+        required: true
+        type: string
+      - description: 待检查的文件名列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/data_handler.CheckImagesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data_handler.CheckImagesResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 检查图片文件是否已存在于服务端
       tags:
       - user-data
   /api/user-data/sync/{module}:
