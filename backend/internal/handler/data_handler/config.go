@@ -7,8 +7,9 @@ import (
 
 type ModuleConfig struct {
 	Name      string   // 模块名称，用于路由，如 "booklet", "essay"
-	JSONFiles []string // 需要同步或备份的JSON数据文件路径列表
+	JSONFiles []string // 需要同步或备份的JSON数据文件路径列表（DB 模块此字段为空）
 	ImageDir  string   // 图片文件存储目录路径
+	IsDB      bool     // 是否使用数据库存储（true=DB表，false=JSON文件）
 }
 
 // AppDir 是你的应用根目录。在Go中，我们通常使用工作目录。
@@ -19,21 +20,16 @@ const AppDir = "."
 // Modules 是所有模块的配置列表
 var Modules = []ModuleConfig{
 	{
-		Name: "booklet",
-		JSONFiles: []string{
-			filepath.Join(AppDir, "static", "booklet", "styles.json"),
-			filepath.Join(AppDir, "static", "booklet", "records.json"),
-		},
-		ImageDir: filepath.Join(AppDir, "static", "img_storage", "booklet"),
+		Name:      "booklet",
+		JSONFiles: nil, // 已迁移至数据库 user_data.booklet_styles / booklet_records
+		ImageDir:  filepath.Join(AppDir, "static", "img_storage", "booklet"),
+		IsDB:      true,
 	},
 	{
-		Name: "essay",
-		JSONFiles: []string{
-			filepath.Join(AppDir, "static", "essay", "essays.json"),
-			filepath.Join(AppDir, "static", "essay", "labels.json"),
-			filepath.Join(AppDir, "static", "essay", "year_summaries.json"),
-		},
-		ImageDir: filepath.Join(AppDir, "static", "img_storage", "essay"),
+		Name:      "essay",
+		JSONFiles: nil, // 已迁移至数据库 user_data.essay_articles / essay_labels / essay_year_summaries
+		ImageDir:  filepath.Join(AppDir, "static", "img_storage", "essay"),
+		IsDB:      true,
 	},
 	{
 		Name: "preferences",
@@ -41,13 +37,8 @@ var Modules = []ModuleConfig{
 			filepath.Join(AppDir, "static", "preferences", "preferences.json"),
 		},
 		ImageDir: filepath.Join(AppDir, "static", "img_storage", "preferences"),
+		IsDB:     false,
 	},
-	// 在这里添加更多模块...
-	// {
-	//  Name: "new_module",
-	//  JSONFiles: []string{...},
-	//  ImageDir: "...",
-	// },
 }
 
 // FindModuleConfigByName 根据模块名称查找其配置
