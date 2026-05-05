@@ -559,7 +559,7 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "接收模块 JSON 数据与图片文件并覆盖保存到服务器目录",
+                "description": "接收模块 JSON 数据与图片文件并保存",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -639,7 +639,7 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "读取指定模块的所有JSON配置文件，合并后返回",
+                "description": "读取指定模块的所有数据（DB 表或 JSON 文件），合并后返回",
                 "consumes": [
                     "application/json"
                 ],
