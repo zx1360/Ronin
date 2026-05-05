@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:northstar/ui/ops/pages/dashboard_page.dart';
+import 'package:northstar/ui/ops/pages/comics_page.dart';
 import 'package:northstar/ui/ops/pages/task_manager_page.dart';
 import 'package:northstar/ui/ops/pages/logs_page.dart';
 import 'package:northstar/ui/ops/pages/settings_page.dart';
@@ -23,7 +24,7 @@ class AppRoute {
   });
 }
 
-// 所有路由定义
+// 所有路由定义: 1仪表盘, 2漫画, 3日志, 4任务, 5设置
 final List<AppRoute> routes = [
   // Dashboard
   AppRoute(
@@ -31,6 +32,14 @@ final List<AppRoute> routes = [
     name: 'dashboard',
     icon: IconData(0xe625, fontFamily: 'iconfont'),
     builder: (context, state) => const DashboardPage(),
+  ),
+
+  // 漫画资源管理
+  AppRoute(
+    path: '/comics',
+    name: 'comics',
+    icon: Icons.menu_book_rounded,
+    builder: (context, state) => const ComicsPage(),
   ),
 
   // 日志
@@ -45,7 +54,6 @@ final List<AppRoute> routes = [
   AppRoute(
     path: '/tasks',
     name: 'tasks',
-    // icon: IconData(0xe62f, fontFamily: 'iconfont'),
     icon: Icons.task_alt_rounded,
     builder: (context, state) => const TaskManagerPage(),
   ),
@@ -54,12 +62,11 @@ final List<AppRoute> routes = [
   AppRoute(
     path: '/settings',
     name: 'settings',
-    // icon: IconData(0xf0ac, fontFamily: 'iconfont'),
     icon: Icons.settings,
     builder: (context, state) => const SettingsPage(),
   ),
   
-  // 帮助页.
+  // 帮助页
   AppRoute(
     path: '/help',
     name: 'help',

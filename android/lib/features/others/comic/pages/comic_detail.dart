@@ -37,6 +37,29 @@ class ComicDetailPage extends ConsumerWidget {
       appBar: AppBar(
         title: Text(comicInfo.comicName, overflow: TextOverflow.ellipsis),
         centerTitle: true,
+        actions: [
+          if (!isLocal && !(comicInfo.readed ?? false))
+            IconButton(
+              tooltip: '标记已读',
+              onPressed: () async {
+                try {
+                  await ref.read(comicSyncControllerProvider.notifier).markAsReaded(comicInfo.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('已标记为已读')),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('标记失败: $e')),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.done_all),
+            ),
+        ],
       ),
       body: isLoading
           ? ProgressIndicatorWidget()

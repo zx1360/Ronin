@@ -7,9 +7,7 @@ import 'package:northstar/application/ops/providers/task_profiles_provider.dart'
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/ops/models/runtime_process_state.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';
-import 'package:northstar/domain/ops/utils/task_rules.dart';
 import 'package:northstar/shared/widgets/heading/heading.dart';
-import 'package:northstar/ui/ops/widgets/danger_confirm_dialog.dart';
 import 'package:northstar/ui/ops/widgets/runtime_status_badge.dart';
 import 'package:northstar/ui/ops/widgets/task_editor_dialog.dart';
 
@@ -204,20 +202,6 @@ class _TaskCard extends ConsumerWidget {
                   onPressed: isRunning
                       ? null
                       : () async {
-                          var canRun = true;
-                          if (requiresDangerConfirmation(task, preset)) {
-                            final phrase = buildDangerPhrase(task, preset);
-                            canRun = await showDangerConfirmDialog(
-                              context: context,
-                              phrase: phrase,
-                              title: '危险任务确认',
-                            );
-                          }
-
-                          if (!canRun || !context.mounted) {
-                            return;
-                          }
-
                           final result = await runtimeController.startTask(
                             task,
                           );

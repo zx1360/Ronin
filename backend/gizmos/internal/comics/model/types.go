@@ -1,8 +1,6 @@
 package model
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -17,33 +15,21 @@ type ComicImage struct {
 }
 
 // ComicChapter 表示一个章节目录
+// ImageCount 不再存储冗余字段，由实时 COUNT 计算
 type ComicChapter struct {
 	ID           string
 	ComicID      string
 	DirName      string
 	ChapterIndex int
-	ImageCount   int
 	Images       []ComicImage
 }
 
 // ComicBook 表示一本漫画（目录名即标题）
+// ChapterCount/ImageCount/CoverImage 不再存储冗余，由实时聚合
 type ComicBook struct {
-	ID           string
-	Title        string
-	ChapterCount int
-	ImageCount   int
-	CoverImage   string
-	Chapters     []ComicChapter
-}
-
-// ComicSummary 汇总统计
-type ComicSummary struct {
-	ID                string
-	Title             string
-	BookCount         int
-	TotalChapterCount int
-	TotalImageCount   int
-	UpdatedAt         time.Time
+	ID       string
+	Title    string
+	Chapters []ComicChapter
 }
 
 // NewComicBook 创建漫画

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-04T15:24:45Z",
+  "generated_at": "2026-05-05T00:16:55Z",
   "routes": [
     {
       "method": "GET",
@@ -10,11 +10,6 @@
       "method": "GET",
       "path": "/API/comic/chapter-info/:chapter-id",
       "handler": "monarch/internal/handler/comic_handler.FetchImagesWithChapterId"
-    },
-    {
-      "method": "POST",
-      "path": "/API/comic/check-updates",
-      "handler": "monarch/internal/handler/comic_handler.CheckNewChapters"
     },
     {
       "method": "GET",
@@ -49,7 +44,7 @@
     {
       "method": "POST",
       "path": "/API/comic/sync-readed",
-      "handler": "monarch/internal/handler/comic_handler.SyncComicReaded"
+      "handler": "monarch/internal/handler/comic_handler.SyncReadedStatus"
     },
     {
       "method": "GET",
@@ -85,16 +80,6 @@
       "method": "POST",
       "path": "/API/user-data/backup/:module",
       "handler": "monarch/internal/handler/data_handler.BackupHandler"
-    },
-    {
-      "method": "GET",
-      "path": "/API/user-data/essay/incremental",
-      "handler": "monarch/internal/handler/data_handler.GetEssayIncremental"
-    },
-    {
-      "method": "GET",
-      "path": "/API/user-data/essay/search",
-      "handler": "monarch/internal/handler/data_handler.SearchEssays"
     },
     {
       "method": "GET",

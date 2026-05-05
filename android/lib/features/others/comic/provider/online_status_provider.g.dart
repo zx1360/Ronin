@@ -6,9 +6,9 @@ part of 'online_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicsOnlineHash() => r'feada6d80aa9108fc4228d10d90da3bf5a4877ee';
+String _$comicsOnlineHash() => r'02cea0a80d60201a2f79ac016c035aa543a72b5a';
 
-/// 获取所有在线漫画信息
+/// 获取所有在线漫画信息（安卓端仅展示 is_public=true 的漫画）
 ///
 /// Copied from [comicsOnline].
 @ProviderFor(comicsOnline)
@@ -339,5 +339,26 @@ class _OnlineImagesWithChapterIdProviderElement
   String get chapterId =>
       (origin as OnlineImagesWithChapterIdProvider).chapterId;
 }
+
+String _$comicSyncControllerHash() =>
+    r'd2c27b8a7b6013c584a3941cf3e0f7c910b0d1b7';
+
+/// 同步已读状态：将本地已读漫画的 ID 发送给服务器，并获取各漫画的章节总数
+///
+/// Copied from [ComicSyncController].
+@ProviderFor(ComicSyncController)
+final comicSyncControllerProvider = AutoDisposeNotifierProvider<
+    ComicSyncController, AsyncValue<Map<String, int>?>>.internal(
+  ComicSyncController.new,
+  name: r'comicSyncControllerProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$comicSyncControllerHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$ComicSyncController
+    = AutoDisposeNotifier<AsyncValue<Map<String, int>?>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

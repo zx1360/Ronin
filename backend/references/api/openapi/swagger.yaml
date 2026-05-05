@@ -51,14 +51,6 @@ definitions:
       title:
         type: string
     type: object
-  model.ComicSyncRequest:
-    properties:
-      readed_ids:
-        description: 标记为已读的漫画 ID 列表
-        items:
-          type: string
-        type: array
-    type: object
   model.ComicTotalMetaData:
     properties:
       book_count:
@@ -68,17 +60,6 @@ definitions:
       total_image_count:
         type: integer
       updated_at:
-        type: string
-    type: object
-  model.ComicUpdateRequest:
-    properties:
-      cover_image:
-        type: string
-      is_public:
-        type: boolean
-      readed:
-        type: boolean
-      source:
         type: string
     type: object
   model.ImageInfo:
@@ -137,6 +118,24 @@ definitions:
       success:
         type: boolean
     type: object
+  model.SyncReadedRequest:
+    properties:
+      readed_ids:
+        description: 标记为已读的漫画ID列表
+        items:
+          type: string
+        type: array
+    type: object
+  model.SyncReadedResponse:
+    properties:
+      new_chapters:
+        additionalProperties:
+          type: integer
+        description: comic_id → 服务器新增章节数
+        type: object
+      updated_count:
+        type: integer
+    type: object
   model.Tag:
     properties:
       created_at:
@@ -158,6 +157,17 @@ definitions:
         items:
           $ref: '#/definitions/model.Tag'
         type: array
+    type: object
+  model.UpdateComicRequest:
+    properties:
+      cover_image:
+        type: string
+      is_public:
+        type: boolean
+      readed:
+        type: boolean
+      source:
+        type: string
     type: object
 info:
   contact: {}
@@ -189,32 +199,6 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 获取指定章节详情（含图片）
-      tags:
-      - comic
-  /api/comic/check-updates:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: 漫画ID->本地章节数
-        in: body
-        name: body
-        required: true
-        schema:
-          additionalProperties:
-            type: integer
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-      security:
-      - ApiKeyAuth: []
-      summary: 检查漫画增量更新
       tags:
       - comic
   /api/comic/comic-info:
@@ -252,7 +236,7 @@ paths:
             type: object
       security:
       - ApiKeyAuth: []
-      summary: 删除漫画及其所有关联数据
+      summary: 删除漫画
       tags:
       - comic
     get:
@@ -290,7 +274,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/model.ComicUpdateRequest'
+          $ref: '#/definitions/model.UpdateComicRequest'
       produces:
       - application/json
       responses:
@@ -302,7 +286,7 @@ paths:
             type: object
       security:
       - ApiKeyAuth: []
-      summary: 更新漫画信息
+      summary: 更新漫画元数据
       tags:
       - comic
   /api/comic/download/{comic-id}:
@@ -351,18 +335,17 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/model.ComicSyncRequest'
+          $ref: '#/definitions/model.SyncReadedRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/model.SyncReadedResponse'
       security:
       - ApiKeyAuth: []
-      summary: 同步漫画已读状态
+      summary: 同步已读状态
       tags:
       - comic
   /api/gallery/{id}/{type}:
@@ -529,7 +512,7 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: 接收模块数据并写入数据库
+      description: 接收模块 JSON 数据与图片文件并覆盖保存到服务器目录
       parameters:
       - description: 模块名称
         in: path
@@ -581,7 +564,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 从数据库读取指定模块的数据
+      description: 读取指定模块的所有JSON配置文件，合并后返回
       parameters:
       - description: 模块名称
         in: path
@@ -592,12 +575,18 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: 成功返回合并后的JSON数据
           schema:
             additionalProperties: true
             type: object
         "404":
-          description: Not Found
+          description: 模块未找到
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: 服务器内部错误
           schema:
             additionalProperties:
               type: string

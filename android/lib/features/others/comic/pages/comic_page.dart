@@ -74,6 +74,56 @@ class _ComicPageState extends ConsumerState<ComicPage> {
     });
   }
 
+  Future<void> _syncReadedStatus() async {
+    // 收集本地已下载的漫画ID列表
+    final localComics = ref.read(comicInfosProvider);
+    if (localComics.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('本地没有已下载的漫画')),
+        );
+      }
+      return;
+    }
+
+    final localIds = localComics.map((c) => c.id).toList();
+
+    try {
+      // 调用同步接口
+      final serverChapters = await ref
+          .read(comicSyncControllerProvider.notifier)
+          .syncReadedStatus(localIds);
+
+      // 对比本地章节数与服务器章节数
+      int newDownloadCount = 0;
+      for (final comic in localComics) {
+        final serverCount = serverChapters[comic.id];
+        if (serverCount != null && serverCount > comic.chapterCount) {
+          // 服务器有更多章节，加入下载队列
+          await ref
+              .read(comicDownloadTasksProvider.notifier)
+              .enqueueComic(comicInfo: comic);
+          newDownloadCount++;
+        }
+      }
+
+      if (mounted) {
+        final message = newDownloadCount > 0
+            ? '同步完成，$newDownloadCount 本漫画有更新，已加入下载队列'
+            : '同步完成，所有漫画均为最新';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('同步失败: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_isHiveInitialized) {
@@ -140,6 +190,26 @@ class _ComicPageState extends ConsumerState<ComicPage> {
               ),
             ),
           IconButton(onPressed: initInfos, icon: const Icon(Icons.refresh)),
+          PopupMenuButton<String>(
+            tooltip: '更多操作',
+            onSelected: (value) async {
+              switch (value) {
+                case 'sync_status':
+                  await _syncReadedStatus();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'sync_status',
+                child: ListTile(
+                  leading: Icon(Icons.sync),
+                  title: Text('同步状态'),
+                  subtitle: Text('上传已读状态并检查更新'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: isInProgress

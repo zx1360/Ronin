@@ -87,6 +87,20 @@ class ApiClient {
     );
   }
 
+  /// PUT请求，直接发送 JSON body
+  Future<Response> putJson(
+    String path, {
+    required Map<String, dynamic> data,
+    CancelToken? cancelToken,
+  }) async {
+    return _dio.put(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+      options: Options(contentType: 'application/json'),
+    );
+  }
+
   // POST请求, 可以上传json数据和文件.
   Future<Response> post(
     String path, {

@@ -52,9 +52,10 @@ func ScanFull(root string) ([]*model.ComicBook, int, int, error) {
 		}
 
 		sortedChapterDirs := sortChapterDirs(chapterDirs)
-		comicTotalImages := 0
+		comicChapterCount := 0
+		comicImageCount := 0
 
-		for idx, chapterDir := range sortedChapterDirs {
+		for _, chapterDir := range sortedChapterDirs {
 			if !chapterDir.IsDir() {
 				continue
 			}
@@ -78,26 +79,20 @@ func ScanFull(root string) ([]*model.ComicBook, int, int, error) {
 
 			images := readImageMetadata(chapter.ID, chapterPath, sortedImageFiles)
 			chapter.Images = images
-			chapter.ImageCount = len(images)
-
-			if idx == 0 && len(images) > 0 {
-				comic.CoverImage = images[0].ImagePath
-			}
 
 			comic.Chapters = append(comic.Chapters, *chapter)
-			comic.ChapterCount++
-			comicTotalImages += chapter.ImageCount
-			totalImageCount += chapter.ImageCount
+			comicChapterCount++
+			comicImageCount += len(images)
+			totalImageCount += len(images)
 		}
 
-		if comic.ChapterCount == 0 {
+		if comicChapterCount == 0 {
 			println("⚠️  漫画", comic.Title, "无有效章节，跳过")
 			continue
 		}
 
-		comic.ImageCount = comicTotalImages
 		comicBooks = append(comicBooks, comic)
-		totalChapterCount += comic.ChapterCount
+		totalChapterCount += comicChapterCount
 	}
 
 	return comicBooks, totalChapterCount, totalImageCount, nil
@@ -136,8 +131,9 @@ func ScanComicsByTitles(root string, titles []string) ([]*model.ComicBook, int, 
 			continue
 		}
 		sortedChapterDirs := sortChapterDirs(chapterDirs)
-		comicTotalImages := 0
-		for idx, chapterDir := range sortedChapterDirs {
+		comicChapterCount := 0
+		comicImageCount := 0
+		for _, chapterDir := range sortedChapterDirs {
 			if !chapterDir.IsDir() {
 				continue
 			}
@@ -156,21 +152,16 @@ func ScanComicsByTitles(root string, titles []string) ([]*model.ComicBook, int, 
 			}
 			images := readImageMetadata(chapter.ID, chapterPath, sortedImageFiles)
 			chapter.Images = images
-			chapter.ImageCount = len(images)
-			if idx == 0 && len(images) > 0 {
-				comic.CoverImage = images[0].ImagePath
-			}
 			comic.Chapters = append(comic.Chapters, *chapter)
-			comic.ChapterCount++
-			comicTotalImages += chapter.ImageCount
-			totalImg += chapter.ImageCount
+			comicChapterCount++
+			comicImageCount += len(images)
+			totalImg += len(images)
 		}
-		if comic.ChapterCount == 0 {
+		if comicChapterCount == 0 {
 			continue
 		}
-		comic.ImageCount = comicTotalImages
 		out = append(out, comic)
-		totalCh += comic.ChapterCount
+		totalCh += comicChapterCount
 	}
 	return out, totalCh, totalImg, nil
 }
