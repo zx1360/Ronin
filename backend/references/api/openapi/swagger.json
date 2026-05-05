@@ -632,6 +632,61 @@
                 }
             }
         },
+        "/api/user-data/check-images/{module}": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "接收文件名列表，返回哪些已存在、哪些缺失（用于增量上传）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user-data"
+                ],
+                "summary": "检查图片文件是否已存在于服务端",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "模块名称",
+                        "name": "module",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "待检查的文件名列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/data_handler.CheckImagesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/data_handler.CheckImagesResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/user-data/sync/{module}": {
             "get": {
                 "security": [
@@ -690,6 +745,34 @@
         }
     },
     "definitions": {
+        "data_handler.CheckImagesRequest": {
+            "type": "object",
+            "properties": {
+                "filenames": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "data_handler.CheckImagesResponse": {
+            "type": "object",
+            "properties": {
+                "existing": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "missing": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "model.BatchData": {
             "type": "object",
             "properties": {

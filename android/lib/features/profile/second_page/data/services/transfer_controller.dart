@@ -250,17 +250,22 @@ class TransferController extends _$TransferController {
       // 获取文件列表
       final externalDir = await IoService.externalStorageDir;
       final imgPaths = notifier.getImgsPath();
-      final files = imgPaths
+      final allFiles = imgPaths
           .map((path) => File("${externalDir.path}/$path"))
           .where((f) => f.existsSync())
           .toList();
+
+      // 增量过滤：仅上传后端缺失的图片
+      final files = await _filterMissingFiles(allFiles, "booklet");
 
       _updateState(
         type: TransferType.backup,
         target: TransferTarget.booklet,
         status: TransferStatus.preparing,
         total: files.length + 1,
-        message: '正在备份打卡数据...',
+        message: files.length < allFiles.length
+            ? '正在备份打卡数据 (${files.length}/${allFiles.length} 张新图片)...'
+            : '正在备份打卡数据...',
       );
 
       final result = await _uploadData(
@@ -291,17 +296,22 @@ class TransferController extends _$TransferController {
       // 获取文件列表
       final externalDir = await IoService.externalStorageDir;
       final imgPaths = notifier.getImgsPath();
-      final files = imgPaths
+      final allFiles = imgPaths
           .map((path) => File("${externalDir.path}/$path"))
           .where((f) => f.existsSync())
           .toList();
+
+      // 增量过滤：仅上传后端缺失的图片
+      final files = await _filterMissingFiles(allFiles, "essay");
 
       _updateState(
         type: TransferType.backup,
         target: TransferTarget.essay,
         status: TransferStatus.preparing,
         total: files.length + 1,
-        message: '正在备份随笔数据...',
+        message: files.length < allFiles.length
+            ? '正在备份随笔数据 (${files.length}/${allFiles.length} 张新图片)...'
+            : '正在备份随笔数据...',
       );
 
       final result = await _uploadData(
@@ -319,6 +329,32 @@ class TransferController extends _$TransferController {
         message: '随笔备份失败: $e',
         elapsed: DateTime.now().difference(startTime),
       );
+    }
+  }
+
+  /// 向服务端查询哪些图片文件已存在，返回仅需上传的缺失文件列表
+  /// 若查询失败则回退为全量上传（返回原列表）
+  Future<List<File>> _filterMissingFiles(List<File> allFiles, String module) async {
+    if (allFiles.isEmpty) return allFiles;
+
+    try {
+      final filenames = allFiles.map((f) => p.basename(f.path)).toList();
+      final resp = await ref.read(
+        jsonSenderProvider(
+          path: "/API/user-data/check-images/$module",
+          data: {"filenames": filenames},
+        ).future,
+      );
+
+      if (resp == null || resp.statusCode != 200) return allFiles;
+
+      final missing = (resp.data['missing'] as List?)?.map((e) => e.toString()).toSet();
+      if (missing == null || missing.isEmpty) return []; // 全部已存在
+
+      return allFiles.where((f) => missing.contains(p.basename(f.path))).toList();
+    } catch (e) {
+      AppLogger().warning("检查服务端已有图片失败，回退全量上传: $e");
+      return allFiles; // 查询失败时回退为全量上传
     }
   }
 
