@@ -53,6 +53,7 @@ class OpsOverviewState {
 @Riverpod(keepAlive: true)
 class OpsOverviewController extends _$OpsOverviewController {
   Timer? _timer;
+  int _lastInterval = 0;
 
   @override
   OpsOverviewState build() {
@@ -61,8 +62,7 @@ class OpsOverviewController extends _$OpsOverviewController {
     });
 
     ref.listen(opsSettingsControllerProvider, (previous, next) {
-      final previousInterval = previous?.autoRefreshSeconds;
-      if (previousInterval != next.autoRefreshSeconds) {
+      if (_lastInterval != next.autoRefreshSeconds) {
         _restartTimer(next.autoRefreshSeconds);
       }
     });
@@ -104,8 +104,11 @@ class OpsOverviewController extends _$OpsOverviewController {
   void _restartTimer(int seconds) {
     _timer?.cancel();
     final safeSeconds = seconds <= 0 ? 300 : seconds;
+    _lastInterval = safeSeconds;
     _timer = Timer.periodic(Duration(seconds: safeSeconds), (_) async {
       await refresh();
     });
+    // 立即触发一次刷新，确保新间隔生效
+    Future(() => refresh());
   }
 }

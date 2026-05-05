@@ -18,7 +18,7 @@ import (
 // IndexIncrementalByChapter 章节级增量
 func IndexIncrementalByChapter(root string) error {
 	fmt.Printf("🔍 开始扫描(章节级增量)：%s\n", root)
-	comicBooks, _, _, err := scanner.ScanFull(root)
+	comicBooks, totalScannedBooks_ch, totalScannedBooks_img, err := scanner.ScanFull(root)
 	if err != nil {
 		return fmt.Errorf("扫描失败: %w", err)
 	}
@@ -31,16 +31,13 @@ func IndexIncrementalByChapter(root string) error {
 	}
 	fmt.Printf("ℹ️  数据库中已存在 %d 个章节\n", len(existingChapters))
 
-	existingBookCount, existingChapterCount, existingImageCount, err := repository.GetCurrentSummary()
-	if err != nil {
-		return fmt.Errorf("查询汇总失败: %w", err)
-	}
-	fmt.Printf("ℹ️  当前数据库统计：漫画数=%d，章节数=%d，图片数=%d\n", existingBookCount, existingChapterCount, existingImageCount)
-
 	newChapterCount, newImageCount, err := repository.InsertComicData(comicBooks, existingChapters)
 	if err != nil {
 		return fmt.Errorf("插入漫画数据失败: %w", err)
 	}
+
+	_ = totalScannedBooks_ch
+	_ = totalScannedBooks_img
 
 	existingComicSet := make(map[string]struct{})
 	for key := range existingChapters {
@@ -49,12 +46,6 @@ func IndexIncrementalByChapter(root string) error {
 	}
 	existingComicCount := len(existingComicSet)
 	newBookCount := totalScannedBooks - existingComicCount
-
-	totalChapterCount := existingChapterCount + newChapterCount
-	totalImageCount := existingImageCount + newImageCount
-	if err := repository.UpdateSummary(existingBookCount+newBookCount, totalChapterCount, totalImageCount); err != nil {
-		return fmt.Errorf("更新汇总失败: %w", err)
-	}
 
 	fmt.Printf("🎉 增量(章节)完成！📊 新增漫画=%d，新增章节=%d，新增图片=%d\n", newBookCount, newChapterCount, newImageCount)
 	return nil
@@ -84,24 +75,12 @@ func IndexIncrementalByComic(root string) error {
 		return nil
 	}
 
-	// 仅对新漫画做深入扫描
-	newBooks, newChapters, newImages, err := scanner.ScanComicsByTitles(root, newTitles)
+	newBooks, _, _, err := scanner.ScanComicsByTitles(root, newTitles)
 	if err != nil {
 		return err
 	}
 
-	_, _, _, _ = newChapters, newImages, err, titlesOnDisk
-	// 直接插入新漫画全部数据
 	if _, _, err := repository.InsertAllComics(newBooks); err != nil {
-		return err
-	}
-
-	// 汇总：基于当前库计数 + 新增
-	bookCount, chapterCount, imageCount, err := repository.GetCurrentSummary()
-	if err != nil {
-		return err
-	}
-	if err := repository.UpdateSummary(bookCount+len(newTitles), chapterCount+sumChapters(newBooks), imageCount+sumImages(newBooks)); err != nil {
 		return err
 	}
 
@@ -122,10 +101,7 @@ func IndexFullReindex(root string) error {
 	if _, _, err := repository.InsertAllComics(books); err != nil {
 		return err
 	}
-	if err := repository.UpdateSummary(len(books), chapters, images); err != nil {
-		return err
-	}
-	fmt.Println("🎉 全量重建完成！")
+	fmt.Printf("🎉 全量重建完成！📊 漫画=%d，章节=%d，图片=%d\n", len(books), chapters, images)
 	return nil
 }
 
@@ -133,7 +109,6 @@ func IndexFullReindex(root string) error {
 func IndexRefresh(root string) error {
 	fmt.Printf("🔁 刷新对齐文件系统：%s\n", root)
 
-	// 1) 对齐漫画层：新增 & 删除
 	titlesOnDisk, err := scanner.ListComicTitles(root)
 	if err != nil {
 		return err
@@ -165,7 +140,6 @@ func IndexRefresh(root string) error {
 		return err
 	}
 
-	// 新漫画：深入扫描并插入
 	if len(toInsert) > 0 {
 		newBooks, _, _, err := scanner.ScanComicsByTitles(root, toInsert)
 		if err != nil {
@@ -176,12 +150,10 @@ func IndexRefresh(root string) error {
 		}
 	}
 
-	// 2) 对齐章节与图片（仅对两边都存在的漫画）
 	for t := range existing {
 		if _, ok := diskSet[t]; !ok {
 			continue
 		}
-		// 从磁盘读取该漫画现状
 		book, err := scanner.ScanChaptersForComic(root, t)
 		if err != nil {
 			return err
@@ -189,19 +161,16 @@ func IndexRefresh(root string) error {
 		if book == nil {
 			continue
 		}
-		// 从数据库读取现状
 		chapterMapDB, comicID, err := repository.GetChaptersByTitle(t)
 		if err != nil {
 			return err
 		}
 
-		// 计算删除与新增
 		diskChapters := make(map[string]model.ComicChapter)
 		for _, ch := range book.Chapters {
 			diskChapters[ch.DirName] = ch
 		}
 
-		// 删除缺失章节
 		for dir, meta := range chapterMapDB {
 			if _, ok := diskChapters[dir]; !ok {
 				if err := repository.DeleteChapterByID(meta.ID); err != nil {
@@ -209,7 +178,6 @@ func IndexRefresh(root string) error {
 				}
 			}
 		}
-		// 新增或替换图片（存在即替换图片列表）
 		for dir, ch := range diskChapters {
 			if meta, ok := chapterMapDB[dir]; ok {
 				if err := repository.ReplaceChapterImages(meta.ID, ch.Images); err != nil {
@@ -221,42 +189,8 @@ func IndexRefresh(root string) error {
 				}
 			}
 		}
-
-		// 更新聚合字段
-		cover := ""
-		if len(book.Chapters) > 0 && len(book.Chapters[0].Images) > 0 {
-			cover = book.Chapters[0].Images[0].ImagePath
-		}
-		totalImgs := sumImages([]*model.ComicBook{book})
-		if err := repository.UpdateBookAggregates(comicID, len(book.Chapters), totalImgs, cover); err != nil {
-			return err
-		}
 	}
 
-	// 汇总基于数据库现状计算
-	bc, cc, ic, err := repository.AggregateCountsFromDB()
-	if err != nil {
-		return err
-	}
-	if err := repository.UpdateSummary(bc, cc, ic); err != nil {
-		return err
-	}
 	fmt.Println("🎉 刷新更新完成！")
 	return nil
-}
-
-// --- utils ---
-func sumChapters(books []*model.ComicBook) int {
-	s := 0
-	for _, b := range books {
-		s += b.ChapterCount
-	}
-	return s
-}
-func sumImages(books []*model.ComicBook) int {
-	s := 0
-	for _, b := range books {
-		s += b.ImageCount
-	}
-	return s
 }

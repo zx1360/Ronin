@@ -22,12 +22,22 @@ class ComicInfo {
   @HiveField(4)
   final int imageCount;
 
+  @HiveField(5)
+  final bool? isPublic;
+  @HiveField(6)
+  final bool? readed;
+  @HiveField(7)
+  final String? source;
+
   ComicInfo({
     required this.id,
     required this.comicName,
     required this.coverImage,
     required this.chapterCount,
     required this.imageCount,
+    this.isPublic = true,
+    this.readed = false,
+    this.source = '',
   });
 
   ComicInfo.newOne({
@@ -35,7 +45,10 @@ class ComicInfo {
     required this.coverImage,
     required this.chapterCount,
     required this.imageCount,
-  }) : id = generateId();
+  })  : id = generateId(),
+        isPublic = true,
+        readed = false,
+        source = '';
 
   ComicInfo copyWith({
     String? id,
@@ -43,6 +56,9 @@ class ComicInfo {
     String? coverImage,
     int? chapterCount,
     int? imageCount,
+    bool? isPublic,
+    bool? readed,
+    String? source,
   }) {
     return ComicInfo(
       id: id ?? this.id,
@@ -50,6 +66,9 @@ class ComicInfo {
       coverImage: coverImage ?? this.coverImage,
       chapterCount: chapterCount ?? this.chapterCount,
       imageCount: imageCount ?? this.imageCount,
+      isPublic: isPublic ?? this.isPublic,
+      readed: readed ?? this.readed,
+      source: source ?? this.source,
     );
   }
 
