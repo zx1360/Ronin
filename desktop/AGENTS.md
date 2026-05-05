@@ -11,8 +11,9 @@ Monarch 服务器的图形化管理面板。负责启动/停止/监控 HTTP 服�
 | 页面 | 路由 | 功能 |
 |------|------|------|
 | 仪表盘 | `/dashboard` | 调用 `/API/ops/overview` 展示 Monarch 运行状态 |
-| 任务管理 | `/tasks` | 管理 Monarch 服务启停，执行 Gallery / Comic CLI 任务 |
+| 漫画管理 | `/comics` | 管理后端漫画资源 |
 | 日志 | `/logs` | 查看各任务实时运行输出 |
+| 任务管理 | `/tasks` | 管理 Monarch 服务启停，执行 Gallery / Comic CLI 任务 |
 | 设置 | `/settings` | 配置 API 地址、API Key 等连接参数 |
 | 帮助 | `/help` | 使用说明 |
 

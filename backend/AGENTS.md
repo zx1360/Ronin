@@ -32,6 +32,7 @@ go run ./cmd
 | `LOCAL_DEBUG_PORT` | 调试端口 |
 | `STATIC_DIR` | 静态资源目录 |
 | `GALLERY_DIR` | 画廊媒体根目录 |
+| `COMIC_DIR` | 漫画资源根目录 |
 | `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` | PostgreSQL 连接 |
 
 ### API 概览
