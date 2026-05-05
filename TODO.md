@@ -9,7 +9,6 @@
 https://api.immich.app/endpoints/api-keys
 http://localhost:2283/doc
 http://localhost:2283/api/spec.json
-
 treasure页:
 与monarch联动, 以后引入photoprism, 根据tags或文本识别内容检索图片, 类似小米相册plus.
 对于图片类的提供拖拽四边裁切功能, (将相关数据发送至monarch让gallery执行).
@@ -20,10 +19,7 @@ gallery模块:
 添加图片旋转功能, 改变图片的方向.
 
 ## Desktop App:
-应用上修改并保存自动刷新间隔不会立刻生效, 需要终止应用再打开才可以. 修复.
-左侧导航栏顺序, 2漫画, 3日志, 4任务.
-
--- 二是漫画连载追踪页面.
+-- 漫画连载追踪页面.
 可以根据设定的source字段(漫画网站的该漫画详细页url)选择某一预输入的爬虫脚本(python/或者打包的exe).增量更新. 并在安卓端如果已下载该漫画可以点击增量更新下载.(monarch->torrid).
 
 
@@ -32,13 +28,10 @@ gallery模块:
 
 
 ----
-2. 对于booklet和essay两部分数据备份到服务器时, 目前是直接存储为json文件并将图片保存到"./static/img_storage/[模块名]/"下,为了后续能更容易实现文章的关键词模糊查询和同步/备份时的增量更新之类的, 我希望把简单的json存储改成数据表存储, 图片文件保持现有逻辑.
-如果推荐的话就这么做吧.
-3. 
-desktop: 
+1. 对于booklet和essay两部分数据备份到服务器时, 目前是直接存储为json文件并将图片保存到"./static/img_storage/[模块名]/"下,为了后续能更容易实现文章的关键词模糊查询和同步/备份时的增量更新之类的, 我希望把简单的json存储方式替换为数据表存储, 图片文件保持现有逻辑.
+关于这两模块的数据表我已建好,表结构参考AGENTS_DB.md中的'用户数据表'部分. (所在scheme名为user_data)
+2. desktop:
 ComicsPage
-第二部分是漫画连载追踪页面.
-可以根据设定的source字段(漫画网站的该漫画详细页url)选择某一预输入的爬虫脚本(python/或者打包的exe).增量更新. 并在安卓端如果已下载该漫画可以点击增量更新下载.(monarch->torrid).
 日志改为'不可输入但可手动复制文本.'
 android:
 漫画模块, 对于某漫画的详细页, 右上角按钮, 添加"标记readed"的逻辑, 表示该漫画已看完.
