@@ -70,11 +70,11 @@ type EssayLabel struct {
 
 // EssayYearSummary 对应 user_data.essay_year_summaries 表
 type EssayYearSummary struct {
-	Year           FlexYear         `json:"year"`
-	EssayCount     int              `json:"essay_count"`
-	WordCount      int              `json:"word_count"`
-	MonthSummaries json.RawMessage  `json:"month_summaries"` // JSONB
-	UpdatedAt      time.Time        `json:"updated_at"`
+	Year           FlexYear        `json:"year"`
+	EssayCount     int             `json:"essay_count"`
+	WordCount      int             `json:"word_count"`
+	MonthSummaries json.RawMessage `json:"month_summaries"` // JSONB
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 // ============================================================================
