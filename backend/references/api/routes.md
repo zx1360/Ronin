@@ -1,7 +1,7 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-05-05T11:54:08Z
-- TotalRoutes: 33
+- GeneratedAt: 2026-05-05T13:43:50Z
+- TotalRoutes: 34
 
 | Method | Path | Handler |
 | --- | --- | --- |
@@ -21,6 +21,7 @@
 | GET | /API/ops/overview | monarch/internal/handler/util_handler.SystemOverview |
 | GET | /API/test | monarch/internal/handler/util_handler.Test |
 | POST | /API/user-data/backup/:module | monarch/internal/handler/data_handler.BackupHandler |
+| POST | /API/user-data/check-images/:module | monarch/internal/handler/data_handler.CheckImagesHandler |
 | GET | /API/user-data/sync/:module | monarch/internal/handler/data_handler.SyncHandler |
 | DELETE | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
 | GET | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |

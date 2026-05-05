@@ -51,6 +51,7 @@ func SetupRouter() *gin.Engine {
 		{
 			userDataGroup.GET("/sync/:module", data_handler.SyncHandler)
 			userDataGroup.POST("/backup/:module", data_handler.BackupHandler)
+			userDataGroup.POST("/check-images/:module", data_handler.CheckImagesHandler)
 		}
 
 		// 漫画请求相关
