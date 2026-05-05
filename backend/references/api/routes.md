@@ -1,20 +1,19 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-05-04T15:24:45Z
-- TotalRoutes: 36
+- GeneratedAt: 2026-05-05T00:16:55Z
+- TotalRoutes: 33
 
 | Method | Path | Handler |
 | --- | --- | --- |
 | GET | / | monarch/internal/router.SetupRouter.func1 |
 | GET | /API/comic/chapter-info/:chapter-id | monarch/internal/handler/comic_handler.FetchImagesWithChapterId |
-| POST | /API/comic/check-updates | monarch/internal/handler/comic_handler.CheckNewChapters |
 | GET | /API/comic/comic-info | monarch/internal/handler/comic_handler.FetchAllComicInfos |
 | DELETE | /API/comic/comic-info/:comic-id | monarch/internal/handler/comic_handler.DeleteComic |
 | GET | /API/comic/comic-info/:comic-id | monarch/internal/handler/comic_handler.FetchChaptersWithComicId |
 | PUT | /API/comic/comic-info/:comic-id | monarch/internal/handler/comic_handler.UpdateComic |
 | GET | /API/comic/download/:comic-id | monarch/internal/handler/comic_handler.DownloadComic |
 | GET | /API/comic/meta-info | monarch/internal/handler/comic_handler.FetchComicMetadata |
-| POST | /API/comic/sync-readed | monarch/internal/handler/comic_handler.SyncComicReaded |
+| POST | /API/comic/sync-readed | monarch/internal/handler/comic_handler.SyncReadedStatus |
 | GET | /API/gallery/:id/:type | monarch/internal/handler/gallery_handler.FetchMediaAsset |
 | GET | /API/gallery/batch | monarch/internal/handler/gallery_handler.FetchBatch |
 | POST | /API/gallery/push | monarch/internal/handler/gallery_handler.Push |
@@ -22,8 +21,6 @@
 | GET | /API/ops/overview | monarch/internal/handler/util_handler.SystemOverview |
 | GET | /API/test | monarch/internal/handler/util_handler.Test |
 | POST | /API/user-data/backup/:module | monarch/internal/handler/data_handler.BackupHandler |
-| GET | /API/user-data/essay/incremental | monarch/internal/handler/data_handler.GetEssayIncremental |
-| GET | /API/user-data/essay/search | monarch/internal/handler/data_handler.SearchEssays |
 | GET | /API/user-data/sync/:module | monarch/internal/handler/data_handler.SyncHandler |
 | DELETE | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
 | GET | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |

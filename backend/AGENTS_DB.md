@@ -5,34 +5,34 @@
 
 以下为数据表结构以及触发器定义.
 
-## 漫画页数据库
+## 漫画页数据表
 
 ### 建表
 
 ```postgresql
 -- 漫画主表（存储单本漫画信息）
-CREATE TABLE IF NOT EXISTS comic_books (
+CREATE TABLE IF NOT EXISTS comics.comic_books (
     id UUID PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
-    chapter_count INTEGER NOT NULL DEFAULT 0,
-    image_count INTEGER NOT NULL DEFAULT 0, -- 该漫画总图片数
-    cover_image TEXT -- 封面图相对路径（第一个章节的第一张图）
+    cover_image TEXT -- 封面图相对路径.
+		is_public BOOLEAN NOT NULL DEFAULT TRUE,
+		readed BOOLEAN NOT NULL DEFAULT FALSE,
+    source TEXT NOT NULL DEFAULT '';
 );
 
 -- 漫画章节表（存储单本漫画的章节信息）
-CREATE TABLE IF NOT EXISTS comic_chapters (
+CREATE TABLE IF NOT EXISTS comics.comic_chapters (
     id UUID PRIMARY KEY,
-    comic_id VARCHAR(64) NOT NULL,
+    comic_id uuid NOT NULL,
     dir_name VARCHAR(255) NOT NULL, -- 格式：001_章节名
     chapter_index INTEGER NOT NULL,
-    image_count INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (comic_id) REFERENCES comic_books(id) ON DELETE CASCADE
 );
 
 -- 漫画图片表（存储章节下的图片路径及属性）
-CREATE TABLE IF NOT EXISTS comic_images (
+CREATE TABLE IF NOT EXISTS comics.comic_images (
     id UUID PRIMARY KEY,
-    chapter_id VARCHAR(64) NOT NULL,
+    chapter_id UUID NOT NULL,
     image_path TEXT NOT NULL,
     sort_num INTEGER NOT NULL, -- 图片排序号（1、2、3...）
     width INTEGER NOT NULL, -- 图片宽度
@@ -40,26 +40,16 @@ CREATE TABLE IF NOT EXISTS comic_images (
     FOREIGN KEY (chapter_id) REFERENCES comic_chapters(id) ON DELETE CASCADE
 );
 
--- 漫画汇总表（存储所有漫画的统计信息）
-CREATE TABLE IF NOT EXISTS comic_summary (
-    id VARCHAR(64) PRIMARY KEY DEFAULT 'comic_total_metadata',
-    title VARCHAR(255) NOT NULL DEFAULT '漫画信息元数据',
-    book_count INTEGER NOT NULL DEFAULT 0,
-    total_chapter_count INTEGER NOT NULL DEFAULT 0,
-    total_image_count INTEGER NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT comic_summary_single_row CHECK (id = 'comic_total_metadata')
-);
-
 -- 章节表：comic_id查询+排序索引
 CREATE INDEX if not exists idx_comic_chapters_comic_id ON comics.comic_chapters (comic_id, chapter_index);
 -- 图片表：chapter_id查询+排序索引
 CREATE INDEX if not exists idx_comic_images_chapter_id ON comics.comic_images (chapter_id, sort_num);
+
 ```
 
 
 
-## 藏品页数据库
+## 藏品页数据表
 
 ### 建表
 
@@ -302,4 +292,122 @@ ON gallery.tags
 FOR EACH ROW
 EXECUTE FUNCTION gallery.tags_after_upd();
 ```
+
+## 用户数据表(booklet和essay模块)
+
+### 建表
+
+```postgresql
+-- essay_articles: 随笔文章表
+CREATE TABLE IF NOT EXISTS essay_articles (
+    id          UUID PRIMARY KEY,                -- 沿用原 JSON 中的 id
+    date        TIMESTAMPTZ NOT NULL,            -- 文章日期时间
+    word_count  INT NOT NULL DEFAULT 0,          -- 字数
+    content     TEXT NOT NULL DEFAULT '',         -- 正文
+    imgs        TEXT[] NOT NULL DEFAULT '{}',     -- 图片路径数组
+    labels      UUID[] NOT NULL DEFAULT '{}',     -- 标签 UUID 数组
+    messages    JSONB NOT NULL DEFAULT '[]',      -- 留言: [{"timestamp":"...","content":"..."}]
+    mood        TEXT,                             -- 心情: happy/sad/tired/angry/calm/null
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- 全文搜索向量（content 权重 B，无 title 故无 A 权重）
+    search_vector tsvector GENERATED ALWAYS AS (
+        setweight(to_tsvector('simple', coalesce(content, '')), 'B')
+    ) STORED
+);
+
+-- 索引
+CREATE INDEX idx_essay_articles_date ON essay_articles(date);
+CREATE INDEX idx_essay_articles_labels ON essay_articles USING GIN(labels);
+CREATE INDEX idx_essay_articles_mood ON essay_articles(mood);
+CREATE INDEX idx_essay_articles_search ON essay_articles USING GIN(search_vector);
+CREATE INDEX idx_essay_articles_updated ON essay_articles(updated_at);
+
+-- updated_at 触发器
+CREATE OR REPLACE FUNCTION update_essay_articles_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_essay_articles_updated_at
+    BEFORE UPDATE ON essay_articles
+    FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
+		
+
+-- essay_labels: 随笔标签表
+CREATE TABLE IF NOT EXISTS essay_labels (
+    id          UUID PRIMARY KEY,
+    name        TEXT NOT NULL,
+    essay_count INT NOT NULL DEFAULT 0,          -- 可实时计算，但保留字段方便排序
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_essay_labels_name ON essay_labels(name);
+
+CREATE TRIGGER trg_essay_labels_updated_at
+    BEFORE UPDATE ON essay_labels
+    FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
+		
+
+-- essay_year_summaries: 年度汇总表
+CREATE TABLE IF NOT EXISTS essay_year_summaries (
+    year            INT PRIMARY KEY,
+    essay_count     INT NOT NULL DEFAULT 0,
+    word_count      INT NOT NULL DEFAULT 0,
+    month_summaries JSONB NOT NULL DEFAULT '[]', -- [{"month":"1","essay_count":22,"word_count":3097}]
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+
+-- booklet_styles: 打卡项目组表
+CREATE TABLE IF NOT EXISTS booklet_styles (
+    id                  UUID PRIMARY KEY,
+    start_date          TIMESTAMPTZ NOT NULL,
+    valid_check_in      INT NOT NULL DEFAULT 0,
+    fully_done          INT NOT NULL DEFAULT 0,
+    longest_streak      INT NOT NULL DEFAULT 0,
+    longest_fully_streak INT NOT NULL DEFAULT 0,
+    tasks               JSONB NOT NULL DEFAULT '[]',  -- 内嵌任务列表
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_booklet_styles_start ON booklet_styles(start_date);
+
+CREATE TRIGGER trg_booklet_styles_updated_at
+    BEFORE UPDATE ON booklet_styles
+    FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
+		
+
+-- booklet_records: 每日打卡记录表
+CREATE TABLE IF NOT EXISTS booklet_records (
+    id              UUID PRIMARY KEY,
+    style_id        UUID NOT NULL REFERENCES booklet_styles(id) ON DELETE CASCADE,
+    date            DATE NOT NULL,
+    message         TEXT NOT NULL DEFAULT '',
+    task_completion JSONB NOT NULL DEFAULT '{}',  -- {"task_id": true/false, ...}
+    mood            TEXT,                          -- 心情: happy/sad/.../null
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- 同一天同一 style 只有一条记录
+    CONSTRAINT uq_booklet_records_style_date UNIQUE (style_id, date)
+);
+
+CREATE INDEX idx_booklet_records_date ON booklet_records(date);
+CREATE INDEX idx_booklet_records_style ON booklet_records(style_id);
+CREATE INDEX idx_booklet_records_updated ON booklet_records(updated_at);
+
+CREATE TRIGGER trg_booklet_records_updated_at
+    BEFORE UPDATE ON booklet_records
+    FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
+```
+
+
 

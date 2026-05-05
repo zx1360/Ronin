@@ -22,13 +22,16 @@ class ComicInfoAdapter extends TypeAdapter<ComicInfo> {
       coverImage: fields[2] as String,
       chapterCount: fields[3] as int,
       imageCount: fields[4] as int,
+      isPublic: fields[5] as bool?,
+      readed: fields[6] as bool?,
+      source: fields[7] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ComicInfo obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +41,13 @@ class ComicInfoAdapter extends TypeAdapter<ComicInfo> {
       ..writeByte(3)
       ..write(obj.chapterCount)
       ..writeByte(4)
-      ..write(obj.imageCount);
+      ..write(obj.imageCount)
+      ..writeByte(5)
+      ..write(obj.isPublic)
+      ..writeByte(6)
+      ..write(obj.readed)
+      ..writeByte(7)
+      ..write(obj.source);
   }
 
   @override
@@ -62,6 +71,9 @@ ComicInfo _$ComicInfoFromJson(Map<String, dynamic> json) => ComicInfo(
       coverImage: json['cover_image'] as String,
       chapterCount: (json['chapter_count'] as num).toInt(),
       imageCount: (json['image_count'] as num).toInt(),
+      isPublic: json['is_public'] as bool? ?? true,
+      readed: json['readed'] as bool? ?? false,
+      source: json['source'] as String? ?? '',
     );
 
 Map<String, dynamic> _$ComicInfoToJson(ComicInfo instance) => <String, dynamic>{
@@ -70,4 +82,7 @@ Map<String, dynamic> _$ComicInfoToJson(ComicInfo instance) => <String, dynamic>{
       'cover_image': instance.coverImage,
       'chapter_count': instance.chapterCount,
       'image_count': instance.imageCount,
+      'is_public': instance.isPublic,
+      'readed': instance.readed,
+      'source': instance.source,
     };

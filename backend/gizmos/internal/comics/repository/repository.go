@@ -5,12 +5,10 @@ package repository
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"gizmos/internal/comics/model"
 	"gizmos/internal/service/db"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,7 +20,6 @@ func ClearOldData() error {
 }
 func clearOldData(ctx context.Context, pool *pgxpool.Pool) error {
 	query := `
-    TRUNCATE TABLE comics.comic_summary;
     TRUNCATE TABLE comics.comic_images;
     TRUNCATE TABLE comics.comic_chapters cascade;
     TRUNCATE TABLE comics.comic_books cascade;
@@ -119,9 +116,9 @@ func insertComicData(ctx context.Context, pool *pgxpool.Pool, comicBooks []*mode
 
 			if !comicInserted {
 				if _, err := tx.Exec(ctx, `
-                    INSERT INTO comics.comic_books (id, title, chapter_count, image_count, cover_image)
-                    VALUES ($1, $2, $3, $4, $5)
-                `, comic.ID, comic.Title, comic.ChapterCount, comic.ImageCount, comic.CoverImage); err != nil {
+                    INSERT INTO comics.comic_books (id, title)
+                    VALUES ($1, $2)
+                `, comic.ID, comic.Title); err != nil {
 					return 0, 0, wrapErr(fmt.Errorf("插入漫画[%s]失败: %w", comic.Title, err))
 				}
 				comicInserted = true
@@ -129,9 +126,9 @@ func insertComicData(ctx context.Context, pool *pgxpool.Pool, comicBooks []*mode
 			}
 
 			if _, err := tx.Exec(ctx, `
-                INSERT INTO comics.comic_chapters (id, comic_id, dir_name, chapter_index, image_count)
-                VALUES ($1, $2, $3, $4, $5)
-            `, chapter.ID, chapter.ComicID, chapter.DirName, chapter.ChapterIndex, chapter.ImageCount); err != nil {
+                INSERT INTO comics.comic_chapters (id, comic_id, dir_name, chapter_index)
+                VALUES ($1, $2, $3, $4)
+            `, chapter.ID, chapter.ComicID, chapter.DirName, chapter.ChapterIndex); err != nil {
 				return 0, 0, wrapErr(fmt.Errorf("插入章节[%s/%s]失败: %w", comic.Title, chapter.DirName, err))
 			}
 
@@ -145,7 +142,7 @@ func insertComicData(ctx context.Context, pool *pgxpool.Pool, comicBooks []*mode
 			}
 
 			insertedChapter++
-			insertedImage += chapter.ImageCount
+			insertedImage += len(chapter.Images)
 		}
 	}
 
@@ -167,66 +164,6 @@ func InsertAllComics(comicBooks []*model.ComicBook) (int, int, error) {
 	return InsertComicData(comicBooks, empty)
 }
 
-// UpdateSummary 写入/更新汇总
-func UpdateSummary(totalBookCount, totalChapterCount, totalImageCount int) error {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return updateSummary(ctx, db.GetPool(), totalBookCount, totalChapterCount, totalImageCount)
-}
-func updateSummary(ctx context.Context, pool *pgxpool.Pool, totalBookCount, totalChapterCount, totalImageCount int) error {
-	_, err := pool.Exec(ctx, `
-        INSERT INTO comics.comic_summary (id, title, book_count, total_chapter_count, total_image_count, updated_at)
-        VALUES ('comic_total_metadata', '漫画信息元数据', $1, $2, $3, $4)
-        ON CONFLICT (id) DO UPDATE
-        SET book_count = $1, total_chapter_count = $2, total_image_count = $3, updated_at = $4
-    `, totalBookCount, totalChapterCount, totalImageCount, time.Now())
-	if err != nil {
-		return wrapErr(fmt.Errorf("插入汇总信息失败: %w", err))
-	}
-	println(fmt.Sprintf("ℹ️  汇总信息更新完成：总漫画数=%d，总章节数=%d，总图片数=%d", totalBookCount, totalChapterCount, totalImageCount))
-	return nil
-}
-
-// GetCurrentSummary 读取当前汇总（若无返回 0 值）
-func GetCurrentSummary() (int, int, int, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return getCurrentSummary(ctx, db.GetPool())
-}
-func getCurrentSummary(ctx context.Context, pool *pgxpool.Pool) (int, int, int, error) {
-	var bookCount, totalChapterCount, totalImageCount int
-	err := pool.QueryRow(ctx, `
-        SELECT book_count, total_chapter_count, total_image_count
-        FROM comics.comic_summary WHERE id = 'comic_total_metadata'`).Scan(&bookCount, &totalChapterCount, &totalImageCount)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return 0, 0, 0, nil
-		}
-		return 0, 0, 0, wrapErr(fmt.Errorf("查询当前汇总信息失败: %w", err))
-	}
-	return bookCount, totalChapterCount, totalImageCount, nil
-}
-
-// AggregateCountsFromDB 直接从库中汇总（刷新后更稳妥）
-func AggregateCountsFromDB() (int, int, int, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	pool := db.GetPool()
-	var bookCount int
-	if err := pool.QueryRow(ctx, `select count(1) from comics.comic_books`).Scan(&bookCount); err != nil {
-		return 0, 0, 0, err
-	}
-	var chapterSum int
-	if err := pool.QueryRow(ctx, `select coalesce(sum(chapter_count),0) from comics.comic_books`).Scan(&chapterSum); err != nil {
-		return 0, 0, 0, err
-	}
-	var imageSum int
-	if err := pool.QueryRow(ctx, `select coalesce(sum(image_count),0) from comics.comic_books`).Scan(&imageSum); err != nil {
-		return 0, 0, 0, err
-	}
-	return bookCount, chapterSum, imageSum, nil
-}
-
 // --- 刷新更新相关 ---
 
 // GetChaptersByTitle 返回某漫画的章节: dir_name -> (chapter_id, image_count)
@@ -244,7 +181,9 @@ func GetChaptersByTitle(title string) (map[string]struct {
 		return nil, "", err
 	}
 
-	rows, err := pool.Query(ctx, `select id, dir_name, image_count from comics.comic_chapters where comic_id=$1`, comicID)
+	rows, err := pool.Query(ctx, `
+		select c.id, c.dir_name, (select count(*) from comics.comic_images where chapter_id=c.id) as image_count
+		from comics.comic_chapters c where c.comic_id=$1`, comicID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -305,7 +244,7 @@ func DeleteChapterByID(chapterID string) error {
 	return err
 }
 
-// ReplaceChapterImages 用新列表替换章节图片，并更新计数
+// ReplaceChapterImages 用新列表替换章节图片（不再手动更新 image_count，由实时计算）
 func ReplaceChapterImages(chapterID string, images []model.ComicImage) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
@@ -336,10 +275,6 @@ func ReplaceChapterImages(chapterID string, images []model.ComicImage) error {
 			return txErr
 		}
 	}
-	if _, err := tx.Exec(ctx, `update comics.comic_chapters set image_count=$1 where id=$2`, len(images), chapterID); err != nil {
-		txErr = err
-		return txErr
-	}
 	return nil
 }
 
@@ -362,9 +297,9 @@ func InsertChapterWithImages(comicID string, chapter model.ComicChapter) error {
 	}()
 
 	if _, err := tx.Exec(ctx, `
-        insert into comics.comic_chapters (id, comic_id, dir_name, chapter_index, image_count)
-        values ($1,$2,$3,$4,$5)
-    `, chapter.ID, comicID, chapter.DirName, chapter.ChapterIndex, chapter.ImageCount); err != nil {
+        insert into comics.comic_chapters (id, comic_id, dir_name, chapter_index)
+        values ($1,$2,$3,$4)
+    `, chapter.ID, comicID, chapter.DirName, chapter.ChapterIndex); err != nil {
 		txErr = err
 		return txErr
 	}
@@ -379,16 +314,6 @@ func InsertChapterWithImages(comicID string, chapter model.ComicChapter) error {
 		}
 	}
 	return nil
-}
-
-// UpdateBookAggregates 更新漫画聚合字段
-func UpdateBookAggregates(comicID string, chapterCount, imageCount int, coverImage string) error {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	_, err := db.GetPool().Exec(ctx, `
-        update comics.comic_books set chapter_count=$1, image_count=$2, cover_image=$3 where id=$4
-    `, chapterCount, imageCount, coverImage, comicID)
-	return err
 }
 
 func wrapErr(err error) error { return err }
