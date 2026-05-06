@@ -8,7 +8,6 @@ import 'package:torrid/features/others/comic/widgets/detail_page/comic_header.da
 import 'package:torrid/features/others/comic/widgets/detail_page/continue_read_btn.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/row_info_widget.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
-import 'package:torrid/core/widgets/progress_indicator/progress_indicator.dart';
 import 'comic_read_flip.dart';
 import 'comic_read_scroll.dart';
 
@@ -37,42 +36,11 @@ class ComicDetailPage extends ConsumerWidget {
       appBar: AppBar(
         title: Text(comicInfo.comicName, overflow: TextOverflow.ellipsis),
         centerTitle: true,
-        actions: [
-          if (!isLocal)
-            IconButton(
-              tooltip: (comicInfo.readed ?? false) ? '标记未读' : '标记已读',
-              onPressed: () async {
-                final newReaded = !(comicInfo.readed ?? false);
-                try {
-                  await ref
-                      .read(comicSyncControllerProvider.notifier)
-                      .markAsReaded(comicInfo.id, readed: newReaded);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(newReaded ? '已标记为已读' : '已标记为未读'),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('操作失败: $e')),
-                    );
-                  }
-                }
-              },
-              icon: Icon(
-                (comicInfo.readed ?? false)
-                    ? Icons.done_all
-                    : Icons.done,
-              ),
-            ),
-        ],
+        actions: const [],
       ),
-      body: isLoading
-          ? ProgressIndicatorWidget()
-          : CustomScrollView(
+      body: Stack(
+        children: [
+          CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
                   child: ComicHeader(info: comicInfo, isLocal: isLocal),
@@ -182,7 +150,7 @@ class ComicDetailPage extends ConsumerWidget {
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      '${chapter.images.length | chapter.imageCount} 页',
+                                      '${chapter.imageCount} 页',
                                       style: const TextStyle(
                                         fontSize: 10,
                                         color: Colors.grey,
@@ -215,6 +183,14 @@ class ComicDetailPage extends ConsumerWidget {
                 ),
               ],
             ),
+          if (isLoading)
+            const Positioned.fill(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

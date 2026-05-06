@@ -14,7 +14,7 @@ part 'online_status_provider.g.dart';
 // 在线漫画数据
 // ============================================================================
 
-/// 获取所有在线漫画信息（安卓端仅展示 is_public=true 的漫画）
+/// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
 @riverpod
 Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
   final response = await ref.read(
@@ -24,12 +24,9 @@ Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
     throw Exception("获取在线漫画列表失败");
   }
 
-  final allComics = (response.data as List)
+  return (response.data as List)
       .map((row) => ComicInfo.fromJson(row as Map<String, dynamic>))
       .toList();
-
-  // 安卓端隐藏 isPublic=false 的漫画
-  return allComics.where((c) => c.isPublic??true).toList();
 }
 
 /// 根据漫画 ID 获取对应的章节信息
@@ -72,7 +69,7 @@ Future<List<Map<String, dynamic>>> onlineImagesWithChapterId(
 // 同步操作
 // ============================================================================
 
-/// 同步已读状态：将本地已读漫画的 ID 发送给服务器，并获取各漫画的章节总数
+/// 同步操作：检查更新并同步后端字段到本地
 @riverpod
 class ComicSyncController extends _$ComicSyncController {
   @override
@@ -80,35 +77,22 @@ class ComicSyncController extends _$ComicSyncController {
     return const AsyncValue.data(null);
   }
 
-  /// 标记单本漫画的已读/未读状态
-  Future<void> markAsReaded(String comicId, {bool readed = true}) async {
-    final apiClient = ref.read(apiClientManagerProvider);
-    try {
-      await apiClient.putJson(
-        '/API/comic/comic-info/$comicId',
-        data: {'readed': readed},
-      );
-      // 刷新在线漫画列表
-      ref.invalidate(comicsOnlineProvider);
-    } catch (e) {
-      throw Exception('标记操作失败: $e');
-    }
-  }
-
-  /// 同步已读状态：发送本地已读漫画ID列表，获取服务器章节总数
-  /// 返回 {comicId: serverChapterCount}，客户端自行对比本地章节数决定是否增量下载
-  Future<Map<String, int>> syncReadedStatus(List<String> readedIds) async {
+  /// 获取所有漫画的服务器章节总数
+  /// 返回 {comicId: serverChapterCount}
+  Future<Map<String, int>> fetchServerChapterCounts() async {
     state = const AsyncValue.loading();
 
     try {
       final apiClient = ref.read(apiClientManagerProvider);
+      // 使用 sync-readed 端点获取章节计数（不传 readed_ids 则仅返回计数）
       final response = await apiClient.postJson(
         '/API/comic/sync-readed',
-        data: {'readed_ids': readedIds},
+        data: {'readed_ids': <String>[]},
       );
 
       final data = response.data as Map<String, dynamic>;
-      final newChaptersRaw = data['new_chapters'] as Map<String, dynamic>? ?? {};
+      final newChaptersRaw =
+          data['new_chapters'] as Map<String, dynamic>? ?? {};
 
       final result = <String, int>{};
       newChaptersRaw.forEach((key, value) {
