@@ -20,7 +20,6 @@ class TaskEditorDialog extends ConsumerStatefulWidget {
 class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _exeController;
-  late final TextEditingController _workingDirController;
 
   late TaskType _type;
   late bool _dangerousOperation;
@@ -38,9 +37,6 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
 
     _nameController = TextEditingController(text: initial?.name ?? '');
     _exeController = TextEditingController(text: initial?.executablePath ?? '');
-    _workingDirController = TextEditingController(
-      text: initial?.workingDirectory ?? '',
-    );
 
     _type = initial?.type ?? TaskType.custom;
     _dangerousOperation = initial?.dangerousOperation ?? false;
@@ -77,7 +73,6 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
   void dispose() {
     _nameController.dispose();
     _exeController.dispose();
-    _workingDirController.dispose();
     for (final item in _presets) {
       item.nameController.dispose();
       item.argsController.dispose();
@@ -137,26 +132,6 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
                     onPressed: _pickExecutable,
                     tooltip: '浏览 exe',
                     icon: const Icon(Icons.file_open_rounded),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _workingDirController,
-                      decoration: const InputDecoration(
-                        labelText: '工作目录 (可选)',
-                        hintText: '留空则使用程序默认工作目录',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: _pickWorkingDirectory,
-                    tooltip: '浏览目录',
-                    icon: const Icon(Icons.folder_open_rounded),
                   ),
                 ],
               ),
@@ -311,27 +286,6 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
     }
     setState(() {
       _exeController.text = path;
-      if (_workingDirController.text.trim().isEmpty) {
-        final parentPath = File(path).parent.path;
-        if (Directory(parentPath).existsSync()) {
-          _workingDirController.text = parentPath;
-        }
-      }
-    });
-  }
-
-  Future<void> _pickWorkingDirectory() async {
-    final picker = ref.read(pathPickerServiceProvider);
-    final path = await picker.pickDirectory(
-      initialDirectory: _workingDirController.text.trim().isEmpty
-          ? _initialExecutableDirectory()
-          : _workingDirController.text.trim(),
-    );
-    if (path == null || !mounted) {
-      return;
-    }
-    setState(() {
-      _workingDirController.text = path;
     });
   }
 
@@ -428,7 +382,6 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
       type: _type,
       name: name,
       executablePath: _exeController.text.trim(),
-      workingDirectory: _workingDirController.text.trim(),
       presets: presets,
       selectedPresetId: _selectedPresetId,
       dangerousOperation: _dangerousOperation,

@@ -64,8 +64,6 @@ definitions:
         type: boolean
       readed:
         type: boolean
-      source:
-        type: string
       title:
         type: string
     type: object
@@ -184,8 +182,6 @@ definitions:
         type: boolean
       readed:
         type: boolean
-      source:
-        type: string
     type: object
 info:
   contact: {}
