@@ -4,20 +4,6 @@ import 'package:northstar/domain/ops/models/task_profile.dart';
 List<TaskProfile> buildDefaultTaskTemplates() {
   return const <TaskProfile>[
     TaskProfile(
-      id: 'monarch-local',
-      type: TaskType.monarch,
-      name: 'Monarch Local',
-      executablePath: '',
-      workingDirectory: '',
-      presets: <ArgPreset>[
-        ArgPreset(id: 'local', name: 'Local', args: <String>['-mode', 'local']),
-      ],
-      selectedPresetId: 'local',
-      dangerousOperation: false,
-      hiddenByDefault: false,
-      supportsGracefulStop: true,
-    ),
-    TaskProfile(
       id: 'monarch-https',
       type: TaskType.monarch,
       name: 'Monarch HTTPS',
@@ -27,6 +13,20 @@ List<TaskProfile> buildDefaultTaskTemplates() {
         ArgPreset(id: 'https', name: 'Default', args: <String>[]),
       ],
       selectedPresetId: 'https',
+      dangerousOperation: false,
+      hiddenByDefault: false,
+      supportsGracefulStop: true,
+    ),
+    TaskProfile(
+      id: 'monarch-local',
+      type: TaskType.monarch,
+      name: 'Monarch Local',
+      executablePath: '',
+      workingDirectory: '',
+      presets: <ArgPreset>[
+        ArgPreset(id: 'local', name: 'Local', args: <String>['-mode', 'local']),
+      ],
+      selectedPresetId: 'local',
       dangerousOperation: false,
       hiddenByDefault: false,
       supportsGracefulStop: true,

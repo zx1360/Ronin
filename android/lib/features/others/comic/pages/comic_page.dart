@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
+import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/pages/comic_download_tasks_page.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
 import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
@@ -23,6 +24,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
   bool isInProgress = false;
   bool isOnlineComicsLoaded = false;
   bool _isHiveInitialized = false;
+  bool _showAllComics = false; // false=仅公开, true=全部
 
   @override
   void initState() {
@@ -74,7 +76,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
     });
   }
 
-  Future<void> _syncReadedStatus() async {
+  Future<void> _syncStatus() async {
     // 收集本地已下载的漫画
     final localComics = ref.read(comicInfosProvider);
     if (localComics.isEmpty) {
@@ -86,38 +88,44 @@ class _ComicPageState extends ConsumerState<ComicPage> {
       return;
     }
 
-    // 筛选本地标记为已读的漫画ID，发送给后端
-    final readedIds = localComics
-        .where((c) => c.readed == true)
-        .map((c) => c.id)
-        .toList();
-
     try {
-      // 调用同步接口：上传已读状态 + 获取所有漫画的章节总数
-      final serverChapters = await ref
-          .read(comicSyncControllerProvider.notifier)
-          .syncReadedStatus(readedIds);
+      // 1. 获取服务器全部漫画数据（强制刷新确保最新）
+      ref.invalidate(comicsOnlineProvider);
+      final serverComics = await ref.read(comicsOnlineProvider.future);
 
-      // 对比本地章节数与服务器章节数
+      final serverComicMap = <String, ComicInfo>{};
+      for (final sc in serverComics) {
+        serverComicMap[sc.id] = sc;
+      }
+
+      int syncedCount = 0;
       int newDownloadCount = 0;
-      for (final comic in localComics) {
-        final serverCount = serverChapters[comic.id];
-        if (serverCount != null && serverCount > comic.chapterCount) {
-          // 服务器有更多章节，加入下载队列
+
+      for (final localComic in localComics) {
+        final serverComic = serverComicMap[localComic.id];
+        if (serverComic == null) continue;
+
+        // 同步字段到本地
+        await ref
+            .read(comicServiceProvider.notifier)
+            .syncFieldsFromServer(serverComic);
+        syncedCount++;
+
+        // 检查是否有新章节
+        if (serverComic.chapterCount > localComic.chapterCount) {
           await ref
               .read(comicDownloadTasksProvider.notifier)
-              .enqueueComic(comicInfo: comic);
+              .enqueueComic(comicInfo: localComic);
           newDownloadCount++;
         }
       }
 
       if (mounted) {
-        final readedMsg = readedIds.isNotEmpty ? '已上传 ${readedIds.length} 本已读状态，' : '';
-        final message = newDownloadCount > 0
-            ? '${readedMsg}同步完成，$newDownloadCount 本漫画有更新，已加入下载队列'
-            : '${readedMsg}同步完成，所有漫画均为最新';
+        final msg = newDownloadCount > 0
+            ? '已同步 $syncedCount 本漫画，$newDownloadCount 本有更新，已加入下载队列'
+            : '已同步 $syncedCount 本漫画，均为最新';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
@@ -166,7 +174,15 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                 case 'refresh_meta':
                   await initInfos();
                 case 'sync_status':
-                  await _syncReadedStatus();
+                  await _syncStatus();
+                case 'toggle_visibility':
+                  setState(() {
+                    _showAllComics = !_showAllComics;
+                  });
+                  // 刷新在线列表以应用过滤
+                  if (isOnlineComicsLoaded) {
+                    ref.invalidate(comicsOnlineProvider);
+                  }
               }
             },
             itemBuilder: (context) => [
@@ -225,7 +241,18 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                 child: ListTile(
                   leading: Icon(Icons.sync),
                   title: Text('同步状态'),
-                  subtitle: Text('上传已读状态并检查更新'),
+                  subtitle: Text('检查更新章节并同步后端字段'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'toggle_visibility',
+                child: ListTile(
+                  leading: Icon(
+                    _showAllComics ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  title: Text(_showAllComics ? '显示全部漫画' : '仅显示公开漫画'),
+                  subtitle: Text(_showAllComics ? '当前：全部' : '当前：仅公开'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -364,6 +391,9 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                     AsyncValueWidget(
                       asyncValue: onlineComicsAsync,
                       dataBuilder: (comics) {
+                        final filtered = _showAllComics
+                            ? comics
+                            : comics.where((c) => c.isPublic ?? true).toList();
                         return GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
@@ -375,9 +405,9 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                                 crossAxisSpacing: 6,
                                 mainAxisSpacing: 6,
                               ),
-                          itemCount: comics.length,
+                          itemCount: filtered.length,
                           itemBuilder: (context, index) {
-                            final comic = comics[index];
+                            final comic = filtered[index];
                             return GestureDetector(
                               onTap: () {
                                 Navigator.push(

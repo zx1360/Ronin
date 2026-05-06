@@ -87,9 +87,11 @@ func getChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId str
 	var chapterInfos []model.ChapterInfo
 	query := `
 		SELECT ch.id, ch.comic_id, ch.dir_name, ch.chapter_index,
-			(SELECT COUNT(*) FROM comics.comic_images WHERE chapter_id = ch.id) as image_count
+			COUNT(ci.id) as image_count
 		FROM comics.comic_chapters ch
+		LEFT JOIN comics.comic_images ci ON ci.chapter_id = ch.id
 		WHERE ch.comic_id = $1
+		GROUP BY ch.id, ch.comic_id, ch.dir_name, ch.chapter_index
 		ORDER BY ch.chapter_index ASC
 	`
 	rows, err := pool.Query(ctx, query, comicId)
