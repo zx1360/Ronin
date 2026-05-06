@@ -17,11 +17,13 @@ class LogsPage extends ConsumerStatefulWidget {
 
 class _LogsPageState extends ConsumerState<LogsPage> {
   final TextEditingController _filterController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String? _selectedTaskId;
 
   @override
   void dispose() {
     _filterController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -138,22 +140,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                       padding: const EdgeInsets.all(AppDimens.paddingM),
                       child: filteredLogs.isEmpty
                           ? const Center(child: Text('暂无日志'))
-                          : ListView.builder(
-                              itemCount: filteredLogs.length,
-                              itemBuilder: (context, index) {
-                                final item = filteredLogs[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: Text(
-                                    _formatLine(item),
-                                    style: TextStyle(
-                                      fontFamily: 'Consolas',
-                                      color: _streamColor(context, item.streamType),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                          : _buildLogTextArea(filteredLogs),
                     ),
                   ),
                 ),
@@ -162,6 +149,45 @@ class _LogsPageState extends ConsumerState<LogsPage> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 构建只读但可复制的日志文本区，自动滚动到末尾
+  Widget _buildLogTextArea(List<ProcessLogEntry> logs) {
+    // 日志到达后自动滚动到末尾
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
+
+    final spans = <TextSpan>[];
+    for (final item in logs) {
+      spans.add(TextSpan(
+        text: '${_formatLine(item)}\n',
+        style: TextStyle(
+          color: _streamColor(context, item.streamType),
+        ),
+      ));
+    }
+
+    return Scrollbar(
+      controller: _scrollController,
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        child: SizedBox(
+          width: double.infinity,
+          child: SelectableText.rich(
+            TextSpan(
+              style: const TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 13,
+              ),
+              children: spans,
+            ),
+          ),
+        ),
+      ),
     );
   }
 

@@ -38,26 +38,35 @@ class ComicDetailPage extends ConsumerWidget {
         title: Text(comicInfo.comicName, overflow: TextOverflow.ellipsis),
         centerTitle: true,
         actions: [
-          if (!isLocal && !(comicInfo.readed ?? false))
+          if (!isLocal)
             IconButton(
-              tooltip: '标记已读',
+              tooltip: (comicInfo.readed ?? false) ? '标记未读' : '标记已读',
               onPressed: () async {
+                final newReaded = !(comicInfo.readed ?? false);
                 try {
-                  await ref.read(comicSyncControllerProvider.notifier).markAsReaded(comicInfo.id);
+                  await ref
+                      .read(comicSyncControllerProvider.notifier)
+                      .markAsReaded(comicInfo.id, readed: newReaded);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('已标记为已读')),
+                      SnackBar(
+                        content: Text(newReaded ? '已标记为已读' : '已标记为未读'),
+                      ),
                     );
                   }
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('标记失败: $e')),
+                      SnackBar(content: Text('操作失败: $e')),
                     );
                   }
                 }
               },
-              icon: const Icon(Icons.done_all),
+              icon: Icon(
+                (comicInfo.readed ?? false)
+                    ? Icons.done_all
+                    : Icons.done,
+              ),
             ),
         ],
       ),

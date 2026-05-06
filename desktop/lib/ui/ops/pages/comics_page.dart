@@ -164,31 +164,51 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Heading(title: '漫画资源'),
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Heading(title: '漫画资源'),
+          TabBar(
+            labelColor: Theme.of(context).colorScheme.primary,
+            unselectedLabelColor: Colors.grey,
+            tabs: const [
+              Tab(text: '漫画管理'),
+              Tab(text: '连载追踪'),
+            ],
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('加载失败: $_error',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .error)),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              onPressed: _loadComics,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('重试'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : TabBarView(
                         children: [
-                          Text('加载失败: $_error', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            onPressed: _loadComics,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('重试'),
-                          ),
+                          _buildContent(),
+                          _TrackingSection(),
                         ],
                       ),
-                    )
-                  : _buildContent(),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -222,29 +242,24 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(AppDimens.paddingL),
-            itemCount: comics.length + 1, // +1 for tracking section
+            itemCount: comics.length,
             itemBuilder: (context, index) {
-              if (index < comics.length) {
-                return _ComicCard(
-                  comic: comics[index],
-                  coverUrl: _coverUrl(comics[index]['cover_image'] as String?),
-                  onTogglePublic: () => _togglePublic(
-                    comics[index]['id'] as String,
-                    comics[index]['is_public'] as bool? ?? true,
-                  ),
-                  onDelete: () => _deleteComic(
-                    comics[index]['id'] as String,
-                    comics[index]['title'] as String? ?? '',
-                  ),
-                  onReplaceCover: () => _replaceCover(
-                    comics[index]['id'] as String,
-                    comics[index]['title'] as String? ?? '',
-                  ),
-                );
-              } else {
-                // 漫画连载追踪（留空）
-                return _TrackingSection();
-              }
+              return _ComicCard(
+                comic: comics[index],
+                coverUrl: _coverUrl(comics[index]['cover_image'] as String?),
+                onTogglePublic: () => _togglePublic(
+                  comics[index]['id'] as String,
+                  comics[index]['is_public'] as bool? ?? true,
+                ),
+                onDelete: () => _deleteComic(
+                  comics[index]['id'] as String,
+                  comics[index]['title'] as String? ?? '',
+                ),
+                onReplaceCover: () => _replaceCover(
+                  comics[index]['id'] as String,
+                  comics[index]['title'] as String? ?? '',
+                ),
+              );
             },
           ),
         ),
