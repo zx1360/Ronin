@@ -14,9 +14,10 @@ class ComicInfo {
   @JsonKey(name: "title")
   @HiveField(1)
   final String comicName;
-
   @HiveField(2)
   final String coverImage;
+
+  // PS: 后端舍弃了设两个字段采用实时计算, 安卓端仍旧采用吧.
   @HiveField(3)
   final int chapterCount;
   @HiveField(4)
