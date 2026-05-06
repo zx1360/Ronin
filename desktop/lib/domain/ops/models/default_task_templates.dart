@@ -8,7 +8,6 @@ List<TaskProfile> buildDefaultTaskTemplates() {
       type: TaskType.monarch,
       name: 'Monarch HTTPS',
       executablePath: '',
-      workingDirectory: '',
       presets: <ArgPreset>[
         ArgPreset(id: 'https', name: 'Default', args: <String>[]),
       ],
@@ -22,7 +21,6 @@ List<TaskProfile> buildDefaultTaskTemplates() {
       type: TaskType.monarch,
       name: 'Monarch Local',
       executablePath: '',
-      workingDirectory: '',
       presets: <ArgPreset>[
         ArgPreset(id: 'local', name: 'Local', args: <String>['-mode', 'local']),
       ],
@@ -36,7 +34,6 @@ List<TaskProfile> buildDefaultTaskTemplates() {
       type: TaskType.gallery,
       name: 'Gallery',
       executablePath: '',
-      workingDirectory: '',
       presets: <ArgPreset>[
         ArgPreset(
           id: 'ingest',
@@ -97,7 +94,6 @@ List<TaskProfile> buildDefaultTaskTemplates() {
       type: TaskType.comicIndexer,
       name: 'Comic Indexer',
       executablePath: '',
-      workingDirectory: '',
       presets: <ArgPreset>[
         ArgPreset(
           id: 'refresh',

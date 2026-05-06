@@ -47,7 +47,7 @@ func GetAllComicInfos() ([]model.ComicInfo, error) {
 func getAllComicInfos(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInfo, error) {
 	query := `
 		SELECT
-			b.id, b.title, b.cover_image, b.is_public, b.readed, b.source,
+			b.id, b.title, b.cover_image, b.is_public, b.readed,
 			COUNT(DISTINCT ch.id) as chapter_count,
 			COUNT(img.id) as image_count
 		FROM comics.comic_books b
@@ -65,7 +65,7 @@ func getAllComicInfos(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInf
 	for rows.Next() {
 		var comicInfo model.ComicInfo
 		if err := rows.Scan(&comicInfo.Id, &comicInfo.Title, &comicInfo.CoverImage,
-			&comicInfo.IsPublic, &comicInfo.Readed, &comicInfo.Source,
+			&comicInfo.IsPublic, &comicInfo.Readed,
 			&comicInfo.ChapterCount, &comicInfo.ImageCount); err != nil {
 			return nil, fmt.Errorf("扫描漫画数据失败: %w", err)
 		}
@@ -216,7 +216,7 @@ func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comic
 
 // --- 新增 CRUD ---
 
-// UpdateComicMeta 更新漫画的 is_public / readed / source / cover_image
+// UpdateComicMeta 更新漫画的 is_public / readed / cover_image
 func UpdateComicMeta(comicId string, req model.UpdateComicRequest) error {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
@@ -236,11 +236,6 @@ func updateComicMeta(ctx context.Context, pool *pgxpool.Pool, comicId string, re
 	if req.Readed != nil {
 		setClauses += fmt.Sprintf("readed=$%d, ", argIdx)
 		args = append(args, *req.Readed)
-		argIdx++
-	}
-	if req.Source != nil {
-		setClauses += fmt.Sprintf("source=$%d, ", argIdx)
-		args = append(args, *req.Source)
 		argIdx++
 	}
 	if req.CoverImage != nil {

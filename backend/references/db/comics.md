@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS comics.comic_books (
     cover_image TEXT,
     is_public BOOLEAN NOT NULL DEFAULT TRUE,
     readed BOOLEAN NOT NULL DEFAULT FALSE,
-    source TEXT NOT NULL DEFAULT ''
 );
 ```
 

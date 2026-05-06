@@ -17,8 +17,8 @@ Flutter Windows 桌面运维应用，Monarch 服务器的图形化管理面板�
 
 | 任务 | 模式 | 说明 |
 |------|------|------|
-| Monarch Local | `-mode local` | HTTP 开发模式 |
 | Monarch HTTPS | (默认) | HTTPS 生产模式，`X-API-Key` 鉴权 |
+| Monarch Local | `-mode local` | HTTP 开发模式 |
 | Gallery | `ingest`/`execute`/`refresh` | 媒体摄入/删除/刷新 |
 | Comic Indexer | `refresh`/`full-reindex` | 增量/全量漫画索引 |
 

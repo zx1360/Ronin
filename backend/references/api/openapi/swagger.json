@@ -843,9 +843,6 @@
                 "readed": {
                     "type": "boolean"
                 },
-                "source": {
-                    "type": "string"
-                },
                 "title": {
                     "type": "string"
                 }
@@ -1026,9 +1023,6 @@
                 },
                 "readed": {
                     "type": "boolean"
-                },
-                "source": {
-                    "type": "string"
                 }
             }
         }

@@ -22,7 +22,6 @@ type ComicInfo struct {
 	CoverImage   string `json:"cover_image"`
 	IsPublic     bool   `json:"is_public"`
 	Readed       bool   `json:"readed"`
-	Source       string `json:"source"`
 }
 
 // 章节数据类
@@ -58,6 +57,5 @@ type SyncReadedResponse struct {
 type UpdateComicRequest struct {
 	IsPublic   *bool   `json:"is_public,omitempty"`
 	Readed     *bool   `json:"readed,omitempty"`
-	Source     *string `json:"source,omitempty"`
 	CoverImage *string `json:"cover_image,omitempty"`
 }

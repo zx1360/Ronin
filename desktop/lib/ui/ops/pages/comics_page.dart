@@ -333,7 +333,6 @@ class _ComicCard extends StatelessWidget {
     final readed = comic['readed'] as bool? ?? false;
     final chapterCount = comic['chapter_count'] as int? ?? 0;
     final imageCount = comic['image_count'] as int? ?? 0;
-    final source = comic['source'] as String? ?? '';
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -409,7 +408,6 @@ class _ComicCard extends StatelessWidget {
                 ),
                 if (readed)
                   const _CompactChip(label: '已读', color: Colors.blue),
-                if (source.isNotEmpty) _CompactChip(label: source),
               ],
             ),
           ),

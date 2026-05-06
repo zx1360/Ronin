@@ -60,7 +60,7 @@ class TaskProfilesController extends _$TaskProfilesController {
       for (final template in defaults) template.id: template,
     };
 
-    return filtered
+    final merged = filtered
         .map((task) {
           if (task.id != 'gallery-main') {
             return task;
@@ -74,6 +74,29 @@ class TaskProfilesController extends _$TaskProfilesController {
           return _mergeGalleryProfile(task, galleryTemplate);
         })
         .toList(growable: false);
+
+    return _reorderTasksByTemplate(merged, defaults);
+  }
+
+  /// 按默认模板顺序排列内置任务，自定义任务保持在末尾
+  List<TaskProfile> _reorderTasksByTemplate(
+    List<TaskProfile> tasks,
+    List<TaskProfile> defaults,
+  ) {
+    final defaultOrder = <String, int>{
+      for (var i = 0; i < defaults.length; i++) defaults[i].id: i,
+    };
+
+    final builtin = tasks
+        .where((t) => defaultOrder.containsKey(t.id))
+        .toList(growable: false);
+    final custom = tasks
+        .where((t) => !defaultOrder.containsKey(t.id))
+        .toList(growable: false);
+
+    builtin.sort((a, b) => defaultOrder[a.id]!.compareTo(defaultOrder[b.id]!));
+
+    return [...builtin, ...custom];
   }
 
   TaskProfile _mergeGalleryProfile(TaskProfile cached, TaskProfile template) {
