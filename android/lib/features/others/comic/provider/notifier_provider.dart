@@ -313,7 +313,7 @@ class ComicService extends _$ComicService {
 
   /// 用服务器数据同步更新本地漫画各字段
   ///
-  /// 仅更新服务器侧维护的字段（is_public / readed / source / chapter_count / image_count），
+  /// 仅更新服务器侧维护的字段（is_public / readed / chapter_count / image_count），
   /// 不覆盖本地持有的封面路径和 ID。
   Future<void> syncFieldsFromServer(ComicInfo serverComic) async {
     final localComic = state.comicInfoBox.get(serverComic.id);
@@ -324,7 +324,6 @@ class ComicService extends _$ComicService {
       localComic.copyWith(
         isPublic: serverComic.isPublic,
         readed: serverComic.readed,
-        source: serverComic.source,
         chapterCount: serverComic.chapterCount,
         imageCount: serverComic.imageCount,
       ),

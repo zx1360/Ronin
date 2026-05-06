@@ -118,7 +118,7 @@ func DownloadComic(c *gin.Context) {
 
 // ---- 新增: 漫画管理接口 ----
 
-// UpdateComic 更新漫画元数据 (is_public/readed/source/cover_image)
+// UpdateComic 更新漫画元数据 (is_public/readed/cover_image)
 // @Summary 更新漫画元数据
 // @Tags comic
 // @Accept json

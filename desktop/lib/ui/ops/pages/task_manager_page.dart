@@ -112,11 +112,6 @@ class _TaskCard extends ConsumerWidget {
     final exeExists =
         task.executablePath.isNotEmpty &&
         File(task.executablePath).existsSync();
-    final configuredWorkingDirectory = task.workingDirectory.trim();
-    final hasConfiguredWorkingDirectory = configuredWorkingDirectory.isNotEmpty;
-    final workingDirectoryValid =
-        hasConfiguredWorkingDirectory &&
-        _directoryExists(configuredWorkingDirectory);
 
     final isRunning =
         runtime.status == RuntimeStatus.running ||
@@ -151,12 +146,6 @@ class _TaskCard extends ConsumerWidget {
                   ok: exeExists,
                   label: exeExists ? 'exe路径有效' : 'exe路径无效',
                 ),
-                _PathChip(
-                  ok: !hasConfiguredWorkingDirectory || workingDirectoryValid,
-                  label: hasConfiguredWorkingDirectory
-                      ? (workingDirectoryValid ? '工作目录有效' : '工作目录无效')
-                      : '工作目录: 默认',
-                ),
                 if (task.dangerousOperation)
                   const _PathChip(ok: false, label: '危险任务'),
                 if (task.supportsGracefulStop)
@@ -189,12 +178,6 @@ class _TaskCard extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             SelectableText('当前参数字符串: ${preset.argsText}'),
-            const SizedBox(height: 4),
-            SelectableText(
-              hasConfiguredWorkingDirectory
-                  ? '启动工作目录: $configuredWorkingDirectory (手动)'
-                  : '启动工作目录: (默认)',
-            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -297,13 +280,6 @@ class _TaskCard extends ConsumerWidget {
     );
   }
 
-  bool _directoryExists(String path) {
-    try {
-      return Directory(path).existsSync();
-    } catch (_) {
-      return false;
-    }
-  }
 }
 
 class _PathChip extends StatelessWidget {

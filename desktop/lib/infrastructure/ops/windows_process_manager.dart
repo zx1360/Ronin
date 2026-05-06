@@ -55,30 +55,14 @@ class WindowsProcessManager {
       return ProcessStartResult.failure('可执行文件不存在: $executablePath');
     }
 
-    final workingDirectory = task.workingDirectory.trim();
-    if (workingDirectory.isNotEmpty) {
-      final directoryExists = await Directory(workingDirectory).exists();
-      if (!directoryExists) {
-        return ProcessStartResult.failure('工作目录不存在: $workingDirectory');
-      }
-    }
-
     Process process;
     try {
-      if (workingDirectory.isEmpty) {
-        process = await Process.start(
-          executablePath,
-          preset.args,
-          runInShell: false,
-        );
-      } else {
-        process = await Process.start(
-          executablePath,
-          preset.args,
-          runInShell: false,
-          workingDirectory: workingDirectory,
-        );
-      }
+      process = await Process.start(
+        executablePath,
+        preset.args,
+        runInShell: false,
+        workingDirectory: File(executablePath).parent.path,
+      );
     } catch (error) {
       return ProcessStartResult.failure('启动失败: $error');
     }
@@ -91,9 +75,7 @@ class WindowsProcessManager {
         taskId: task.id,
         time: DateTime.now(),
         streamType: LogStreamType.system,
-        text: workingDirectory.isEmpty
-            ? '进程已启动, PID=${process.pid}, CWD=(默认)'
-            : '进程已启动, PID=${process.pid}, CWD=$workingDirectory',
+        text: '进程已启动, PID=${process.pid}',
       ),
     );
 

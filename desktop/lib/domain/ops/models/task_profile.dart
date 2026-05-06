@@ -7,7 +7,6 @@ class TaskProfile {
   final TaskType type;
   final String name;
   final String executablePath;
-  final String workingDirectory;
   final List<ArgPreset> presets;
   final String selectedPresetId;
   final bool dangerousOperation;
@@ -19,7 +18,6 @@ class TaskProfile {
     required this.type,
     required this.name,
     required this.executablePath,
-    required this.workingDirectory,
     required this.presets,
     required this.selectedPresetId,
     required this.dangerousOperation,
@@ -44,7 +42,6 @@ class TaskProfile {
     TaskType? type,
     String? name,
     String? executablePath,
-    String? workingDirectory,
     List<ArgPreset>? presets,
     String? selectedPresetId,
     bool? dangerousOperation,
@@ -56,7 +53,6 @@ class TaskProfile {
       type: type ?? this.type,
       name: name ?? this.name,
       executablePath: executablePath ?? this.executablePath,
-      workingDirectory: workingDirectory ?? this.workingDirectory,
       presets: presets ?? this.presets,
       selectedPresetId: selectedPresetId ?? this.selectedPresetId,
       dangerousOperation: dangerousOperation ?? this.dangerousOperation,
@@ -84,7 +80,6 @@ class TaskProfile {
       type: type,
       name: (json['name'] ?? '').toString(),
       executablePath: (json['executablePath'] ?? '').toString(),
-      workingDirectory: (json['workingDirectory'] ?? '').toString(),
       presets: presets,
       selectedPresetId: (json['selectedPresetId'] ?? fallbackPresetId)
           .toString(),
@@ -100,7 +95,6 @@ class TaskProfile {
       'type': type.name,
       'name': name,
       'executablePath': executablePath,
-      'workingDirectory': workingDirectory,
       'presets': presets.map((item) => item.toJson()).toList(growable: false),
       'selectedPresetId': selectedPresetId,
       'dangerousOperation': dangerousOperation,
