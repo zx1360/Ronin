@@ -75,7 +75,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
   }
 
   Future<void> _syncReadedStatus() async {
-    // 收集本地已下载的漫画ID列表
+    // 收集本地已下载的漫画
     final localComics = ref.read(comicInfosProvider);
     if (localComics.isEmpty) {
       if (mounted) {
@@ -86,13 +86,17 @@ class _ComicPageState extends ConsumerState<ComicPage> {
       return;
     }
 
-    final localIds = localComics.map((c) => c.id).toList();
+    // 筛选本地标记为已读的漫画ID，发送给后端
+    final readedIds = localComics
+        .where((c) => c.readed == true)
+        .map((c) => c.id)
+        .toList();
 
     try {
-      // 调用同步接口
+      // 调用同步接口：上传已读状态 + 获取所有漫画的章节总数
       final serverChapters = await ref
           .read(comicSyncControllerProvider.notifier)
-          .syncReadedStatus(localIds);
+          .syncReadedStatus(readedIds);
 
       // 对比本地章节数与服务器章节数
       int newDownloadCount = 0;
@@ -108,9 +112,10 @@ class _ComicPageState extends ConsumerState<ComicPage> {
       }
 
       if (mounted) {
+        final readedMsg = readedIds.isNotEmpty ? '已上传 ${readedIds.length} 本已读状态，' : '';
         final message = newDownloadCount > 0
-            ? '同步完成，$newDownloadCount 本漫画有更新，已加入下载队列'
-            : '同步完成，所有漫画均为最新';
+            ? '${readedMsg}同步完成，$newDownloadCount 本漫画有更新，已加入下载队列'
+            : '${readedMsg}同步完成，所有漫画均为最新';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
         );
@@ -147,58 +152,74 @@ class _ComicPageState extends ConsumerState<ComicPage> {
         title: const Text('漫画阅读'),
         centerTitle: true,
         actions: [
-          if (activeDownloadTaskCount > 0)
-            IconButton(
-              tooltip: '查看下载任务',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ComicDownloadTasksPage(),
-                  ),
-                );
-              },
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.downloading_rounded),
-                  Positioned(
-                    right: -8,
-                    top: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        activeDownloadTaskCount > 99
-                            ? '99+'
-                            : '$activeDownloadTaskCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          IconButton(onPressed: initInfos, icon: const Icon(Icons.refresh)),
           PopupMenuButton<String>(
             tooltip: '更多操作',
             onSelected: (value) async {
               switch (value) {
+                case 'download_tasks':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ComicDownloadTasksPage(),
+                    ),
+                  );
+                case 'refresh_meta':
+                  await initInfos();
                 case 'sync_status':
                   await _syncReadedStatus();
               }
             },
             itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'download_tasks',
+                child: ListTile(
+                  leading: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.downloading_rounded),
+                      if (activeDownloadTaskCount > 0)
+                        Positioned(
+                          right: -6,
+                          top: -4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              activeDownloadTaskCount > 99
+                                  ? '99+'
+                                  : '$activeDownloadTaskCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  title: const Text('下载任务'),
+                  subtitle: Text(activeDownloadTaskCount > 0
+                      ? '$activeDownloadTaskCount 个进行中'
+                      : '暂无进行中的下载'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'refresh_meta',
+                child: ListTile(
+                  leading: Icon(Icons.refresh),
+                  title: Text('刷新元数据'),
+                  subtitle: Text('重新扫描本地漫画文件'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               const PopupMenuItem(
                 value: 'sync_status',
                 child: ListTile(

@@ -80,18 +80,18 @@ class ComicSyncController extends _$ComicSyncController {
     return const AsyncValue.data(null);
   }
 
-  /// 标记单本漫画为已读
-  Future<void> markAsReaded(String comicId) async {
+  /// 标记单本漫画的已读/未读状态
+  Future<void> markAsReaded(String comicId, {bool readed = true}) async {
     final apiClient = ref.read(apiClientManagerProvider);
     try {
       await apiClient.putJson(
         '/API/comic/comic-info/$comicId',
-        data: {'readed': true},
+        data: {'readed': readed},
       );
       // 刷新在线漫画列表
       ref.invalidate(comicsOnlineProvider);
     } catch (e) {
-      throw Exception('标记已读失败: $e');
+      throw Exception('标记操作失败: $e');
     }
   }
 
