@@ -295,18 +295,16 @@ func syncReadedStatus(ctx context.Context, pool *pgxpool.Pool, readedIds []strin
 		NewChapters: make(map[string]int),
 	}
 
-	if len(readedIds) == 0 {
-		return resp, nil
+	// 1. 批量标记 readed = true（如果有需要标记的ID）
+	if len(readedIds) > 0 {
+		tag, err := pool.Exec(ctx, `UPDATE comics.comic_books SET readed = TRUE WHERE id = ANY($1)`, readedIds)
+		if err != nil {
+			return nil, fmt.Errorf("批量更新已读状态失败: %w", err)
+		}
+		resp.UpdatedCount = int(tag.RowsAffected())
 	}
 
-	// 1. 批量标记 readed = true
-	tag, err := pool.Exec(ctx, `UPDATE comics.comic_books SET readed = TRUE WHERE id = ANY($1)`, readedIds)
-	if err != nil {
-		return nil, fmt.Errorf("批量更新已读状态失败: %w", err)
-	}
-	resp.UpdatedCount = int(tag.RowsAffected())
-
-	// 2. 返回所有漫画的最新章节总数（供客户端对比增量）
+	// 2. 始终返回所有漫画的最新章节总数（供客户端对比增量）
 	rows, err := pool.Query(ctx, `
 		SELECT b.id, COUNT(ch.id)
 		FROM comics.comic_books b

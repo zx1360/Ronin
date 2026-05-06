@@ -1,6 +1,6 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-05-05T13:43:50Z
+- GeneratedAt: 2026-05-06T01:06:44Z
 - TotalRoutes: 34
 
 | Method | Path | Handler |
