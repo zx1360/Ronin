@@ -109,10 +109,41 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
     }
   }
 
+  Future<void> _toggleReaded(String comicId, bool current) async {
+    final settings = ref.read(opsSettingsControllerProvider);
+    final client = ref.read(opsApiClientProvider);
+    try {
+      await client.updateComic(settings, comicId, {'readed': !current});
+      await _loadComics();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('更新失败: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _replaceCover(String comicId, String title) async {
+    // 尝试多个候选路径找到静态资源根目录（相对于后端根目录）
+    String _resolveStaticRoot() {
+      final candidates = [
+        Directory.current.path,
+        p.dirname(Directory.current.path),
+        p.dirname(p.dirname(Directory.current.path)),
+      ];
+      for (final candidate in candidates) {
+        if (Directory(p.join(candidate, 'static')).existsSync()) return candidate;
+      }
+      return Directory.current.path; // 回退
+    }
+
+    final staticRoot = _resolveStaticRoot();
+    final comicDir = p.join(staticRoot, 'static', 'comics', title);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: false,
+      initialDirectory: Directory(comicDir).existsSync() ? comicDir : null,
     );
 
     if (result == null || result.files.isEmpty) return;
@@ -123,7 +154,7 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
     // 将封面图复制到 static/comics/[title]/ 目录下
     // cover_image 字段存储相对路径
     final coverFileName = 'cover${p.extension(pickedFile.path!)}';
-    final targetDir = p.join('static', 'comics', title);
+    final targetDir = p.join(staticRoot, 'static', 'comics', title);
     final targetPath = p.join(targetDir, coverFileName);
     final relativePath = p.join('comics', title, coverFileName).replaceAll('\\', '/');
 
@@ -238,10 +269,16 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
 
         const Divider(height: 1),
 
-        // 漫画管理列表
+        // 漫画管理网格
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(AppDimens.paddingL),
+          child: GridView.builder(
+            padding: const EdgeInsets.all(AppDimens.paddingM),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.62,
+              crossAxisSpacing: AppDimens.spacingM,
+              mainAxisSpacing: AppDimens.spacingM,
+            ),
             itemCount: comics.length,
             itemBuilder: (context, index) {
               return _ComicCard(
@@ -250,6 +287,10 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
                 onTogglePublic: () => _togglePublic(
                   comics[index]['id'] as String,
                   comics[index]['is_public'] as bool? ?? true,
+                ),
+                onToggleReaded: () => _toggleReaded(
+                  comics[index]['id'] as String,
+                  comics[index]['readed'] as bool? ?? false,
                 ),
                 onDelete: () => _deleteComic(
                   comics[index]['id'] as String,
@@ -272,6 +313,7 @@ class _ComicCard extends StatelessWidget {
   final Map<String, dynamic> comic;
   final String coverUrl;
   final VoidCallback onTogglePublic;
+  final VoidCallback onToggleReaded;
   final VoidCallback onDelete;
   final VoidCallback onReplaceCover;
 
@@ -279,6 +321,7 @@ class _ComicCard extends StatelessWidget {
     required this.comic,
     required this.coverUrl,
     required this.onTogglePublic,
+    required this.onToggleReaded,
     required this.onDelete,
     required this.onReplaceCover,
   });
@@ -293,109 +336,143 @@ class _ComicCard extends StatelessWidget {
     final source = comic['source'] as String? ?? '';
 
     return Card(
-      margin: const EdgeInsets.only(bottom: AppDimens.spacingM),
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimens.paddingM),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 封面缩略图
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                width: 72,
-                height: 100,
-                child: coverUrl.isNotEmpty
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 封面区
+          Expanded(
+            flex: 3,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                coverUrl.isNotEmpty
                     ? Image.network(
                         coverUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
-                          color: Colors.grey[200],
+                          color: Colors.grey[800],
                           child: const Icon(Icons.broken_image, color: Colors.grey),
                         ),
                       )
                     : Container(
-                        color: Colors.grey[200],
+                        color: Colors.grey[800],
                         child: const Icon(Icons.menu_book, color: Colors.grey),
                       ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // 信息区
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      _InfoChip(label: '$chapterCount 章'),
-                      _InfoChip(label: '$imageCount 图'),
-                      Chip(
-                        label: Text(
-                          isPublic ? '公开' : '隐藏',
-                          style: TextStyle(fontSize: 11, color: isPublic ? Colors.green : Colors.orange),
-                        ),
-                        backgroundColor: (isPublic ? Colors.green : Colors.orange).withValues(alpha: 0.1),
-                        visualDensity: VisualDensity.compact,
+                // 已读标记
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: InkWell(
+                    onTap: onToggleReaded,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      if (readed)
-                        Chip(
-                          label: const Text('已读', style: TextStyle(fontSize: 11, color: Colors.blue)),
-                          backgroundColor: Colors.blue.withValues(alpha: 0.1),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      if (source.isNotEmpty)
-                        Chip(
-                          label: Text(source, style: const TextStyle(fontSize: 11)),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                    ],
+                      child: Icon(
+                        readed ? Icons.done_all : Icons.done,
+                        size: 16,
+                        color: readed ? Colors.greenAccent : Colors.grey,
+                      ),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            // 操作按钮
-            Column(
-              mainAxisSize: MainAxisSize.min,
+          ),
+          // 信息区
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 2,
+              children: [
+                _CompactChip(label: '$chapterCount 章'),
+                _CompactChip(label: '$imageCount 图'),
+                _CompactChip(
+                  label: isPublic ? '公开' : '隐藏',
+                  color: isPublic ? Colors.green : Colors.orange,
+                ),
+                if (readed)
+                  const _CompactChip(label: '已读', color: Colors.blue),
+                if (source.isNotEmpty) _CompactChip(label: source),
+              ],
+            ),
+          ),
+          // 操作按钮
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 IconButton(
                   tooltip: '替换封面',
                   onPressed: onReplaceCover,
-                  icon: const Icon(Icons.photo_library_outlined, size: 20),
-                ),
-                Switch(
-                  value: isPublic,
-                  onChanged: (_) => onTogglePublic(),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
                 IconButton(
-                  tooltip: '删除漫画',
+                  tooltip: isPublic ? '设为隐藏' : '设为公开',
+                  onPressed: onTogglePublic,
+                  icon: Icon(
+                    isPublic ? Icons.visibility : Icons.visibility_off,
+                    size: 18,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+                IconButton(
+                  tooltip: '删除',
                   onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
+class _CompactChip extends StatelessWidget {
   final String label;
-  const _InfoChip({required this.label});
+  final Color? color;
+  const _CompactChip({required this.label, this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-      label: Text(label, style: const TextStyle(fontSize: 11)),
-      visualDensity: VisualDensity.compact,
-      backgroundColor: Colors.grey.withValues(alpha: 0.1),
+    final effectiveColor = color ?? Colors.grey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: effectiveColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: effectiveColor,
+        ),
+      ),
     );
   }
 }
