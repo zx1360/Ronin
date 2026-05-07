@@ -1,6 +1,8 @@
 # 用户数据表 (user_data schema: booklet + essay)
 
-## essay_articles (随笔文章)
+## 建表
+
+### essay_articles (随笔文章)
 
 ```postgresql
 CREATE TABLE IF NOT EXISTS essay_articles (
@@ -14,15 +16,11 @@ CREATE TABLE IF NOT EXISTS essay_articles (
     mood        TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    search_vector tsvector GENERATED ALWAYS AS (
-        setweight(to_tsvector('simple', coalesce(content, '')), 'B')
-    ) STORED
 );
 
 CREATE INDEX idx_essay_articles_date ON essay_articles(date);
 CREATE INDEX idx_essay_articles_labels ON essay_articles USING GIN(labels);
 CREATE INDEX idx_essay_articles_mood ON essay_articles(mood);
-CREATE INDEX idx_essay_articles_search ON essay_articles USING GIN(search_vector);
 CREATE INDEX idx_essay_articles_updated ON essay_articles(updated_at);
 
 CREATE OR REPLACE FUNCTION update_essay_articles_updated_at()
@@ -33,7 +31,7 @@ CREATE TRIGGER trg_essay_articles_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
 ```
 
-## essay_labels (随笔标签)
+### essay_labels (随笔标签)
 
 ```postgresql
 CREATE TABLE IF NOT EXISTS essay_labels (
@@ -51,7 +49,7 @@ CREATE TRIGGER trg_essay_labels_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
 ```
 
-## essay_year_summaries (年度汇总)
+### essay_year_summaries (年度汇总)
 
 ```postgresql
 CREATE TABLE IF NOT EXISTS essay_year_summaries (
@@ -63,7 +61,7 @@ CREATE TABLE IF NOT EXISTS essay_year_summaries (
 );
 ```
 
-## booklet_styles (打卡项目组)
+### booklet_styles (打卡项目组)
 
 ```postgresql
 CREATE TABLE IF NOT EXISTS booklet_styles (
@@ -85,7 +83,7 @@ CREATE TRIGGER trg_booklet_styles_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
 ```
 
-## booklet_records (每日打卡记录)
+### booklet_records (每日打卡记录)
 
 ```postgresql
 CREATE TABLE IF NOT EXISTS booklet_records (
@@ -107,4 +105,36 @@ CREATE INDEX idx_booklet_records_updated ON booklet_records(updated_at);
 CREATE TRIGGER trg_booklet_records_updated_at
     BEFORE UPDATE ON booklet_records
     FOR EACH ROW EXECUTE FUNCTION update_essay_articles_updated_at();
+```
+
+
+## 触发器
+
+### 自动更新update_at字段值
+```postgresql
+-- 创建通用的updated_at自动更新触发器函数
+CREATE 
+	OR REPLACE FUNCTION update_updated_at_column ( ) RETURNS TRIGGER AS $$ BEGIN
+		NEW.updated_at := CURRENT_TIMESTAMP;
+	RETURN NEW;
+	
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER 
+SET search_path = PUBLIC;
+
+-- 为各数据表添加updated_at触发器
+CREATE TRIGGER trigger_booklet_records_updated_at BEFORE UPDATE ON booklet_records FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column ( );
+
+CREATE TRIGGER trigger_booklet_styles_updated_at BEFORE UPDATE ON booklet_styles FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column ( );
+
+CREATE TRIGGER trigger_essay_articles_updated_at BEFORE UPDATE ON essay_articles FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column ( );
+
+CREATE TRIGGER trigger_essay_labels_updated_at BEFORE UPDATE ON essay_labels FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column ( );
+
+CREATE TRIGGER trigger_essay_year_summaries_updated_at BEFORE UPDATE ON essay_year_summaries FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column ( );
 ```
