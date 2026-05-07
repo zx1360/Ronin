@@ -10,5 +10,5 @@
 - 数据库: backend/AGENTS_DB.md (索引), backend/references/db/ (明细)
 - CLI 文档: backend/references/cli/
 
-(当改动影响项目结构或开发流程时, 请更新 AGENTS.md 中的相关部分.)
+(当改动影响项目结构或开发流程时, 请更新涉及到的 AGENTS.md 中的相关部分.)
 (当改动影响契约文件时, 请运行 `backend/references/scripts/generate_refs.ps1` 来生成最新的 references/ 产物.)
