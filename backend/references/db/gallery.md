@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS media_assets (
     sync_count INTEGER NOT NULL DEFAULT 0,
     group_id UUID DEFAULT NULL,
     message TEXT DEFAULT NULL,
+    edit_params JSONB DEFAULT NULL,
     CONSTRAINT fk_group_id FOREIGN KEY (group_id) REFERENCES media_assets (ID) ON DELETE SET NULL
 );
 ```
