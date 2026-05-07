@@ -126,7 +126,7 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
 
   Future<void> _replaceCover(String comicId, String title) async {
     // 尝试多个候选路径找到静态资源根目录（相对于后端根目录）
-    String _resolveStaticRoot() {
+    String resolveStaticRoot() {
       final candidates = [
         Directory.current.path,
         p.dirname(Directory.current.path),
@@ -138,7 +138,7 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
       return Directory.current.path; // 回退
     }
 
-    final staticRoot = _resolveStaticRoot();
+    final staticRoot = resolveStaticRoot();
     final comicDir = p.join(staticRoot, 'static', 'comics', title);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
