@@ -21,6 +21,7 @@ MediaAsset _$MediaAssetFromJson(Map<String, dynamic> json) => MediaAsset(
       syncCount: (json['sync_count'] as num?)?.toInt() ?? 0,
       groupId: json['group_id'] as String?,
       message: json['message'] as String?,
+      editParams: json['edit_params'] as String?,
     );
 
 Map<String, dynamic> _$MediaAssetToJson(MediaAsset instance) =>
@@ -39,4 +40,5 @@ Map<String, dynamic> _$MediaAssetToJson(MediaAsset instance) =>
       'sync_count': instance.syncCount,
       'group_id': instance.groupId,
       'message': instance.message,
+      'edit_params': instance.editParams,
     };

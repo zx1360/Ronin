@@ -35,8 +35,8 @@ func (r *Repository) InsertMediaAsset(ctx context.Context, asset *model.MediaAss
 	_, err := db.Pool.Exec(ctx, `
 		INSERT INTO gallery.media_assets (
 			id, captured_at, file_path, thumb_path, preview_path, 
-			hash, size_bytes, mime_type, is_deleted, sync_count, group_id
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`,
 		asset.ID,
 		asset.CapturedAt,
@@ -49,6 +49,7 @@ func (r *Repository) InsertMediaAsset(ctx context.Context, asset *model.MediaAss
 		asset.IsDeleted,
 		asset.SyncCount,
 		asset.GroupID,
+		asset.EditParams,
 	)
 	return err
 }
@@ -64,8 +65,8 @@ func (r *Repository) BatchInsertMediaAssets(ctx context.Context, assets []*model
 		batch.Queue(`
 			INSERT INTO gallery.media_assets (
 				id, captured_at, file_path, thumb_path, preview_path, 
-				hash, size_bytes, mime_type, is_deleted, sync_count, group_id
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			ON CONFLICT (hash) DO NOTHING
 		`,
 			asset.ID,
@@ -79,6 +80,7 @@ func (r *Repository) BatchInsertMediaAssets(ctx context.Context, assets []*model
 			asset.IsDeleted,
 			asset.SyncCount,
 			asset.GroupID,
+			asset.EditParams,
 		)
 	}
 
@@ -98,7 +100,7 @@ func (r *Repository) BatchInsertMediaAssets(ctx context.Context, assets []*model
 func (r *Repository) GetDeletedAssets(ctx context.Context) ([]*model.MediaAsset, error) {
 	rows, err := db.Pool.Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
-			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets 
 		WHERE is_deleted = true
 	`)
@@ -124,6 +126,7 @@ func (r *Repository) GetDeletedAssets(ctx context.Context) ([]*model.MediaAsset,
 			&asset.IsDeleted,
 			&asset.SyncCount,
 			&asset.GroupID,
+			&asset.EditParams,
 		)
 		if err != nil {
 			return nil, err
@@ -138,7 +141,7 @@ func (r *Repository) GetDeletedAssets(ctx context.Context) ([]*model.MediaAsset,
 func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([]*model.MediaAsset, error) {
 	rows, err := db.Pool.Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
-			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets 
 		WHERE group_id = $1
 	`, groupID)
@@ -164,6 +167,7 @@ func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([
 			&asset.IsDeleted,
 			&asset.SyncCount,
 			&asset.GroupID,
+			&asset.EditParams,
 		)
 		if err != nil {
 			return nil, err
@@ -195,7 +199,7 @@ func (r *Repository) GetAssetByID(ctx context.Context, id uuid.UUID) (*model.Med
 	asset := &model.MediaAsset{}
 	err := db.Pool.QueryRow(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
-			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets 
 		WHERE id = $1
 	`, id).Scan(
@@ -212,6 +216,7 @@ func (r *Repository) GetAssetByID(ctx context.Context, id uuid.UUID) (*model.Med
 		&asset.IsDeleted,
 		&asset.SyncCount,
 		&asset.GroupID,
+		&asset.EditParams,
 	)
 	if err != nil {
 		return nil, err
@@ -233,7 +238,7 @@ func (r *Repository) CountAssets(ctx context.Context) (total int64, deleted int6
 func (r *Repository) GetAllAssets(ctx context.Context) ([]*model.MediaAsset, error) {
 	rows, err := db.Pool.Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
-		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets
 		ORDER BY file_path, id
 	`)
@@ -259,6 +264,7 @@ func (r *Repository) GetAllAssets(ctx context.Context) ([]*model.MediaAsset, err
 			&asset.IsDeleted,
 			&asset.SyncCount,
 			&asset.GroupID,
+			&asset.EditParams,
 		)
 		if err != nil {
 			return nil, err
@@ -273,7 +279,7 @@ func (r *Repository) GetAllAssets(ctx context.Context) ([]*model.MediaAsset, err
 func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, error) {
 	rows, err := db.Pool.Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
-		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id
+		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets
 		WHERE is_deleted = false
 		ORDER BY file_path, id
@@ -300,6 +306,7 @@ func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, 
 			&asset.IsDeleted,
 			&asset.SyncCount,
 			&asset.GroupID,
+			&asset.EditParams,
 		)
 		if err != nil {
 			return nil, err
@@ -325,8 +332,9 @@ func (r *Repository) UpdateMediaAssetFull(ctx context.Context, asset *model.Medi
 			mime_type    = $9,
 			is_deleted   = $10,
 			sync_count   = $11,
-			group_id     = $12
-		WHERE id = $13
+			group_id     = $12,
+			edit_params  = $13
+		WHERE id = $14
 	`,
 		asset.CreatedAt,
 		asset.UpdatedAt,
@@ -340,6 +348,75 @@ func (r *Repository) UpdateMediaAssetFull(ctx context.Context, asset *model.Medi
 		asset.IsDeleted,
 		asset.SyncCount,
 		asset.GroupID,
+		asset.EditParams,
+		asset.ID,
+	)
+	return err
+}
+
+// GetEditedAssets 获取所有有编辑参数且未删除的媒体资产
+func (r *Repository) GetEditedAssets(ctx context.Context) ([]*model.MediaAsset, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
+		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
+		FROM gallery.media_assets
+		WHERE edit_params IS NOT NULL AND is_deleted = false
+		ORDER BY file_path, id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var assets []*model.MediaAsset
+	for rows.Next() {
+		asset := &model.MediaAsset{}
+		err := rows.Scan(
+			&asset.ID,
+			&asset.CreatedAt,
+			&asset.UpdatedAt,
+			&asset.CapturedAt,
+			&asset.FilePath,
+			&asset.ThumbPath,
+			&asset.PreviewPath,
+			&asset.Hash,
+			&asset.SizeBytes,
+			&asset.MimeType,
+			&asset.IsDeleted,
+			&asset.SyncCount,
+			&asset.GroupID,
+			&asset.EditParams,
+		)
+		if err != nil {
+			return nil, err
+		}
+		assets = append(assets, asset)
+	}
+
+	return assets, rows.Err()
+}
+
+// UpdateAssetAfterEdit 编辑后更新资产：更新 file_path/thumb_path/preview_path/hash/size_bytes/mime_type 并清除 edit_params
+func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.MediaAsset) error {
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE gallery.media_assets SET
+			updated_at   = $1,
+			file_path    = $2,
+			thumb_path   = $3,
+			preview_path = $4,
+			hash         = $5,
+			size_bytes   = $6,
+			mime_type    = $7,
+			edit_params  = NULL
+		WHERE id = $8
+	`,
+		asset.UpdatedAt,
+		asset.FilePath,
+		asset.ThumbPath,
+		asset.PreviewPath,
+		asset.Hash,
+		asset.SizeBytes,
+		asset.MimeType,
 		asset.ID,
 	)
 	return err

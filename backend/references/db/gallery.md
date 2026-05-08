@@ -32,6 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_media_assets_sync_captured ON media_assets (is_de
 CREATE INDEX IF NOT EXISTS idx_media_assets_updated_at ON media_assets (updated_at);
 CREATE INDEX IF NOT EXISTS idx_media_assets_group_id ON media_assets (group_id);
 CREATE INDEX IF NOT EXISTS idx_media_assets_mime_type ON media_assets (mime_type);
+CREATE INDEX IF NOT EXISTS idx_media_assets_edit_params ON media_assets (edit_params) WHERE edit_params IS NOT NULL;
 ```
 
 ### tags

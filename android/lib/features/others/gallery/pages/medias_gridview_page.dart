@@ -270,15 +270,9 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
     if (_isSelectionMode) {
       _toggleSelection(asset.id);
     } else {
-      // 如果文件已删除，提示用户先恢复
+      // 如果文件已删除，双击取消删除 (通过 onDoubleTap 回调处理)
       if (asset.isDeleted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('该文件已删除，请先恢复'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-        return;
+        return; // 不跳转，由 _GridTile 的双击处理恢复
       }
       
       // 直接使用 index 跳转（现在 mediaAssetListProvider 包含所有文件）
@@ -548,6 +542,7 @@ class _GridTileState extends ConsumerState<_GridTile> {
     return RepaintBoundary(
       child: GestureDetector(
         onTap: widget.onTap,
+        onDoubleTap: widget.asset.isDeleted ? () => _undoDelete() : null,
         onLongPress: widget.onLongPress,
         child: Stack(
           fit: StackFit.expand,
@@ -593,6 +588,21 @@ class _GridTileState extends ConsumerState<_GridTile> {
                     color: Colors.white,
                     size: 16,
                   ),
+                ),
+              ),
+
+            // 编辑图标（非选择模式下显示）
+            if (!widget.isSelectionMode && widget.asset.editParams != null)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(Icons.edit, color: Colors.amber, size: 14),
                 ),
               ),
 
@@ -679,6 +689,15 @@ class _GridTileState extends ConsumerState<_GridTile> {
         ),
       ),
     );
+  }
+
+  Future<void> _undoDelete() async {
+    await ref.read(mediaAssetListProvider.notifier).markDeleted(widget.asset.id, deleted: false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已恢复: ${widget.asset.filePath.split('/').last}'), duration: const Duration(seconds: 1)),
+      );
+    }
   }
 
   Widget _buildPlaceholder() {

@@ -15,7 +15,7 @@ class GalleryDatabaseService {
 
   static Database? _database;
   static const String _dbName = 'gallery.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -56,7 +56,10 @@ class GalleryDatabaseService {
   /// 数据库升级
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     AppLogger().info('Gallery 数据库升级: $oldVersion -> $newVersion');
-    // 未来版本升级逻辑
+    if (oldVersion < 2) {
+      await db.execute(
+          'ALTER TABLE media_assets ADD COLUMN edit_params TEXT DEFAULT NULL');
+    }
   }
 
   /// 创建表结构 - 与服务端 PostgreSQL 保持一致
@@ -78,6 +81,7 @@ class GalleryDatabaseService {
         sync_count INTEGER NOT NULL DEFAULT 0,
         group_id TEXT DEFAULT NULL,
         message TEXT DEFAULT NULL,
+        edit_params TEXT DEFAULT NULL,
         FOREIGN KEY (group_id) REFERENCES media_assets(id) ON DELETE SET NULL
       )
     ''');

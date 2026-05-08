@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
@@ -18,6 +20,20 @@ class MediaItemView extends ConsumerWidget {
     this.rotationQuarterTurns = 0,
   });
 
+  /// 从 editParams JSON 解析旋转角度并转为 quarterTurns
+  int get _editRotationTurns {
+    final p = asset.editParams;
+    if (p == null) return 0;
+    try {
+      final json = jsonDecode(p) as Map<String, dynamic>;
+      if (json['type'] == 'image') {
+        final deg = (json['rotation'] as int? ?? 0) % 360;
+        return deg ~/ 90;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storage = ref.watch(galleryStorageProvider);
@@ -25,31 +41,29 @@ class MediaItemView extends ConsumerWidget {
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
 
-    // 图片类型 - 使用 NetworkImageWidget
+    final effectiveTurns = (rotationQuarterTurns + _editRotationTurns) % 4;
+
     if (asset.isImage) {
       final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
-
       return NetworkImageWidget(
-        key: ValueKey('image_${asset.id}_$rotationQuarterTurns'),
+        key: ValueKey('image_${asset.id}_$effectiveTurns'),
         imageUrl: imageUrl,
         asset: asset,
         storage: storage,
-        rotationQuarterTurns: rotationQuarterTurns,
+        rotationQuarterTurns: effectiveTurns,
         httpHeaders: headers,
       );
     }
 
-    // 视频类型 - 使用 VideoPlayerWidget
     if (asset.isVideo) {
       return VideoPlayerWidget(
-        key: ValueKey('video_${asset.id}_$rotationQuarterTurns'),
+        key: ValueKey('video_${asset.id}_$effectiveTurns'),
         asset: asset,
         storage: storage,
-        rotationQuarterTurns: rotationQuarterTurns,
+        rotationQuarterTurns: effectiveTurns,
       );
     }
 
-    // 其他类型
     return Container(
       color: Colors.black,
       child: const Center(
