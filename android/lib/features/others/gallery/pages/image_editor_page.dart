@@ -8,12 +8,11 @@ import 'package:torrid/features/others/gallery/providers/gallery_providers.dart'
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 图片编辑器页面
-/// 支持旋转（90°步进）和裁切（四边+四角拖拽 + 中间移动）
+/// 裁切坐标始终是“原始图片像素坐标”（不受旋转影响）
+/// overlay 放在 Transform.rotate 内部，与图片共享坐标空间
 class ImageEditorPage extends ConsumerStatefulWidget {
   final MediaAsset asset;
-
   const ImageEditorPage({super.key, required this.asset});
-
   @override
   ConsumerState<ImageEditorPage> createState() => _ImageEditorPageState();
 }
@@ -23,19 +22,18 @@ enum _DragTarget { none, topLeft, top, topRight, right, bottomRight, bottom, bot
 class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
   int _rotation = 0;
 
-  /// 裁切区域 (相对于旋转后图像的像素坐标)
-  double _cropLeft = 0;
-  double _cropTop = 0;
-  double _cropRight = 0;
-  double _cropBottom = 0;
+  static const double _hs = 22.0;   // 手柄尺寸
+  static const double _ew = 28.0;   // 边线热区宽度
 
-  /// 图片原始尺寸 (旋转后)
-  Size? _imageSize;
+  /// 裁切区域 (原始图片像素坐标)
+  double _cropLeft = 0, _cropTop = 0, _cropRight = 0, _cropBottom = 0;
 
-  final GlobalKey _imageKey = GlobalKey();
+  /// 图片原始尺寸
+  Size? _imgSize;
 
   _DragTarget _dragTarget = _DragTarget.none;
   bool _saving = false;
+  bool _cropInitialized = false;
 
   @override
   void initState() {
@@ -44,16 +42,17 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
   }
 
   void _parseExistingParams() {
-    final params = widget.asset.editParams;
-    if (params == null) return;
+    final p = widget.asset.editParams;
+    if (p == null) return;
     try {
-      final json = jsonDecode(params) as Map<String, dynamic>;
-      if (json['type'] == 'image') {
-        _rotation = (json['rotation'] as int? ?? 0) % 360;
-        _cropLeft = (json['crop_left'] as num?)?.toDouble() ?? 0;
-        _cropTop = (json['crop_top'] as num?)?.toDouble() ?? 0;
-        _cropRight = (json['crop_right'] as num?)?.toDouble() ?? 0;
-        _cropBottom = (json['crop_bottom'] as num?)?.toDouble() ?? 0;
+      final j = jsonDecode(p) as Map<String, dynamic>;
+      if (j['type'] == 'image') {
+        _rotation = (j['rotation'] as int? ?? 0) % 360;
+        _cropLeft = (j['crop_left'] as num?)?.toDouble() ?? 0;
+        _cropTop = (j['crop_top'] as num?)?.toDouble() ?? 0;
+        _cropRight = (j['crop_right'] as num?)?.toDouble() ?? 0;
+        _cropBottom = (j['crop_bottom'] as num?)?.toDouble() ?? 0;
+        if (_cropRight > 0 || _cropBottom > 0) _cropInitialized = true;
       }
     } catch (_) {}
   }
@@ -61,51 +60,59 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
   void _rotate() {
     setState(() {
       _rotation = (_rotation + 90) % 360;
-      if (_imageSize != null) {
-        _cropLeft = 0;
-        _cropTop = 0;
-        _cropRight = _imageSize!.width;
-        _cropBottom = _imageSize!.height;
-      }
+      // 旋转后重置为全图
+      _resetToFull();
     });
   }
 
-  String _buildEditParamsJson() {
-    final map = <String, dynamic>{'type': 'image', 'rotation': _rotation};
-    if (_imageSize != null && _hasCrop) {
-      map['crop_left'] = _cropLeft.round();
-      map['crop_top'] = _cropTop.round();
-      map['crop_right'] = _cropRight.round();
-      map['crop_bottom'] = _cropBottom.round();
-    }
-    return jsonEncode(map);
+  void _resetToFull() {
+    if (_imgSize == null) return;
+    _cropLeft = 0; _cropTop = 0;
+    _cropRight = _imgSize!.width; _cropBottom = _imgSize!.height;
+    _cropInitialized = true;
   }
 
-  bool get _hasCrop =>
-      _imageSize != null &&
+  void _onImageSizeKnown(Size sz) {
+    if (_imgSize == sz) return;
+    _imgSize = sz;
+    if (!_cropInitialized) {
+      _cropLeft = 0; _cropTop = 0;
+      _cropRight = sz.width; _cropBottom = sz.height;
+      _cropInitialized = true;
+    }
+  }
+
+  bool get _hasCrop => _imgSize != null &&
       !(_cropLeft <= 0 && _cropTop <= 0 &&
-          _cropRight >= _imageSize!.width && _cropBottom >= _imageSize!.height);
+          _cropRight >= _imgSize!.width && _cropBottom >= _imgSize!.height);
+
+  String _buildEditParamsJson() {
+    final m = <String, dynamic>{'type': 'image', 'rotation': _rotation};
+    if (_hasCrop) {
+      m['crop_left'] = _cropLeft.round();
+      m['crop_top'] = _cropTop.round();
+      m['crop_right'] = _cropRight.round();
+      m['crop_bottom'] = _cropBottom.round();
+    }
+    return jsonEncode(m);
+  }
 
   Future<void> _save() async {
     if (_saving) return;
     setState(() => _saving = true);
     try {
       final db = ref.read(galleryDatabaseProvider);
-      final updatedAsset = widget.asset.copyWith(editParams: _buildEditParamsJson());
-      await db.updateMediaAsset(updatedAsset);
+      await db.updateMediaAsset(widget.asset.copyWith(editParams: _buildEditParamsJson()));
       await ref.read(mediaAssetListProvider.notifier).refresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('编辑参数已保存，同步后将应用'), duration: Duration(seconds: 2)),
+          const SnackBar(content: Text('编辑参数已保存'), duration: Duration(seconds: 1)),
         );
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存失败: $e'), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -113,10 +120,8 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
 
   @override
   Widget build(BuildContext context) {
-    final apiClient = ref.read(apiClientManagerProvider);
-    final baseUrl = apiClient.baseUrl;
-    final headers = apiClient.headers;
-    final imageUrl = '$baseUrl/API/gallery/${widget.asset.id}/file';
+    final api = ref.read(apiClientManagerProvider);
+    final url = '${api.baseUrl}/API/gallery/${widget.asset.id}/file';
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -125,267 +130,230 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
         foregroundColor: Colors.white,
         title: const Text('图片编辑'),
         actions: [
-          IconButton(icon: const Icon(Icons.rotate_right), tooltip: '旋转 90°', onPressed: _rotate),
+          IconButton(icon: const Icon(Icons.rotate_right), tooltip: '旋转90°', onPressed: _rotate),
           IconButton(
             icon: _saving
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.check),
-            tooltip: '保存',
-            onPressed: _saving ? null : _save,
+            tooltip: '保存', onPressed: _saving ? null : _save,
           ),
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+        // 四边对称留白，避免紧贴屏幕边缘
+        padding: const EdgeInsets.all(32),
         child: Center(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 3.0,
-                child: SizedBox(
-                  key: _imageKey,
-                  width: constraints.maxWidth,
-                  height: constraints.maxHeight,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Transform.rotate(
-                        angle: _rotation * 3.14159 / 180,
-                        child: Center(
-                          child: CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            httpHeaders: headers,
-                            fit: BoxFit.contain,
-                            width: constraints.maxWidth,
-                            height: constraints.maxHeight,
-                            imageBuilder: (context, imageProvider) {
-                              final resolved = imageProvider.resolve(const ImageConfiguration());
-                              resolved.addListener(ImageStreamListener((info, _) {
-                                final rawSize = Size(info.image.width.toDouble(), info.image.height.toDouble());
-                                final rotatedSize = _rotation % 180 == 0 ? rawSize : Size(rawSize.height, rawSize.width);
-                                if (_imageSize != rotatedSize) {
-                                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                                    if (mounted) {
-                                      setState(() {
-                                        _imageSize = rotatedSize;
-                                        _initCropToFull();
-                                      });
-                                    }
-                                  });
-                                }
-                              }));
-                              return Image(image: imageProvider, fit: BoxFit.contain);
-                            },
-                            errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 64),
-                          ),
-                        ),
-                      ),
-                      if (_imageSize != null) _buildCropOverlay(constraints),
-                    ],
-                  ),
+          child: LayoutBuilder(builder: (ctx, c) {
+            final cw = c.maxWidth, ch = c.maxHeight;
+            return InteractiveViewer(
+              minScale: 0.5, maxScale: 4.0,
+              child: SizedBox(
+                width: cw, height: ch,
+                child: Transform.rotate(
+                  angle: _rotation * 3.14159 / 180,
+                  child: _buildImageWithOverlay(url, api.headers, cw, ch),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          }),
         ),
       ),
-      bottomNavigationBar: Container(
-        color: Colors.grey[900],
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('旋转: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
-            Text('$_rotation°', style: const TextStyle(color: Colors.white, fontSize: 12)),
-            if (_imageSize != null) ...[
-              const SizedBox(width: 24),
-              const Text('裁切: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Text('${_cropLeft.round()},${_cropTop.round()} → ${_cropRight.round()}×${_cropBottom.round()}',
-                  style: const TextStyle(color: Colors.white, fontSize: 12)),
-            ],
-            const SizedBox(width: 24),
-            TextButton(
-              onPressed: _imageSize != null ? _resetCrop : null,
-              child: const Text('重置裁切', style: TextStyle(color: Colors.white54, fontSize: 12)),
-            ),
-          ],
-        ),
-      ),
+      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
-  void _initCropToFull() {
-    if (_imageSize == null) return;
-    if (_cropRight <= 0 || _cropBottom <= 0) {
-      _cropLeft = 0;
-      _cropTop = 0;
-      _cropRight = _imageSize!.width;
-      _cropBottom = _imageSize!.height;
-    }
-  }
-
-  void _resetCrop() {
-    if (_imageSize == null) return;
-    setState(() {
-      _cropLeft = 0;
-      _cropTop = 0;
-      _cropRight = _imageSize!.width;
-      _cropBottom = _imageSize!.height;
-    });
-  }
-
-  /// 计算图片在容器中的实际显示区域
-  Rect _computeImageDisplayRect(BoxConstraints constraints) {
-    final imgW = _imageSize!.width;
-    final imgH = _imageSize!.height;
-    final cw = constraints.maxWidth;
-    final ch = constraints.maxHeight;
-    final imgAspect = imgW / imgH;
-    final containerAspect = cw / ch;
-
-    double dw, dh;
-    if (imgAspect > containerAspect) { dw = cw; dh = cw / imgAspect; }
-    else { dh = ch; dw = ch * imgAspect; }
-
-    final ox = (cw - dw) / 2;
-    final oy = (ch - dh) / 2;
-    return Rect.fromLTWH(ox, oy, dw, dh);
-  }
-
-  Widget _buildCropOverlay(BoxConstraints constraints) {
-    if (_imageSize == null) return const SizedBox();
-    final imgW = _imageSize!.width;
-    final imgH = _imageSize!.height;
-
-    final displayRect = _computeImageDisplayRect(constraints);
-    final scaleX = displayRect.width / imgW;
-    final scaleY = displayRect.height / imgH;
-
-    final cl = _cropLeft * scaleX + displayRect.left;
-    final ct = _cropTop * scaleY + displayRect.top;
-    final cr = _cropRight * scaleX + displayRect.left;
-    final cb = _cropBottom * scaleY + displayRect.top;
-
-    const handleSize = 20.0;
-    const edgeWidth = 20.0; // 边线拖拽热区
-
-    // 整个裁切框区域用于移动
-    Widget moveArea() => Positioned(
-      left: cl + handleSize, top: ct + handleSize,
-      width: cr - cl - handleSize * 2, height: cb - ct - handleSize * 2,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: (_) => _dragTarget = _DragTarget.move,
-        onPanUpdate: (d) => _onEdgeDrag(d, _DragTarget.move, scaleX, scaleY, imgW, imgH, displayRect),
-        onPanEnd: (_) => _dragTarget = _DragTarget.none,
-        child: Container(color: Colors.transparent),
-      ),
-    );
-
-    // 边线拖拽热区
-    Widget edge(double l, double t, double w, double h, _DragTarget target) => Positioned(
-      left: l, top: t, width: w, height: h,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: (_) => _dragTarget = target,
-        onPanUpdate: (d) => _onEdgeDrag(d, target, scaleX, scaleY, imgW, imgH, displayRect),
-        onPanEnd: (_) => _dragTarget = _DragTarget.none,
-        child: Container(color: Colors.transparent),
-      ),
-    );
-
-    // 角手柄
-    Widget corner(double l, double t, _DragTarget target) => Positioned(
-      left: l - handleSize / 2, top: t - handleSize / 2,
-      child: GestureDetector(
-        onPanStart: (_) => _dragTarget = target,
-        onPanUpdate: (d) => _onEdgeDrag(d, target, scaleX, scaleY, imgW, imgH, displayRect),
-        onPanEnd: (_) => _dragTarget = _DragTarget.none,
-        child: Container(
-          width: handleSize, height: handleSize,
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.blue, width: 2), borderRadius: BorderRadius.circular(4)),
-        ),
-      ),
-    );
-
+  Widget _buildImageWithOverlay(String url, Map<String, String> headers, double cw, double ch) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Positioned.fill(child: CustomPaint(painter: _CropMaskPainter(cropRect: Rect.fromLTRB(cl, ct, cr, cb)))),
-        // 移动区域
-        moveArea(),
-        // 四边热区（角部被角手柄的 GestureDetector 优先捕获）
-        edge(cl + handleSize, ct - edgeWidth / 2, cr - cl - handleSize * 2, edgeWidth, _DragTarget.top),
-        edge(cl + handleSize, cb - edgeWidth / 2, cr - cl - handleSize * 2, edgeWidth, _DragTarget.bottom),
-        edge(cl - edgeWidth / 2, ct + handleSize, edgeWidth, cb - ct - handleSize * 2, _DragTarget.left),
-        edge(cr - edgeWidth / 2, ct + handleSize, edgeWidth, cb - ct - handleSize * 2, _DragTarget.right),
-        // 四角
-        corner(cl, ct, _DragTarget.topLeft),
-        corner(cr, ct, _DragTarget.topRight),
-        corner(cr, cb, _DragTarget.bottomRight),
-        corner(cl, cb, _DragTarget.bottomLeft),
+        CachedNetworkImage(
+          imageUrl: url,
+          httpHeaders: headers,
+          fit: BoxFit.contain,
+          width: cw,
+          height: ch,
+          imageBuilder: (context, provider) {
+            final resolved = provider.resolve(const ImageConfiguration());
+            resolved.addListener(ImageStreamListener((info, _) {
+              final raw = Size(info.image.width.toDouble(), info.image.height.toDouble());
+              // 推迟到下一帧，避免 build 阶段 setState
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => _onImageSizeKnown(raw));
+              });
+            }));
+            return Image(image: provider, fit: BoxFit.contain);
+          },
+          errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+        ),
+        if (_imgSize != null) _buildCropOverlay(cw, ch),
       ],
     );
   }
 
-  void _onEdgeDrag(DragUpdateDetails d, _DragTarget target, double scaleX, double scaleY,
-      double imgW, double imgH, Rect displayRect) {
-    final dx = d.delta.dx / scaleX;
-    final dy = d.delta.dy / scaleY;
+  /// 计算图片以 BoxFit.contain 在容器内的实际显示矩形
+  Rect _displayRect(double cw, double ch) {
+    final iw = _imgSize!.width, ih = _imgSize!.height;
+    if (iw <= 0 || ih <= 0) return Rect.zero;
+    final ia = iw / ih, ca = cw / ch;
+    double dw, dh;
+    if (ia > ca) { dw = cw; dh = cw / ia; }
+    else { dh = ch; dw = ch * ia; }
+    return Rect.fromLTWH((cw - dw) / 2, (ch - dh) / 2, dw, dh);
+  }
+
+  Widget _buildCropOverlay(double cw, double ch) {
+    final dr = _displayRect(cw, ch);
+    final sx = dr.width / _imgSize!.width;
+    final sy = dr.height / _imgSize!.height;
+
+    final cl = _cropLeft * sx + dr.left;
+    final ct = _cropTop * sy + dr.top;
+    final cr = _cropRight * sx + dr.left;
+    final cb = _cropBottom * sy + dr.top;
+
+    final canMoveH = (cr - cl - _hs * 2) > 0;
+    final canMoveV = (cb - ct - _hs * 2) > 0;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(child: CustomPaint(painter: _CropPainter(Rect.fromLTRB(cl, ct, cr, cb)))),
+        if (canMoveH && canMoveV)
+          _dragZone(cl + _hs, ct + _hs, cr - cl - _hs * 2, cb - ct - _hs * 2, _DragTarget.move),
+        _dragZone(cl, ct - _ew / 2, cr - cl, _ew, _DragTarget.top),
+        _dragZone(cl, cb - _ew / 2, cr - cl, _ew, _DragTarget.bottom),
+        _dragZone(cl - _ew / 2, ct, _ew, cb - ct, _DragTarget.left),
+        _dragZone(cr - _ew / 2, ct, _ew, cb - ct, _DragTarget.right),
+        _corner(cl, ct, _DragTarget.topLeft),
+        _corner(cr, ct, _DragTarget.topRight),
+        _corner(cr, cb, _DragTarget.bottomRight),
+        _corner(cl, cb, _DragTarget.bottomLeft),
+      ],
+    );
+  }
+
+  Widget _dragZone(double l, double t, double w, double h, _DragTarget tg) {
+    // 防止负尺寸导致断言失败
+    final safeW = w > 0 ? w : 1.0;
+    final safeH = h > 0 ? h : 1.0;
+    return Positioned(
+      left: l, top: t, width: safeW, height: safeH,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanStart: (_) => _dragTarget = tg,
+        onPanUpdate: (d) => _onDrag(d, tg),
+        onPanEnd: (_) => _dragTarget = _DragTarget.none,
+        child: Container(color: Colors.transparent),
+      ),
+    );
+  }
+
+  Widget _corner(double l, double t, _DragTarget tg) {
+    return Positioned(
+      left: l - _hs / 2, top: t - _hs / 2,
+      child: GestureDetector(
+        onPanStart: (_) => _dragTarget = tg,
+        onPanUpdate: (d) => _onDrag(d, tg),
+        onPanEnd: (_) => _dragTarget = _DragTarget.none,
+        child: Container(
+          width: _hs, height: _hs,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.blue, width: 2),
+            borderRadius: BorderRadius.circular(5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onDrag(DragUpdateDetails d, _DragTarget tg) {
+    if (_imgSize == null) return;
+    final iw = _imgSize!.width, ih = _imgSize!.height;
+    // 用 displayRect 的 scale 反算像素移动
+    final dr = _displayRect(
+      (context.findRenderObject() as RenderBox?)?.size.width ?? iw,
+      (context.findRenderObject() as RenderBox?)?.size.height ?? ih,
+    );
+    final sx = dr.width / iw;
+    final sy = dr.height / ih;
+    if (sx <= 0 || sy <= 0) return;
+    final dx = d.delta.dx / sx;
+    final dy = d.delta.dy / sy;
 
     setState(() {
       double cl = _cropLeft, ct = _cropTop, cr = _cropRight, cb = _cropBottom;
-      switch (target) {
-        case _DragTarget.topLeft:    cl += dx; ct += dy; break;
-        case _DragTarget.top:        ct += dy; break;
-        case _DragTarget.topRight:   cr += dx; ct += dy; break;
-        case _DragTarget.right:      cr += dx; break;
-        case _DragTarget.bottomRight:cr += dx; cb += dy; break;
-        case _DragTarget.bottom:     cb += dy; break;
-        case _DragTarget.bottomLeft: cl += dx; cb += dy; break;
-        case _DragTarget.left:       cl += dx; break;
+      switch (tg) {
+        case _DragTarget.topLeft:     cl += dx; ct += dy; break;
+        case _DragTarget.top:          ct += dy; break;
+        case _DragTarget.topRight:    cr += dx; ct += dy; break;
+        case _DragTarget.right:        cr += dx; break;
+        case _DragTarget.bottomRight: cr += dx; cb += dy; break;
+        case _DragTarget.bottom:       cb += dy; break;
+        case _DragTarget.bottomLeft:  cl += dx; cb += dy; break;
+        case _DragTarget.left:         cl += dx; break;
         case _DragTarget.move:
-          final md = cr - cl; final mh = cb - cl;
-          if (cl + dx >= 0 && cr + dx <= imgW) { cl += dx; cr = cl + md; }
-          if (ct + dy >= 0 && cb + dy <= imgH) { ct += dy; cb = ct + mh; }
+          final mw = cr - cl, mh = cb - ct;
+          if (cl + dx >= 0 && cr + dx <= iw) { cl += dx; cr = cl + mw; }
+          if (ct + dy >= 0 && cb + dy <= ih) { ct += dy; cb = ct + mh; }
           break;
         case _DragTarget.none: return;
       }
       cl = cl.clamp(0.0, cr - 50);
       ct = ct.clamp(0.0, cb - 50);
-      cr = cr.clamp(cl + 50, imgW);
-      cb = cb.clamp(ct + 50, imgH);
+      cr = cr.clamp(cl + 50, iw);
+      cb = cb.clamp(ct + 50, ih);
       _cropLeft = cl; _cropTop = ct; _cropRight = cr; _cropBottom = cb;
     });
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      color: Colors.grey[900],
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('旋转: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
+          Text('$_rotation°', style: const TextStyle(color: Colors.white, fontSize: 12)),
+          if (_imgSize != null) ...[
+            const SizedBox(width: 24),
+            const Text('裁切: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            Text('${_cropLeft.round()},${_cropTop.round()} → ${_cropRight.round()}×${_cropBottom.round()}',
+                style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ],
+          const SizedBox(width: 24),
+          TextButton(
+            onPressed: _imgSize != null ? () => setState(_resetToFull) : null,
+            child: const Text('重置裁切', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
   }
 }
 
 /// 裁切遮罩绘制器
-class _CropMaskPainter extends CustomPainter {
-  final Rect cropRect;
-  _CropMaskPainter({required this.cropRect});
-
+class _CropPainter extends CustomPainter {
+  final Rect r;
+  _CropPainter(this.r);
   @override
-  void paint(Canvas canvas, Size size) {
+  void paint(Canvas c, Size s) {
     final bg = Paint()..color = Colors.black54;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, cropRect.top), bg);
-    canvas.drawRect(Rect.fromLTWH(0, cropRect.bottom, size.width, size.height - cropRect.bottom), bg);
-    canvas.drawRect(Rect.fromLTWH(0, cropRect.top, cropRect.left, cropRect.height), bg);
-    canvas.drawRect(Rect.fromLTWH(cropRect.right, cropRect.top, size.width - cropRect.right, cropRect.height), bg);
-
-    final border = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2;
-    canvas.drawRect(cropRect, border);
-
-    final dash = Paint()..color = Colors.white30..style = PaintingStyle.stroke..strokeWidth = 0.5;
+    c.drawRect(Rect.fromLTWH(0, 0, s.width, r.top), bg);
+    c.drawRect(Rect.fromLTWH(0, r.bottom, s.width, s.height - r.bottom), bg);
+    c.drawRect(Rect.fromLTWH(0, r.top, r.left, r.height), bg);
+    c.drawRect(Rect.fromLTWH(r.right, r.top, s.width - r.right, r.height), bg);
+    final bd = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2;
+    c.drawRect(r, bd);
+    final ds = Paint()..color = Colors.white24..style = PaintingStyle.stroke..strokeWidth = 0.5;
     for (int i = 1; i < 3; i++) {
-      final x = cropRect.left + cropRect.width / 3 * i;
-      canvas.drawLine(Offset(x, cropRect.top), Offset(x, cropRect.bottom), dash);
-      final y = cropRect.top + cropRect.height / 3 * i;
-      canvas.drawLine(Offset(cropRect.left, y), Offset(cropRect.right, y), dash);
+      final x = r.left + r.width / 3 * i;
+      c.drawLine(Offset(x, r.top), Offset(x, r.bottom), ds);
+      final y = r.top + r.height / 3 * i;
+      c.drawLine(Offset(r.left, y), Offset(r.right, y), ds);
     }
   }
-
   @override
-  bool shouldRepaint(covariant _CropMaskPainter o) => o.cropRect != cropRect;
+  bool shouldRepaint(_CropPainter o) => o.r != r;
 }
