@@ -22,8 +22,8 @@ enum _DragTarget { none, topLeft, top, topRight, right, bottomRight, bottom, bot
 class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
   int _rotation = 0;
 
-  static const double _hs = 22.0;   // 手柄尺寸
-  static const double _ew = 28.0;   // 边线热区宽度
+  static const double _hs = 24.0;   // 手柄尺寸（放大）
+  static const double _ew = 32.0;   // 边线热区宽度（放大，补偿 padding）
 
   /// 裁切区域 (原始图片像素坐标)
   double _cropLeft = 0, _cropTop = 0, _cropRight = 0, _cropBottom = 0;
@@ -167,23 +167,21 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
         ],
       ),
       body: Padding(
-        // 四边对称留白，避免紧贴屏幕边缘
-        padding: const EdgeInsets.all(32),
-        child: Center(
-          child: LayoutBuilder(builder: (ctx, c) {
-            final cw = c.maxWidth, ch = c.maxHeight;
-            return InteractiveViewer(
-              minScale: 0.5, maxScale: 4.0,
-              child: SizedBox(
-                width: cw, height: ch,
-                child: Transform.rotate(
-                  angle: _rotation * 3.14159 / 180,
-                  child: _buildImageWithOverlay(url, api.headers, cw, ch),
-                ),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        child: LayoutBuilder(builder: (ctx, c) {
+          final cw = c.maxWidth, ch = c.maxHeight;
+          return InteractiveViewer(
+            minScale: 0.5, maxScale: 4.0,
+            child: SizedBox(
+              width: cw, height: ch,
+              child: Transform.rotate(
+                // 负号使旋转方向为逆时针 (CCW)，与后端 imaging.Rotate90 一致
+                angle: -_rotation * 3.14159 / 180,
+                child: _buildImageWithOverlay(url, api.headers, cw, ch),
               ),
-            );
-          }),
-        ),
+            ),
+          );
+        }),
       ),
       bottomNavigationBar: _buildBottomBar(),
     );
