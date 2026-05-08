@@ -100,8 +100,8 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
 
             const SizedBox(height: 12),
 
-            // 4. 系统信息 (可折叠)
-            _buildExpandableSection('系统信息', [
+            // 4. 系统信息 (常驻展开)
+            _buildFixedSection('系统信息', [
               _buildInfoRow('ID', _currentAsset.id, fontSize: 11),
               _buildInfoRow('创建', _formatDateTime(_currentAsset.createdAt), fontSize: 11),
               _buildInfoRow('更新', _formatDateTime(_currentAsset.updatedAt), fontSize: 11),
@@ -324,16 +324,20 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
   }
   
-  /// 构建可折叠信息区
-  Widget _buildExpandableSection(String title, List<Widget> children) {
+  /// 构建常驻展开信息区
+  Widget _buildFixedSection(String title, List<Widget> children) {
     return Card(
       margin: EdgeInsets.zero,
-      child: ExpansionTile(
-        title: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-        tilePadding: const EdgeInsets.symmetric(horizontal: 10),
-        childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-        dense: true,
-        children: children,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 6),
+            ...children,
+          ],
+        ),
       ),
     );
   }

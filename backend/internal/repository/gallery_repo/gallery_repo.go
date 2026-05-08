@@ -21,7 +21,7 @@ func FetchMediaAssets(limit int, offset int) ([]model.MediaAsset, error) {
 		SELECT 
 			id, created_at, updated_at, captured_at, file_path, 
 			thumb_path, preview_path, hash, size_bytes, mime_type, 
-			is_deleted, sync_count, group_id
+			is_deleted, sync_count, group_id, COALESCE(message, ''), edit_params
 		FROM gallery.media_assets
 		WHERE is_deleted = false
 		ORDER BY sync_count ASC, captured_at ASC
@@ -42,6 +42,7 @@ func FetchMediaAssets(limit int, offset int) ([]model.MediaAsset, error) {
 			&asset.FilePath, &asset.ThumbPath, &asset.PreviewPath,
 			&asset.Hash, &asset.SizeBytes, &asset.MimeType,
 			&asset.IsDeleted, &asset.SyncCount, &asset.GroupID,
+			&asset.Message, &asset.EditParams,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("扫描媒体资产行失败: %w", err)
@@ -65,7 +66,7 @@ func FetchMediaAssetByID(id uuid.UUID) (*model.MediaAsset, error) {
 		SELECT 
 			id, created_at, updated_at, captured_at, file_path, 
 			thumb_path, preview_path, hash, size_bytes, mime_type, 
-			is_deleted, sync_count, group_id
+			is_deleted, sync_count, group_id, COALESCE(message, ''), edit_params
 		FROM gallery.media_assets
 		WHERE id = $1
 	`
@@ -76,6 +77,7 @@ func FetchMediaAssetByID(id uuid.UUID) (*model.MediaAsset, error) {
 		&asset.FilePath, &asset.ThumbPath, &asset.PreviewPath,
 		&asset.Hash, &asset.SizeBytes, &asset.MimeType,
 		&asset.IsDeleted, &asset.SyncCount, &asset.GroupID,
+		&asset.Message, &asset.EditParams,
 	)
 
 	if err != nil {
@@ -187,12 +189,12 @@ func UpdateMediaAssetsTx(ctx context.Context, tx pgx.Tx, assets []model.MediaAss
 
 	updateQuery := `
 		UPDATE gallery.media_assets
-		SET is_deleted = $1, group_id = $2
-		WHERE id = $3
+		SET is_deleted = $1, group_id = $2, message = $3, edit_params = $4
+		WHERE id = $5
 	`
 
 	for _, asset := range assets {
-		_, err := tx.Exec(ctx, updateQuery, asset.IsDeleted, asset.GroupID, asset.ID)
+		_, err := tx.Exec(ctx, updateQuery, asset.IsDeleted, asset.GroupID, asset.Message, asset.EditParams, asset.ID)
 		if err != nil {
 			return fmt.Errorf("更新媒体资产失败: %w", err)
 		}

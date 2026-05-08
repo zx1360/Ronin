@@ -91,6 +91,7 @@ type MediaAsset struct {
 	SyncCount   int        `json:"sync_count"`
 	GroupID     *uuid.UUID `json:"group_id"`
 	Message     string     `json:"message"`
+	EditParams  *string    `json:"edit_params"`
 }
 
 // Tag 对应数据库的 tags 表（树状结构）

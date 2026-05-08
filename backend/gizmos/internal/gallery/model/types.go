@@ -22,6 +22,7 @@ type MediaAsset struct {
 	IsDeleted   bool       `json:"is_deleted"`   // 是否已删除
 	SyncCount   int        `json:"sync_count"`   // 同步次数
 	GroupID     *uuid.UUID `json:"group_id"`     // 捆绑组主文件 ID
+	EditParams  *string    `json:"edit_params"`  // 编辑参数 JSON
 }
 
 // FileInfo 文件扫描时的临时信息结构

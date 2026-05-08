@@ -33,6 +33,9 @@ class MediaAsset {
   /// 对该媒体文件的留言
   final String? message;
 
+  /// 编辑参数 JSON (image/video)
+  final String? editParams;
+
   const MediaAsset({
     required this.id,
     required this.createdAt,
@@ -48,6 +51,7 @@ class MediaAsset {
     this.syncCount = 0,
     this.groupId,
     this.message,
+    this.editParams,
   });
 
   MediaAsset copyWith({
@@ -67,6 +71,8 @@ class MediaAsset {
     bool clearGroupId = false,
     String? message,
     bool clearMessage = false,
+    String? editParams,
+    bool clearEditParams = false,
   }) {
     return MediaAsset(
       id: id ?? this.id,
@@ -83,6 +89,8 @@ class MediaAsset {
       syncCount: syncCount ?? this.syncCount,
       groupId: clearGroupId ? null : (groupId ?? this.groupId),
       message: clearMessage ? null : (message ?? this.message),
+      editParams:
+          clearEditParams ? null : (editParams ?? this.editParams),
     );
   }
 
@@ -131,6 +139,7 @@ class MediaAsset {
         'sync_count': syncCount,
         'group_id': groupId,
         'message': message,
+        'edit_params': editParams,
       };
 
   factory MediaAsset.fromDbMap(Map<String, dynamic> map) => MediaAsset(
@@ -148,5 +157,6 @@ class MediaAsset {
         syncCount: map['sync_count'] as int? ?? 0,
         groupId: map['group_id'] as String?,
         message: map['message'] as String?,
+        editParams: map['edit_params'] as String?,
       );
 }
