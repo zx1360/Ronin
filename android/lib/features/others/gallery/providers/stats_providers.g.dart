@@ -24,7 +24,7 @@ final galleryDbStatsProvider = FutureProvider<GalleryDbStats>.internal(
 
 typedef GalleryDbStatsRef = FutureProviderRef<GalleryDbStats>;
 String _$galleryCachedStorageStatsHash() =>
-    r'86fda8df347d6d88695f56155293830b6c0dc009';
+    r'd902e809ca67b11248f60f65ece41f7dd217a773';
 
 /// 文件存储统计信息 (持久化缓存, 仅在手动刷新或数据同步后更新)
 ///

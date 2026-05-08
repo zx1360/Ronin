@@ -3,7 +3,10 @@ package pipeline
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,6 +50,7 @@ type Stats struct {
 	DuplicateFiles int64
 	FailedFiles    int64
 	DeletedFiles   int64
+	EditedFiles    int64
 }
 
 // NewPipeline 创建新的流水线
@@ -288,18 +292,22 @@ func (p *Pipeline) batchWriter(ctx context.Context, resultChan <-chan *model.Med
 	}
 }
 
-// RunExecution 运行执行流水线（处理删除）
+// RunExecution 运行执行流水线
+// Phase A: 处理软删除 → 文件移入 trash → 物理删除 DB 记录
+// Phase B: 处理编辑 → 应用编辑 → 原文件移入 trash → 新文件写回 → 重建缩略图/预览图 → DB UPDATE
 func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 	log.Println("========== 开始执行流水线 ==========")
 
 	stats := &Stats{}
 
-	// 确保删除目录存在
+	// 确保目录存在
 	if err := os.MkdirAll(p.config.DeletedDir, 0755); err != nil {
 		return nil, fmt.Errorf("创建删除目录失败: %w", err)
 	}
 
-	// 获取所有标记为删除的资产
+	// ========== Phase A: 处理删除 ==========
+	log.Println("--- Phase A: 处理删除 ---")
+
 	dbCtx, cancel := db.GetLongCtx()
 	defer cancel()
 
@@ -310,7 +318,6 @@ func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 
 	log.Printf("找到 %d 个待删除的资产", len(deletedAssets))
 
-	// 处理每个删除的资产
 	var deleteIDs []uuid.UUID
 	for _, asset := range deletedAssets {
 		select {
@@ -353,13 +360,153 @@ func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 		}
 	}
 
+	// ========== Phase B: 处理编辑 ==========
+	log.Println("--- Phase B: 处理编辑 ---")
+
+	editedAssets, err := p.repository.GetEditedAssets(dbCtx)
+	if err != nil {
+		log.Printf("获取编辑资产失败: %v", err)
+	} else {
+		log.Printf("找到 %d 个待编辑的资产", len(editedAssets))
+
+		for _, asset := range editedAssets {
+			select {
+			case <-ctx.Done():
+				return stats, ctx.Err()
+			default:
+			}
+
+			if err := p.processEditedAsset(ctx, asset); err != nil {
+				log.Printf("处理编辑资产失败 [%s]: %v", asset.ID, err)
+				atomic.AddInt64(&stats.FailedFiles, 1)
+			} else {
+				atomic.AddInt64(&stats.EditedFiles, 1)
+				log.Printf("编辑处理完成: %s", asset.FilePath)
+			}
+		}
+	}
+
 	// 清理空目录
 	p.cleanEmptyDirs()
 
 	log.Println("========== 执行流水线完成 ==========")
 	log.Printf("删除文件数: %d", stats.DeletedFiles)
+	log.Printf("编辑文件数: %d", stats.EditedFiles)
 
 	return stats, nil
+}
+
+// processEditedAsset 处理单个编辑资产
+func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAsset) error {
+	if asset.EditParams == nil {
+		return fmt.Errorf("编辑参数为空")
+	}
+
+	log.Printf("处理编辑: %s (edit_params=%s)", asset.FilePath, *asset.EditParams)
+
+	// 确定编辑类型
+	var editType struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal([]byte(*asset.EditParams), &editType); err != nil {
+		return fmt.Errorf("解析编辑类型失败: %w", err)
+	}
+
+	// 源文件路径
+	srcPath := filepath.Join(p.config.MediaDir, asset.FilePath)
+
+	// 生成临时文件路径
+	ext := filepath.Ext(asset.FilePath)
+	tmpPath := filepath.Join(os.TempDir(), fmt.Sprintf("gallery_edit_%s%s", asset.ID.String(), ext))
+
+	// 应用编辑到临时文件
+	switch editType.Type {
+	case "image":
+		if err := processor.ApplyImageEdit(srcPath, tmpPath, *asset.EditParams); err != nil {
+			return fmt.Errorf("图片编辑失败: %w", err)
+		}
+	case "video":
+		if err := processor.ApplyVideoEdit(srcPath, tmpPath, *asset.EditParams); err != nil {
+			return fmt.Errorf("视频编辑失败: %w", err)
+		}
+	default:
+		return fmt.Errorf("未知编辑类型: %s", editType.Type)
+	}
+	defer os.Remove(tmpPath)
+
+	// 移动原文件到 trash
+	yearMonth := filepath.Dir(asset.FilePath)
+	if yearMonth == "." {
+		yearMonth = "unknown"
+	}
+	trashDir := filepath.Join(p.config.DeletedDir, "trash", yearMonth)
+	if err := os.MkdirAll(trashDir, 0755); err != nil {
+		return fmt.Errorf("创建 trash 目录失败: %w", err)
+	}
+	originalFileName := filepath.Base(asset.FilePath)
+	trashFileName := generateUniqueFileName(trashDir, originalFileName)
+	trashPath := filepath.Join(trashDir, trashFileName)
+	if err := moveFile(srcPath, trashPath); err != nil {
+		return fmt.Errorf("移动原文件到 trash 失败: %w", err)
+	}
+	log.Printf("原文件已移入 trash: %s", trashPath)
+
+	// 新文件写回原路径
+	if err := moveFile(tmpPath, srcPath); err != nil {
+		return fmt.Errorf("新文件写回失败: %w", err)
+	}
+
+	// 重新计算 hash
+	newHash, err := calculateFileHash(srcPath)
+	if err != nil {
+		return fmt.Errorf("计算新 hash 失败: %w", err)
+	}
+
+	// 获取新文件大小
+	newInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return fmt.Errorf("获取新文件信息失败: %w", err)
+	}
+	newSize := newInfo.Size()
+
+	// 确定新的 MIME type
+	baseName := filepath.Base(asset.FilePath)
+	extLower := strings.ToLower(filepath.Ext(baseName))
+	newMime := model.GetMimeType(extLower)
+
+	// 重建缩略图和预览图
+	fileInfo := &model.FileInfo{
+		FileName:  baseName,
+		Extension: extLower,
+		IsVideo:   model.IsVideo(extLower),
+	}
+	processResult, err := p.processor.Process(fileInfo, srcPath, yearMonth)
+	if err != nil {
+		log.Printf("重建缩略图/预览图失败: %v", err)
+		processResult = &processor.ProcessResult{}
+	}
+
+	// 更新 asset 并写入数据库
+	now := time.Now()
+	asset.UpdatedAt = now
+	asset.Hash = newHash
+	asset.SizeBytes = newSize
+	asset.MimeType = &newMime
+	if processResult.ThumbPath != "" {
+		asset.ThumbPath = strPtr(processResult.ThumbPath)
+	}
+	if processResult.PreviewPath != "" {
+		asset.PreviewPath = strPtr(processResult.PreviewPath)
+	}
+
+	dbCtx, dbCancel := db.GetDefaultCtx()
+	defer dbCancel()
+
+	if err := p.repository.UpdateAssetAfterEdit(dbCtx, asset); err != nil {
+		return fmt.Errorf("更新数据库失败: %w", err)
+	}
+
+	return nil
 }
 
 // moveAssetToDeleted 移动资产文件到删除目录，删除缩略图和预览图
@@ -544,4 +691,20 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// calculateFileHash 计算文件的 SHA-256 哈希
+func calculateFileHash(filePath string) ([]byte, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return nil, err
+	}
+
+	return hasher.Sum(nil), nil
 }

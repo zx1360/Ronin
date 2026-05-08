@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/others/gallery/pages/image_editor_page.dart';
 import 'package:torrid/features/others/gallery/pages/label_list_page.dart';
 import 'package:torrid/features/others/gallery/pages/media_detail_page.dart';
 import 'package:torrid/features/others/gallery/pages/medias_gridview_page.dart';
 import 'package:torrid/features/others/gallery/pages/setting_page.dart';
+import 'package:torrid/features/others/gallery/pages/video_trimmer_page.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/content_widget.dart';
 import 'package:torrid/features/others/gallery/widgets/preview_window_widget.dart';
@@ -126,6 +130,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     final fileName =
         currentMedia?.filePath.split('/').last.split('\\').last ?? '';
 
+    // 编辑信息提示
+    final editInfo = _buildEditInfo(currentMedia);
+
     return Container(
       color: Colors.black,
       child: SafeArea(
@@ -134,26 +141,44 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
           height: 44,
           child: Row(
             children: [
-              // 返回按钮
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 22,
-                ),
+                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
                 tooltip: "返回",
               ),
-              // 文件名 (占据中间空间)
               Expanded(
-                child: Text(
-                  fileName,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      fileName,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    if (editInfo != null)
+                      Text(
+                        editInfo,
+                        style: const TextStyle(color: Colors.amber, fontSize: 10),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                  ],
                 ),
               ),
-              // 设置按钮
+              IconButton(
+                onPressed: currentMedia != null && !currentMedia.isDeleted
+                    ? () => _openEditor(context, currentMedia)
+                    : null,
+                icon: Icon(
+                  Icons.edit,
+                  color: currentMedia != null && !currentMedia.isDeleted
+                      ? Colors.white
+                      : Colors.grey[700]!,
+                  size: 22,
+                ),
+                tooltip: "编辑",
+              ),
               IconButton(
                 onPressed: () => Navigator.push(
                   context,
@@ -167,6 +192,37 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
         ),
       ),
     );
+  }
+
+  /// 解析编辑参数生成提示文本
+  String? _buildEditInfo(dynamic media) {
+    if (media == null || media.editParams == null) return null;
+    try {
+      final json = jsonDecode(media.editParams as String) as Map<String, dynamic>;
+      final type = json['type'] as String?;
+      if (type == 'image') {
+        final rot = json['rotation'] as int? ?? 0;
+        final hasCrop = json['crop_left'] != null;
+        final parts = <String>[];
+        if (rot != 0) parts.add('旋转${rot}°');
+        if (hasCrop) parts.add('裁剪中');
+        return parts.isEmpty ? null : '编辑: ${parts.join(' · ')}';
+      } else if (type == 'video') {
+        final start = (json['trim_start_sec'] as num?)?.toDouble();
+        final end = (json['trim_end_sec'] as num?)?.toDouble();
+        final parts = <String>[];
+        if (start != null && start > 0) parts.add(_formatSec(start));
+        if (end != null && end > 0) parts.add(_formatSec(end));
+        return parts.isEmpty ? null : '剪辑: ${parts.join(' → ')}';
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String _formatSec(double sec) {
+    final m = (sec / 60).floor();
+    final s = (sec % 60).floor();
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   /// 构建标签栏
@@ -302,6 +358,23 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
       context,
       MaterialPageRoute(builder: (_) => MediaDetailPage(asset: currentMedia)),
     );
+  }
+
+  /// 打开编辑页面
+  void _openEditor(BuildContext context, dynamic media) {
+    if (media.isImage) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => ImageEditorPage(asset: media)),
+      );
+    } else if (media.isVideo) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => VideoTrimmerPage(asset: media)),
+      );
+    }
   }
 
   /// 跳转到上一张（自动跳过已删除）

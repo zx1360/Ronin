@@ -6,9 +6,9 @@ part of 'online_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicsOnlineHash() => r'02cea0a80d60201a2f79ac016c035aa543a72b5a';
+String _$comicsOnlineHash() => r'feada6d80aa9108fc4228d10d90da3bf5a4877ee';
 
-/// 获取所有在线漫画信息（安卓端仅展示 is_public=true 的漫画）
+/// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
 ///
 /// Copied from [comicsOnline].
 @ProviderFor(comicsOnline)
@@ -341,9 +341,9 @@ class _OnlineImagesWithChapterIdProviderElement
 }
 
 String _$comicSyncControllerHash() =>
-    r'd2c27b8a7b6013c584a3941cf3e0f7c910b0d1b7';
+    r'4554116c56c414632f594a434473ac6d17a73e85';
 
-/// 同步已读状态：将本地已读漫画的 ID 发送给服务器，并获取各漫画的章节总数
+/// 同步操作：检查更新并同步后端字段到本地
 ///
 /// Copied from [ComicSyncController].
 @ProviderFor(ComicSyncController)

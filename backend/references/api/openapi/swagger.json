@@ -888,6 +888,9 @@
                 "created_at": {
                     "type": "string"
                 },
+                "edit_params": {
+                    "type": "string"
+                },
                 "file_path": {
                     "type": "string"
                 },
