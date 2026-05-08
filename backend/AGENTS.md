@@ -9,7 +9,7 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
 ### 技术栈
 
-Go + Gin + GORM + PostgreSQL 18.0。支持 HTTP/HTTPS 双模式（自签证书），`X-API-Key` 鉴权。Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。
+Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS 双模式（自签证书），`X-API-Key` 鉴权。Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。
 
 ### 快速启动
 

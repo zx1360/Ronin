@@ -118,8 +118,10 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
       await ref.read(mediaAssetListProvider.notifier).refresh();
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('还原失败: $e'), backgroundColor: Colors.red));
+      }
     }
   }
 
@@ -137,8 +139,10 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('保存失败: $e'), backgroundColor: Colors.red));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
