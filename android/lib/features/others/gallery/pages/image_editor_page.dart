@@ -22,8 +22,9 @@ enum _DragTarget { none, topLeft, top, topRight, right, bottomRight, bottom, bot
 class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
   int _rotation = 0;
 
-  static const double _hs = 24.0;   // 手柄尺寸（放大）
-  static const double _ew = 32.0;   // 边线热区宽度（放大，补偿 padding）
+  static const double _hs = 24.0;   // 手柄尺寸
+  static const double _ew = 32.0;   // 边线热区宽度
+  static const double _hPad = 24.0; // 图片水平留白（防系统手势，热区可伸入）
 
   /// 裁切区域 (原始图片像素坐标)
   double _cropLeft = 0, _cropTop = 0, _cropRight = 0, _cropBottom = 0;
@@ -166,23 +167,20 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-        child: LayoutBuilder(builder: (ctx, c) {
-          final cw = c.maxWidth, ch = c.maxHeight;
-          return InteractiveViewer(
-            minScale: 0.5, maxScale: 4.0,
-            child: SizedBox(
-              width: cw, height: ch,
-              child: Transform.rotate(
-                // 负号使旋转方向为逆时针 (CCW)，与后端 imaging.Rotate90 一致
-                angle: -_rotation * 3.14159 / 180,
-                child: _buildImageWithOverlay(url, api.headers, cw, ch),
-              ),
+      body: LayoutBuilder(builder: (ctx, c) {
+        final cw = c.maxWidth, ch = c.maxHeight;
+        return InteractiveViewer(
+          minScale: 0.5, maxScale: 4.0,
+          child: SizedBox(
+            width: cw, height: ch,
+            child: Transform.rotate(
+              // 负号使旋转方向为逆时针 (CCW)，与后端 imaging.Rotate90 一致
+              angle: -_rotation * 3.14159 / 180,
+              child: _buildImageWithOverlay(url, api.headers, cw, ch),
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }),
       bottomNavigationBar: _buildBottomBar(),
     );
   }
@@ -191,39 +189,43 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        CachedNetworkImage(
-          imageUrl: url,
-          httpHeaders: headers,
-          fit: BoxFit.contain,
-          width: cw,
-          height: ch,
-          imageBuilder: (context, provider) {
-            final resolved = provider.resolve(const ImageConfiguration());
-            resolved.addListener(ImageStreamListener((info, _) {
-              final raw = Size(info.image.width.toDouble(), info.image.height.toDouble());
-              // 推迟到下一帧，避免 build 阶段 setState
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => _onImageSizeKnown(raw));
-              });
-            }));
-            return Image(image: provider, fit: BoxFit.contain);
-          },
-          errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+        // 图片仅在水平方向留白，防系统手势；裁切热区可伸入此留白区
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: _hPad),
+          child: CachedNetworkImage(
+            imageUrl: url,
+            httpHeaders: headers,
+            fit: BoxFit.contain,
+            width: cw - _hPad * 2,
+            height: ch,
+            imageBuilder: (context, provider) {
+              final resolved = provider.resolve(const ImageConfiguration());
+              resolved.addListener(ImageStreamListener((info, _) {
+                final raw = Size(info.image.width.toDouble(), info.image.height.toDouble());
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _onImageSizeKnown(raw));
+                });
+              }));
+              return Image(image: provider, fit: BoxFit.contain);
+            },
+            errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+          ),
         ),
         if (_imgSize != null) _buildCropOverlay(cw, ch),
       ],
     );
   }
 
-  /// 计算图片以 BoxFit.contain 在容器内的实际显示矩形
+  /// 计算图片以 BoxFit.contain 在容器内的实际显示矩形（考虑水平 padding）
   Rect _displayRect(double cw, double ch) {
     final iw = _imgSize!.width, ih = _imgSize!.height;
     if (iw <= 0 || ih <= 0) return Rect.zero;
-    final ia = iw / ih, ca = cw / ch;
+    final effW = cw - _hPad * 2;
+    final ia = iw / ih, ca = effW / ch;
     double dw, dh;
-    if (ia > ca) { dw = cw; dh = cw / ia; }
+    if (ia > ca) { dw = effW; dh = effW / ia; }
     else { dh = ch; dw = ch * ia; }
-    return Rect.fromLTWH((cw - dw) / 2, (ch - dh) / 2, dw, dh);
+    return Rect.fromLTWH(_hPad + (effW - dw) / 2, (ch - dh) / 2, dw, dh);
   }
 
   Widget _buildCropOverlay(double cw, double ch) {
