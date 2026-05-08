@@ -11,15 +11,10 @@ http://localhost:2283/doc
 http://localhost:2283/api/spec.json
 treasure页:
 与monarch联动, 以后引入photoprism, 根据tags或文本识别内容检索图片, 类似小米相册plus.
-对于图片类的提供拖拽四边裁切功能, (将相关数据发送至monarch让gallery执行).
 
 gallery模块:
-对于图片, 提供裁切 (后端做好支持, 也许需要重构通信json结构之类的).
+👇(待验证)
 对于视频, 提供简单的去头去尾的剪辑, 以及选取开始帧结束帧生成新小视频片段.
-添加图片旋转功能, 改变图片的方向.
-⭐👇
-media_detail_page.dart, '系统信息'常驻展开.
-medias_gridview_page.dart, 对于被标记删除的, 双击快速对其取消删除.
 
 ## Desktop App:
 -- 漫画连载追踪页面.(⭐待考虑, 慎重引入)

@@ -432,7 +432,6 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	default:
 		return fmt.Errorf("未知编辑类型: %s", editType.Type)
 	}
-	defer os.Remove(tmpPath)
 
 	// 移动原文件到 trash
 	yearMonth := filepath.Dir(asset.FilePath)
@@ -451,10 +450,12 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	}
 	log.Printf("原文件已移入 trash: %s", trashPath)
 
-	// 新文件写回原路径
-	if err := moveFile(tmpPath, srcPath); err != nil {
+	// 将编辑后的文件复制到原路径（不使用 moveFile 避免跨盘/句柄锁定问题）
+	if err := copyFileData(tmpPath, srcPath); err != nil {
 		return fmt.Errorf("新文件写回失败: %w", err)
 	}
+	// 显式删除临时文件
+	os.Remove(tmpPath)
 
 	// 重新计算 hash
 	newHash, err := calculateFileHash(srcPath)
@@ -725,4 +726,16 @@ func calculateFileHash(filePath string) ([]byte, error) {
 	}
 
 	return hasher.Sum(nil), nil
+}
+
+// copyFileData 通过读取全部内容再写入的方式复制文件（避免 moveFile 跨盘/句柄锁定问题）
+func copyFileData(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("读取源文件失败: %w", err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("写入目标文件失败: %w", err)
+	}
+	return nil
 }
