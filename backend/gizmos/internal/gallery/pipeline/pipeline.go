@@ -474,16 +474,34 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	extLower := strings.ToLower(filepath.Ext(baseName))
 	newMime := model.GetMimeType(extLower)
 
+	// 先删除旧的缩略图和预览图文件
+	if asset.ThumbPath != nil && *asset.ThumbPath != "" {
+		oldThumb := filepath.Join(p.config.ThumbsDir, *asset.ThumbPath)
+		if err := os.Remove(oldThumb); err != nil && !os.IsNotExist(err) {
+			log.Printf("删除旧缩略图失败: %v", err)
+		}
+	}
+	if asset.PreviewPath != nil && *asset.PreviewPath != "" {
+		oldPreview := filepath.Join(p.config.PreviewDir, *asset.PreviewPath)
+		if err := os.Remove(oldPreview); err != nil && !os.IsNotExist(err) {
+			log.Printf("删除旧预览图失败: %v", err)
+		}
+	}
+
 	// 重建缩略图和预览图
 	fileInfo := &model.FileInfo{
-		FileName:  baseName,
-		Extension: extLower,
-		IsVideo:   model.IsVideo(extLower),
+		FileName:   baseName,
+		Extension:  extLower,
+		IsVideo:    model.IsVideo(extLower),
+		IsAnimated: model.IsAnimatedImage(extLower),
 	}
 	processResult, err := p.processor.Process(fileInfo, srcPath, yearMonth)
 	if err != nil {
 		log.Printf("重建缩略图/预览图失败: %v", err)
 		processResult = &processor.ProcessResult{}
+	} else {
+		log.Printf("缩略图已重建: %s", processResult.ThumbPath)
+		log.Printf("预览图已重建: %s", processResult.PreviewPath)
 	}
 
 	// 更新 asset 并写入数据库

@@ -97,6 +97,31 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
     return jsonEncode(m);
   }
 
+  /// 还原至原始状态：清除 edit_params
+  Future<void> _revert() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('还原至原始'),
+        content: const Text('将清除所有编辑参数（旋转/裁切），恢复为原始文件状态。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确定')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final db = ref.read(galleryDatabaseProvider);
+      await db.updateMediaAsset(widget.asset.copyWith(clearEditParams: true));
+      await ref.read(mediaAssetListProvider.notifier).refresh();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('还原失败: $e'), backgroundColor: Colors.red));
+    }
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -130,6 +155,8 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
         foregroundColor: Colors.white,
         title: const Text('图片编辑'),
         actions: [
+          if (widget.asset.editParams != null)
+            IconButton(icon: const Icon(Icons.undo), tooltip: '还原至原始', onPressed: _revert),
           IconButton(icon: const Icon(Icons.rotate_right), tooltip: '旋转90°', onPressed: _rotate),
           IconButton(
             icon: _saving
