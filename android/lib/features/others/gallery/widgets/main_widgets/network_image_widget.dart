@@ -31,6 +31,7 @@ class NetworkImageWidget extends StatefulWidget {
 class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   File? _placeholderFile;
   bool _isLoading = true;
+  Size? _imageSize; // 图片实际像素尺寸 (从 imageBuilder 捕获)
 
   // 用于手动控制缩放和平移
   final TransformationController _transformController =
@@ -106,20 +107,26 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
                     CachedNetworkImage(
                       imageUrl: widget.imageUrl,
                       httpHeaders: widget.httpHeaders,
-                      imageBuilder: (_, p) => _buildInteractiveImage(p,
-                          ValueKey('img_${widget.asset.id}_${widget.rotationQuarterTurns}')),
+                      imageBuilder: (_, p) {
+                        _captureImageSize(p);
+                        return _buildInteractiveImage(p,
+                            ValueKey('img_${widget.asset.id}_${widget.rotationQuarterTurns}'));
+                      },
                       placeholder: (_, __) => _buildPlaceholderOrLoading(),
                       errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
                     ),
-                    IgnorePointer(child: _CropPreview(crop: crop, imgSize: _parseImgSize())),
+                    IgnorePointer(child: _CropPreview(crop: crop, imgSize: _imageSize)),
                   ],
                 );
               })
             : CachedNetworkImage(
                 imageUrl: widget.imageUrl,
                 httpHeaders: widget.httpHeaders,
-                imageBuilder: (_, p) => _buildInteractiveImage(p,
-                    ValueKey('img_${widget.asset.id}_${widget.rotationQuarterTurns}')),
+                imageBuilder: (_, p) {
+                  _captureImageSize(p);
+                  return _buildInteractiveImage(p,
+                      ValueKey('img_${widget.asset.id}_${widget.rotationQuarterTurns}'));
+                },
                 placeholder: (_, __) => _buildPlaceholderOrLoading(),
                 errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
               ),
@@ -144,11 +151,17 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     return null;
   }
 
-  /// 从 placementImage 的实际分辨率获取图片尺寸
-  Size? _parseImgSize() {
-    // 简单方式：用 crop 的 right/bottom 作为图片最大尺寸估计
-    // 更精确的方式在 _CropPreview 中通过 LayoutBuilder + display rect 计算
-    return null;
+  /// 从 imageProvider 捕获实际图片像素尺寸
+  void _captureImageSize(ImageProvider p) {
+    final resolved = p.resolve(const ImageConfiguration());
+    resolved.addListener(ImageStreamListener((info, _) {
+      final sz = Size(info.image.width.toDouble(), info.image.height.toDouble());
+      if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _imageSize = sz);
+        });
+      }
+    }));
   }
 
   Widget _buildInteractiveImage(ImageProvider imageProvider, Key key) {
