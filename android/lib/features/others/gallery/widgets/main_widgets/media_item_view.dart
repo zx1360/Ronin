@@ -20,7 +20,7 @@ class MediaItemView extends ConsumerWidget {
     this.rotationQuarterTurns = 0,
   });
 
-  /// 从 editParams JSON 解析旋转角度并转为 quarterTurns
+  /// 从 editParams JSON 解析旋转角度并转为 quarterTurns (CCW，与后端一致)
   int get _editRotationTurns {
     final p = asset.editParams;
     if (p == null) return 0;
@@ -28,7 +28,8 @@ class MediaItemView extends ConsumerWidget {
       final json = jsonDecode(p) as Map<String, dynamic>;
       if (json['type'] == 'image') {
         final deg = (json['rotation'] as int? ?? 0) % 360;
-        return deg ~/ 90;
+        // RotatedBox 是 CW，用 (4 - turns) % 4 转为 CCW
+        return (4 - deg ~/ 90) % 4;
       }
     } catch (_) {}
     return 0;
