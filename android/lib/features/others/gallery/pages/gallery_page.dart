@@ -204,7 +204,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
         final rot = json['rotation'] as int? ?? 0;
         final hasCrop = json['crop_left'] != null;
         final parts = <String>[];
-        if (rot != 0) parts.add('旋转${rot}°');
+        if (rot != 0) parts.add('旋转$rot°');
         if (hasCrop) parts.add('裁剪中');
         return parts.isEmpty ? null : '编辑: ${parts.join(' · ')}';
       } else if (type == 'video') {
