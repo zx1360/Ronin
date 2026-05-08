@@ -15,12 +15,12 @@ import (
 
 // ImageEditParams 图片编辑参数
 type ImageEditParams struct {
-	Type      string `json:"type"`
-	Rotation  int    `json:"rotation"`
-	CropLeft  int    `json:"crop_left"`
-	CropTop   int    `json:"crop_top"`
-	CropRight int    `json:"crop_right"`
-	CropBottom int   `json:"crop_bottom"`
+	Type       string `json:"type"`
+	Rotation   int    `json:"rotation"`
+	CropLeft   int    `json:"crop_left"`
+	CropTop    int    `json:"crop_top"`
+	CropRight  int    `json:"crop_right"`
+	CropBottom int    `json:"crop_bottom"`
 }
 
 // ApplyImageEdit 对图片应用旋转和裁切，结果写入 dstPath

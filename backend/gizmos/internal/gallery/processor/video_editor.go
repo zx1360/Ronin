@@ -11,12 +11,12 @@ import (
 
 // VideoEditParams 视频编辑参数
 type VideoEditParams struct {
-	Type          string  `json:"type"`
-	TrimStartFrame int    `json:"trim_start_frame"`
-	TrimEndFrame  int     `json:"trim_end_frame"`
-	FPS           float64 `json:"fps"`
-	TrimStartSec  float64 `json:"trim_start_sec"`
-	TrimEndSec    float64 `json:"trim_end_sec"`
+	Type           string  `json:"type"`
+	TrimStartFrame int     `json:"trim_start_frame"`
+	TrimEndFrame   int     `json:"trim_end_frame"`
+	FPS            float64 `json:"fps"`
+	TrimStartSec   float64 `json:"trim_start_sec"`
+	TrimEndSec     float64 `json:"trim_end_sec"`
 }
 
 // ApplyVideoEdit 对视频应用剪辑（裁剪起止点），结果写入 dstPath
