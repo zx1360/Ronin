@@ -26,6 +26,10 @@ func SetupRouter() *gin.Engine {
 		AllowCredentials: false,
 	}))
 
+	if !config.IsLocalMode {
+		r.Use(util_handler.APIKeyAuth())
+	}
+
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)
 	// r.Use(static.Serve("/static/", static.LocalFile(config.AppConf.StaticDir, false)))
@@ -42,9 +46,9 @@ func SetupRouter() *gin.Engine {
 
 	// API路由, 数据/操作
 	api := r.Group("/API")
-	if !config.IsLocalMode {
-		api.Use(util_handler.APIKeyAuth())
-	}
+	// if !config.IsLocalMode {
+	// 	api.Use(util_handler.APIKeyAuth())
+	// }
 	{
 		// 用户数据相关
 		userDataGroup := api.Group("/user-data")
