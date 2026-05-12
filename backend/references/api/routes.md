@@ -1,41 +1,41 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-05-07T14:44:40Z
+- GeneratedAt: 2026-05-12T05:36:44Z
 - TotalRoutes: 34
 
-| Method | Path | Handler |
-| --- | --- | --- |
-| GET | / | monarch/internal/router.SetupRouter.func1 |
-| GET | /API/comic/chapter-info/:chapter-id | monarch/internal/handler/comic_handler.FetchImagesWithChapterId |
-| GET | /API/comic/comic-info | monarch/internal/handler/comic_handler.FetchAllComicInfos |
-| DELETE | /API/comic/comic-info/:comic-id | monarch/internal/handler/comic_handler.DeleteComic |
-| GET | /API/comic/comic-info/:comic-id | monarch/internal/handler/comic_handler.FetchChaptersWithComicId |
-| PUT | /API/comic/comic-info/:comic-id | monarch/internal/handler/comic_handler.UpdateComic |
-| GET | /API/comic/download/:comic-id | monarch/internal/handler/comic_handler.DownloadComic |
-| GET | /API/comic/meta-info | monarch/internal/handler/comic_handler.FetchComicMetadata |
-| POST | /API/comic/sync-readed | monarch/internal/handler/comic_handler.SyncReadedStatus |
-| GET | /API/gallery/:id/:type | monarch/internal/handler/gallery_handler.FetchMediaAsset |
-| GET | /API/gallery/batch | monarch/internal/handler/gallery_handler.FetchBatch |
-| POST | /API/gallery/push | monarch/internal/handler/gallery_handler.Push |
-| GET | /API/gallery/tags | monarch/internal/handler/gallery_handler.FetchAllTags |
-| GET | /API/ops/overview | monarch/internal/handler/util_handler.SystemOverview |
-| GET | /API/test | monarch/internal/handler/util_handler.Test |
-| POST | /API/user-data/backup/:module | monarch/internal/handler/data_handler.BackupHandler |
-| POST | /API/user-data/check-images/:module | monarch/internal/handler/data_handler.CheckImagesHandler |
-| GET | /API/user-data/sync/:module | monarch/internal/handler/data_handler.SyncHandler |
-| DELETE | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| GET | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| HEAD | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| OPTIONS | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| PATCH | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| POST | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| PUT | /api | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| DELETE | /api/*proxyPath | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| GET | /api/*proxyPath | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| HEAD | /api/*proxyPath | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| OPTIONS | /api/*proxyPath | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| PATCH | /api/*proxyPath | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| POST | /api/*proxyPath | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| PUT | /api/*proxyPath | monarch/internal/router.registerImmichProxyRoutes.func1 |
-| GET | /static/*filepath | github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 |
-| HEAD | /static/*filepath | github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 |
+| Method | Path |
+| --- | --- |
+| GET | / |
+| GET | /API/comic/chapter-info/:chapter-id |
+| GET | /API/comic/comic-info |
+| DELETE | /API/comic/comic-info/:comic-id |
+| GET | /API/comic/comic-info/:comic-id |
+| PUT | /API/comic/comic-info/:comic-id |
+| GET | /API/comic/download/:comic-id |
+| GET | /API/comic/meta-info |
+| POST | /API/comic/sync-readed |
+| GET | /API/gallery/:id/:type |
+| GET | /API/gallery/batch |
+| POST | /API/gallery/push |
+| GET | /API/gallery/tags |
+| GET | /API/ops/overview |
+| GET | /API/test |
+| POST | /API/user-data/backup/:module |
+| POST | /API/user-data/check-images/:module |
+| GET | /API/user-data/sync/:module |
+| DELETE | /api |
+| GET | /api |
+| HEAD | /api |
+| OPTIONS | /api |
+| PATCH | /api |
+| POST | /api |
+| PUT | /api |
+| DELETE | /api/*proxyPath |
+| GET | /api/*proxyPath |
+| HEAD | /api/*proxyPath |
+| OPTIONS | /api/*proxyPath |
+| PATCH | /api/*proxyPath |
+| POST | /api/*proxyPath |
+| PUT | /api/*proxyPath |
+| GET | /static/*filepath |
+| HEAD | /static/*filepath |
