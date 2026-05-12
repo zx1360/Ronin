@@ -1,175 +1,141 @@
 {
-  "generated_at": "2026-05-07T14:44:40Z",
+  "generated_at": "2026-05-12T05:36:44Z",
   "routes": [
     {
       "method": "GET",
-      "path": "/",
-      "handler": "monarch/internal/router.SetupRouter.func1"
+      "path": "/"
     },
     {
       "method": "GET",
-      "path": "/API/comic/chapter-info/:chapter-id",
-      "handler": "monarch/internal/handler/comic_handler.FetchImagesWithChapterId"
+      "path": "/API/comic/chapter-info/:chapter-id"
     },
     {
       "method": "GET",
-      "path": "/API/comic/comic-info",
-      "handler": "monarch/internal/handler/comic_handler.FetchAllComicInfos"
+      "path": "/API/comic/comic-info"
     },
     {
       "method": "DELETE",
-      "path": "/API/comic/comic-info/:comic-id",
-      "handler": "monarch/internal/handler/comic_handler.DeleteComic"
+      "path": "/API/comic/comic-info/:comic-id"
     },
     {
       "method": "GET",
-      "path": "/API/comic/comic-info/:comic-id",
-      "handler": "monarch/internal/handler/comic_handler.FetchChaptersWithComicId"
+      "path": "/API/comic/comic-info/:comic-id"
     },
     {
       "method": "PUT",
-      "path": "/API/comic/comic-info/:comic-id",
-      "handler": "monarch/internal/handler/comic_handler.UpdateComic"
+      "path": "/API/comic/comic-info/:comic-id"
     },
     {
       "method": "GET",
-      "path": "/API/comic/download/:comic-id",
-      "handler": "monarch/internal/handler/comic_handler.DownloadComic"
+      "path": "/API/comic/download/:comic-id"
     },
     {
       "method": "GET",
-      "path": "/API/comic/meta-info",
-      "handler": "monarch/internal/handler/comic_handler.FetchComicMetadata"
+      "path": "/API/comic/meta-info"
     },
     {
       "method": "POST",
-      "path": "/API/comic/sync-readed",
-      "handler": "monarch/internal/handler/comic_handler.SyncReadedStatus"
+      "path": "/API/comic/sync-readed"
     },
     {
       "method": "GET",
-      "path": "/API/gallery/:id/:type",
-      "handler": "monarch/internal/handler/gallery_handler.FetchMediaAsset"
+      "path": "/API/gallery/:id/:type"
     },
     {
       "method": "GET",
-      "path": "/API/gallery/batch",
-      "handler": "monarch/internal/handler/gallery_handler.FetchBatch"
+      "path": "/API/gallery/batch"
     },
     {
       "method": "POST",
-      "path": "/API/gallery/push",
-      "handler": "monarch/internal/handler/gallery_handler.Push"
+      "path": "/API/gallery/push"
     },
     {
       "method": "GET",
-      "path": "/API/gallery/tags",
-      "handler": "monarch/internal/handler/gallery_handler.FetchAllTags"
+      "path": "/API/gallery/tags"
     },
     {
       "method": "GET",
-      "path": "/API/ops/overview",
-      "handler": "monarch/internal/handler/util_handler.SystemOverview"
+      "path": "/API/ops/overview"
     },
     {
       "method": "GET",
-      "path": "/API/test",
-      "handler": "monarch/internal/handler/util_handler.Test"
+      "path": "/API/test"
     },
     {
       "method": "POST",
-      "path": "/API/user-data/backup/:module",
-      "handler": "monarch/internal/handler/data_handler.BackupHandler"
+      "path": "/API/user-data/backup/:module"
     },
     {
       "method": "POST",
-      "path": "/API/user-data/check-images/:module",
-      "handler": "monarch/internal/handler/data_handler.CheckImagesHandler"
+      "path": "/API/user-data/check-images/:module"
     },
     {
       "method": "GET",
-      "path": "/API/user-data/sync/:module",
-      "handler": "monarch/internal/handler/data_handler.SyncHandler"
+      "path": "/API/user-data/sync/:module"
     },
     {
       "method": "DELETE",
-      "path": "/api",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api"
     },
     {
       "method": "GET",
-      "path": "/api",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api"
     },
     {
       "method": "HEAD",
-      "path": "/api",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api"
     },
     {
       "method": "OPTIONS",
-      "path": "/api",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api"
     },
     {
       "method": "PATCH",
-      "path": "/api",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api"
     },
     {
       "method": "POST",
-      "path": "/api",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api"
     },
     {
       "method": "PUT",
-      "path": "/api",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api"
     },
     {
       "method": "DELETE",
-      "path": "/api/*proxyPath",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api/*proxyPath"
     },
     {
       "method": "GET",
-      "path": "/api/*proxyPath",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api/*proxyPath"
     },
     {
       "method": "HEAD",
-      "path": "/api/*proxyPath",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api/*proxyPath"
     },
     {
       "method": "OPTIONS",
-      "path": "/api/*proxyPath",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api/*proxyPath"
     },
     {
       "method": "PATCH",
-      "path": "/api/*proxyPath",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api/*proxyPath"
     },
     {
       "method": "POST",
-      "path": "/api/*proxyPath",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api/*proxyPath"
     },
     {
       "method": "PUT",
-      "path": "/api/*proxyPath",
-      "handler": "monarch/internal/router.registerImmichProxyRoutes.func1"
+      "path": "/api/*proxyPath"
     },
     {
       "method": "GET",
-      "path": "/static/*filepath",
-      "handler": "github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1"
+      "path": "/static/*filepath"
     },
     {
       "method": "HEAD",
-      "path": "/static/*filepath",
-      "handler": "github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1"
+      "path": "/static/*filepath"
     }
   ]
 }

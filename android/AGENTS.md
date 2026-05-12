@@ -19,18 +19,16 @@ Flutter 安卓移动端应用，Ronin 三端架构的消费端。所有持久化
 
 ### 技术栈
 
-| 领域 | 依赖 |
-|------|------|
-| 状态管理 | Riverpod + riverpod_generator |
-| 路由 | GoRouter |
-| 网络请求 | Dio (自签证书兼容) |
-| 本地存储 | Hive + SharedPreferences + sqflite |
-| 媒体播放 | chewie, video_player, audioplayers, photo_view |
-| 代码生成 | json_serializable + build_runner + hive_generator |
+- 状态管理：Riverpod + riverpod_generator
+- 路由：GoRouter
+- 网络请求：Dio（自签证书兼容）
+- 本地存储：Hive + SharedPreferences + sqflite
+- 媒体播放：chewie, video_player, audioplayers, photo_view
+- 代码生成：json_serializable + build_runner + hive_generator
 
 ### 与后端协同
 
-- API 变更见 `../backend/references/api/`（`swagger.json`、`routes.json`）。
+- API 变更见 `../backend/references/api/`（`routes.json`）。
 - 网络层：`lib/core/services/`、`lib/providers/api_client/`。
 - 自签证书：`assets/cert/`，通过 `CertTrust` 加载。
 - 画廊支持双向同步：`POST /API/gallery/push`。
