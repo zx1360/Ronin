@@ -249,9 +249,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
             margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.2),
+              color: Colors.blue.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.blue.withOpacity(0.5)),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.5)),
             ),
             child: Center(
               child: Text(

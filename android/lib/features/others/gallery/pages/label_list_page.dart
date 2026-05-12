@@ -253,9 +253,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       margin: EdgeInsets.only(left: depth * 24.0),
       decoration: BoxDecoration(
         color: isDropTarget
-            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
             : isSelected
-            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)
+            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
             : null,
         border: isDropTarget
             ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
