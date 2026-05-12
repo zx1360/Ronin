@@ -83,8 +83,8 @@ class AppTheme {
     style: ElevatedButton.styleFrom(
       backgroundColor: AppColors.primary,
       foregroundColor: AppColors.onPrimary,
-      disabledBackgroundColor: AppColors.primary.withOpacity(0.3),
-      disabledForegroundColor: AppColors.onPrimary.withOpacity(0.6),
+      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.3),
+      disabledForegroundColor: AppColors.onPrimary.withValues(alpha: 0.6),
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimens.borderRadius),
@@ -99,7 +99,7 @@ class AppTheme {
       OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
       foregroundColor: AppColors.onSurface,
-      disabledForegroundColor: AppColors.onSurface.withOpacity(0.38),
+      disabledForegroundColor: AppColors.onSurface.withValues(alpha: 0.38),
       side: BorderSide(color: AppColors.outline),
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       shape: RoundedRectangleBorder(
@@ -112,7 +112,7 @@ class AppTheme {
   static final TextButtonThemeData _textButtonTheme = TextButtonThemeData(
     style: TextButton.styleFrom(
       foregroundColor: AppColors.onSurface,
-      disabledForegroundColor: AppColors.onSurface.withOpacity(0.38),
+      disabledForegroundColor: AppColors.onSurface.withValues(alpha: 0.38),
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimens.borderRadius),
@@ -166,7 +166,7 @@ class AppTheme {
   static final CheckboxThemeData _checkboxTheme = CheckboxThemeData(
     fillColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return AppColors.primary;
-      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withOpacity(0.38);
+      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withValues(alpha: 0.38);
       return null;
     }),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
@@ -176,13 +176,13 @@ class AppTheme {
   static final SwitchThemeData _switchTheme = SwitchThemeData(
     thumbColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return AppColors.onPrimary;
-      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withOpacity(0.38);
+      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withValues(alpha: 0.38);
       return AppColors.onSurface;
     }),
     trackColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return AppColors.primary;
-      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withOpacity(0.12);
-      return AppColors.onSurface.withOpacity(0.38);
+      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withValues(alpha: 0.12);
+      return AppColors.onSurface.withValues(alpha: 0.38);
     }),
   );
 
@@ -222,7 +222,7 @@ class AppTheme {
   /// 底部导航栏主题
   static final NavigationBarThemeData _navigationBarTheme = NavigationBarThemeData(
     backgroundColor: AppColors.surface,
-    indicatorColor: AppColors.primary.withOpacity(0.2),
+    indicatorColor: AppColors.primary.withValues(alpha: 0.2),
     labelTextStyle: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return _labelSmall.copyWith(color: AppColors.primary);
       return _labelSmall.copyWith(color: AppColors.onSurfaceVariant);
