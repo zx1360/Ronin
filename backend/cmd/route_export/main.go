@@ -15,9 +15,8 @@ import (
 )
 
 type routeRef struct {
-	Method  string `json:"method"`
-	Path    string `json:"path"`
-	Handler string `json:"handler"`
+	Method string `json:"method"`
+	Path   string `json:"path"`
 }
 
 type routeSnapshot struct {
@@ -41,9 +40,8 @@ func main() {
 	routes := make([]routeRef, 0, len(routeInfos))
 	for _, item := range routeInfos {
 		routes = append(routes, routeRef{
-			Method:  item.Method,
-			Path:    item.Path,
-			Handler: item.Handler,
+			Method: item.Method,
+			Path:   item.Path,
 		})
 	}
 
@@ -95,11 +93,10 @@ func writeMarkdown(path string, snapshot routeSnapshot) error {
 	b.WriteString("# Route Snapshot\n\n")
 	b.WriteString(fmt.Sprintf("- GeneratedAt: %s\n", snapshot.GeneratedAt))
 	b.WriteString(fmt.Sprintf("- TotalRoutes: %d\n\n", len(snapshot.Routes)))
-	b.WriteString("| Method | Path | Handler |\n")
-	b.WriteString("| --- | --- | --- |\n")
+	b.WriteString("| Method | Path |\n")
+	b.WriteString("| --- | --- |\n")
 	for _, route := range snapshot.Routes {
-		handler := strings.ReplaceAll(route.Handler, "|", "\\|")
-		b.WriteString(fmt.Sprintf("| %s | %s | %s |\n", route.Method, route.Path, handler))
+		b.WriteString(fmt.Sprintf("| %s | %s |\n", route.Method, route.Path))
 	}
 
 	return os.WriteFile(path, []byte(b.String()), 0o644)

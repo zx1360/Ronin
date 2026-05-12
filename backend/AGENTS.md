@@ -9,7 +9,7 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
 ### 技术栈
 
-Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS 双模式（自签证书），`X-API-Key` 鉴权。Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。
+Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权。Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。
 
 ### 快速启动
 
@@ -34,21 +34,21 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 
 ### CLI 工具 (Gizmos)
 
-详见 `references/cli/`。Comic Indexer（`refresh`/`full-reindex`）、Gallery（`ingest`/`execute`/`refresh`）。
+详见 `references/cli/`。主要命令: Comic Indexer（`refresh`/`full-reindex`）、Gallery（`ingest`/`execute`/`refresh`）。
 
 ### 跨项目契约
 
-修改 Go 接口或 CLI 后必须运行：
+修改 Go 接口或 CLI 后运行：
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
 ```
-提交时把代码改动和 `references/` 产物一起提交。
-
 ### 数据库
 
-表定义及触发器见 `AGENTS_DB.md`（索引）和 `references/db/`（分模块明细）。
+表定义及触发器见 `AGENTS_DB.md`（索引）和 `references/db/`（分模块明细）.
 
 ### 硬性要求
 
-- 考虑边界情况，做好异常防护。除非明确要求，不对已有功能引入破坏性修改。
-- 更新数据库记录时显式更新所有字段值。注意代码可维护性。
+- 考虑边界情况, 做好异常防护.
+- 除非明确要求, 不对已有功能引入破坏性修改.
+- 更新数据库记录时显式更新所有字段值.
+- 注意代码可维护性.

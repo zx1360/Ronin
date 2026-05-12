@@ -13,22 +13,6 @@ function Ensure-Directory {
     }
 }
 
-function Ensure-Swag {
-    $goBin = Join-Path (go env GOPATH) "bin"
-    if (-not (($env:Path -split ';') -contains $goBin)) {
-        $env:Path = "$goBin;$env:Path"
-    }
-
-    if (-not (Get-Command swag -ErrorAction SilentlyContinue)) {
-        Write-Host "[refs] swag not found, installing github.com/swaggo/swag/cmd/swag@latest"
-        go install github.com/swaggo/swag/cmd/swag@latest
-    }
-
-    if (-not (Get-Command swag -ErrorAction SilentlyContinue)) {
-        throw "swag command not found after installation"
-    }
-}
-
 function Join-ByteArrays {
     param(
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$First,
@@ -104,11 +88,6 @@ Ensure-Directory -Path $cliDir
 
 Push-Location $Root
 try {
-    Ensure-Swag
-
-    Write-Host "[refs] generating openapi (swagger.json + swagger.yaml)..."
-    swag init -g main.go -d cmd,internal/handler/comic_handler,internal/handler/data_handler,internal/handler/gallery_handler,internal/handler/util_handler,internal/model -o references/api/openapi --outputTypes json,yaml
-
     Write-Host "[refs] exporting router snapshot..."
     go run ./cmd/route_export -json references/api/routes.json -md references/api/routes.md
 
