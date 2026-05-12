@@ -2,15 +2,11 @@
 
 # TODO:
 ## monarch:
-
+> 如何做到可分发
+- postgresql打包在内, 作为用户, 不介意连带的依赖大, 但是希望绿色免安装, 最好再northstar里一键启停.
+- 简化monarch与torrid的连接方式, 不用目前的手动输入ip/port/apikey, 同一局域网下自动从monarch--关键信息到-->torrid.(就像小米换机界面一样, 给个选择对方的界面.) (也许通过路由器广播地址之类的? 之后了解一下.)
 
 ## torrid:
-基于immich http的二次开发:
-https://api.immich.app/endpoints/api-keys
-http://localhost:2283/doc
-http://localhost:2283/api/spec.json
-treasure页:
-与monarch联动, 以后引入photoprism, 根据tags或文本识别内容检索图片, 类似小米相册plus.
 
 gallery模块:
 👇(待验证)
