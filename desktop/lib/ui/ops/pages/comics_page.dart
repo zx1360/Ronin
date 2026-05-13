@@ -53,17 +53,30 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
     }
   }
 
+  /// 就地更新某个漫画的字段，避免全量刷新导致滚动回顶。
+  void _patchComic(String comicId, Map<String, dynamic> fields) {
+    final list = _comics;
+    if (list == null) return;
+    final idx = list.indexWhere((c) => c['id'] == comicId);
+    if (idx == -1) return;
+    final updated = Map<String, dynamic>.from(list[idx]);
+    updated.addAll(fields);
+    setState(() {
+      list[idx] = updated;
+    });
+  }
+
   Future<void> _togglePublic(String comicId, bool current) async {
     final settings = ref.read(opsSettingsControllerProvider);
     final client = ref.read(opsApiClientProvider);
     try {
       await client.updateComic(settings, comicId, {'is_public': !current});
-      await _loadComics();
+      _patchComic(comicId, {'is_public': !current});
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('更新失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
       }
     }
   }
@@ -94,17 +107,19 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
       final settings = ref.read(opsSettingsControllerProvider);
       final client = ref.read(opsApiClientProvider);
       await client.deleteComic(settings, comicId);
-      await _loadComics();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"$title" 已删除')),
-        );
+        setState(() {
+          _comics?.removeWhere((c) => c['id'] == comicId);
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('"$title" 已删除')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('删除失败: $e')));
       }
     }
   }
@@ -114,12 +129,12 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
     final client = ref.read(opsApiClientProvider);
     try {
       await client.updateComic(settings, comicId, {'readed': !current});
-      await _loadComics();
+      _patchComic(comicId, {'readed': !current});
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('更新失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('更新失败: $e')));
       }
     }
   }
@@ -133,7 +148,8 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
         p.dirname(p.dirname(Directory.current.path)),
       ];
       for (final candidate in candidates) {
-        if (Directory(p.join(candidate, 'static')).existsSync()) return candidate;
+        if (Directory(p.join(candidate, 'static')).existsSync())
+          return candidate;
       }
       return Directory.current.path; // 回退
     }
@@ -156,7 +172,9 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
     final coverFileName = 'cover${p.extension(pickedFile.path!)}';
     final targetDir = p.join(staticRoot, 'static', 'comics', title);
     final targetPath = p.join(targetDir, coverFileName);
-    final relativePath = p.join('comics', title, coverFileName).replaceAll('\\', '/');
+    final relativePath = p
+        .join('comics', title, coverFileName)
+        .replaceAll('\\', '/');
 
     try {
       final dir = Directory(targetDir);
@@ -169,19 +187,21 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
       // 更新数据库中的 cover_image
       final settings = ref.read(opsSettingsControllerProvider);
       final client = ref.read(opsApiClientProvider);
-      await client.updateComic(settings, comicId, {'cover_image': relativePath});
+      await client.updateComic(settings, comicId, {
+        'cover_image': relativePath,
+      });
 
-      await _loadComics();
+      _patchComic(comicId, {'cover_image': relativePath});
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('封面已更新')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('封面已更新')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('封面替换失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('封面替换失败: $e')));
       }
     }
   }
@@ -213,30 +233,26 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('加载失败: $_error',
-                                style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .error)),
-                            const SizedBox(height: 12),
-                            ElevatedButton.icon(
-                              onPressed: _loadComics,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('重试'),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '加载失败: $_error',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
-                      )
-                    : TabBarView(
-                        children: [
-                          _buildContent(),
-                          _TrackingSection(),
-                        ],
-                      ),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: _loadComics,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  )
+                : TabBarView(children: [_buildContent(), _TrackingSection()]),
           ),
         ],
       ),
@@ -253,16 +269,29 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
       children: [
         // 工具栏
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppDimens.paddingL, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimens.paddingM,
+            vertical: 6,
+          ),
           child: Row(
             children: [
               ElevatedButton.icon(
                 onPressed: _loadComics,
-                icon: const Icon(Icons.refresh_rounded),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('刷新'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
-              const SizedBox(width: 12),
-              Text('共 ${comics.length} 本漫画', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(width: 8),
+              Text(
+                '共 ${comics.length} 本漫画',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
           ),
         ),
@@ -272,34 +301,29 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
         // 漫画管理网格
         Expanded(
           child: GridView.builder(
-            padding: const EdgeInsets.all(AppDimens.paddingM),
+            padding: const EdgeInsets.all(AppDimens.paddingS),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.62,
-              crossAxisSpacing: AppDimens.spacingM,
-              mainAxisSpacing: AppDimens.spacingM,
+              crossAxisCount: 4,
+              childAspectRatio: 0.58,
+              crossAxisSpacing: AppDimens.spacingS,
+              mainAxisSpacing: AppDimens.spacingS,
             ),
             itemCount: comics.length,
             itemBuilder: (context, index) {
+              final comic = comics[index];
+              final id = comic['id'] as String? ?? '$index';
               return _ComicCard(
-                comic: comics[index],
-                coverUrl: _coverUrl(comics[index]['cover_image'] as String?),
-                onTogglePublic: () => _togglePublic(
-                  comics[index]['id'] as String,
-                  comics[index]['is_public'] as bool? ?? true,
-                ),
-                onToggleReaded: () => _toggleReaded(
-                  comics[index]['id'] as String,
-                  comics[index]['readed'] as bool? ?? false,
-                ),
-                onDelete: () => _deleteComic(
-                  comics[index]['id'] as String,
-                  comics[index]['title'] as String? ?? '',
-                ),
-                onReplaceCover: () => _replaceCover(
-                  comics[index]['id'] as String,
-                  comics[index]['title'] as String? ?? '',
-                ),
+                key: ValueKey(id),
+                comic: comic,
+                coverUrl: _coverUrl(comic['cover_image'] as String?),
+                onTogglePublic: () =>
+                    _togglePublic(id, comic['is_public'] as bool? ?? true),
+                onToggleReaded: () =>
+                    _toggleReaded(id, comic['readed'] as bool? ?? false),
+                onDelete: () =>
+                    _deleteComic(id, comic['title'] as String? ?? ''),
+                onReplaceCover: () =>
+                    _replaceCover(id, comic['title'] as String? ?? ''),
               );
             },
           ),
@@ -318,6 +342,7 @@ class _ComicCard extends StatelessWidget {
   final VoidCallback onReplaceCover;
 
   const _ComicCard({
+    super.key,
     required this.comic,
     required this.coverUrl,
     required this.onTogglePublic,
@@ -351,29 +376,37 @@ class _ComicCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                           color: Colors.grey[800],
-                          child: const Icon(Icons.broken_image, color: Colors.grey),
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.grey,
+                            size: 18,
+                          ),
                         ),
                       )
                     : Container(
                         color: Colors.grey[800],
-                        child: const Icon(Icons.menu_book, color: Colors.grey),
+                        child: const Icon(
+                          Icons.menu_book,
+                          color: Colors.grey,
+                          size: 18,
+                        ),
                       ),
                 // 已读标记
                 Positioned(
-                  top: 4,
-                  right: 4,
+                  top: 2,
+                  right: 2,
                   child: InkWell(
                     onTap: onToggleReaded,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(2),
                       decoration: BoxDecoration(
                         color: Colors.black54,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
                         readed ? Icons.done_all : Icons.done,
-                        size: 16,
+                        size: 13,
                         color: readed ? Colors.greenAccent : Colors.grey,
                       ),
                     ),
@@ -384,21 +417,21 @@ class _ComicCard extends StatelessWidget {
           ),
           // 信息区
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+            padding: const EdgeInsets.fromLTRB(6, 4, 6, 1),
             child: Text(
               title,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Wrap(
-              spacing: 4,
-              runSpacing: 2,
+              spacing: 2,
+              runSpacing: 1,
               children: [
                 _CompactChip(label: '$chapterCount 章'),
                 _CompactChip(label: '$imageCount 图'),
@@ -406,46 +439,62 @@ class _ComicCard extends StatelessWidget {
                   label: isPublic ? '公开' : '隐藏',
                   color: isPublic ? Colors.green : Colors.orange,
                 ),
-                if (readed)
-                  const _CompactChip(label: '已读', color: Colors.blue),
+                if (readed) const _CompactChip(label: '已读', color: Colors.blue),
               ],
             ),
           ),
           // 操作按钮
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                IconButton(
+                _MiniIconButton(
                   tooltip: '替换封面',
                   onPressed: onReplaceCover,
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: Icons.photo_library_outlined,
                 ),
-                IconButton(
+                _MiniIconButton(
                   tooltip: isPublic ? '设为隐藏' : '设为公开',
                   onPressed: onTogglePublic,
-                  icon: Icon(
-                    isPublic ? Icons.visibility : Icons.visibility_off,
-                    size: 18,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: isPublic ? Icons.visibility : Icons.visibility_off,
                 ),
-                IconButton(
+                _MiniIconButton(
                   tooltip: '删除',
                   onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  icon: Icons.delete_outline,
+                  color: Colors.red,
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MiniIconButton extends StatelessWidget {
+  final String tooltip;
+  final VoidCallback onPressed;
+  final IconData icon;
+  final Color? color;
+  const _MiniIconButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 15, color: color),
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+      padding: EdgeInsets.zero,
     );
   }
 }
@@ -459,18 +508,12 @@ class _CompactChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final effectiveColor = color ?? Colors.grey;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0),
       decoration: BoxDecoration(
         color: effectiveColor.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(3),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          color: effectiveColor,
-        ),
-      ),
+      child: Text(label, style: TextStyle(fontSize: 9, color: effectiveColor)),
     );
   }
 }

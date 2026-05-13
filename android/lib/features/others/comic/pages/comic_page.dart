@@ -270,7 +270,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                       child: Text('未找到任何漫画', style: TextStyle(fontSize: 18)),
                     ),
                   if (comicInfos.isNotEmpty) ...[
-                    // 修改：优化本地漫画标题样式 - 简约美观
+                    // 本地漫画标题
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -299,37 +299,44 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                         ),
                       ),
                     ),
-                    // 本地漫画网格：shrinkWrap=true 提前计算尺寸占据最小高度(但不渲染)
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(10),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 1,
-                            crossAxisSpacing: 6,
-                            mainAxisSpacing: 6,
-                          ),
-                      itemCount: comicInfos.length,
-                      itemBuilder: (context, index) {
-                        final comic = comicInfos[index];
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ComicDetailPage(
-                                  comicInfo: comic,
-                                  isLocal: true,
+                    // 本地漫画网格：按 isPublic 过滤，与在线漫画一致
+                    Builder(builder: (context) {
+                      final filteredLocal = _showAllComics
+                          ? comicInfos
+                          : comicInfos
+                              .where((c) => c.isPublic ?? true)
+                              .toList();
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(10),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 1,
+                              crossAxisSpacing: 6,
+                              mainAxisSpacing: 6,
+                            ),
+                        itemCount: filteredLocal.length,
+                        itemBuilder: (context, index) {
+                          final comic = filteredLocal[index];
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ComicDetailPage(
+                                    comicInfo: comic,
+                                    isLocal: true,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                          child: ComicItem(comicInfo: comic, isLocal: true),
-                        );
-                      },
-                    ),
+                              );
+                            },
+                            child: ComicItem(comicInfo: comic, isLocal: true),
+                          );
+                        },
+                      );
+                    }),
                   ],
                   // 在线漫画相关
                   Container(
