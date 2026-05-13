@@ -25,14 +25,14 @@ class DashboardPage extends ConsumerWidget {
         const Heading(title: 'Monarch信息总览'),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppDimens.paddingL),
+            padding: const EdgeInsets.all(AppDimens.paddingM),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     _OnlineChip(online: overviewState.online),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         overviewState.lastUpdatedAt == null
@@ -47,38 +47,43 @@ class DashboardPage extends ConsumerWidget {
                           : () async {
                               await controller.refresh();
                             },
-                      icon: const Icon(Icons.refresh_rounded),
+                      icon: const Icon(Icons.refresh_rounded, size: 16),
                       label: const Text('手动刷新'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppDimens.spacingL),
+                const SizedBox(height: AppDimens.spacingS),
                 if (overviewState.errorMessage != null)
                   Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(AppDimens.paddingM),
+                      padding: const EdgeInsets.all(AppDimens.paddingS),
                       child: Text(
                         '监控接口异常: ${overviewState.errorMessage}',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.error,
+                          fontSize: 12,
                         ),
                       ),
                     ),
                   ),
-                const SizedBox(height: AppDimens.spacingM),
+                const SizedBox(height: AppDimens.spacingS),
                 _ServiceAndDbSection(overview: overview),
-                const SizedBox(height: AppDimens.spacingL),
+                const SizedBox(height: AppDimens.spacingM),
                 Row(
                   children: [
                     Text('存储占用', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Text(
                       '轮询间隔 ${settings.autoRefreshSeconds}s',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
-                const SizedBox(height: AppDimens.spacingM),
+                const SizedBox(height: AppDimens.spacingS),
                 if (overview == null && overviewState.loading)
                   const Center(child: CircularProgressIndicator())
                 else if (overview == null)
@@ -103,7 +108,7 @@ class _OnlineChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = online ? Colors.greenAccent.shade400 : Theme.of(context).colorScheme.error;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
         border: Border.all(color: color.withValues(alpha: 0.8)),
@@ -111,7 +116,7 @@ class _OnlineChip extends StatelessWidget {
       ),
       child: Text(
         online ? '服务在线' : '服务离线',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
             ),
@@ -159,7 +164,7 @@ class _ServiceAndDbSection extends StatelessWidget {
             children: [
               for (final card in cards) ...[
                 card,
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
               ],
             ],
           );
@@ -168,7 +173,7 @@ class _ServiceAndDbSection extends StatelessWidget {
         return Row(
           children: [
             Expanded(child: cards[0]),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(child: cards[1]),
           ],
         );
@@ -192,22 +197,23 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(AppDimens.paddingM),
+        padding: const EdgeInsets.all(AppDimens.paddingS),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
-                Icon(icon, size: 18),
-                const SizedBox(width: 8),
-                Text(title, style: Theme.of(context).textTheme.titleSmall),
+                Icon(icon, size: 16),
+                const SizedBox(width: 6),
+                Text(title, style: Theme.of(context).textTheme.labelLarge),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             for (final line in lines)
               Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(line, style: Theme.of(context).textTheme.bodyMedium),
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(line, style: Theme.of(context).textTheme.bodySmall),
               ),
           ],
         ),
@@ -229,10 +235,10 @@ class _StorageGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: entries.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
-        crossAxisSpacing: AppDimens.spacingM,
-        mainAxisSpacing: AppDimens.spacingM,
-        childAspectRatio: 1.9,
+        crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 4 : 3,
+        crossAxisSpacing: AppDimens.spacingS,
+        mainAxisSpacing: AppDimens.spacingS,
+        childAspectRatio: 2.4,
       ),
       itemBuilder: (context, index) {
         final entry = entries[index];
@@ -240,7 +246,7 @@ class _StorageGrid extends StatelessWidget {
 
         return Card(
           child: Padding(
-            padding: const EdgeInsets.all(AppDimens.paddingM),
+            padding: const EdgeInsets.all(AppDimens.paddingS),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -249,43 +255,49 @@ class _StorageGrid extends StatelessWidget {
                     Expanded(
                       child: Text(
                         entry.key,
-                        style: Theme.of(context).textTheme.titleSmall,
+                        style: Theme.of(context).textTheme.labelLarge,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    IconButton(
-                      tooltip: '复制路径',
-                      onPressed: item.path.trim().isEmpty
-                          ? null
-                          : () async {
-                              await Clipboard.setData(ClipboardData(text: item.path));
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('路径已复制到剪贴板')),
-                                );
-                              }
-                            },
-                      icon: const Icon(Icons.copy_rounded, size: 16),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: IconButton(
+                        tooltip: '复制路径',
+                        padding: EdgeInsets.zero,
+                        iconSize: 14,
+                        onPressed: item.path.trim().isEmpty
+                            ? null
+                            : () async {
+                                await Clipboard.setData(ClipboardData(text: item.path));
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('路径已复制到剪贴板')),
+                                  );
+                                }
+                              },
+                        icon: const Icon(Icons.copy_rounded),
+                      ),
                     ),
                   ],
                 ),
                 Text(
                   item.path,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: Theme.of(context).textTheme.labelSmall,
                 ),
-                const Spacer(),
-                Text('文件数: ${item.files}'),
-                Text('容量: ${formatBytes(item.bytes)}'),
-                Text('存在: ${item.exists ? '是' : '否'}'),
+                const SizedBox(height: 4),
+                Text('文件数: ${item.files}  容量: ${formatBytes(item.bytes)}  存在: ${item.exists ? '是' : '否'}',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
                 if (item.error != null)
                   Text(
                     '错误: ${item.error}',
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 10),
                   ),
               ],
             ),

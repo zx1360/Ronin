@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:northstar/application/ops/providers/core_services_provider.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
+import 'package:northstar/services/cert_trust.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'ops_settings_provider.g.dart';
@@ -18,6 +19,7 @@ class OpsSettingsController extends _$OpsSettingsController {
         return;
       }
       state = cached;
+      CertTrust.setApiKey(cached.apiKey);
     });
     return OpsSettings.defaults();
   }
@@ -34,6 +36,7 @@ class OpsSettingsController extends _$OpsSettingsController {
       autoRefreshSeconds: autoRefreshSeconds,
       hideApiKey: hideApiKey,
     );
+    CertTrust.setApiKey(state.apiKey);
     await _save();
   }
 
