@@ -10,7 +10,7 @@ Future<void> initWindow()async{
     WindowOptions windowOptions = WindowOptions(
       center: true,
       title: "northstar 北极星",
-      size: const Size(916, 616),
+      size: const Size(1024, 688),
       backgroundColor: Colors.transparent,  //MaterialApp后面的背景颜色设为透明.
       titleBarStyle: TitleBarStyle.hidden 
     );
