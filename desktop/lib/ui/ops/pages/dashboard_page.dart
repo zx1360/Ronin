@@ -22,7 +22,7 @@ class DashboardPage extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Heading(title: 'Dashboard'),
+        const Heading(title: 'Monarch信息总览'),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppDimens.paddingL),
