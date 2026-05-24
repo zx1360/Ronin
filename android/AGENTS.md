@@ -1,6 +1,6 @@
 ﻿## 项目说明 (Torrid)
 
-Flutter 安卓移动端应用，Ronin 三端架构的消费端。所有持久化数据通过 Monarch 后端 API 存取。
+Flutter 目标平台仅为安卓移动段的应用，Ronin 三端架构的消费端。所有持久化数据通过 Monarch 后端 API 存取。
 
 ### 核心功能与后端依赖
 
