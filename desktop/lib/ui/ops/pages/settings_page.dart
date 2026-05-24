@@ -152,6 +152,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               label: const Text('保存设置'),
                             ),
                             const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final url = await settingsController
+                                    .discoverService();
+                                if (context.mounted) {
+                                  if (url != null) {
+                                    _apiBaseUrlController.text = url;
+                                    _dirty = true;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('已发现服务: $url')),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('未发现局域网内的 Monarch 服务'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.wifi_find),
+                              label: const Text('发现服务'),
+                            ),
+                            const SizedBox(width: 12),
                             Text(
                               '当前: ${settings.autoRefreshSeconds}s',
                               style: Theme.of(context).textTheme.bodySmall,

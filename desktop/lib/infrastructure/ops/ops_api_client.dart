@@ -1,18 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:northstar/domain/ops/models/ops_overview.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
+import 'package:northstar/services/cert_trust.dart';
 
 class OpsApiClient {
-  static const _serverCertificateAssetPath = 'assets/cert/server.crt';
-  static Uint8List? _cachedServerCertificate;
-
   /// 根据 URL 协议请求监控接口：http 使用普通连接，https 使用内置证书信任连接。
   Future<OpsOverview> fetchOverview(OpsSettings settings) async {
     final uri = _buildUri(settings.apiBaseUrl, '/API/ops/overview');
-    final client = await _buildHttpClient(uri);
+    final client = _buildHttpClient(uri);
 
     final headers = _buildHeaders(settings);
 
@@ -58,7 +55,7 @@ class OpsApiClient {
 
   Future<List<Map<String, dynamic>>> _getJsonList(OpsSettings settings, String endpoint) async {
     final uri = _buildUri(settings.apiBaseUrl, endpoint);
-    final client = await _buildHttpClient(uri);
+    final client = _buildHttpClient(uri);
     final headers = _buildHeaders(settings);
 
     try {
@@ -89,7 +86,7 @@ class OpsApiClient {
     Map<String, dynamic>? body,
   }) async {
     final uri = _buildUri(settings.apiBaseUrl, endpoint);
-    final client = await _buildHttpClient(uri);
+    final client = _buildHttpClient(uri);
     final headers = _buildHeaders(settings);
     headers['Content-Type'] = 'application/json';
 
@@ -135,30 +132,11 @@ class OpsApiClient {
     return Uri.parse(target);
   }
 
-  /// 仅在 https 模式加载内置证书并创建受限信任链，避免依赖系统证书安装。
-  Future<HttpClient> _buildHttpClient(Uri uri) async {
+  /// 根据协议创建 HttpClient: https 复用 CertTrust 的安全上下文.
+  HttpClient _buildHttpClient(Uri uri) {
     if (uri.scheme.toLowerCase() != 'https') {
       return HttpClient()..connectionTimeout = const Duration(seconds: 6);
     }
-
-    final certificate = await _loadServerCertificate();
-    final context = SecurityContext(withTrustedRoots: false);
-    context.setTrustedCertificatesBytes(certificate);
-
-    return HttpClient(context: context)
-      ..connectionTimeout = const Duration(seconds: 6);
-  }
-
-  /// 从 assets 读取并缓存服务端证书字节，减少重复 IO。
-  Future<Uint8List> _loadServerCertificate() async {
-    final cached = _cachedServerCertificate;
-    if (cached != null) {
-      return cached;
-    }
-
-    final bytes = await rootBundle.load(_serverCertificateAssetPath);
-    final cert = bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes);
-    _cachedServerCertificate = cert;
-    return cert;
+    return CertTrust.createSecureClient();
   }
 }

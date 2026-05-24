@@ -82,16 +82,36 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
         // 服务器配置
         _buildSection(
           title: '服务器配置',
-          trailing: TextButton.icon(
-            onPressed: () =>
-                ref.read(networkConfigManagerProvider.notifier).addConfig(),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('新增'),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  ref
+                      .read(networkConfigManagerProvider.notifier)
+                      .discoverServices();
+                },
+                icon: const Icon(Icons.wifi_find, size: 18),
+                label: const Text('发现'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+              const SizedBox(width: 4),
+              TextButton.icon(
+                onPressed: () =>
+                    ref.read(networkConfigManagerProvider.notifier).addConfig(),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('新增'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
           ),
           children: [
             ...configState.configs.asMap().entries.map((entry) {
@@ -287,8 +307,8 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
       setState(() => _isTesting = true);
     }
 
-    final dio = Dio(
-      BaseOptions(
+    final dio = CertTrust.createDio(
+      options: BaseOptions(
         baseUrl: 'https://$host:$port',
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 8),
@@ -297,7 +317,6 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
             : const {},
       ),
     );
-    dio.httpClientAdapter = CertTrust.createAdapter();
 
     bool connected = false;
     try {

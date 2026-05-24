@@ -14,6 +14,7 @@
 1. **后端变更** → 运行 `backend/references/scripts/generate_refs.ps1` → 提交代码 + `references/` 产物
 2. **Flutter 端同步** → 对比 `backend/references/api/` diff → 更新对应网络层/任务模板
 3. **数据流向** → Desktop 启停 Monarch + CLI → PostgreSQL → Android 在线消费（部分模块数据可回传）
+   - mDNS 自动发现：Monarch 启动时通过 `_monarch._tcp` 注册，客户端通过组播 DNS 自动发现
 
 ### 分支策略
 

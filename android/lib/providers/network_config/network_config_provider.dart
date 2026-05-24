@@ -1,11 +1,14 @@
 /// 网络配置管理Provider
 ///
-/// 提供服务器连接配置的统一管理
+/// 提供服务器连接配置的统一管理，支持：
+/// - 多服务器配置 (增删改切换)
+/// - mDNS 自动服务发现
 library;
 
 import 'dart:convert';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:torrid/core/services/network/mdns_discovery.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -243,5 +246,67 @@ class NetworkConfigManager extends _$NetworkConfigManager {
   /// 清除消息
   void clearMessage() {
     state = state.copyWith(clearMessage: true);
+  }
+
+  /// mDNS 服务发现
+  ///
+  /// 扫描局域网内的 Monarch 服务，若发现的服务地址不在已有配置中，
+  /// 则自动添加 (不自动切换激活).
+  Future<List<DiscoveredService>> discoverServices() async {
+    state = state.copyWith(isLoading: true, message: '正在搜索局域网服务...');
+
+    try {
+      final discovered = await MDnsDiscovery.discover();
+
+      if (discovered.isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          message: '未发现局域网内的 Monarch 服务',
+        );
+        return discovered;
+      }
+
+      // 将发现的服务加入配置 (如不存在)
+      int added = 0;
+      final existingHosts = state.configs
+          .where((c) => c.isValid)
+          .map((c) => '${c.host}:${c.port}')
+          .toSet();
+
+      final newConfigs = List<HostConfig>.from(state.configs);
+      for (final svc in discovered) {
+        final key = '${svc.host}:${svc.port}';
+        if (!existingHosts.contains(key)) {
+          newConfigs.add(HostConfig(
+            host: svc.host,
+            port: svc.port.toString(),
+          ));
+          existingHosts.add(key);
+          added++;
+        }
+      }
+
+      if (added > 0) {
+        state = state.copyWith(configs: newConfigs);
+        await _persistConfigs();
+        state = state.copyWith(
+          isLoading: false,
+          message: '发现 $added 个新服务，已添加到列表',
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          message: '发现的 ${discovered.length} 个服务均已存在',
+        );
+      }
+
+      return discovered;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        message: '服务发现失败: $e',
+      );
+      return [];
+    }
   }
 }

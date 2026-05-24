@@ -32,6 +32,7 @@ Riverpod + GoRouter + SharedPreferences + `dart:io` HttpClient（自签证书信
 - 任务模板 (`default_task_templates.dart`) 需对照 `../backend/gizmos/` 的 CLI 参数。
 - 自签证书：`assets/cert/server.crt`。
 - 后端接口变更后查看 `../backend/references/api/routes.json`。
+- **mDNS 自动发现**：设置页点击"发现服务"可自动扫描局域网内的 Monarch 服务，发现后自动替换当前地址。
 
 ### 数据持久化
 

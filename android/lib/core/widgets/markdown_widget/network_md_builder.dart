@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:torrid/core/services/network/cert_trust.dart';
 
 import 'md_viewer.dart';
 
@@ -50,8 +51,8 @@ class _NetworkMdBuilderState extends State<NetworkMdBuilder> {
   @override
   void initState() {
     super.initState();
-    _dio = Dio(
-      BaseOptions(
+    _dio = CertTrust.createDio(
+      options: BaseOptions(
         connectTimeout: Duration(seconds: widget.timeoutSeconds),
         receiveTimeout: Duration(seconds: widget.timeoutSeconds),
         headers: widget.headers,
