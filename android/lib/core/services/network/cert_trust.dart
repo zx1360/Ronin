@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter/services.dart';
 
@@ -35,6 +36,16 @@ class CertTrust {
         return client;
       },
     );
+  }
+
+  /// 创建预配置的 Dio 实例 (已信任自签证书).
+  ///
+  /// 适用于需要在 ApiClient 之外使用 Dio 的场景 (如连接测试、外部资源加载),
+  /// 确保自签证书信任配置一致.
+  static Dio createDio({BaseOptions? options}) {
+    final dio = Dio(options ?? BaseOptions());
+    dio.httpClientAdapter = createAdapter();
+    return dio;
   }
 
   static bool _verifyCert(X509Certificate cert, String host, int port) {

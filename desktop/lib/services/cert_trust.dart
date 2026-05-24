@@ -17,6 +17,9 @@ class CertTrust {
   /// 获取当前全局 API Key。由 OpsSettingsController 在变更时同步。
   static String? get apiKey => _apiKey;
 
+  /// 获取已加载证书的 SecurityContext，供其他组件复用。
+  static SecurityContext? get securityContext => _securityContext;
+
   /// 更新全局 API Key，供 Image.network 等原生请求自动携带。
   static void setApiKey(String? key) {
     _apiKey = (key == null || key.trim().isEmpty) ? null : key.trim();
@@ -30,6 +33,14 @@ class CertTrust {
     _securityContext!
         .setTrustedCertificatesBytes(certBytes.buffer.asUint8List());
     HttpOverrides.global = _TrustedCertHttpOverrides(_securityContext!);
+  }
+
+  /// 创建带有自签证书信任的 HttpClient (供 OpsApiClient 等组件复用).
+  static HttpClient createSecureClient({Duration? connectionTimeout}) {
+    final client = HttpClient(context: _securityContext);
+    client.connectionTimeout = connectionTimeout ?? const Duration(seconds: 6);
+    client.badCertificateCallback = (cert, host, port) => true;
+    return client;
   }
 }
 
