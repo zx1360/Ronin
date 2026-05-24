@@ -7,7 +7,7 @@ part of 'ops_settings_provider.dart';
 // **************************************************************************
 
 String _$opsSettingsControllerHash() =>
-    r'd19ae70cd19265b43bd68d6ae7842f4311b6f89a';
+    r'31ad714378440e7163fa8fdbec09debb2a73d64c';
 
 /// See also [OpsSettingsController].
 @ProviderFor(OpsSettingsController)

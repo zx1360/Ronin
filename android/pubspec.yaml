@@ -91,6 +91,7 @@ dependencies:
 
   # ----codegen代码生成----
   json_annotation: ^4.9.0
+  multicast_dns: ^0.3.3
   
 
 # 开发时插件-------:

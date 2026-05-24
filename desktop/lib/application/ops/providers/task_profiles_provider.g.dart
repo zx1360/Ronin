@@ -7,7 +7,7 @@ part of 'task_profiles_provider.dart';
 // **************************************************************************
 
 String _$taskProfilesControllerHash() =>
-    r'300b634c56e9c470f02ace31ccc53d6566805807';
+    r'6e6b957ecce4c417c2db61eaca5bf67994204724';
 
 /// See also [TaskProfilesController].
 @ProviderFor(TaskProfilesController)
