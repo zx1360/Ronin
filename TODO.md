@@ -1,7 +1,6 @@
 # 此文件为待办备忘以及agent提示词模板, 不必作为上下文参考.
 
 # TODO:
-> (torrid/northstar)项目通用部分重整优化, api_client网络, 存储, 路径处理, 进度条等.
 
 ## monarch:
 
