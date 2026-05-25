@@ -12,7 +12,7 @@ import (
 func APIKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKey := c.GetHeader("X-API-Key")
-		expectedKey := os.Getenv("API_KEY")
+		expectedKey := os.Getenv("API_KEY_SERVER")
 
 		// 如果环境变量未设置，则跳过验证
 		if expectedKey == "" {
