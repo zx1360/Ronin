@@ -16,7 +16,6 @@ import (
 // @Summary 获取漫画汇总元数据
 // @Tags comic
 // @Produce json
-// @Security ApiKeyAuth
 // @Success 200 {object} model.ComicTotalMetaData
 // @Router /api/comic/meta-info [get]
 func FetchComicMetadata(c *gin.Context) {
@@ -32,7 +31,6 @@ func FetchComicMetadata(c *gin.Context) {
 // @Summary 获取全部漫画列表
 // @Tags comic
 // @Produce json
-// @Security ApiKeyAuth
 // @Success 200 {array} model.ComicInfo
 // @Router /api/comic/comic-info [get]
 func FetchAllComicInfos(c *gin.Context) {
@@ -48,7 +46,6 @@ func FetchAllComicInfos(c *gin.Context) {
 // @Summary 获取指定漫画的章节列表
 // @Tags comic
 // @Produce json
-// @Security ApiKeyAuth
 // @Param comic-id path string true "漫画ID"
 // @Success 200 {array} model.ChapterInfo
 // @Router /api/comic/comic-info/{comic-id} [get]
@@ -66,7 +63,6 @@ func FetchChaptersWithComicId(c *gin.Context) {
 // @Summary 获取指定章节详情（含图片）
 // @Tags comic
 // @Produce json
-// @Security ApiKeyAuth
 // @Param chapter-id path string true "章节ID"
 // @Success 200 {object} model.ChapterInfo
 // @Failure 404 {object} map[string]string
@@ -87,7 +83,6 @@ func FetchImagesWithChapterId(c *gin.Context) {
 // @Summary 下载整部漫画清单
 // @Tags comic
 // @Produce json
-// @Security ApiKeyAuth
 // @Param comic-id path string true "漫画ID"
 // @Success 200 {array} model.ChapterInfo
 // @Router /api/comic/download/{comic-id} [get]
@@ -123,7 +118,6 @@ func DownloadComic(c *gin.Context) {
 // @Tags comic
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
 // @Param comic-id path string true "漫画ID"
 // @Param body body model.UpdateComicRequest true "更新字段"
 // @Success 200 {object} map[string]string
@@ -147,7 +141,6 @@ func UpdateComic(c *gin.Context) {
 // @Summary 删除漫画
 // @Tags comic
 // @Produce json
-// @Security ApiKeyAuth
 // @Param comic-id path string true "漫画ID"
 // @Success 200 {object} map[string]string
 // @Router /api/comic/comic-info/{comic-id} [delete]
@@ -180,7 +173,6 @@ func DeleteComic(c *gin.Context) {
 // @Tags comic
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
 // @Param body body model.SyncReadedRequest true "已读漫画ID列表"
 // @Success 200 {object} model.SyncReadedResponse
 // @Router /api/comic/sync-readed [post]
