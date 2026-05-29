@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -26,13 +27,13 @@ func SetupRouter() *gin.Engine {
 		AllowCredentials: false,
 	}))
 
+	// 选择性鉴权中间件：漫画相关 + 测试接口免验证，其余均需 X-API-Key
 	if !config.IsLocalMode {
-		r.Use(util_handler.APIKeyAuth())
+		r.Use(selectiveAuth())
 	}
 
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)
-	// r.Use(static.Serve("/static/", static.LocalFile(config.AppConf.StaticDir, false)))
 
 	// 前端路由	资源/页面
 	r.GET("/", func(ctx *gin.Context) {
@@ -46,9 +47,6 @@ func SetupRouter() *gin.Engine {
 
 	// API路由, 数据/操作
 	api := r.Group("/API")
-	// if !config.IsLocalMode {
-	// 	api.Use(util_handler.APIKeyAuth())
-	// }
 	{
 		// 用户数据相关
 		userDataGroup := api.Group("/user-data")
@@ -58,7 +56,7 @@ func SetupRouter() *gin.Engine {
 			userDataGroup.POST("/check-images/:module", data_handler.CheckImagesHandler)
 		}
 
-		// 漫画请求相关
+		// 漫画请求相关（免鉴权，由 selectiveAuth 放行）
 		comicGroup := api.Group("/comic")
 		{
 			// 漫画元数据
@@ -96,9 +94,27 @@ func SetupRouter() *gin.Engine {
 		}
 
 		// 工具api
-		api.GET("/test", util_handler.Test)
+		api.GET("/test", util_handler.Test) // 免鉴权
 		api.GET("/ops/overview", util_handler.SystemOverview)
 	}
 
 	return r
+}
+
+// selectiveAuth 按请求路径选择性应用 API Key 鉴权：
+//
+//	免鉴权：/API/test、/API/comic/*、/static/comics/*
+//	需鉴权：其余所有路由
+func selectiveAuth() gin.HandlerFunc {
+	auth := util_handler.APIKeyAuth()
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/API/test") ||
+			strings.HasPrefix(path, "/API/comic") ||
+			strings.HasPrefix(path, "/static/comics") {
+			c.Next()
+			return
+		}
+		auth(c)
+	}
 }

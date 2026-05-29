@@ -9,7 +9,6 @@ import (
 // @Summary 健康检查
 // @Tags util
 // @Produce json
-// @Security ApiKeyAuth
 // @Success 200 {object} map[string]string
 // @Router /api/test [get]
 func Test(c *gin.Context) {
