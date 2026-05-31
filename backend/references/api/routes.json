@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T05:36:44Z",
+  "generated_at": "2026-05-31T05:19:45Z",
   "routes": [
     {
       "method": "GET",
@@ -44,6 +44,10 @@
     {
       "method": "GET",
       "path": "/API/gallery/batch"
+    },
+    {
+      "method": "GET",
+      "path": "/API/gallery/overview"
     },
     {
       "method": "POST",

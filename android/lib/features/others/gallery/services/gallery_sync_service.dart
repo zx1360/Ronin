@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:isolate';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -6,6 +9,7 @@ import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -101,10 +105,30 @@ class GallerySyncService extends _$GallerySyncService {
         total: 0,
       );
 
-      // 2. 请求 batch 数据
+      // 2. 请求 batch 数据（携带筛选/排序参数）
+      final mimeFilter = ref.read(galleryDownloadMimeFilterProvider);
+      final sortBy = ref.read(galleryDownloadSortByProvider);
+      final sortOrder = ref.read(galleryDownloadSortOrderProvider);
+      final filterYear = ref.read(galleryDownloadYearProvider);
+      final filterMonth = ref.read(galleryDownloadMonthProvider);
+      final filterDay = ref.read(galleryDownloadDayProvider);
+      final secondarySort = ref.read(galleryDownloadSecondarySortProvider);
+
+      final queryParams = <String, dynamic>{
+        'limit': limit,
+        'offset': offset,
+      };
+      if (mimeFilter.isNotEmpty) queryParams['mime_type'] = mimeFilter;
+      if (sortBy.isNotEmpty) queryParams['sort_by'] = sortBy;
+      if (sortOrder.isNotEmpty) queryParams['sort_order'] = sortOrder;
+      if (filterYear > 0) queryParams['year'] = filterYear;
+      if (filterMonth > 0) queryParams['month'] = filterMonth;
+      if (filterDay > 0) queryParams['day'] = filterDay;
+      if (secondarySort.isNotEmpty) queryParams['secondary_sort'] = secondarySort;
+
       final response = await apiClient.get(
         "/API/gallery/batch",
-        queryParams: {'limit': limit, 'offset': offset},
+        queryParams: queryParams,
         cancelToken: _cancelToken,
       );
 
@@ -360,31 +384,28 @@ class GallerySyncService extends _$GallerySyncService {
   }
 
   /// 后台静默删除已上传媒体的本地缩略图和预览图
+  /// 在主 isolate 中解析路径后，在后台 Isolate 中执行文件删除
   void _deleteLocalFilesInBackground(
     List<MediaAsset> assets,
     GalleryStorageService storage,
   ) {
-    // fire-and-forget，不阻塞 UI
+    if (assets.isEmpty) return;
+    // 先解析为本地绝对路径（主 isolate），再传给后台 isolate 删除
     Future(() async {
-      int deletedCount = 0;
+      final thumbResolved = <String>[];
+      final previewResolved = <String>[];
       for (final asset in assets) {
-        try {
-          await storage.deleteLocalFiles(
-            thumbPath: asset.thumbPath,
-            previewPath: asset.previewPath,
-          );
-          deletedCount++;
-        } catch (e) {
-          AppLogger().error('删除本地文件失败 [${asset.id}]: $e');
+        if (asset.thumbPath != null) {
+          thumbResolved.add(await storage.getLocalThumbPath(asset.thumbPath!));
+        }
+        if (asset.previewPath != null) {
+          previewResolved.add(await storage.getLocalPreviewPath(asset.previewPath!));
         }
       }
-      // 清理空目录
-      try {
-        await storage.cleanupEmptyDirectories();
-      } catch (e) {
-        AppLogger().error('清理空目录失败: $e');
+      // 在后台 isolate 中执行纯文件 I/O，不阻塞 UI
+      if (thumbResolved.isNotEmpty || previewResolved.isNotEmpty) {
+        await Isolate.run(() => _deleteFilesInIsolate(thumbResolved, previewResolved));
       }
-      AppLogger().info('后台删除完成: $deletedCount/${assets.length} 个媒体的本地文件已清理');
     });
   }
 }
@@ -429,4 +450,58 @@ class UploadStats {
   });
 
   bool get hasData => mediaCount > 0;
+}
+
+/// 在独立 Isolate 中删除已上传媒体的本地文件
+/// 接收已解析的本地绝对路径，执行纯文件 I/O
+Future<void> _deleteFilesInIsolate(
+  List<String> thumbResolvedPaths,
+  List<String> previewResolvedPaths,
+) async {
+  int deletedCount = 0;
+  for (final path in thumbResolvedPaths) {
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+        deletedCount++;
+      }
+    } catch (_) {}
+  }
+  for (final path in previewResolvedPaths) {
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+        deletedCount++;
+      }
+    } catch (_) {}
+  }
+
+  // 清理空目录
+  if (thumbResolvedPaths.isNotEmpty) {
+    try {
+      final firstPath = thumbResolvedPaths.first;
+      // 向上找到 gallery 根目录
+      final parts = firstPath.split(Platform.pathSeparator);
+      final galleryIdx = parts.indexWhere((p) => p == 'gallery');
+      if (galleryIdx >= 0) {
+        final galleryRoot = parts.take(galleryIdx + 1).join(Platform.pathSeparator);
+        await _cleanupEmptyDirs(Directory(galleryRoot));
+      }
+    } catch (_) {}
+  }
+}
+
+Future<void> _cleanupEmptyDirs(Directory dir) async {
+  if (!await dir.exists()) return;
+  final entities = dir.listSync(recursive: false);
+  for (final entity in entities) {
+    if (entity is Directory) {
+      await _cleanupEmptyDirs(entity);
+      if (entity.listSync().isEmpty) {
+        try { await entity.delete(); } catch (_) {}
+      }
+    }
+  }
 }

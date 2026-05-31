@@ -33,6 +33,9 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
   /// 是否已执行初始滚动
   bool _hasScrolledToInitial = false;
 
+  /// 是否正在拖拽快速滚动条
+  bool _isDraggingScrollbar = false;
+
   @override
   void initState() {
     super.initState();
@@ -178,35 +181,40 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
           // 数据加载完成后执行初始滚动
           _performInitialScrollIfNeeded();
 
-          return GridView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(2),
-            // 增加缓存范围，提前加载屏幕外的项目
-            cacheExtent: 500,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: 2,
-              mainAxisSpacing: 2,
-            ),
+          return _DraggableScrollWrapper(
+            scrollController: _scrollController,
             itemCount: assets.length,
-            itemBuilder: (context, index) {
-              final asset = assets[index];
-              final isSelected = _selectedIds.contains(asset.id);
-              // 用 ID 判断是否为当前文件，而不是索引
-              final isCurrent = currentMedia?.id == asset.id;
-              final selectionIndex = _selectionOrder.indexOf(asset.id);
+            crossAxisCount: columns,
+            child: GridView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(2),
+              // 增加缓存范围，提前加载屏幕外的项目
+              cacheExtent: 500,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 2,
+                mainAxisSpacing: 2,
+              ),
+              itemCount: assets.length,
+              itemBuilder: (context, index) {
+                final asset = assets[index];
+                final isSelected = _selectedIds.contains(asset.id);
+                // 用 ID 判断是否为当前文件，而不是索引
+                final isCurrent = currentMedia?.id == asset.id;
+                final selectionIndex = _selectionOrder.indexOf(asset.id);
 
-              return _GridTile(
-                key: ValueKey(asset.id), // 使用 Key 保持 widget 状态
-                asset: asset,
-                isSelected: isSelected,
-                isCurrent: isCurrent,
-                selectionIndex: selectionIndex >= 0 ? selectionIndex + 1 : null,
-                isSelectionMode: _isSelectionMode,
-                onTap: () => _handleTap(asset, index),
-                onLongPress: () => _handleLongPress(asset),
-              );
-            },
+                return _GridTile(
+                  key: ValueKey(asset.id), // 使用 Key 保持 widget 状态
+                  asset: asset,
+                  isSelected: isSelected,
+                  isCurrent: isCurrent,
+                  selectionIndex: selectionIndex >= 0 ? selectionIndex + 1 : null,
+                  isSelectionMode: _isSelectionMode,
+                  onTap: () => _handleTap(asset, index),
+                  onLongPress: () => _handleLongPress(asset),
+                );
+              },
+            ),
           );
         },
       ),
@@ -465,6 +473,187 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
   }
 }
 
+/// 可拖拽快速滚动包装器
+/// 在右侧显示一个可拖拽的滚动指示条，类似手机相册的快速滚动功能
+class _DraggableScrollWrapper extends StatefulWidget {
+  final Widget child;
+  final ScrollController scrollController;
+  final int itemCount;
+  final int crossAxisCount;
+
+  const _DraggableScrollWrapper({
+    required this.child,
+    required this.scrollController,
+    required this.itemCount,
+    required this.crossAxisCount,
+  });
+
+  @override
+  State<_DraggableScrollWrapper> createState() => _DraggableScrollWrapperState();
+}
+
+class _DraggableScrollWrapperState extends State<_DraggableScrollWrapper> {
+  bool _isDragging = false;
+  double _thumbTop = 0;
+  double _thumbHeight = 0;
+  double _trackHeight = 0;
+
+  static const double _trackWidth = 8;
+  static const double _thumbMinHeight = 32;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(_DraggableScrollWrapper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.scrollController != widget.scrollController) {
+      oldWidget.scrollController.removeListener(_onScroll);
+      widget.scrollController.addListener(_onScroll);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.scrollController.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_isDragging && mounted) {
+      _updateThumbPosition();
+    }
+  }
+
+  void _updateThumbPosition() {
+    if (!widget.scrollController.hasClients) return;
+    final position = widget.scrollController.position;
+    if (!position.hasContentDimensions) return;
+
+    final maxScroll = position.maxScrollExtent;
+    final viewport = position.viewportDimension;
+    final totalContent = maxScroll + viewport;
+
+    if (totalContent <= 0) return;
+
+    final ratio = viewport / totalContent;
+    final thumbH = (ratio * _trackHeight).clamp(_thumbMinHeight, _trackHeight);
+    final scrollRatio = maxScroll > 0 ? position.pixels / maxScroll : 0.0;
+    final maxThumbTop = _trackHeight - thumbH;
+    final thumbT = scrollRatio * maxThumbTop;
+
+    setState(() {
+      _thumbHeight = thumbH;
+      _thumbTop = thumbT;
+    });
+  }
+
+  void _onDragStart(DragStartDetails details) {
+    _isDragging = true;
+    _onDragUpdate(DragUpdateDetails(
+      globalPosition: details.globalPosition,
+      delta: Offset.zero,
+    ));
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (!widget.scrollController.hasClients) return;
+    final position = widget.scrollController.position;
+    final maxScroll = position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    final maxThumbTop = _trackHeight - _thumbHeight;
+    if (maxThumbTop <= 0) return;
+
+    final RenderBox box = context.findRenderObject() as RenderBox;
+    final localPos = box.globalToLocal(details.globalPosition);
+    final ratio = (localPos.dy / _trackHeight).clamp(0.0, 1.0);
+    final targetOffset = ratio * maxScroll;
+
+    widget.scrollController.jumpTo(targetOffset.clamp(0.0, maxScroll));
+    _updateThumbPosition();
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    _isDragging = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _trackHeight = constraints.maxHeight;
+        // 初始化 thumb 位置
+        if (_thumbHeight == 0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _updateThumbPosition();
+          });
+        }
+
+        return Stack(
+          children: [
+            // 主内容区域（右侧留出空间给滚动条）
+            Padding(
+              padding: const EdgeInsets.only(right: _trackWidth + 4),
+              child: widget.child,
+            ),
+            // 拖拽滚动条
+            Positioned(
+              right: 2,
+              top: 0,
+              bottom: 0,
+              child: GestureDetector(
+                onVerticalDragStart: _onDragStart,
+                onVerticalDragUpdate: _onDragUpdate,
+                onVerticalDragEnd: _onDragEnd,
+                child: Container(
+                  width: _trackWidth,
+                  color: Colors.transparent, // 透明点击区域
+                  child: Stack(
+                    children: [
+                      // 轨道背景
+                      Positioned(
+                        left: 2,
+                        right: 2,
+                        top: 0,
+                        bottom: 0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                      ),
+                      // 拖拽滑块
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: _thumbTop,
+                        child: Container(
+                          height: _thumbHeight,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            color: _isDragging
+                                ? Colors.white.withValues(alpha: 0.7)
+                                : Colors.white.withValues(alpha: 0.35),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// 缩略图文件缓存 (避免重复的文件系统检查)
 final Map<String, File?> _thumbnailCache = {};
 
@@ -695,7 +884,7 @@ class _GridTileState extends ConsumerState<_GridTile> {
     await ref.read(mediaAssetListProvider.notifier).markDeleted(widget.asset.id, deleted: false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已恢复: ${widget.asset.filePath.split('/').last}'), duration: const Duration(seconds: 1)),
+        SnackBar(content: Text('已恢复: ${widget.asset.filePath.split('/').last}'), duration: const Duration(milliseconds: 400)),
       );
     }
   }

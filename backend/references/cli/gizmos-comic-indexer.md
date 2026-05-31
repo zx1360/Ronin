@@ -1,6 +1,6 @@
 ﻿# CLI Help Snapshot
 
-- GeneratedAt: 2026-05-12T13:36:47+08:00
+- GeneratedAt: 2026-05-31T13:19:51+08:00
 - WorkingDir: D:\products\Ronin\backend\gizmos
 - Command: go run ./cmd/comic_indexer -h
 - ExitCode: 0
