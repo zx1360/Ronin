@@ -383,7 +383,17 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("下载筛选", style: Theme.of(context).textTheme.titleSmall),
+            Row(
+              children: [
+                Text("下载筛选", style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => _showFilterWarning(context),
+                  child: Icon(Icons.warning_amber_rounded,
+                      size: 16, color: Colors.orange.shade300),
+                ),
+              ],
+            ),
             const SizedBox(height: 4),
 
             // MIME类型筛选
@@ -559,6 +569,30 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
           if (v == null) return;
           ref.read(galleryDownloadDayProvider.notifier).set(v);
         },
+      ),
+    );
+  }
+
+  /// 显示下载筛选注意事项对话框
+  void _showFilterWarning(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('下载筛选注意事项', style: TextStyle(fontSize: 16)),
+        content: const Text(
+          '下载采用增量拉取策略：以本地已有文件数作为 offset 向服务端请求后续数据。\n\n'
+          '因此，在本地已有部分数据后修改筛选条件（类型/排序/日期），再次下载可能导致：\n'
+          '• 文件遗漏：新条件下被排在 offset 之前的文件不会再被拉取\n'
+          '• 文件重复：已下载的文件在新条件下排在 offset 之后会被再次拉取\n\n'
+          '建议：修改筛选条件后，先在"危险操作"区清空本地数据再下载，以获取完整准确的结果。',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('知道了'),
+          ),
+        ],
       ),
     );
   }
