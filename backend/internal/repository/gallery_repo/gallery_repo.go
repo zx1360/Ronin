@@ -73,19 +73,6 @@ func FetchMediaAssetsWithParams(params model.BatchQueryParams) ([]model.MediaAss
 	// 排序
 	orderClause := buildOrderClause(params)
 
-	// 分页参数
-	limit := params.Limit
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 10000 {
-		limit = 10000
-	}
-	offset := params.Offset
-	if offset < 0 {
-		offset = 0
-	}
-
 	query := fmt.Sprintf(`
 		SELECT 
 			id, created_at, updated_at, captured_at, file_path, 
@@ -96,7 +83,7 @@ func FetchMediaAssetsWithParams(params model.BatchQueryParams) ([]model.MediaAss
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
 	`, whereClause, orderClause, argIdx, argIdx+1)
-	args = append(args, limit, offset)
+	args = append(args, params.Limit, params.Offset)
 
 	rows, err := db.GetPool().Query(ctx, query, args...)
 	if err != nil {
