@@ -1,7 +1,7 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-05-12T05:36:44Z
-- TotalRoutes: 34
+- GeneratedAt: 2026-05-31T05:19:45Z
+- TotalRoutes: 35
 
 | Method | Path |
 | --- | --- |
@@ -16,6 +16,7 @@
 | POST | /API/comic/sync-readed |
 | GET | /API/gallery/:id/:type |
 | GET | /API/gallery/batch |
+| GET | /API/gallery/overview |
 | POST | /API/gallery/push |
 | GET | /API/gallery/tags |
 | GET | /API/ops/overview |

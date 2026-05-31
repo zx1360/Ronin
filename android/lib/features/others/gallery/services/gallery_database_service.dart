@@ -423,22 +423,25 @@ class GalleryDatabaseService {
     return Sqflite.firstIntValue(result) ?? 0;
   }
   
-  /// 获取需要上传的 media_assets 记录数 (sync_count <= modifiedCount)
+  /// 获取需要上传的 media_assets 记录数 (按队列位置计算: 0..modifiedCount 的主文件)
   Future<int> getModifiedMediaAssetCount(int modifiedCount) async {
+    if (modifiedCount < 0) return 0;
     final db = await database;
+    // 按 captured_at 升序取前 modifiedCount+1 条主文件
     final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM media_assets WHERE sync_count <= ?',
-      [modifiedCount],
+      'SELECT COUNT(*) as count FROM (SELECT id FROM media_assets WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?)',
+      [modifiedCount + 1],
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }
   
-  /// 获取需要上传的 media_assets 的 ID 列表
+  /// 获取需要上传的 media_assets 的 ID 列表 (按队列位置: 0..modifiedCount 的主文件)
   Future<List<String>> getModifiedMediaAssetIds(int modifiedCount) async {
+    if (modifiedCount < 0) return [];
     final db = await database;
     final maps = await db.rawQuery(
-      'SELECT id FROM media_assets WHERE sync_count <= ?',
-      [modifiedCount],
+      'SELECT id FROM media_assets WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?',
+      [modifiedCount + 1],
     );
     return maps.map((m) => m['id'] as String).toList();
   }

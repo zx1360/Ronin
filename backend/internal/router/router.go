@@ -81,6 +81,8 @@ func SetupRouter() *gin.Engine {
 			galleryGroup.GET("/batch", gallery_handler.FetchBatch)
 			// 获取完整标签树
 			galleryGroup.GET("/tags", gallery_handler.FetchAllTags)
+			// 获取服务端媒体库总览统计
+			galleryGroup.GET("/overview", gallery_handler.FetchOverview)
 			// 下载文件接口
 			galleryGroup.GET("/:id/:type", gallery_handler.FetchMediaAsset)
 			// 客户端推送数据

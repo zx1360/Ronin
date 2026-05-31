@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +18,8 @@ import (
 
 // FetchBatch 处理 GET /api/gallery/batch 请求
 // 响应指定数量的媒体资产 + 全量标签 + 对应的标签关联关系
+// 支持筛选: mime_type, year, month, day
+// 支持排序: sort_by, sort_order, secondary_sort
 // @Summary 分页获取媒体批次数据
 // @Description 返回媒体资产、全量标签及媒体标签关联
 // @Tags gallery
@@ -26,29 +27,36 @@ import (
 // @Security ApiKeyAuth
 // @Param limit query int false "返回条数（默认 50，最大 10000）"
 // @Param offset query int false "偏移量（默认 0）"
+// @Param mime_type query string false "MIME类型筛选: image, video, image/jpeg 等"
+// @Param sort_by query string false "排序字段: sync_count, captured_at, size_bytes, file_path"
+// @Param sort_order query string false "排序方向: asc, desc"
+// @Param year query int false "筛选年份"
+// @Param month query int false "筛选月份 (需同时指定year)"
+// @Param day query int false "筛选日期 (需同时指定year, month)"
+// @Param secondary_sort query string false "二次排序字段"
 // @Success 200 {object} model.BatchData
 // @Failure 500 {object} map[string]string
 // @Router /api/gallery/batch [get]
 func FetchBatch(c *gin.Context) {
-	// 解析分页参数
-	limitStr := c.DefaultQuery("limit", "50")
-	offsetStr := c.DefaultQuery("offset", "0")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
-		limit = 50
-	}
-	if limit > 10000 {
-		limit = 10000 // 限制最大查询数量
+	var params model.BatchQueryParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		// 解析失败则使用默认值
+		params = model.BatchQueryParams{Limit: 50, Offset: 0}
 	}
 
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		offset = 0
+	// 设置默认值
+	if params.Limit <= 0 {
+		params.Limit = 50
+	}
+	if params.Limit > 10000 {
+		params.Limit = 10000
+	}
+	if params.Offset < 0 {
+		params.Offset = 0
 	}
 
 	// 查询媒体资产
-	mediaAssets, err := gallery_repo.FetchMediaAssets(limit, offset)
+	mediaAssets, err := gallery_repo.FetchMediaAssetsWithParams(params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询媒体资产失败: " + err.Error()})
 		return
@@ -99,6 +107,25 @@ func FetchAllTags(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"tags": tags})
+}
+
+// FetchOverview 处理 GET /api/gallery/overview 请求
+// 返回服务端媒体库总览统计数据
+// @Summary 获取画廊总览统计
+// @Description 返回媒体类型分布、标签统计、同步统计、年份分布等
+// @Tags gallery
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} model.GalleryOverview
+// @Failure 500 {object} map[string]string
+// @Router /api/gallery/overview [get]
+func FetchOverview(c *gin.Context) {
+	overview, err := gallery_repo.FetchGalleryOverview()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询总览失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, overview)
 }
 
 // DownloadFile 处理文件下载请求（通用）

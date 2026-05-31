@@ -42,5 +42,25 @@ final galleryCachedStorageStatsProvider =
 );
 
 typedef _$GalleryCachedStorageStats = Notifier<GalleryStorageStats>;
+
+String _$galleryServerOverviewHash() =>
+    r'5a8c3e1f2b7d9a0c4e6f8a1b3c5d7e9f';
+
+/// 服务端画廊总览 Provider
+///
+/// Copied from [galleryServerOverview].
+@ProviderFor(galleryServerOverview)
+final galleryServerOverviewProvider =
+    FutureProvider<GalleryOverview>.internal(
+  galleryServerOverview,
+  name: r'galleryServerOverviewProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryServerOverviewHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef GalleryServerOverviewRef = FutureProviderRef<GalleryOverview>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

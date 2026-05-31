@@ -1,8 +1,10 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/features/others/gallery/models/gallery_overview.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'stats_providers.g.dart';
 
@@ -69,4 +71,12 @@ class GalleryDbStats {
     required this.tagCount,
     required this.mediaTagLinkCount,
   });
+}
+
+/// 服务端画廊总览 Provider
+@Riverpod(keepAlive: true)
+Future<GalleryOverview> galleryServerOverview(GalleryServerOverviewRef ref) async {
+  final apiClient = ref.watch(apiClientManagerProvider);
+  final response = await apiClient.get('/API/gallery/overview');
+  return GalleryOverview.fromJson(response.data as Map<String, dynamic>);
 }
