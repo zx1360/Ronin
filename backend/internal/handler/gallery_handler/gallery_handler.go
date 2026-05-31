@@ -25,7 +25,7 @@ import (
 // @Tags gallery
 // @Produce json
 // @Security ApiKeyAuth
-// @Param limit query int false "返回条数（默认 50，最大 10000）"
+// @Param limit query int false "返回条数（默认 200，最大 10000）"
 // @Param offset query int false "偏移量（默认 0）"
 // @Param mime_type query string false "MIME类型筛选: image, video, image/jpeg 等"
 // @Param sort_by query string false "排序字段: sync_count, captured_at, size_bytes, file_path"
@@ -33,7 +33,6 @@ import (
 // @Param year query int false "筛选年份"
 // @Param month query int false "筛选月份 (需同时指定year)"
 // @Param day query int false "筛选日期 (需同时指定year, month)"
-// @Param secondary_sort query string false "二次排序字段"
 // @Success 200 {object} model.BatchData
 // @Failure 500 {object} map[string]string
 // @Router /api/gallery/batch [get]
@@ -41,12 +40,12 @@ func FetchBatch(c *gin.Context) {
 	var params model.BatchQueryParams
 	if err := c.ShouldBindQuery(&params); err != nil {
 		// 解析失败则使用默认值
-		params = model.BatchQueryParams{Limit: 50, Offset: 0}
+		params = model.BatchQueryParams{Limit: 200, Offset: 0}
 	}
 
 	// 设置默认值
 	if params.Limit <= 0 {
-		params.Limit = 50
+		params.Limit = 200
 	}
 	if params.Limit > 10000 {
 		params.Limit = 10000
