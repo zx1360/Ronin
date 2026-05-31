@@ -82,5 +82,124 @@ final galleryPreviewWindowEnabledProvider =
 );
 
 typedef _$GalleryPreviewWindowEnabled = Notifier<bool>;
+
+String _$galleryDownloadMimeFilterHash() =>
+    r'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6';
+
+@ProviderFor(GalleryDownloadMimeFilter)
+final galleryDownloadMimeFilterProvider =
+    NotifierProvider<GalleryDownloadMimeFilter, String>.internal(
+  GalleryDownloadMimeFilter.new,
+  name: r'galleryDownloadMimeFilterProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryDownloadMimeFilterHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryDownloadMimeFilter = Notifier<String>;
+
+String _$galleryDownloadSortByHash() =>
+    r'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7';
+
+@ProviderFor(GalleryDownloadSortBy)
+final galleryDownloadSortByProvider =
+    NotifierProvider<GalleryDownloadSortBy, String>.internal(
+  GalleryDownloadSortBy.new,
+  name: r'galleryDownloadSortByProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryDownloadSortByHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryDownloadSortBy = Notifier<String>;
+
+String _$galleryDownloadSortOrderHash() =>
+    r'c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8';
+
+@ProviderFor(GalleryDownloadSortOrder)
+final galleryDownloadSortOrderProvider =
+    NotifierProvider<GalleryDownloadSortOrder, String>.internal(
+  GalleryDownloadSortOrder.new,
+  name: r'galleryDownloadSortOrderProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryDownloadSortOrderHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryDownloadSortOrder = Notifier<String>;
+
+String _$galleryDownloadYearHash() =>
+    r'd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9';
+
+@ProviderFor(GalleryDownloadYear)
+final galleryDownloadYearProvider =
+    NotifierProvider<GalleryDownloadYear, int>.internal(
+  GalleryDownloadYear.new,
+  name: r'galleryDownloadYearProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryDownloadYearHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryDownloadYear = Notifier<int>;
+
+String _$galleryDownloadMonthHash() =>
+    r'e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
+
+@ProviderFor(GalleryDownloadMonth)
+final galleryDownloadMonthProvider =
+    NotifierProvider<GalleryDownloadMonth, int>.internal(
+  GalleryDownloadMonth.new,
+  name: r'galleryDownloadMonthProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryDownloadMonthHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryDownloadMonth = Notifier<int>;
+
+String _$galleryDownloadDayHash() =>
+    r'f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1';
+
+@ProviderFor(GalleryDownloadDay)
+final galleryDownloadDayProvider =
+    NotifierProvider<GalleryDownloadDay, int>.internal(
+  GalleryDownloadDay.new,
+  name: r'galleryDownloadDayProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryDownloadDayHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryDownloadDay = Notifier<int>;
+
+String _$galleryDownloadSecondarySortHash() =>
+    r'0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d';
+
+@ProviderFor(GalleryDownloadSecondarySort)
+final galleryDownloadSecondarySortProvider =
+    NotifierProvider<GalleryDownloadSecondarySort, String>.internal(
+  GalleryDownloadSecondarySort.new,
+  name: r'galleryDownloadSecondarySortProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryDownloadSecondarySortHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryDownloadSecondarySort = Notifier<String>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
