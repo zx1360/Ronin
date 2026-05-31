@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config>
+        <trust-anchors>
+            <!-- 信任自签证书 (assets/cert/server.crt) -->
+            <certificates src="@raw/server"/>
+            <!-- 同时信任系统 CA 证书，保证对其他 HTTPS 站点的正常访问 -->
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>
