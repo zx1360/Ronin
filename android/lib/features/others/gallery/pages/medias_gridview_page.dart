@@ -5,6 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 
+/// 快速滚动条轨道宽度
+const double _kScrollbarTrackWidth = 8;
+/// 快速滚动条在 GridView 右侧的总占宽（轨道 + 边距）
+const double _kScrollbarReservedWidth = _kScrollbarTrackWidth + 4;
+
 /// 媒体文件网格视图组件
 /// - 呈现图片/视频的缩略图 (对应 thumb_path)
 /// - 初始一行四个, 可上下滚动
@@ -34,7 +39,7 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
   bool _hasScrolledToInitial = false;
 
   /// 是否正在拖拽快速滚动条
-  bool _isDraggingScrollbar = false;
+  final bool _isDraggingScrollbar = false;
 
   @override
   void initState() {
@@ -65,9 +70,11 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
     // 计算目标行
     final row = indexInAll ~/ columns;
     // 计算每个格子的高度 (假设正方形)
+    // GridView 内边距: EdgeInsets.all(2) → 左右各 2 → 总计 4
+    // _DraggableScrollWrapper 右侧留白: _kScrollbarReservedWidth (12)
     final screenWidth = MediaQuery.of(context).size.width;
-    final itemSize = (screenWidth - 4 - (columns - 1) * 2) / columns; // padding + spacing
-    final targetOffset = row * (itemSize + 2); // 加上间距
+    final itemSize = (screenWidth - _kScrollbarReservedWidth - 4 - (columns - 1) * 2) / columns;
+    final targetOffset = row * (itemSize + 2); // 加上主轴承间距
     
     // 获取最大滚动范围
     final maxScroll = _scrollController.position.maxScrollExtent;
@@ -498,7 +505,7 @@ class _DraggableScrollWrapperState extends State<_DraggableScrollWrapper> {
   double _thumbHeight = 0;
   double _trackHeight = 0;
 
-  static const double _trackWidth = 8;
+  static const double _trackWidth = _kScrollbarTrackWidth;
   static const double _thumbMinHeight = 32;
 
   @override

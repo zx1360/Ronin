@@ -148,8 +148,9 @@ class _ComicsPageState extends ConsumerState<ComicsPage> {
         p.dirname(p.dirname(Directory.current.path)),
       ];
       for (final candidate in candidates) {
-        if (Directory(p.join(candidate, 'static')).existsSync())
+        if (Directory(p.join(candidate, 'static')).existsSync()) {
           return candidate;
+        }
       }
       return Directory.current.path; // 回退
     }

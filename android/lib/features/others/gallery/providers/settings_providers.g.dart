@@ -82,10 +82,12 @@ final galleryPreviewWindowEnabledProvider =
 );
 
 typedef _$GalleryPreviewWindowEnabled = Notifier<bool>;
-
 String _$galleryDownloadMimeFilterHash() =>
-    r'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6';
+    r'7a7dc54c5e35413f3a96eb8867d8582ea4df9690';
 
+/// 下载 MIME 类型筛选（空=全部, image, video）
+///
+/// Copied from [GalleryDownloadMimeFilter].
 @ProviderFor(GalleryDownloadMimeFilter)
 final galleryDownloadMimeFilterProvider =
     NotifierProvider<GalleryDownloadMimeFilter, String>.internal(
@@ -99,10 +101,12 @@ final galleryDownloadMimeFilterProvider =
 );
 
 typedef _$GalleryDownloadMimeFilter = Notifier<String>;
-
 String _$galleryDownloadSortByHash() =>
-    r'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7';
+    r'3797fdb0fa3f7c7684badfc6db67993e1a38809d';
 
+/// 下载排序字段（空=默认 sync_count 升序）
+///
+/// Copied from [GalleryDownloadSortBy].
 @ProviderFor(GalleryDownloadSortBy)
 final galleryDownloadSortByProvider =
     NotifierProvider<GalleryDownloadSortBy, String>.internal(
@@ -116,10 +120,12 @@ final galleryDownloadSortByProvider =
 );
 
 typedef _$GalleryDownloadSortBy = Notifier<String>;
-
 String _$galleryDownloadSortOrderHash() =>
-    r'c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8';
+    r'420720d60be3cc8239d89ae11518cae9f6cad886';
 
+/// 下载排序方向（asc/desc）
+///
+/// Copied from [GalleryDownloadSortOrder].
 @ProviderFor(GalleryDownloadSortOrder)
 final galleryDownloadSortOrderProvider =
     NotifierProvider<GalleryDownloadSortOrder, String>.internal(
@@ -133,10 +139,12 @@ final galleryDownloadSortOrderProvider =
 );
 
 typedef _$GalleryDownloadSortOrder = Notifier<String>;
-
 String _$galleryDownloadYearHash() =>
-    r'd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9';
+    r'246645aef740e7e35b8a5e75e8226f1c1eb97d27';
 
+/// 下载年份筛选（0=不筛选）
+///
+/// Copied from [GalleryDownloadYear].
 @ProviderFor(GalleryDownloadYear)
 final galleryDownloadYearProvider =
     NotifierProvider<GalleryDownloadYear, int>.internal(
@@ -150,10 +158,12 @@ final galleryDownloadYearProvider =
 );
 
 typedef _$GalleryDownloadYear = Notifier<int>;
-
 String _$galleryDownloadMonthHash() =>
-    r'e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
+    r'bf8a5f4aa2d2abe4ac6a5d13d45cc28ced25581c';
 
+/// 下载月份筛选（0=不筛选）
+///
+/// Copied from [GalleryDownloadMonth].
 @ProviderFor(GalleryDownloadMonth)
 final galleryDownloadMonthProvider =
     NotifierProvider<GalleryDownloadMonth, int>.internal(
@@ -167,10 +177,12 @@ final galleryDownloadMonthProvider =
 );
 
 typedef _$GalleryDownloadMonth = Notifier<int>;
-
 String _$galleryDownloadDayHash() =>
-    r'f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1';
+    r'6af43dadb836e1ee27acdde9ef2486f8d8aa23d5';
 
+/// 下载日期筛选（0=不筛选）
+///
+/// Copied from [GalleryDownloadDay].
 @ProviderFor(GalleryDownloadDay)
 final galleryDownloadDayProvider =
     NotifierProvider<GalleryDownloadDay, int>.internal(
@@ -184,10 +196,12 @@ final galleryDownloadDayProvider =
 );
 
 typedef _$GalleryDownloadDay = Notifier<int>;
-
 String _$galleryDownloadSecondarySortHash() =>
-    r'0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d';
+    r'4976b19a9600f2bd61f443054dc41f8914603789';
 
+/// 下载二次排序字段（空=不进行二次排序）
+///
+/// Copied from [GalleryDownloadSecondarySort].
 @ProviderFor(GalleryDownloadSecondarySort)
 final galleryDownloadSecondarySortProvider =
     NotifierProvider<GalleryDownloadSecondarySort, String>.internal(

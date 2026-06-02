@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/features/others/gallery/models/gallery_overview.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
-import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_sync_service.dart';
 
 class GallerySettingPage extends ConsumerStatefulWidget {
@@ -178,10 +177,8 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                           loading: () => const Text("加载中...", style: TextStyle(fontSize: 12)),
                           error: (e, _) => Text("错误: $e", style: const TextStyle(fontSize: 12)),
                           data: (stats) {
-                            final currentIndex = ref.watch(galleryCurrentIndexProvider);
-                            final uploadCount = currentIndex + 1;
                             return Text(
-                              "media_assets: $uploadCount 条 + 全量tags/links",
+                              "media_assets: ${stats.mediaCount} 条 (已删除: ${stats.deletedCount} 条)",
                               style: const TextStyle(fontSize: 12),
                             );
                           },
