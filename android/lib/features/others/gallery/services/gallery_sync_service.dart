@@ -9,7 +9,6 @@ import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
-import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -423,6 +422,9 @@ Future<UploadStats> galleryUploadStats(GalleryUploadStatsRef ref) async {
   // 获取需要上传的 media_assets 数量
   final mediaCount = await db.getModifiedMediaAssetCount(modifiedCount);
   
+  // 获取其中标记为删除的数量
+  final deletedCount = await db.getModifiedDeletedMediaAssetCount(modifiedCount);
+  
   // tags 全量上传
   final tagCount = await db.getTagCount();
   
@@ -432,6 +434,7 @@ Future<UploadStats> galleryUploadStats(GalleryUploadStatsRef ref) async {
   
   return UploadStats(
     mediaCount: mediaCount,
+    deletedCount: deletedCount,
     tagCount: tagCount,
     linkCount: linkCount,
   );
@@ -440,11 +443,13 @@ Future<UploadStats> galleryUploadStats(GalleryUploadStatsRef ref) async {
 /// 待上传统计
 class UploadStats {
   final int mediaCount;
+  final int deletedCount;
   final int tagCount;
   final int linkCount;
 
   const UploadStats({
     required this.mediaCount,
+    required this.deletedCount,
     required this.tagCount,
     required this.linkCount,
   });
