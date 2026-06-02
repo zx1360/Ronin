@@ -19,12 +19,29 @@ GalleryOverview _$GalleryOverviewFromJson(Map<String, dynamic> json) =>
       totalSize: (json['total_size'] as num).toInt(),
       minYear: (json['min_year'] as num).toInt(),
       maxYear: (json['max_year'] as num).toInt(),
-      syncStats: SyncStatsData.fromJson(
-          json['sync_stats'] as Map<String, dynamic>),
+      syncStats:
+          SyncStatsData.fromJson(json['sync_stats'] as Map<String, dynamic>),
       yearStats: (json['year_stats'] as List<dynamic>)
           .map((e) => YearStatItem.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
+
+Map<String, dynamic> _$GalleryOverviewToJson(GalleryOverview instance) =>
+    <String, dynamic>{
+      'total_media': instance.totalMedia,
+      'image_count': instance.imageCount,
+      'video_count': instance.videoCount,
+      'image_ratio': instance.imageRatio,
+      'video_ratio': instance.videoRatio,
+      'total_tags': instance.totalTags,
+      'root_tags': instance.rootTags,
+      'total_links': instance.totalLinks,
+      'total_size': instance.totalSize,
+      'min_year': instance.minYear,
+      'max_year': instance.maxYear,
+      'sync_stats': instance.syncStats,
+      'year_stats': instance.yearStats,
+    };
 
 SyncStatsData _$SyncStatsDataFromJson(Map<String, dynamic> json) =>
     SyncStatsData(
@@ -33,7 +50,20 @@ SyncStatsData _$SyncStatsDataFromJson(Map<String, dynamic> json) =>
       avgSyncCount: (json['avg_sync_count'] as num).toDouble(),
     );
 
+Map<String, dynamic> _$SyncStatsDataToJson(SyncStatsData instance) =>
+    <String, dynamic>{
+      'min_sync_count': instance.minSyncCount,
+      'max_sync_count': instance.maxSyncCount,
+      'avg_sync_count': instance.avgSyncCount,
+    };
+
 YearStatItem _$YearStatItemFromJson(Map<String, dynamic> json) => YearStatItem(
       year: (json['year'] as num).toInt(),
       mediaCount: (json['media_count'] as num).toInt(),
     );
+
+Map<String, dynamic> _$YearStatItemToJson(YearStatItem instance) =>
+    <String, dynamic>{
+      'year': instance.year,
+      'media_count': instance.mediaCount,
+    };

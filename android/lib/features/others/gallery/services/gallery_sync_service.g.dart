@@ -7,7 +7,7 @@ part of 'gallery_sync_service.dart';
 // **************************************************************************
 
 String _$galleryUploadStatsHash() =>
-    r'2ecd7fee1730c12d79f32848c163c6893dac0801';
+    r'811f991ad88520395c8e162736a6266dc7148dd6';
 
 /// 待上传数据统计 Provider
 /// 按照 modified_count 计算需要上传的记录：
@@ -30,7 +30,7 @@ final galleryUploadStatsProvider =
 
 typedef GalleryUploadStatsRef = AutoDisposeFutureProviderRef<UploadStats>;
 String _$gallerySyncServiceHash() =>
-    r'ad933c45ba225f5539bff3ab14beef89ab29fcbb';
+    r'84ffeccf0003b1eb82d48264087f2bee5062c728';
 
 /// Gallery 同步服务 Provider
 ///

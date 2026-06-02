@@ -445,6 +445,17 @@ class GalleryDatabaseService {
     );
     return maps.map((m) => m['id'] as String).toList();
   }
+
+  /// 获取修改范围内标记为删除的 media_assets 数量
+  Future<int> getModifiedDeletedMediaAssetCount(int modifiedCount) async {
+    if (modifiedCount < 0) return 0;
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM (SELECT is_deleted FROM media_assets WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?) WHERE is_deleted = 1',
+      [modifiedCount + 1],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
   
   /// 获取与指定 media_ids 关联的 media_tag_links 记录数
   Future<int> getMediaTagLinkCountForMediaIds(List<String> mediaIds) async {
