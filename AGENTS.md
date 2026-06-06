@@ -1,4 +1,4 @@
-﻿单仓库多目标工作区. Go 后端 Monarch + Flutter 安卓端 Torrid + Flutter 桌面端 Northstar.
+单仓库多目标工作区. Go 后端 Monarch + Flutter 安卓端 Torrid + Flutter 桌面端 Northstar.
 
 - backend: backend/AGENTS.md
 - android: android/AGENTS.md
