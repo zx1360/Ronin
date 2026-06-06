@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
@@ -193,10 +194,8 @@ class _MediasGridViewPageState extends ConsumerState<MediasGridViewPage> {
             itemCount: assets.length,
             crossAxisCount: columns,
             child: GridView.builder(
-              controller: _scrollController,
+              scrollCacheExtent: ScrollCacheExtent.pixels(500), controller: _scrollController,
               padding: const EdgeInsets.all(2),
-              // 增加缓存范围，提前加载屏幕外的项目
-              cacheExtent: 500,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: columns,
                 crossAxisSpacing: 2,
