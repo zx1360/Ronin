@@ -352,9 +352,10 @@ class GallerySyncService extends _$GallerySyncService {
       await ref.read(galleryModifiedCountProvider.notifier).reset();
       await ref.read(galleryCurrentIndexProvider.notifier).update(0);
       
-      // 7. 刷新数据
+      // 7. 刷新数据（先 invalidate，再 await 确保重新加载完成）
       ref.invalidate(mediaAssetListProvider);
       ref.invalidate(tagTreeProvider);
+      await ref.read(mediaAssetListProvider.future);
 
       // 8. 后台静默删除本地缩略图和预览图文件 (不阻塞 UI)
       _deleteLocalFilesInBackground(data.assets, storage);
