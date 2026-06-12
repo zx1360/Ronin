@@ -318,8 +318,8 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     return false;
   }
 
-  /// 预加载附近图片 (当前位置前2个，后3个，跳过已删除)
-  /// 通过去重集合避免重复请求
+  /// 预加载附近图片 (当前位置前 N 个、后 M 个未删除文件，跳过已删除)
+  /// 不再使用绝对索引范围，而是实际扫描非删除文件
   void _precacheNearbyImages(List<MediaAsset> assets, int currentIndex) {
     if (!mounted) return;
 
@@ -327,14 +327,34 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
 
-    final start = (currentIndex - 2).clamp(0, assets.length - 1);
-    final end = (currentIndex + 3).clamp(0, assets.length - 1);
+    const precacheBefore = 3;
+    const precacheAfter = 5;
 
-    for (int i = start; i <= end; i++) {
-      if (i == currentIndex) continue;
+    // 收集需要预缓存的索引（跳过已删除）
+    final toPrecache = <int>[];
 
+    // 向前扫描
+    for (int i = currentIndex - 1, count = 0; i >= 0 && count < precacheBefore; i--) {
+      if (!assets[i].isDeleted) {
+        toPrecache.add(i);
+        count++;
+      }
+    }
+
+    // 向后扫描
+    for (int i = currentIndex + 1, count = 0; i < assets.length && count < precacheAfter; i++) {
+      if (!assets[i].isDeleted) {
+        toPrecache.add(i);
+        count++;
+      }
+    }
+
+    // 清理不再需要的缓存 ID（当前窗口外的旧缓存）
+    final activeIds = toPrecache.map((i) => assets[i].id).toSet();
+    _precachedIds.removeWhere((id) => !activeIds.contains(id));
+
+    for (final i in toPrecache) {
       final asset = assets[i];
-      if (asset.isDeleted) continue;
 
       // 跳过已经预缓存过的
       if (_precachedIds.contains(asset.id)) continue;
@@ -350,12 +370,6 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
           _precachedIds.remove(asset.id);
         });
       }
-    }
-
-    // 限制去重集合大小，防止内存无限增长
-    if (_precachedIds.length > 200) {
-      final toRemove = _precachedIds.take(_precachedIds.length - 100).toList();
-      _precachedIds.removeAll(toRemove);
     }
   }
 }

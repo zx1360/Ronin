@@ -50,6 +50,34 @@ class MediaAssetList extends _$MediaAssetList {
     return state.valueOrNull ?? [];
   }
 
+  /// 批量标记删除/恢复（先写数据库，再一次性刷新 UI）
+  Future<List<MediaAsset>> batchMarkDeleted(List<String> ids, {bool deleted = true}) async {
+    if (ids.isEmpty) return state.valueOrNull ?? [];
+
+    final db = ref.read(galleryDatabaseProvider);
+
+    // 1. 先写数据库（单次批量事务）
+    await db.batchMarkMediaAssetDeleted(ids, deleted: deleted);
+
+    // 2. 更新 modified_count（取最大索引）
+    int maxIdx = -1;
+    final currentList = state.valueOrNull ?? [];
+    for (final id in ids) {
+      final idx = currentList.indexWhere((a) => a.id == id);
+      if (idx > maxIdx) maxIdx = idx;
+    }
+    if (maxIdx >= 0) {
+      final currentModified = ref.read(galleryModifiedCountProvider);
+      if (maxIdx > currentModified) {
+        await ref.read(galleryModifiedCountProvider.notifier).update(maxIdx);
+      }
+    }
+
+    // 3. 一次性从数据库刷新 UI
+    await refresh();
+    return state.valueOrNull ?? [];
+  }
+
   /// 捆绑媒体文件
   Future<void> bundleMedia(String leadId, List<String> memberIds) async {
     final db = ref.read(galleryDatabaseProvider);

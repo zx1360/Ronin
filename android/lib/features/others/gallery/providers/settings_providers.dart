@@ -11,6 +11,7 @@ class GalleryPrefsKeys {
   static const String currentIndex = 'gallery_current_index';
   static const String gridColumnCount = 'gallery_grid_columns';
   static const String previewWindowEnabled = 'gallery_preview_window_enabled';
+  static const String gridPreviewMode = 'gallery_grid_preview_mode';
   // 下载筛选设置
   static const String downloadMimeFilter = 'gallery_download_mime_filter';
   static const String downloadSortBy = 'gallery_download_sort_by';
@@ -222,5 +223,47 @@ class GalleryDownloadSecondarySort extends _$GalleryDownloadSecondarySort {
     final prefs = PrefsService().prefs;
     await prefs.setString(GalleryPrefsKeys.downloadSecondarySort, value);
     state = value;
+  }
+}
+
+/// 网格预览模式枚举
+enum GalleryGridPreviewMode {
+  /// 方形缩略图（当前默认）
+  thumb,
+
+  /// 预览图网格（宽高比约束，contain 填充）
+  preview,
+
+  /// 瀑布流布局
+  waterfall;
+}
+
+/// 网格预览模式 Provider
+@Riverpod(keepAlive: true)
+class GalleryGridPreviewModeNotifier extends _$GalleryGridPreviewModeNotifier {
+  @override
+  GalleryGridPreviewMode build() {
+    final prefs = PrefsService().prefs;
+    final stored = prefs.getString(GalleryPrefsKeys.gridPreviewMode);
+    if (stored != null) {
+      return GalleryGridPreviewMode.values.firstWhere(
+        (e) => e.name == stored,
+        orElse: () => GalleryGridPreviewMode.thumb,
+      );
+    }
+    return GalleryGridPreviewMode.thumb;
+  }
+
+  Future<void> setMode(GalleryGridPreviewMode mode) async {
+    final prefs = PrefsService().prefs;
+    await prefs.setString(GalleryPrefsKeys.gridPreviewMode, mode.name);
+    state = mode;
+  }
+
+  /// 循环切换模式
+  Future<void> cycleMode() async {
+    final modes = GalleryGridPreviewMode.values;
+    final nextIdx = (modes.indexOf(state) + 1) % modes.length;
+    await setMode(modes[nextIdx]);
   }
 }

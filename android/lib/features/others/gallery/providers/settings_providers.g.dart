@@ -215,5 +215,24 @@ final galleryDownloadSecondarySortProvider =
 );
 
 typedef _$GalleryDownloadSecondarySort = Notifier<String>;
+String _$galleryGridPreviewModeNotifierHash() =>
+    r'c8a23aeed9c4b216f4b74af3334fbfbd7960e0ff';
+
+/// 网格预览模式 Provider
+///
+/// Copied from [GalleryGridPreviewModeNotifier].
+@ProviderFor(GalleryGridPreviewModeNotifier)
+final galleryGridPreviewModeNotifierProvider = NotifierProvider<
+    GalleryGridPreviewModeNotifier, GalleryGridPreviewMode>.internal(
+  GalleryGridPreviewModeNotifier.new,
+  name: r'galleryGridPreviewModeNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryGridPreviewModeNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryGridPreviewModeNotifier = Notifier<GalleryGridPreviewMode>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
