@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -40,6 +40,12 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   /// 当前检阅项的 GlobalKey，用于 Scrollable.ensureVisible 精确定位
   final GlobalKey _currentItemKey = GlobalKey(debugLabel: 'currentMediaItem');
   
+  /// 瀑布流模式各列的独立 ScrollController（实现按列虚拟化）
+  final List<ScrollController> _waterfallColumnControllers = [];
+  
+  /// 瀑布流滚动同步锁，防止联动时递归触发
+  bool _syncingWaterfall = false;
+
   /// 是否已执行初始滚动
   bool _hasScrolledToInitial = false;
 
@@ -53,6 +59,8 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onMasterScrollForWaterfall);
+    _teardownWaterfallColumns();
     _scrollController.dispose();
     super.dispose();
   }
@@ -67,7 +75,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     if (currentMedia == null) return;
     final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     final indexInAll = allAssets.indexWhere((a) => a.id == currentMedia.id);
-    if (indexInAll < 0 || !_scrollController.hasClients) return;
+    if (indexInAll < 0) return;
 
     _doScrollToCurrent(animate: animate, fallbackIndex: indexInAll);
   }
@@ -82,6 +90,14 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         duration: animate ? const Duration(milliseconds: 300) : Duration.zero,
         curve: Curves.easeOut,
       );
+      // 瀑布流模式: ensureVisible 只滚动了当前列，需同步到其他列及主控制器
+      if (_waterfallColumnControllers.isNotEmpty) {
+        Future.delayed(animate ? const Duration(milliseconds: 350) : Duration.zero, () {
+          if (mounted) {
+            _syncWaterfallAfterEnsureVisible();
+          }
+        });
+      }
       return;
     }
 
@@ -90,16 +106,18 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     final cellW = _cellWidth(columns);
     final row = fallbackIndex ~/ columns;
     final targetOffset = row * (cellW + 2);
-    final maxScroll = _scrollController.position.maxScrollExtent;
 
-    if (animate) {
-      _scrollController.animateTo(
-        targetOffset.clamp(0.0, maxScroll),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    } else {
-      _scrollController.jumpTo(targetOffset.clamp(0.0, maxScroll));
+    if (_scrollController.hasClients) {
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      if (animate) {
+        _scrollController.animateTo(
+          targetOffset.clamp(0.0, maxScroll),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.jumpTo(targetOffset.clamp(0.0, maxScroll));
+      }
     }
 
     // 滚动到附近后, 等待目标项构建完成, 再进行精确定位
@@ -618,9 +636,14 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     );
   }
 
-  /// 模式三: 瀑布流布局
+  /// 模式三: 瀑布流布局 — 列式虚拟化
+  /// 
+  /// 每列使用独立的 [ListView.builder]，通过 [LayoutBuilder] 获取可用高度并
+  /// 用 [SizedBox] 显式约束列高。仅构建可视区域内的项，大幅降低初始构建耗时。
+  /// 列间滚动通过 [NotificationListener] 联动，右侧拖拽条通过主 [_scrollController] 同步。
   Widget _buildWaterfallGrid(List<MediaAsset> assets, int columns, MediaAsset? currentMedia) {
     final cellW = _cellWidth(columns);
+
     // 将媒体文件分配到各列 (轮询)
     final List<List<MediaAsset>> columnAssets = List.generate(columns, (_) => []);
     final List<List<int>> columnIndices = List.generate(columns, (_) => []);
@@ -630,43 +653,63 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
       columnIndices[col].add(i);
     }
 
-    return SingleChildScrollView(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (int col = 0; col < columns; col++) ...[
-            if (col > 0) const SizedBox(width: 2),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (int i = 0; i < columnAssets[col].length; i++) ...[
-                    if (i > 0) const SizedBox(height: 2),
-                    _WaterfallCell(
-                      key: currentMedia?.id == columnAssets[col][i].id
-                          ? _currentItemKey
-                          : ValueKey('wf_${columnAssets[col][i].id}'),
-                      asset: columnAssets[col][i],
-                      cellWidth: cellW,
-                      isSelected: _selectedIds.contains(columnAssets[col][i].id),
-                      isCurrent: currentMedia?.id == columnAssets[col][i].id,
-                      selectionIndex: () {
-                        final idx = _selectionOrder.indexOf(columnAssets[col][i].id);
-                        return idx >= 0 ? idx + 1 : null;
-                      }(),
-                      isSelectionMode: _isSelectionMode,
-                      onTap: () => _handleTap(columnAssets[col][i], columnIndices[col][i]),
-                      onLongPress: () => _handleLongPress(columnAssets[col][i]),
-                      onDoubleTap: columnAssets[col][i].isDeleted ? () => _undoDeleteSingle(columnAssets[col][i]) : null,
+    // 确保列控制器就绪
+    _setupWaterfallColumns(columns);
+
+    // LayoutBuilder 获取 _DraggableScrollWrapper 分配的可用高度，
+    // 显式约束每列 ListView 的高度是虚拟化生效的关键。
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onWaterfallScrollNotification,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final outerPad = 4.0; // EdgeInsets.all(2) → 上下各 2
+          final columnH = (constraints.maxHeight - outerPad).clamp(0.0, double.infinity);
+
+          return Padding(
+            padding: const EdgeInsets.all(2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int col = 0; col < columns; col++) ...[
+                  if (col > 0) const SizedBox(width: 2),
+                  SizedBox(
+                    width: cellW,
+                    height: columnH,
+                    child: ListView.builder(
+                      controller: col == 0
+                          ? _scrollController
+                          : _waterfallColumnControllers[col - 1],
+                      padding: EdgeInsets.zero,
+                      itemCount: columnAssets[col].length,
+                      itemBuilder: (ctx, i) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: i < columnAssets[col].length - 1 ? 2 : 0,
+                        ),
+                        child: _WaterfallCell(
+                          key: currentMedia?.id == columnAssets[col][i].id
+                              ? _currentItemKey
+                              : ValueKey('wf_${columnAssets[col][i].id}'),
+                          asset: columnAssets[col][i],
+                          cellWidth: cellW,
+                          isSelected: _selectedIds.contains(columnAssets[col][i].id),
+                          isCurrent: currentMedia?.id == columnAssets[col][i].id,
+                          selectionIndex: () {
+                            final idx = _selectionOrder.indexOf(columnAssets[col][i].id);
+                            return idx >= 0 ? idx + 1 : null;
+                          }(),
+                          isSelectionMode: _isSelectionMode,
+                          onTap: () => _handleTap(columnAssets[col][i], columnIndices[col][i]),
+                          onLongPress: () => _handleLongPress(columnAssets[col][i]),
+                          onDoubleTap: columnAssets[col][i].isDeleted ? () => _undoDeleteSingle(columnAssets[col][i]) : null,
+                        ),
+                      ),
                     ),
-                  ],
+                  ),
                 ],
-              ),
+              ],
             ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }
@@ -698,6 +741,90 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         SnackBar(content: Text('已恢复: ${asset.filePath.split('/').last}'), duration: const Duration(milliseconds: 400)),
       );
     }
+  }
+
+  // ──────── 瀑布流列式虚拟化 · 滚动联动 ────────
+
+  /// 初始化瀑布流各列 [ScrollController]
+  ///
+  /// 第 0 列直接使用主 [_scrollController]（驱动拖拽条 / 滚动定位），
+  /// 其余列创建独立的 [ScrollController] 存入 [_waterfallColumnControllers]。
+  void _setupWaterfallColumns(int count) {
+    _teardownWaterfallColumns();
+    // col 0 uses _scrollController; cols 1..n get dedicated controllers
+    for (int i = 1; i < count; i++) {
+      _waterfallColumnControllers.add(ScrollController());
+    }
+    // 监听主控制器（col 0）以同步到其他列
+    _scrollController.removeListener(_onMasterScrollForWaterfall);
+    _scrollController.addListener(_onMasterScrollForWaterfall);
+  }
+
+  /// 清理瀑布流子列控制器（不触碰主 [_scrollController]）
+  void _teardownWaterfallColumns() {
+    for (final ctrl in _waterfallColumnControllers) {
+      ctrl.dispose();
+    }
+    _waterfallColumnControllers.clear();
+  }
+
+  /// 捕获任一列 [ListView] 发出的 [ScrollNotification]，同步至主控制器及其他列
+  bool _onWaterfallScrollNotification(ScrollNotification notification) {
+    if (_syncingWaterfall) return false;
+    if (notification is! ScrollUpdateNotification && 
+        notification is! ScrollEndNotification) {
+      return false;
+    }
+    _syncingWaterfall = true;
+    final offset = notification.metrics.pixels;
+    _syncScrollToMainAndPeers(offset, sourceMetrics: notification.metrics);
+    _syncingWaterfall = false;
+    return false;
+  }
+
+  /// 主 [_scrollController] 滚动时（拖拽条/程序定位），同步到所有瀑布流列
+  void _onMasterScrollForWaterfall() {
+    if (_syncingWaterfall) return;
+    _syncingWaterfall = true;
+    final offset = _scrollController.offset;
+    for (final ctrl in _waterfallColumnControllers) {
+      if (ctrl.hasClients && ctrl.offset != offset) {
+        ctrl.jumpTo(offset.clamp(0.0, ctrl.position.maxScrollExtent));
+      }
+    }
+    _syncingWaterfall = false;
+  }
+
+  /// 以 [offset] 同步主控制器及所有其他列（排除 [sourceMetrics] 所属列避免回跳）
+  void _syncScrollToMainAndPeers(double offset, {ScrollMetrics? sourceMetrics}) {
+    // 同步主控制器（驱动拖拽条）
+    if (_scrollController.hasClients) {
+      final clamped = offset.clamp(0.0, _scrollController.position.maxScrollExtent);
+      if ((_scrollController.offset - clamped).abs() > 0.5) {
+        _scrollController.jumpTo(clamped);
+      }
+    }
+    // 同步其他列
+    for (final ctrl in _waterfallColumnControllers) {
+      if (!ctrl.hasClients) continue;
+      if (sourceMetrics != null && ctrl.position == sourceMetrics) continue;
+      final target = offset.clamp(0.0, ctrl.position.maxScrollExtent);
+      if ((ctrl.offset - target).abs() > 0.5) {
+        ctrl.jumpTo(target);
+      }
+    }
+  }
+
+  /// [Scrollable.ensureVisible] 定位当前项后，将滚动位置同步到瀑布流所有列
+  void _syncWaterfallAfterEnsureVisible() {
+    if (_waterfallColumnControllers.isEmpty) return;
+    final ctx = _currentItemKey.currentContext;
+    if (ctx == null) return;
+    final scrollable = Scrollable.of(ctx);
+    final offset = scrollable.position.pixels;
+    _syncingWaterfall = true;
+    _syncScrollToMainAndPeers(offset);
+    _syncingWaterfall = false;
   }
 }
 
