@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -40,8 +42,8 @@ var (
 
 // 配置加载
 func Load() error {
-	// 尝试从 .env 文件加载环境变量
-	godotenv.Load()
+	// 尝试从 .env 文件加载环境变量（文件不存在时不报错）
+	_ = godotenv.Load()
 
 	// 应用配置
 	AppConf.StaticDir = os.Getenv("STATIC_DIR")
@@ -58,6 +60,39 @@ func Load() error {
 	DbConf.DbUser = os.Getenv("DB_USER")
 	DbConf.DbPassword = os.Getenv("DB_PASSWORD")
 	DbConf.DbName = os.Getenv("DB_NAME")
+
+	return Validate()
+}
+
+// Validate 校验必要配置项，返回缺失项列表
+func Validate() error {
+	required := map[string]string{
+		"STATIC_DIR":  AppConf.StaticDir,
+		"GALLERY_DIR": AppConf.GalleryDir,
+		"COMIC_DIR":   AppConf.ComicDir,
+		"LOCAL_PORT":  NetConf.LocalPort,
+		"DB_IP":       DbConf.DbIP,
+		"DB_PORT":     DbConf.DbPort,
+		"DB_USER":     DbConf.DbUser,
+		"DB_PASSWORD": DbConf.DbPassword,
+		"DB_NAME":     DbConf.DbName,
+	}
+
+	var missing []string
+	for key, val := range required {
+		if strings.TrimSpace(val) == "" {
+			missing = append(missing, key)
+		}
+	}
+
+	// LOCAL_DEBUG_PORT 仅在 local 模式需要
+	if IsLocalMode && strings.TrimSpace(NetConf.LocalDebugPort) == "" {
+		missing = append(missing, "LOCAL_DEBUG_PORT")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("缺少必要的环境变量: %s", strings.Join(missing, ", "))
+	}
 
 	return nil
 }

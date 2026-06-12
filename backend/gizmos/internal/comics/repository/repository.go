@@ -51,7 +51,9 @@ func getExistingChapters(ctx context.Context, pool *pgxpool.Pool) (map[string]st
 	defer rows.Close()
 	for rows.Next() {
 		var title, dn string
-		_ = rows.Scan(&title, &dn)
+		if err := rows.Scan(&title, &dn); err != nil {
+			return nil, fmt.Errorf("扫描已存在章节失败: %w", err)
+		}
 		existing[fmt.Sprintf("%s|%s", title, dn)] = struct{}{}
 	}
 	if err := rows.Err(); err != nil {
@@ -73,7 +75,9 @@ func GetAllComicTitles() (map[string]string, error) {
 	out := make(map[string]string)
 	for rows.Next() {
 		var id, title string
-		_ = rows.Scan(&id, &title)
+		if err := rows.Scan(&id, &title); err != nil {
+			return nil, fmt.Errorf("扫描漫画标题失败: %w", err)
+		}
 		out[title] = id
 	}
 	if err := rows.Err(); err != nil {

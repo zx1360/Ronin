@@ -21,32 +21,24 @@ func FetchMediaAssets(limit int, offset int) ([]model.MediaAsset, error) {
 	})
 }
 
-// FetchMediaAssetsWithParams 根据查询参数获取媒体资产（支持筛选和排序）
-func FetchMediaAssetsWithParams(params model.BatchQueryParams) ([]model.MediaAsset, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	// 构建动态查询条件
+// buildWhereClause 构建 WHERE 条件（供 FetchMediaAssetsWithParams 和 CountMediaAssetsWithParams 共用）
+func buildWhereClause(params model.BatchQueryParams) (string, []interface{}) {
 	conditions := []string{"is_deleted = false"}
 	args := []interface{}{}
 	argIdx := 1
 
-	// MIME 类型筛选
 	if params.MimeType != "" {
 		if strings.Contains(params.MimeType, "/") {
-			// 精确匹配如 "image/jpeg"
 			conditions = append(conditions, fmt.Sprintf("mime_type = $%d", argIdx))
 			args = append(args, params.MimeType)
 			argIdx++
 		} else {
-			// 前缀匹配如 "image" → "image/%"
 			conditions = append(conditions, fmt.Sprintf("mime_type LIKE $%d", argIdx))
 			args = append(args, params.MimeType+"/%")
 			argIdx++
 		}
 	}
 
-	// 日期筛选
 	if params.Year > 0 {
 		if params.Month > 0 {
 			if params.Day > 0 {
@@ -68,11 +60,19 @@ func FetchMediaAssetsWithParams(params model.BatchQueryParams) ([]model.MediaAss
 		}
 	}
 
-	whereClause := strings.Join(conditions, " AND ")
+	return strings.Join(conditions, " AND "), args
+}
 
-	// 排序
+// FetchMediaAssetsWithParams 根据查询参数获取媒体资产（支持筛选和排序）
+func FetchMediaAssetsWithParams(params model.BatchQueryParams) ([]model.MediaAsset, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+
+	whereClause, whereArgs := buildWhereClause(params)
+
 	orderClause := buildOrderClause(params)
 
+	argIdx := len(whereArgs) + 1
 	query := fmt.Sprintf(`
 		SELECT 
 			id, created_at, updated_at, captured_at, file_path, 
@@ -83,7 +83,7 @@ func FetchMediaAssetsWithParams(params model.BatchQueryParams) ([]model.MediaAss
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
 	`, whereClause, orderClause, argIdx, argIdx+1)
-	args = append(args, params.Limit, params.Offset)
+	args := append(whereArgs, params.Limit, params.Offset)
 
 	rows, err := db.GetPool().Query(ctx, query, args...)
 	if err != nil {
@@ -160,50 +160,15 @@ func CountMediaAssetsWithParams(params model.BatchQueryParams) (int, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	conditions := []string{"is_deleted = false"}
-	args := []interface{}{}
-	argIdx := 1
-
-	if params.MimeType != "" {
-		if strings.Contains(params.MimeType, "/") {
-			conditions = append(conditions, fmt.Sprintf("mime_type = $%d", argIdx))
-			args = append(args, params.MimeType)
-			argIdx++
-		} else {
-			conditions = append(conditions, fmt.Sprintf("mime_type LIKE $%d", argIdx))
-			args = append(args, params.MimeType+"/%")
-			argIdx++
-		}
-	}
-
-	if params.Year > 0 {
-		if params.Month > 0 {
-			if params.Day > 0 {
-				conditions = append(conditions,
-					fmt.Sprintf("DATE(captured_at) = $%d", argIdx))
-				args = append(args, fmt.Sprintf("%04d-%02d-%02d", params.Year, params.Month, params.Day))
-				argIdx++
-			} else {
-				conditions = append(conditions,
-					fmt.Sprintf("EXTRACT(YEAR FROM captured_at) = $%d AND EXTRACT(MONTH FROM captured_at) = $%d", argIdx, argIdx+1))
-				args = append(args, params.Year, params.Month)
-				argIdx += 2
-			}
-		} else {
-			conditions = append(conditions,
-				fmt.Sprintf("EXTRACT(YEAR FROM captured_at) = $%d", argIdx))
-			args = append(args, params.Year)
-			argIdx++
-		}
-	}
+	whereClause, whereArgs := buildWhereClause(params)
 
 	query := fmt.Sprintf(
 		"SELECT COUNT(*) FROM gallery.media_assets WHERE %s",
-		strings.Join(conditions, " AND "),
+		whereClause,
 	)
 
 	var count int
-	err := db.GetPool().QueryRow(ctx, query, args...).Scan(&count)
+	err := db.GetPool().QueryRow(ctx, query, whereArgs...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("统计媒体资产失败: %w", err)
 	}

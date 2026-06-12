@@ -72,7 +72,7 @@ func FetchImagesWithChapterId(c *gin.Context) {
 	chapterInfo, err := comic_repo.GetImagesWithChapterId(chapterId)
 	if err != nil {
 		c.JSON(404, gin.H{
-			"message": fmt.Errorf("FetchChapterInfo出错: %w", err),
+			"message": fmt.Sprintf("FetchChapterInfo出错: %v", err),
 		})
 		return
 	}

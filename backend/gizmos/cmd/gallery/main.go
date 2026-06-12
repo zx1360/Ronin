@@ -65,6 +65,10 @@ func main() {
 	fmt.Println("=================================")
 
 	// 初始化数据库连接
+	if err := config.Validate(); err != nil {
+		log.Fatalf("配置校验失败: %v", err)
+	}
+
 	db.Init(config.DbConf)
 	defer db.Close()
 

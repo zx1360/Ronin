@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-contrib/cors"
@@ -15,6 +16,9 @@ import (
 )
 
 func SetupRouter() *gin.Engine {
+	// 设置频控日志路径为 static 目录
+	util_handler.SetBanLogPath(filepath.Join(config.AppConf.StaticDir, "logs.txt"))
+
 	// gin.SetMode(gin.ReleaseMode) // 切换到发布模式	(终端打印信息更少)
 	r := gin.Default()
 
