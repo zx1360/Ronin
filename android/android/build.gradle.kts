@@ -2,10 +2,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // Official Flutter engine artifacts repository (fallback when mirror misses a revision)
+        // Flutter 引擎 artifacts 官方源（国内用户通过 FLUTTER_STORAGE_BASE_URL 镜像加速）
         maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
-        // 清华镜像（可选，增强稳定性）
-        maven { url = uri("https://mirrors.tuna.tsinghua.edu.cn/flutter") }
     }
 }
 
