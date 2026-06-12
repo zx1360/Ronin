@@ -37,6 +37,9 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   /// 滚动控制器
   final ScrollController _scrollController = ScrollController();
   
+  /// 当前检阅项的 GlobalKey，用于 Scrollable.ensureVisible 精确定位
+  final GlobalKey _currentItemKey = GlobalKey(debugLabel: 'currentMediaItem');
+  
   /// 是否已执行初始滚动
   bool _hasScrolledToInitial = false;
 
@@ -54,64 +57,77 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     super.dispose();
   }
 
-  /// 滚动到当前媒体文件所在行（使其位于第一行）
+  /// 滚动到当前媒体文件所在行（使其位于视图第一行）
+  ///
+  /// 优先使用 [Scrollable.ensureVisible] 通过 [GlobalKey] 精确定位；
+  /// 若目标项尚未被懒加载构建（offscreen），回退到估算偏移量，
+  /// 待滚动到附近、目标构建完成后再做二次精确定位。
   void _scrollToCurrentIndex({bool animate = true}) {
-    // 获取当前媒体
     final currentMedia = ref.read(currentMediaAssetProvider);
     if (currentMedia == null) return;
-    
-    // 在 mediaAssetListProvider 中找到当前媒体的位置
     final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     final indexInAll = allAssets.indexWhere((a) => a.id == currentMedia.id);
-    
-    if (indexInAll < 0 || allAssets.isEmpty) return;
-    if (!_scrollController.hasClients) return;
-    
-    final columns = ref.read(galleryGridColumnsProvider);
-    final mode = ref.read(galleryGridPreviewModeNotifierProvider);
-    
-    // 计算目标行
-    final row = indexInAll ~/ columns;
-    final cellW = _cellWidth(columns);
-    
-    // 根据不同模式估算每行高度
-    double rowHeight;
-    switch (mode) {
-      case GalleryGridPreviewMode.thumb:
-        rowHeight = cellW; // 正方形缩略图
-      case GalleryGridPreviewMode.preview:
-        rowHeight = cellW; // 近似: 大部分图片等比缩放后高度接近宽度
-      case GalleryGridPreviewMode.waterfall:
-        rowHeight = cellW * 0.75; // 近似: 瀑布流平均项高度
+    if (indexInAll < 0 || !_scrollController.hasClients) return;
+
+    _doScrollToCurrent(animate: animate, fallbackIndex: indexInAll);
+  }
+
+  void _doScrollToCurrent({required bool animate, required int fallbackIndex}) {
+    // 首选: GlobalKey 精确定位
+    final ctx = _currentItemKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.0,
+        duration: animate ? const Duration(milliseconds: 300) : Duration.zero,
+        curve: Curves.easeOut,
+      );
+      return;
     }
-    
-    final targetOffset = row * (rowHeight + 2); // 加上主轴承间距
-    
-    // 获取最大滚动范围
+
+    // 回退: 基于估算偏移量（目标项未在可视范围内构建时）
+    final columns = ref.read(galleryGridColumnsProvider);
+    final cellW = _cellWidth(columns);
+    final row = fallbackIndex ~/ columns;
+    final targetOffset = row * (cellW + 2);
     final maxScroll = _scrollController.position.maxScrollExtent;
-    final clampedOffset = targetOffset.clamp(0.0, maxScroll);
-    
+
     if (animate) {
       _scrollController.animateTo(
-        clampedOffset,
+        targetOffset.clamp(0.0, maxScroll),
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     } else {
-      _scrollController.jumpTo(clampedOffset);
+      _scrollController.jumpTo(targetOffset.clamp(0.0, maxScroll));
     }
+
+    // 滚动到附近后, 等待目标项构建完成, 再进行精确定位
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx2 = _currentItemKey.currentContext;
+      if (ctx2 != null && mounted) {
+        Scrollable.ensureVisible(
+          ctx2,
+          alignment: 0.0,
+          duration: animate ? const Duration(milliseconds: 200) : Duration.zero,
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
   
-  /// 在 GridView 首次渲染数据后执行初始滚动
+  /// 在内容首次渲染后执行初始滚动 — 等待两帧确保完整布局
   void _performInitialScrollIfNeeded() {
     if (_hasScrolledToInitial) return;
     _hasScrolledToInitial = true;
     
-    // 使用短延迟确保 GridView 完成布局和尺寸计算
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (mounted) {
-        _scrollToCurrentIndex(animate: false);
-      }
+    // 两帧延迟: 第一帧完成 build+layout, 第二帧确保图片加载后的二次布局也完成
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _scrollToCurrentIndex(animate: false);
+        }
+      });
     });
   }
 
@@ -564,14 +580,17 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           padding: EdgeInsets.only(bottom: spacing),
           child: IntrinsicHeight(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              // 行间元素居中
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 for (int i = start; i < end; i++) ...[
                   if (i > start) const SizedBox(width: 2),
                   SizedBox(
                     width: cellW,
                     child: _ProportionalCell(
-                      key: ValueKey('prop_${assets[i].id}'),
+                      key: currentMedia?.id == assets[i].id
+                          ? _currentItemKey
+                          : ValueKey('prop_${assets[i].id}'),
                       asset: assets[i],
                       isSelected: _selectedIds.contains(assets[i].id),
                       isCurrent: currentMedia?.id == assets[i].id,
@@ -626,7 +645,9 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
                   for (int i = 0; i < columnAssets[col].length; i++) ...[
                     if (i > 0) const SizedBox(height: 2),
                     _WaterfallCell(
-                      key: ValueKey('wf_${columnAssets[col][i].id}'),
+                      key: currentMedia?.id == columnAssets[col][i].id
+                          ? _currentItemKey
+                          : ValueKey('wf_${columnAssets[col][i].id}'),
                       asset: columnAssets[col][i],
                       cellWidth: cellW,
                       isSelected: _selectedIds.contains(columnAssets[col][i].id),
@@ -658,7 +679,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     final selectionIndex = _selectionOrder.indexOf(asset.id);
 
     return _GridTile(
-      key: ValueKey(asset.id),
+      key: isCurrent ? _currentItemKey : ValueKey(asset.id),
       asset: asset,
       isSelected: isSelected,
       isCurrent: isCurrent,
@@ -1110,6 +1131,70 @@ class _GridTileState extends ConsumerState<_GridTile> {
 /// 预览图文件缓存 (避免重复的文件系统检查)
 final Map<String, File?> _previewCache = {};
 
+/// 内禀高度限制组件 - 将子组件的内禀高度和实际布局高度均限制在 maxAspectRatio * width 以内。
+///
+/// 用于 IntrinsicHeight 行布局中，防止极高的图片撑开整行。
+/// maxAspectRatio 表示 maxHeight / width 的上限，例如 4.0 表示高度不超过宽度的 4 倍。
+class _IntrinsicHeightCapped extends SingleChildRenderObjectWidget {
+  final double maxAspectRatio;
+
+  const _IntrinsicHeightCapped({
+    required this.maxAspectRatio,
+    required super.child,
+  });
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderIntrinsicHeightCapped(maxAspectRatio: maxAspectRatio);
+  }
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderIntrinsicHeightCapped renderObject) {
+    renderObject.maxAspectRatio = maxAspectRatio;
+  }
+}
+
+class _RenderIntrinsicHeightCapped extends RenderProxyBox {
+  double maxAspectRatio;
+
+  _RenderIntrinsicHeightCapped({required this.maxAspectRatio});
+
+  @override
+  double computeMinIntrinsicHeight(double width) {
+    final childHeight = super.computeMinIntrinsicHeight(width);
+    final cap = width * maxAspectRatio;
+    return childHeight < cap ? childHeight : cap;
+  }
+
+  @override
+  double computeMaxIntrinsicHeight(double width) {
+    final childHeight = super.computeMaxIntrinsicHeight(width);
+    final cap = width * maxAspectRatio;
+    return childHeight < cap ? childHeight : cap;
+  }
+
+  @override
+  void performLayout() {
+    if (child != null) {
+      final width = constraints.maxWidth;
+      // 计算高度上限：如果 constraints 已经有限制则取更小值
+      final cap = width * maxAspectRatio;
+      final effectiveMaxH = constraints.maxHeight.isFinite
+          ? min(constraints.maxHeight, cap)
+          : cap;
+      child!.layout(
+        constraints.copyWith(
+          maxHeight: effectiveMaxH.clamp(constraints.minHeight, double.infinity),
+        ),
+        parentUsesSize: true,
+      );
+      size = Size(constraints.maxWidth, child!.size.height);
+    } else {
+      size = Size(constraints.maxWidth, constraints.minHeight);
+    }
+  }
+}
+
 /// 等比预览单元格 (模式二) - 显示预览图，支持宽高比约束
 class _ProportionalCell extends ConsumerStatefulWidget {
   final MediaAsset asset;
@@ -1197,19 +1282,17 @@ class _ProportionalCellState extends ConsumerState<_ProportionalCell> {
         onLongPress: widget.onLongPress,
         child: Stack(
           children: [
-            // 预览图 - 决定 cell 高度，靠上对齐
+            // 预览图 - _IntrinsicHeightCapped 限制高度上限 (max 4×宽度)，BoxFit.cover 居中裁切
             if (_isLoading)
               _buildPlaceholder()
             else if (_previewFile != null)
-              ClipRect(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Image.file(
-                    _previewFile!,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    errorBuilder: (context, error, stack) => _buildPlaceholder(),
-                  ),
+              _IntrinsicHeightCapped(
+                maxAspectRatio: 4.0,
+                child: Image.file(
+                  _previewFile!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (context, error, stack) => _buildPlaceholder(),
                 ),
               )
             else
@@ -1328,13 +1411,15 @@ class _ProportionalCellState extends ConsumerState<_ProportionalCell> {
   }
 
   Widget _buildPlaceholder() {
-    return Container(
-      width: double.infinity,
-      height: 100,
-      color: Colors.grey[800],
-      child: Icon(
-        widget.asset.isVideo ? Icons.videocam : Icons.image,
-        color: Colors.grey[600],
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Container(
+        width: double.infinity,
+        color: Colors.grey[800],
+        child: Icon(
+          widget.asset.isVideo ? Icons.videocam : Icons.image,
+          color: Colors.grey[600],
+        ),
       ),
     );
   }
