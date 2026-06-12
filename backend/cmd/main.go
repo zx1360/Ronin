@@ -19,9 +19,13 @@ func main() {
 	mode := flag.String("mode", "", "启动模式: local=本地开发(HTTP+无鉴权), 默认生产模式(HTTPS+鉴权)")
 	flag.Parse()
 
-	// 加载配置（确保config.NetworkConf已正确配置）
-	config.Load()
+	// 先设置运行模式 (Validate 依赖此值)
 	config.IsLocalMode = *mode == "local"
+
+	// 加载并校验配置
+	if err := config.Load(); err != nil {
+		panic("配置加载失败: " + err.Error())
+	}
 
 	db.Init(config.DbConf)
 	defer db.Close()

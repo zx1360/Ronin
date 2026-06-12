@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -55,6 +56,8 @@ func newImmichReverseProxy(rawTarget string) (*httputil.ReverseProxy, error) {
 		return nil, fmt.Errorf("invalid immich upstream address %q: %w", rawTarget, err)
 	}
 
+	immichAPIKey := os.Getenv("API_KEY_IMMICH")
+
 	transport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
@@ -75,6 +78,11 @@ func newImmichReverseProxy(rawTarget string) (*httputil.ReverseProxy, error) {
 
 			if clientIP := extractRemoteIP(pr.In.RemoteAddr); clientIP != "" {
 				pr.Out.Header.Set("X-Real-IP", clientIP)
+			}
+
+			// 替换客户端 X-API-Key 为 Immich 专用 API Key
+			if immichAPIKey != "" {
+				pr.Out.Header.Set("X-API-Key", immichAPIKey)
 			}
 		},
 		Transport: transport,
