@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/pages/image_editor_page.dart';
 import 'package:torrid/features/others/gallery/pages/label_list_page.dart';
 import 'package:torrid/features/others/gallery/pages/media_detail_page.dart';
-import 'package:torrid/features/others/gallery/pages/medias_gridview_page.dart';
+import 'package:torrid/features/others/gallery/pages/media_browser_page.dart';
 import 'package:torrid/features/others/gallery/pages/setting_page.dart';
 import 'package:torrid/features/others/gallery/pages/video_trimmer_page.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
@@ -324,7 +324,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   void _openGridView(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const MediasGridViewPage()),
+      MaterialPageRoute(builder: (_) => const MediaBrowserPage()),
     );
   }
 
