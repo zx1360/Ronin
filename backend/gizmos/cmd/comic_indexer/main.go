@@ -19,6 +19,10 @@ func main() {
 	comicRoot := flag.String("root", defaultComicRoot, "漫画根目录")
 	flag.Parse()
 
+	if err := config.Validate(); err != nil {
+		panic("配置校验失败: " + err.Error())
+	}
+
 	db.Init(config.DbConf)
 	defer db.Close()
 

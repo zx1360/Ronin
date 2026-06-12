@@ -13,8 +13,10 @@ const (
 	maxFailures = 10                 // 时间窗口内最大失败次数
 	failWindow  = 10 * time.Minute   // 失败计数时间窗口
 	banDuration = 3 * 24 * time.Hour // 封禁时长
+)
 
-	// 持久化日志路径
+var (
+	// banLogPath 持久化日志路径，可通过 SetBanLogPath 在配置加载后设置
 	banLogPath = "./static/logs.txt"
 )
 
@@ -34,6 +36,13 @@ func init() {
 	}
 	limiter.loadBannedIPs()
 	go limiter.periodicCleanup()
+}
+
+// SetBanLogPath 设置封禁日志路径（需在配置加载后调用）
+func SetBanLogPath(path string) {
+	if path != "" {
+		banLogPath = path
+	}
 }
 
 // IsBanned 检查 IP 是否处于封禁状态；若封禁已过期则自动解封
