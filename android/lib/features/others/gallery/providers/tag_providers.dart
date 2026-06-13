@@ -3,6 +3,7 @@ import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/media_providers.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
 import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
+import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
 
 part 'tag_providers.g.dart';
 
@@ -44,6 +45,8 @@ class TagTree extends _$TagTree {
   Future<void> deleteTag(String tagId) async {
     final db = ref.read(galleryDatabaseProvider);
     await db.deleteTag(tagId);
+    // 标签删除后级联清除了关联记录，刷新标签指示器数据
+    ref.invalidate(mediaIdsWithTagsProvider);
     await refresh();
   }
 
@@ -106,6 +109,9 @@ class CurrentMediaTags extends _$CurrentMediaTags {
     
     final db = ref.read(galleryDatabaseProvider);
     await db.setTagsForMedia(currentMedia.id, tagIds);
+    
+    // 标签关联变化后刷新标签指示器数据
+    ref.invalidate(mediaIdsWithTagsProvider);
     
     // 更新 modified_count
     final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];

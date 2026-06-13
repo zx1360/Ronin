@@ -681,12 +681,15 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   Future<void> _handleRefreshStorageStats() async {
     setState(() => _isRefreshingStorage = true);
     try {
+      // 刷新文件系统统计
       await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
+      // 同时刷新数据库统计
+      ref.invalidate(galleryDbStatsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '文件统计已刷新: '
+              '统计已刷新: '
               '${ref.read(galleryCachedStorageStatsProvider).fileCount} 个文件, '
               '${ref.read(galleryCachedStorageStatsProvider).formattedSize}',
             ),
