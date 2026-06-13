@@ -161,17 +161,31 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         break;
       case GalleryGridPreviewMode.preview:
         // 等比模式行高因 IntrinsicHeight 而不定：
-        // 首次用平均高度估算，后续按视口增量朝目标方向渐进逼近
-        if (_scrollController.hasClients && retriesLeft < 5) {
-          final viewport = _scrollController.position.viewportDimension;
-          final currentOffset = _scrollController.offset;
-          final row = fallbackIndex ~/ columns;
-          // 粗估当前可见行号
-          final estimatedVisibleRow = (currentOffset / (cellW * 0.75 + 2)).round();
-          if (row > estimatedVisibleRow) {
-            targetOffset = currentOffset + viewport * 0.7;
+        // 使用 maxScrollExtent 比例锚点（与具体行高无关），
+        // 重试时朝锚点方向视口级渐进，逼近后 snap 到精确比例位。
+        if (_scrollController.hasClients) {
+          final pos = _scrollController.position;
+          final maxScroll = pos.maxScrollExtent;
+          final allAssets = ref.read(mediaAssetListProvider).valueOrNull;
+          final totalItems = allAssets?.length ?? 0;
+          if (maxScroll > 0 && totalItems > 0) {
+            final ratioTarget = (fallbackIndex / totalItems) * maxScroll;
+            if (retriesLeft < 5) {
+              final currentOffset = pos.pixels;
+              final viewport = pos.viewportDimension;
+              if ((currentOffset - ratioTarget).abs() < viewport * 0.3) {
+                targetOffset = ratioTarget;
+              } else if (currentOffset < ratioTarget) {
+                targetOffset = currentOffset + viewport * 0.7;
+              } else {
+                targetOffset = currentOffset - viewport * 0.7;
+              }
+            } else {
+              targetOffset = ratioTarget;
+            }
           } else {
-            targetOffset = currentOffset - viewport * 0.7;
+            final row = fallbackIndex ~/ columns;
+            targetOffset = row * (cellW * 0.75 + 2);
           }
         } else {
           final row = fallbackIndex ~/ columns;
