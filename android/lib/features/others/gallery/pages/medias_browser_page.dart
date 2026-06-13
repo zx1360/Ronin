@@ -56,9 +56,25 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   /// 是否已执行初始滚动
   bool _hasScrolledToInitial = false;
 
+  /// 用户是否已手动滚动（用于取消自动定位重试）
+  bool _userHasScrolled = false;
+
+  /// 是否正在执行自动滚动定位（用于取消重试链路）
+  bool _isAutoScrolling = false;
+
   @override
   void initState() {
     super.initState();
+  }
+
+  /// 检测用户手动滚动（拖拽手势），立即取消自动定位
+  bool _onUserScrollStart(ScrollStartNotification notification) {
+    if (notification.dragDetails != null) {
+      _userHasScrolled = true;
+      _isAutoScrolling = false;
+    }
+    // 返回 false 允许通知继续冒泡
+    return false;
   }
 
   @override
@@ -72,12 +88,8 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   /// 滚动到当前媒体文件所在行（使其位于视图第一行）
   ///
   /// 优先使用 [Scrollable.ensureVisible] 通过 [GlobalKey] 精确定位；
-  /// 若目标项尚未被懒加载构建（offscreen），回退到估算偏移量，
-  /// 通过多次 post-frame 重试直到精确定位成功或达到上限。
-  /// 
-  /// 关键：图片加载会导致行高变化（等比模式尤为明显），[ensureVisible]
-  /// 可能在图片加载前就"成功"了。因此首次定位成功后延迟再次校验，
-  /// 纠正图片加载引起的布局漂移。
+  /// 若目标项尚未被懒加载构建（offscreen），回退到自适应估算偏移量，
+  /// 渐进逼近目标。用户手动滚动后将自动取消所有待处理重试。
   void _scrollToCurrentIndex({bool animate = true}) {
     final currentMedia = ref.read(currentMediaAssetProvider);
     if (currentMedia == null) return;
@@ -85,20 +97,36 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     final indexInAll = allAssets.indexWhere((a) => a.id == currentMedia.id);
     if (indexInAll < 0) return;
 
+    // 允许新一轮自动定位
+    _userHasScrolled = false;
+    _isAutoScrolling = true;
+
     _tryScrollToCurrent(
       animate: animate,
       fallbackIndex: indexInAll,
-      retriesLeft: 20,
+      retriesLeft: 5,
     );
   }
 
   /// 带重试的滚动定位
+  ///
+  /// 缩略模式：行高固定，一次估算 + [jumpTo] 即可精准命中。
+  /// 等比模式：行高因 [IntrinsicHeight] 不定，首跳使用平均高度估算；
+  /// 若未命中则按视口增量朝目标方向渐进逼近。
+  /// 瀑布流模式：首跳估算后逐帧检查目标是否已构建。
+  ///
+  /// 所有模式一旦检测到用户手动滚动 ([_userHasScrolled])，立即放弃重试。
   void _tryScrollToCurrent({
     required bool animate,
     required int fallbackIndex,
     required int retriesLeft,
   }) {
-    if (retriesLeft <= 0) return;
+    // 用户已手动滚动 或 自动定位已被取消，立即退出
+    if (_userHasScrolled || !_isAutoScrolling) return;
+    if (retriesLeft <= 0) {
+      _isAutoScrolling = false;
+      return;
+    }
 
     final ctx = _currentItemKey.currentContext;
     if (ctx != null) {
@@ -115,21 +143,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           if (mounted) _syncWaterfallAfterEnsureVisible();
         });
       }
-      // ★ 关键：图片加载可能尚未完成，布局还会变化。
-      // 延迟 500ms 后再次校验，纠正图片加载引起的行高漂移。
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          final ctx2 = _currentItemKey.currentContext;
-          if (ctx2 != null) {
-            Scrollable.ensureVisible(
-              ctx2,
-              alignment: 0.0,
-              duration: const Duration(milliseconds: 150),
-              curve: Curves.easeOut,
-            );
-          }
-        }
-      });
+      _isAutoScrolling = false;
       return;
     }
 
@@ -141,13 +155,28 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
     switch (mode) {
       case GalleryGridPreviewMode.thumb:
+        // 缩略模式行高固定 (cellW + 2)，一次估算即可精准命中
         final row = fallbackIndex ~/ columns;
         targetOffset = row * (cellW + 2);
         break;
       case GalleryGridPreviewMode.preview:
-        // 等比模式行高不定，用平均高度估算
-        final row = fallbackIndex ~/ columns;
-        targetOffset = row * (cellW * 0.75 + 2);
+        // 等比模式行高因 IntrinsicHeight 而不定：
+        // 首次用平均高度估算，后续按视口增量朝目标方向渐进逼近
+        if (_scrollController.hasClients && retriesLeft < 5) {
+          final viewport = _scrollController.position.viewportDimension;
+          final currentOffset = _scrollController.offset;
+          final row = fallbackIndex ~/ columns;
+          // 粗估当前可见行号
+          final estimatedVisibleRow = (currentOffset / (cellW * 0.75 + 2)).round();
+          if (row > estimatedVisibleRow) {
+            targetOffset = currentOffset + viewport * 0.7;
+          } else {
+            targetOffset = currentOffset - viewport * 0.7;
+          }
+        } else {
+          final row = fallbackIndex ~/ columns;
+          targetOffset = row * (cellW * 0.75 + 2);
+        }
         break;
       case GalleryGridPreviewMode.waterfall:
         final itemsInCol = (fallbackIndex / columns).ceil();
@@ -161,6 +190,8 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
             ctrl.jumpTo(targetOffset.clamp(0.0, ctrl.position.maxScrollExtent));
           }
         }
+        // 检查是否需要继续重试
+        if (_userHasScrolled || !_isAutoScrolling) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             _tryScrollToCurrent(animate: false, fallbackIndex: fallbackIndex, retriesLeft: retriesLeft - 1);
@@ -171,17 +202,11 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
     if (_scrollController.hasClients) {
       final maxScroll = _scrollController.position.maxScrollExtent;
-      if (animate && retriesLeft > 10) {
-        _scrollController.animateTo(
-          targetOffset.clamp(0.0, maxScroll),
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      } else {
-        _scrollController.jumpTo(targetOffset.clamp(0.0, maxScroll));
-      }
+      _scrollController.jumpTo(targetOffset.clamp(0.0, maxScroll));
     }
 
+    // 检查是否需要继续重试
+    if (_userHasScrolled || !_isAutoScrolling) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _tryScrollToCurrent(animate: false, fallbackIndex: fallbackIndex, retriesLeft: retriesLeft - 1);
@@ -332,7 +357,10 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
             scrollController: _scrollController,
             itemCount: assets.length,
             crossAxisCount: columns,
-            child: gridChild,
+            child: NotificationListener<ScrollStartNotification>(
+              onNotification: _onUserScrollStart,
+              child: gridChild,
+            ),
           );
         },
       ),
