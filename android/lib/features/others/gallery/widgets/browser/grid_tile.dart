@@ -12,6 +12,7 @@ class _GridTile extends ConsumerStatefulWidget {
   final bool isSelectionMode;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final bool hasTags;
 
   const _GridTile({
     super.key,
@@ -22,6 +23,7 @@ class _GridTile extends ConsumerStatefulWidget {
     required this.isSelectionMode,
     required this.onTap,
     required this.onLongPress,
+    this.hasTags = false,
   });
 
   @override
@@ -179,6 +181,20 @@ class _GridTileState extends ConsumerState<_GridTile> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Icon(Icons.layers, color: Colors.white, size: 12),
+                ),
+              ),
+
+            if (widget.hasTags && !widget.isSelectionMode)
+              Positioned(
+                bottom: 4,
+                left: widget.asset.groupId != null ? 24 : 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.teal,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(Icons.label_outline, color: Colors.white, size: 12),
                 ),
               ),
 

@@ -13,6 +13,7 @@ class _ProportionalCell extends ConsumerStatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final VoidCallback? onDoubleTap;
+  final bool hasTags;
 
   const _ProportionalCell({
     super.key,
@@ -24,6 +25,7 @@ class _ProportionalCell extends ConsumerStatefulWidget {
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
+    this.hasTags = false,
   });
 
   @override
@@ -195,6 +197,20 @@ class _ProportionalCellState extends ConsumerState<_ProportionalCell> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Icon(Icons.layers, color: Colors.white, size: 12),
+                ),
+              ),
+
+            if (widget.hasTags && !widget.isSelectionMode)
+              Positioned(
+                bottom: 4,
+                left: widget.asset.groupId != null ? 24 : 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.teal,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(Icons.label_outline, color: Colors.white, size: 12),
                 ),
               ),
 

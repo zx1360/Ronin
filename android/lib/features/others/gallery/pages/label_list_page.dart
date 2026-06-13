@@ -63,6 +63,50 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     });
   }
 
+  /// 构建标签自动套用开关
+  /// 开启后，当前媒体的标签会在导航到其他媒体时自动套用
+  Widget _buildTagAutoApplyToggle() {
+    final isEnabled = ref.watch(galleryTagAutoApplyEnabledProvider);
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => ref.read(galleryTagAutoApplyEnabledProvider.notifier).toggle(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isEnabled
+                ? Colors.blue.withValues(alpha: 0.2)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isEnabled ? Colors.blue : Colors.grey.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isEnabled ? Icons.auto_fix_high : Icons.auto_fix_off,
+                size: 16,
+                color: isEnabled ? Colors.blue : Colors.grey,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '自动套用',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isEnabled ? Colors.blue : Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tagsAsync = ref.watch(tagTreeProvider);
@@ -71,6 +115,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       appBar: AppBar(
         title: Text(widget.mediaId != null ? '选择标签' : '标签管理'),
         actions: [
+          // 标签自动套用开关（仅在打标签模式下显示）
+          if (widget.mediaId != null)
+            _buildTagAutoApplyToggle(),
           // 添加根标签按钮
           IconButton(
             icon: const Icon(Icons.add),
@@ -249,20 +296,25 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     required bool isSelected,
     required bool isDropTarget,
   }) {
+    final Color? bgColor = isDropTarget
+        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
+        : isSelected
+        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
+        : null;
+
     return Container(
       margin: EdgeInsets.only(left: depth * 24.0),
       decoration: BoxDecoration(
-        color: isDropTarget
-            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
-            : isSelected
-            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
-            : null,
         border: isDropTarget
             ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
             : null,
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
+        tileColor: bgColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
         leading: widget.mediaId != null
             ? Checkbox(
                 value: isSelected,

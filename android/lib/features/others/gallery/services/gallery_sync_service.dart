@@ -230,6 +230,7 @@ class GallerySyncService extends _$GallerySyncService {
 
       // 5. 刷新数据
       ref.invalidate(mediaAssetListProvider);
+      ref.invalidate(mediaIdsWithTagsProvider);
 
       state = SyncProgress(
         status: SyncStatus.success,
@@ -355,6 +356,7 @@ class GallerySyncService extends _$GallerySyncService {
       // 7. 刷新数据（先 invalidate，再 await 确保重新加载完成）
       ref.invalidate(mediaAssetListProvider);
       ref.invalidate(tagTreeProvider);
+      ref.invalidate(mediaIdsWithTagsProvider);
       await ref.read(mediaAssetListProvider.future);
 
       // 8. 后台静默删除本地缩略图和预览图文件 (不阻塞 UI)

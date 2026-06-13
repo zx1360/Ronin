@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
 import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
+import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
 
 part 'media_providers.g.dart';
 
@@ -132,6 +133,8 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     // 找下一个未删除的
     for (int i = currentIndex + 1; i < assets.length; i++) {
       if (!assets[i].isDeleted) {
+        // 标签自动套用：在新媒体成为"当前"之前，先将当前媒体的标签写入目标
+        await _inheritTagsToTarget(currentIndex, i, assets);
         await ref.read(galleryCurrentIndexProvider.notifier).update(i);
         return true;
       }
@@ -147,6 +150,8 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     // 找上一个未删除的
     for (int i = currentIndex - 1; i >= 0; i--) {
       if (!assets[i].isDeleted) {
+        // 标签自动套用：在新媒体成为"当前"之前，先将当前媒体的标签写入目标
+        await _inheritTagsToTarget(currentIndex, i, assets);
         await ref.read(galleryCurrentIndexProvider.notifier).update(i);
         return true;
       }
@@ -157,9 +162,16 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
   /// 跳转到指定位置（直接跳转，不检查删除状态）
   Future<void> jumpTo(int index) async {
     final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    if (index >= 0 && index < assets.length) {
-      await ref.read(galleryCurrentIndexProvider.notifier).update(index);
-    }
+    if (index < 0 || index >= assets.length) return;
+    
+    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    
+    // 如果跳转到当前位置，不执行任何操作（防止重复套用标签）
+    if (index == currentIndex) return;
+    
+    // 标签自动套用：在新媒体成为"当前"之前，先将当前媒体的标签写入目标
+    await _inheritTagsToTarget(currentIndex, index, assets);
+    await ref.read(galleryCurrentIndexProvider.notifier).update(index);
   }
   
   /// 跳转到下一个未删除的文件（从当前位置开始查找）
@@ -172,6 +184,9 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     // 从当前位置向后找
     for (int i = currentIndex; i < assets.length; i++) {
       if (!assets[i].isDeleted) {
+        if (i != currentIndex) {
+          await _inheritTagsToTarget(currentIndex, i, assets);
+        }
         await ref.read(galleryCurrentIndexProvider.notifier).update(i);
         return;
       }
@@ -179,11 +194,51 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     // 向后没找到，从当前位置向前找
     for (int i = currentIndex - 1; i >= 0; i--) {
       if (!assets[i].isDeleted) {
+        await _inheritTagsToTarget(currentIndex, i, assets);
         await ref.read(galleryCurrentIndexProvider.notifier).update(i);
         return;
       }
     }
     // 全部都被删除了，保持当前索引
+  }
+
+  /// 标签自动套用：将当前媒体的标签写入目标媒体
+  /// 
+  /// 在索引变更**之前**调用，这样 [currentMediaTagsProvider] 因索引变更而
+  /// 重建时，从数据库读取到的就是已经套用后的标签。
+  Future<void> _inheritTagsToTarget(int fromIndex, int toIndex, List<MediaAsset> assets) async {
+    // 检查功能是否开启
+    final tagAutoApply = ref.read(galleryTagAutoApplyEnabledProvider);
+    if (!tagAutoApply) return;
+    
+    // 索引越界保护
+    if (fromIndex < 0 || fromIndex >= assets.length) return;
+    if (toIndex < 0 || toIndex >= assets.length) return;
+    
+    // 同一文件不套用
+    if (fromIndex == toIndex) return;
+    
+    final fromAsset = assets[fromIndex];
+    final toAsset = assets[toIndex];
+    
+    try {
+      final db = ref.read(galleryDatabaseProvider);
+      // 获取当前媒体的标签 ID
+      final tagIds = await db.getTagIdsForMedia(fromAsset.id);
+      // 写入目标媒体（全量替换）
+      await db.setTagsForMedia(toAsset.id, tagIds);
+      
+      // 标签关联变化后刷新标签指示器数据
+      ref.invalidate(mediaIdsWithTagsProvider);
+      
+      // 更新 modified_count
+      final currentModified = ref.read(galleryModifiedCountProvider);
+      if (toIndex > currentModified) {
+        await ref.read(galleryModifiedCountProvider.notifier).update(toIndex);
+      }
+    } catch (_) {
+      // 标签套用失败时静默处理，不阻塞导航
+    }
   }
 }
 

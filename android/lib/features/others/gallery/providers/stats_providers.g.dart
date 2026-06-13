@@ -60,5 +60,23 @@ final galleryCachedStorageStatsProvider =
 );
 
 typedef _$GalleryCachedStorageStats = Notifier<GalleryStorageStats>;
+String _$mediaIdsWithTagsHash() =>
+    r'0000000000000000000000000000000000000001';
+
+/// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）
+///
+/// Copied from [mediaIdsWithTags].
+@ProviderFor(mediaIdsWithTags)
+final mediaIdsWithTagsProvider = FutureProvider<Set<String>>.internal(
+  mediaIdsWithTags,
+  name: r'mediaIdsWithTagsProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$mediaIdsWithTagsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef MediaIdsWithTagsRef = FutureProviderRef<Set<String>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

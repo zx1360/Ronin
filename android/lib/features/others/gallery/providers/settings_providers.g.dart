@@ -234,5 +234,24 @@ final galleryGridPreviewModeNotifierProvider = NotifierProvider<
 );
 
 typedef _$GalleryGridPreviewModeNotifier = Notifier<GalleryGridPreviewMode>;
+String _$galleryTagAutoApplyEnabledHash() =>
+    r'0000000000000000000000000000000000000000';
+
+/// 标签自动套用开关（默认关闭）
+///
+/// Copied from [GalleryTagAutoApplyEnabled].
+@ProviderFor(GalleryTagAutoApplyEnabled)
+final galleryTagAutoApplyEnabledProvider =
+    NotifierProvider<GalleryTagAutoApplyEnabled, bool>.internal(
+  GalleryTagAutoApplyEnabled.new,
+  name: r'galleryTagAutoApplyEnabledProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryTagAutoApplyEnabledHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryTagAutoApplyEnabled = Notifier<bool>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
