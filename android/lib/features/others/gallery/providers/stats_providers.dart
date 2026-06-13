@@ -80,3 +80,10 @@ Future<GalleryOverview> galleryServerOverview(GalleryServerOverviewRef ref) asyn
   final response = await apiClient.get('/API/gallery/overview');
   return GalleryOverview.fromJson(response.data as Map<String, dynamic>);
 }
+
+/// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）
+@Riverpod(keepAlive: true)
+Future<Set<String>> mediaIdsWithTags(MediaIdsWithTagsRef ref) async {
+  final db = ref.watch(galleryDatabaseProvider);
+  return await db.getMediaIdsWithTags();
+}

@@ -17,6 +17,7 @@ class _WaterfallCell extends ConsumerStatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final VoidCallback? onDoubleTap;
+  final bool hasTags;
 
   const _WaterfallCell({
     super.key,
@@ -29,6 +30,7 @@ class _WaterfallCell extends ConsumerStatefulWidget {
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
+    this.hasTags = false,
   });
 
   @override
@@ -87,10 +89,11 @@ class _WaterfallCellState extends ConsumerState<_WaterfallCell> {
     }
   }
 
-  double? _displayHeight() {
-    if (_imageSize == null || widget.cellWidth <= 0) return null;
+  double _displayHeight() {
+    // 图片尺寸未知时使用默认竖屏比例，避免布局剧烈跳变
+    if (_imageSize == null || widget.cellWidth <= 0) return widget.cellWidth * 0.75;
     final aspectRatio = _imageSize!.width / _imageSize!.height;
-    if (aspectRatio <= 0) return null;
+    if (aspectRatio <= 0) return widget.cellWidth * 0.75;
     final rawHeight = widget.cellWidth / aspectRatio;
     return min(rawHeight, widget.cellWidth * 4);
   }
@@ -104,17 +107,21 @@ class _WaterfallCellState extends ConsumerState<_WaterfallCell> {
         onTap: widget.onTap,
         onDoubleTap: widget.onDoubleTap,
         onLongPress: widget.onLongPress,
-        child: Stack(
-          children: [
-            if (_isLoading)
-              _buildPlaceholder(displayH ?? widget.cellWidth)
-            else if (_previewFile != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: _buildImage(displayH),
-              )
-            else
-              _buildPlaceholder(displayH ?? widget.cellWidth),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          child: Stack(
+            children: [
+              if (_isLoading)
+                _buildPlaceholder(displayH)
+              else if (_previewFile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: _buildImage(displayH),
+                )
+              else
+                _buildPlaceholder(displayH),
 
             if (widget.isSelected)
               Positioned.fill(
@@ -210,6 +217,20 @@ class _WaterfallCellState extends ConsumerState<_WaterfallCell> {
                 ),
               ),
 
+            if (widget.hasTags && !widget.isSelectionMode)
+              Positioned(
+                bottom: 4,
+                left: widget.asset.groupId != null ? 24 : 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.teal,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Icon(Icons.label_outline, color: Colors.white, size: 12),
+                ),
+              ),
+
             if (widget.asset.isVideo)
               const Positioned(
                 bottom: 4,
@@ -219,16 +240,17 @@ class _WaterfallCellState extends ConsumerState<_WaterfallCell> {
           ],
         ),
       ),
+    ),
     );
   }
 
-  Widget _buildImage(double? displayH) {
+  Widget _buildImage(double displayH) {
     final img = Image.file(
       _previewFile!,
       fit: BoxFit.cover,
       width: widget.cellWidth,
       height: displayH,
-      errorBuilder: (context, error, stack) => _buildPlaceholder(displayH ?? widget.cellWidth),
+      errorBuilder: (context, error, stack) => _buildPlaceholder(displayH),
     );
 
     final resolved = img.image.resolve(const ImageConfiguration());

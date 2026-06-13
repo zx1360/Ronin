@@ -20,6 +20,7 @@ class GalleryPrefsKeys {
   static const String downloadMonth = 'gallery_download_month';
   static const String downloadDay = 'gallery_download_day';
   static const String downloadSecondarySort = 'gallery_download_secondary_sort';
+  static const String tagAutoApply = 'gallery_tag_auto_apply';
 }
 
 /// modified_count - 记录最后一次操作的媒体文件在队列中的位置
@@ -265,5 +266,29 @@ class GalleryGridPreviewModeNotifier extends _$GalleryGridPreviewModeNotifier {
     final modes = GalleryGridPreviewMode.values;
     final nextIdx = (modes.indexOf(state) + 1) % modes.length;
     await setMode(modes[nextIdx]);
+  }
+}
+
+/// 标签自动套用开关（默认关闭）
+/// 开启后，当前媒体文件的标签会自动套用到下一个成为"当前文件"的媒体上。
+@Riverpod(keepAlive: true)
+class GalleryTagAutoApplyEnabled extends _$GalleryTagAutoApplyEnabled {
+  @override
+  bool build() {
+    final prefs = PrefsService().prefs;
+    return prefs.getBool(GalleryPrefsKeys.tagAutoApply) ?? false;
+  }
+
+  Future<void> toggle() async {
+    final prefs = PrefsService().prefs;
+    final newValue = !state;
+    await prefs.setBool(GalleryPrefsKeys.tagAutoApply, newValue);
+    state = newValue;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    final prefs = PrefsService().prefs;
+    await prefs.setBool(GalleryPrefsKeys.tagAutoApply, enabled);
+    state = enabled;
   }
 }

@@ -324,10 +324,48 @@ class GalleryDatabaseService {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  /// 获取所有有关联标签的媒体 ID 集合（用于浏览页网格指示器）
+  Future<Set<String>> getMediaIdsWithTags() async {
+    final db = await database;
+    final maps = await db.rawQuery('SELECT DISTINCT media_id FROM media_tag_links');
+    return maps.map((m) => m['media_id'] as String).toSet();
+  }
+
   /// 删除标签 (级联删除子标签和关联)
+  /// 
+  /// 通过事务显式处理：先收集所有受影响的标签 ID（含子孙），
+  /// 再删除关联的 media_tag_links，最后删除标签本身。
+  /// 不依赖 SQLite PRAGMA foreign_keys 的 CASCADE 行为。
   Future<void> deleteTag(String tagId) async {
     final db = await database;
-    await db.delete('tags', where: 'id = ?', whereArgs: [tagId]);
+    await db.transaction((txn) async {
+      // 1. 递归收集所有子孙标签 ID
+      final allTagIds = await _collectDescendantTagIds(txn, tagId);
+      allTagIds.add(tagId);
+      
+      // 2. 删除所有关联的 media_tag_links
+      for (final tid in allTagIds) {
+        await txn.delete('media_tag_links', where: 'tag_id = ?', whereArgs: [tid]);
+      }
+      
+      // 3. 删除所有标签（从叶子到根，避免外键约束在事务中报错）
+      for (final tid in allTagIds) {
+        await txn.delete('tags', where: 'id = ?', whereArgs: [tid]);
+      }
+    });
+  }
+
+  /// 递归收集标签的所有子孙 ID（不包含自身）
+  Future<List<String>> _collectDescendantTagIds(Transaction txn, String parentId) async {
+    final result = <String>[];
+    final children = await txn.query('tags', where: 'parent_id = ?', whereArgs: [parentId]);
+    for (final child in children) {
+      final childId = child['id'] as String;
+      result.add(childId);
+      final grandChildren = await _collectDescendantTagIds(txn, childId);
+      result.addAll(grandChildren);
+    }
+    return result;
   }
 
   /// 更新标签 (含 full_path 级联更新)
