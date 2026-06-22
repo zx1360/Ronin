@@ -87,21 +87,25 @@ class _ProportionalCellState extends ConsumerState<_ProportionalCell> {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         onDoubleTap: widget.onDoubleTap,
         onLongPress: widget.onLongPress,
         child: Stack(
           children: [
+            // 加载占位符.
             if (_isLoading)
               _buildPlaceholder()
             else if (_previewFile != null)
-              _IntrinsicHeightCapped(
-                maxAspectRatio: 4.0,
-                child: Image.file(
-                  _previewFile!,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  errorBuilder: (context, error, stack) => _buildPlaceholder(),
+              Center(
+                child: _IntrinsicHeightCapped(
+                  maxAspectRatio: 4.0,
+                  child: Image.file(
+                    _previewFile!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (context, error, stack) => _buildPlaceholder(),
+                  ),
                 ),
               )
             else
@@ -189,7 +193,7 @@ class _ProportionalCellState extends ConsumerState<_ProportionalCell> {
             if (widget.asset.groupId != null)
               Positioned(
                 bottom: 4,
-                left: 4,
+                left: widget.hasTags ? 24: 4,
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -203,7 +207,7 @@ class _ProportionalCellState extends ConsumerState<_ProportionalCell> {
             if (widget.hasTags && !widget.isSelectionMode)
               Positioned(
                 bottom: 4,
-                left: widget.asset.groupId != null ? 24 : 4,
+                left: 4,
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
