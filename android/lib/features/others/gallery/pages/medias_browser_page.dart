@@ -694,7 +694,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           child: IntrinsicHeight(
             child: Row(
               // 行间元素居中
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (int i = start; i < end; i++) ...[
                   if (i > start) const SizedBox(width: 2),
