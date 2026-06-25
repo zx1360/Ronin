@@ -71,9 +71,9 @@ PS: 除了某些页面手动点击"保存"按钮后, 保存在外部公共空间
 
 业务闭环联系紧密, 所以合并了三个项目:
 
-- [zx1360/monarch: (⚠合并入Ronin项目) Go编写的http服务器, 用以支持我另一个项目'torrid'的网络请求.](https://github.com/zx1360/monarch)
-- [zx1360/Torrid: (⚠合并入Ronin项目) 仅安卓端的自用多功能软件. 打卡, 随笔, 看漫画, 与monarch项目联动查看pc库存和媒体文件等功能.](https://github.com/zx1360/Torrid)
-- [zx1360/Northstar: (⚠合并入Ronin项目) 结合monarch库使用, 图形化管理http服务器和小工具.](https://github.com/zx1360/Northstar)
+- [zx1360/monarch: Go编写的http服务器, 用以支持我另一个项目'torrid'的网络请求.](https://github.com/zx1360/monarch)
+- [zx1360/Torrid: 仅安卓端的自用多功能软件. 打卡, 随笔, 看漫画, 与monarch项目联动查看pc库存和媒体文件等功能.](https://github.com/zx1360/Torrid)
+- [zx1360/Northstar: 图形化管理http服务器和小工具.](https://github.com/zx1360/Northstar)
 
 ## 二、业务闭环
 
