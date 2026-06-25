@@ -145,20 +145,6 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
                 ),
               ),
 
-              // 顶部信息栏 (半透明覆盖)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: _TopInfoBar(
-                    currentIndex: currentIndex,
-                    total: assets.length,
-                    asset: currentAsset,
-                  ),
-                ),
-              ),
-
               // 底部进度指示 (当底部栏可见时上浮)
               Positioned(
                 bottom: widget.bottomExcludeHeight > 0
@@ -423,54 +409,6 @@ class _SimpleNavigationButton extends StatelessWidget {
             color: Colors.white,
             size: 40,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 顶部信息栏 - 显示删除/捆绑标记
-class _TopInfoBar extends StatelessWidget {
-  final int currentIndex;
-  final int total;
-  final MediaAsset? asset;
-
-  const _TopInfoBar({
-    required this.currentIndex,
-    required this.total,
-    this.asset,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasMarkers = (asset?.isDeleted ?? false) || asset?.groupId != null;
-    if (!hasMarkers) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            if (asset?.isDeleted ?? false)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  '已删除',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
-            if (asset?.groupId != null)
-              const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: Icon(Icons.layers, color: Colors.amber, size: 20),
-              ),
-          ],
         ),
       ),
     );

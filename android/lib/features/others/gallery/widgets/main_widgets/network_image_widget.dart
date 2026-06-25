@@ -100,32 +100,44 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
       child: RotatedBox(
         quarterTurns: widget.rotationQuarterTurns,
         child: crop != null
-            ? LayoutBuilder(builder: (ctx, c) {
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: widget.imageUrl,
-                      httpHeaders: widget.httpHeaders,
-                      imageBuilder: (_, p) {
-                        _captureImageSize(p);
-                        return _buildInteractiveImage(p,
-                            ValueKey('img_${widget.asset.id}_${widget.rotationQuarterTurns}'));
-                      },
-                      placeholder: (_, __) => _buildPlaceholderOrLoading(),
-                      errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
-                    ),
-                    IgnorePointer(child: _CropPreview(crop: crop, imgSize: _imageSize)),
-                  ],
-                );
-              })
+            ? LayoutBuilder(
+                builder: (ctx, c) {
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CachedNetworkImage(
+                        imageUrl: widget.imageUrl,
+                        httpHeaders: widget.httpHeaders,
+                        imageBuilder: (_, p) {
+                          _captureImageSize(p);
+                          return _buildInteractiveImage(
+                            p,
+                            ValueKey(
+                              'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
+                            ),
+                          );
+                        },
+                        placeholder: (_, __) => _buildPlaceholderOrLoading(),
+                        errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
+                      ),
+                      IgnorePointer(
+                        child: _CropPreview(crop: crop, imgSize: _imageSize),
+                      ),
+                    ],
+                  );
+                },
+              )
             : CachedNetworkImage(
                 imageUrl: widget.imageUrl,
                 httpHeaders: widget.httpHeaders,
                 imageBuilder: (_, p) {
                   _captureImageSize(p);
-                  return _buildInteractiveImage(p,
-                      ValueKey('img_${widget.asset.id}_${widget.rotationQuarterTurns}'));
+                  return _buildInteractiveImage(
+                    p,
+                    ValueKey(
+                      'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
+                    ),
+                  );
                 },
                 placeholder: (_, __) => _buildPlaceholderOrLoading(),
                 errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
@@ -154,33 +166,38 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   /// 从 imageProvider 捕获实际图片像素尺寸
   void _captureImageSize(ImageProvider p) {
     final resolved = p.resolve(const ImageConfiguration());
-    resolved.addListener(ImageStreamListener((info, _) {
-      final sz = Size(info.image.width.toDouble(), info.image.height.toDouble());
-      if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => _imageSize = sz);
-        });
-      }
-    }));
+    resolved.addListener(
+      ImageStreamListener((info, _) {
+        final sz = Size(
+          info.image.width.toDouble(),
+          info.image.height.toDouble(),
+        );
+        if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _imageSize = sz);
+          });
+        }
+      }),
+    );
   }
 
   Widget _buildInteractiveImage(ImageProvider imageProvider, Key key) {
-    return InteractiveViewer(
-      key: key,
-      transformationController: _transformController,
-      minScale: _minScale,
-      maxScale: _maxScale,
-      panEnabled: true,
-      scaleEnabled: true,
-      // 限制在边界内平移
-      boundaryMargin: EdgeInsets.zero,
-      constrained: true,
-      child: Center(
-        child: Image(
-          image: imageProvider,
-          fit: BoxFit.contain,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: ((context, constraints) {
+        final width = constraints.maxWidth;
+        return InteractiveViewer(
+          key: key,
+          transformationController: _transformController,
+          minScale: _minScale,
+          maxScale: _maxScale,
+          constrained: false,
+          child: Image(
+            image: imageProvider,
+            fit: BoxFit.fitWidth,
+            width: width,
+          ),
+        );
+      }),
     );
   }
 
@@ -194,39 +211,31 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     if (_placeholderFile != null) {
       return InteractiveViewer(
         key: ValueKey(
-            'placeholder_${widget.asset.id}_${widget.rotationQuarterTurns}'),
+          'placeholder_${widget.asset.id}_${widget.rotationQuarterTurns}',
+        ),
         minScale: _minScale,
         maxScale: _maxScale,
-        boundaryMargin: EdgeInsets.zero,
         constrained: true,
         child: Center(
-          child: Image.file(
-            _placeholderFile!,
-            fit: BoxFit.contain,
-          ),
+          child: Image.file(_placeholderFile!, fit: BoxFit.contain),
         ),
       );
     }
 
-    return const Center(
-      child: CircularProgressIndicator(color: Colors.white),
-    );
+    return const Center(child: CircularProgressIndicator(color: Colors.white));
   }
 
   Widget _buildErrorOrPlaceholder() {
     if (_placeholderFile != null) {
       return InteractiveViewer(
         key: ValueKey(
-            'error_${widget.asset.id}_${widget.rotationQuarterTurns}'),
+          'error_${widget.asset.id}_${widget.rotationQuarterTurns}',
+        ),
         minScale: _minScale,
         maxScale: _maxScale,
-        boundaryMargin: EdgeInsets.zero,
         constrained: true,
         child: Center(
-          child: Image.file(
-            _placeholderFile!,
-            fit: BoxFit.contain,
-          ),
+          child: Image.file(_placeholderFile!, fit: BoxFit.contain),
         ),
       );
     }
@@ -237,10 +246,7 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
         children: [
           const Icon(Icons.error, color: Colors.red, size: 48),
           const SizedBox(height: 8),
-          Text(
-            '加载失败',
-            style: TextStyle(color: Colors.grey[400]),
-          ),
+          Text('加载失败', style: TextStyle(color: Colors.grey[400])),
         ],
       ),
     );
@@ -250,7 +256,12 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
 /// 裁切数据 (原始图片像素坐标)
 class _CropRect {
   final double left, top, right, bottom;
-  const _CropRect({required this.left, required this.top, required this.right, required this.bottom});
+  const _CropRect({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
 }
 
 /// 裁切预览 — 在 RotatedBox 内部，与图片共享坐标空间
@@ -261,30 +272,39 @@ class _CropPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (ctx, c) {
-      final cw = c.maxWidth, ch = c.maxHeight;
-      if (cw <= 0 || ch <= 0) return const SizedBox();
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final cw = c.maxWidth, ch = c.maxHeight;
+        if (cw <= 0 || ch <= 0) return const SizedBox();
 
-      // 用 crop 的 [right, bottom] 估算图片尺寸；如果 imgSize 已知则用 imgSize
-      final iw = imgSize?.width ?? crop.right;
-      final ih = imgSize?.height ?? crop.bottom;
-      if (iw <= 0 || ih <= 0) return const SizedBox();
+        // 用 crop 的 [right, bottom] 估算图片尺寸；如果 imgSize 已知则用 imgSize
+        final iw = imgSize?.width ?? crop.right;
+        final ih = imgSize?.height ?? crop.bottom;
+        if (iw <= 0 || ih <= 0) return const SizedBox();
 
-      // 与编辑器一致的 display rect 计算
-      final ia = iw / ih, ca = cw / ch;
-      double dw, dh;
-      if (ia > ca) { dw = cw; dh = cw / ia; }
-      else { dh = ch; dw = ch * ia; }
-      final ox = (cw - dw) / 2, oy = (ch - dh) / 2;
-      final sx = dw / iw, sy = dh / ih;
+        // 与编辑器一致的 display rect 计算
+        final ia = iw / ih, ca = cw / ch;
+        double dw, dh;
+        if (ia > ca) {
+          dw = cw;
+          dh = cw / ia;
+        } else {
+          dh = ch;
+          dw = ch * ia;
+        }
+        final ox = (cw - dw) / 2, oy = (ch - dh) / 2;
+        final sx = dw / iw, sy = dh / ih;
 
-      final cl = crop.left * sx + ox;
-      final ct = crop.top * sy + oy;
-      final cr = crop.right * sx + ox;
-      final cb = crop.bottom * sy + oy;
+        final cl = crop.left * sx + ox;
+        final ct = crop.top * sy + oy;
+        final cr = crop.right * sx + ox;
+        final cb = crop.bottom * sy + oy;
 
-      return CustomPaint(painter: _CropPreviewPainter(Rect.fromLTRB(cl, ct, cr, cb)));
-    });
+        return CustomPaint(
+          painter: _CropPreviewPainter(Rect.fromLTRB(cl, ct, cr, cb)),
+        );
+      },
+    );
   }
 }
 
@@ -298,9 +318,13 @@ class _CropPreviewPainter extends CustomPainter {
     c.drawRect(Rect.fromLTWH(0, r.bottom, s.width, s.height - r.bottom), bg);
     c.drawRect(Rect.fromLTWH(0, r.top, r.left, r.height), bg);
     c.drawRect(Rect.fromLTWH(r.right, r.top, s.width - r.right, r.height), bg);
-    final bd = Paint()..color = Colors.white54..style = PaintingStyle.stroke..strokeWidth = 1.5;
+    final bd = Paint()
+      ..color = Colors.white54
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
     c.drawRect(r, bd);
   }
+
   @override
   bool shouldRepaint(_CropPreviewPainter o) => o.r != r;
 }
