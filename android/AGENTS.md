@@ -1,6 +1,6 @@
 ﻿## 项目说明 (Torrid)
 
-Flutter 目标平台仅为安卓移动段的应用，Ronin 三端架构的消费端。所有持久化数据通过 Monarch 后端 API 存取。
+Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费端。所有持久化数据通过 Monarch 后端 API 存取。
 
 ### 核心功能与后端依赖
 
@@ -32,7 +32,7 @@ Flutter 目标平台仅为安卓移动段的应用，Ronin 三端架构的消费
 - 网络层：`lib/core/services/`、`lib/providers/api_client/`。
 - 自签证书：`assets/cert/`，通过 `CertTrust` 加载。
 - 画廊支持双向同步：`POST /API/gallery/push`。
-- **mDNS 自动发现**：设置页点击"发现"可自动扫描局域网内的 Monarch 服务，发现的新地址会自动添加到配置列表。
+- mDNS 自动发现：设置页点击"发现"可自动扫描局域网内的 Monarch 服务，发现的新地址会自动添加到配置列表。
 
 ### 硬性要求
 
