@@ -32,7 +32,6 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
   /// 图片原始尺寸
   Size? _imgSize;
 
-  _DragTarget _dragTarget = _DragTarget.none;
   bool _saving = false;
   bool _cropInitialized = false;
 
@@ -271,9 +270,9 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
       left: l, top: t, width: safeW, height: safeH,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onPanStart: (_) => _dragTarget = tg,
+        onPanStart: (_) {},
         onPanUpdate: (d) => _onDrag(d, tg),
-        onPanEnd: (_) => _dragTarget = _DragTarget.none,
+        onPanEnd: (_) {},
         child: Container(color: Colors.transparent),
       ),
     );
@@ -283,9 +282,9 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
     return Positioned(
       left: l - _hs / 2, top: t - _hs / 2,
       child: GestureDetector(
-        onPanStart: (_) => _dragTarget = tg,
+        onPanStart: (_) {},
         onPanUpdate: (d) => _onDrag(d, tg),
-        onPanEnd: (_) => _dragTarget = _DragTarget.none,
+        onPanEnd: (_) {},
         child: Container(
           width: _hs, height: _hs,
           decoration: BoxDecoration(

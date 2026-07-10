@@ -13,6 +13,38 @@ import 'package:torrid/features/others/gallery/providers/gallery_providers.dart'
 import 'package:torrid/features/others/gallery/widgets/main_widgets/content_widget.dart';
 import 'package:torrid/features/others/gallery/widgets/preview_window_widget.dart';
 
+/// 解析编辑参数 JSON，生成人类可读的编辑提示文本。
+/// 返回 null 表示没有有效的编辑信息。
+String? parseEditInfo(dynamic media) {
+  if (media == null || media.editParams == null) return null;
+  try {
+    final json = jsonDecode(media.editParams as String) as Map<String, dynamic>;
+    final type = json['type'] as String?;
+    if (type == 'image') {
+      final rot = json['rotation'] as int? ?? 0;
+      final hasCrop = json['crop_left'] != null;
+      final parts = <String>[];
+      if (rot != 0) parts.add('旋转$rot°');
+      if (hasCrop) parts.add('裁剪中');
+      return parts.isEmpty ? null : '编辑: ${parts.join(' · ')}';
+    } else if (type == 'video') {
+      final start = (json['trim_start_sec'] as num?)?.toDouble();
+      final end = (json['trim_end_sec'] as num?)?.toDouble();
+      final parts = <String>[];
+      if (start != null && start > 0) parts.add(_formatSeconds(start));
+      if (end != null && end > 0) parts.add(_formatSeconds(end));
+      return parts.isEmpty ? null : '剪辑: ${parts.join(' → ')}';
+    }
+  } catch (_) {}
+  return null;
+}
+
+String _formatSeconds(double sec) {
+  final m = (sec / 60).floor();
+  final s = (sec % 60).floor();
+  return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+}
+
 /// Gallery 模块主页面
 /// 媒体文件队列排序规则: 按照 media_assets 表的 captured_at 时间升序排列
 class GalleryPage extends ConsumerStatefulWidget {
@@ -26,10 +58,12 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   /// 顶部/底部工具栏是否可见
   bool _barsVisible = true;
 
+  /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270°)
+  int _quarterTurns = 0;
+
   @override
   void initState() {
     super.initState();
-    // 初始化存储目录
     _initStorage();
   }
 
@@ -38,16 +72,16 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     await storage.initDirectories();
   }
 
-  /// 切换工具栏可见性
   void _toggleBarsVisibility() {
-    setState(() {
-      _barsVisible = !_barsVisible;
-    });
+    setState(() => _barsVisible = !_barsVisible);
+  }
+
+  void _toggleRotation() {
+    setState(() => _quarterTurns = _quarterTurns == 0 ? 1 : 0);
   }
 
   @override
   Widget build(BuildContext context) {
-    // 设置状态栏样式
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarIconBrightness: Brightness.light,
@@ -58,34 +92,33 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
 
-    // 计算安全区域高度，用于手势区域排除
     final mediaQuery = MediaQuery.of(context);
-    final topBarHeight = mediaQuery.padding.top + 44; // SafeArea + 紧凑顶部栏
-    final bottomBarHeight =
-        mediaQuery.padding.bottom + 56 + 40; // SafeArea + BottomBar + TagBar
+    final topBarHeight = mediaQuery.padding.top + 44;
+    final bottomBarHeight = mediaQuery.padding.bottom + 56 + 40;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          currentMedia == null
-              ? Center(
-                  child: Text(
-                    '暂无内容',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
-                  ),
-                )
-              :
-                // 全屏内容区 - ContentWidget 覆盖整个屏幕
-                Positioned.fill(
-                  child: ContentWidget(
-                    onToggleBars: _toggleBarsVisibility,
-                    onPrevious: _goToPrevious,
-                    onNext: _goToNext,
-                    topExcludeHeight: _barsVisible ? topBarHeight : 0,
-                    bottomExcludeHeight: _barsVisible ? bottomBarHeight : 0,
-                  ),
-                ),
+          if (currentMedia == null)
+            const Center(
+              child: Text(
+                '暂无内容',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+            )
+          else
+            Positioned.fill(
+              child: ContentWidget(
+                rotationQuarterTurns: _quarterTurns,
+                onToggleBars: _toggleBarsVisibility,
+                onPrevious: _goToPrevious,
+                onNext: _goToNext,
+                onRotate: _toggleRotation,
+                topExcludeHeight: _barsVisible ? topBarHeight : 0,
+                bottomExcludeHeight: _barsVisible ? bottomBarHeight : 0,
+              ),
+            ),
 
           // 顶部导航栏 (可切换显示/隐藏)
           AnimatedPositioned(
@@ -124,14 +157,11 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     );
   }
 
-  /// 构建顶部导航栏
   Widget _buildTopBar(BuildContext context) {
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final fileName =
         currentMedia?.filePath.split('/').last.split('\\').last ?? '';
-
-    // 编辑信息提示
-    final editInfo = _buildEditInfo(currentMedia);
+    final editInfo = parseEditInfo(currentMedia);
 
     return Container(
       color: Colors.black,
@@ -192,37 +222,6 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
         ),
       ),
     );
-  }
-
-  /// 解析编辑参数生成提示文本
-  String? _buildEditInfo(dynamic media) {
-    if (media == null || media.editParams == null) return null;
-    try {
-      final json = jsonDecode(media.editParams as String) as Map<String, dynamic>;
-      final type = json['type'] as String?;
-      if (type == 'image') {
-        final rot = json['rotation'] as int? ?? 0;
-        final hasCrop = json['crop_left'] != null;
-        final parts = <String>[];
-        if (rot != 0) parts.add('旋转$rot°');
-        if (hasCrop) parts.add('裁剪中');
-        return parts.isEmpty ? null : '编辑: ${parts.join(' · ')}';
-      } else if (type == 'video') {
-        final start = (json['trim_start_sec'] as num?)?.toDouble();
-        final end = (json['trim_end_sec'] as num?)?.toDouble();
-        final parts = <String>[];
-        if (start != null && start > 0) parts.add(_formatSec(start));
-        if (end != null && end > 0) parts.add(_formatSec(end));
-        return parts.isEmpty ? null : '剪辑: ${parts.join(' → ')}';
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  String _formatSec(double sec) {
-    final m = (sec / 60).floor();
-    final s = (sec % 60).floor();
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   /// 构建标签栏
