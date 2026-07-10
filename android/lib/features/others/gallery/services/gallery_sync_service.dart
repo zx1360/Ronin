@@ -466,13 +466,11 @@ Future<void> _deleteFilesInIsolate(
   List<String> thumbResolvedPaths,
   List<String> previewResolvedPaths,
 ) async {
-  int deletedCount = 0;
   for (final path in thumbResolvedPaths) {
     try {
       final file = File(path);
       if (await file.exists()) {
         await file.delete();
-        deletedCount++;
       }
     } catch (_) {}
   }
@@ -481,7 +479,6 @@ Future<void> _deleteFilesInIsolate(
       final file = File(path);
       if (await file.exists()) {
         await file.delete();
-        deletedCount++;
       }
     } catch (_) {}
   }
