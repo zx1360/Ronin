@@ -6,35 +6,31 @@ import 'package:torrid/features/others/gallery/providers/gallery_providers.dart'
 import 'package:torrid/features/others/gallery/widgets/main_widgets/media_item_view.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
-/// 媒体内容展示组件
-/// - 显示当前媒体文件 (图片/视频)
-/// - 图片支持双指缩放/滑动查看
-/// - 手势区域:
-///   - 左 1/4 点击: 上一张
-///   - 右 1/4 点击: 下一张
-///   - 中心区域单击: 切换顶部/底部栏可见性
-///   - 中心区域双击: 旋转90度 (再次双击复原)
+/// 媒体内容展示组件 — 纯渲染，不管理交互状态。
+///
+/// 职责：
+/// - 根据 [rotationQuarterTurns] 和当前 asset 渲染 [MediaItemView]
+/// - 在图片模式下提供左右 1/4 点击切图 + 中心单击/双击手势
+/// - 在视频模式下提供浮动控制按钮
+/// - 预加载附近图片网络资源
+///
+/// 所有交互回调（上一张/下一张/切换工具栏/旋转）由父级 [GalleryPage] 提供。
 class ContentWidget extends ConsumerStatefulWidget {
-  /// 切换顶部/底部栏可见性回调
+  final int rotationQuarterTurns;
   final VoidCallback? onToggleBars;
-
-  /// 上一张回调
   final VoidCallback? onPrevious;
-
-  /// 下一张回调
   final VoidCallback? onNext;
-
-  /// 顶部排除区域高度 (不响应手势)
+  final VoidCallback? onRotate;
   final double topExcludeHeight;
-
-  /// 底部排除区域高度 (不响应手势)
   final double bottomExcludeHeight;
 
   const ContentWidget({
     super.key,
+    this.rotationQuarterTurns = 0,
     this.onToggleBars,
     this.onPrevious,
     this.onNext,
+    this.onRotate,
     this.topExcludeHeight = 0,
     this.bottomExcludeHeight = 0,
   });
@@ -44,13 +40,7 @@ class ContentWidget extends ConsumerStatefulWidget {
 }
 
 class _ContentWidgetState extends ConsumerState<ContentWidget> {
-  /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270°)
-  int _quarterTurns = 0;
-
-  /// 已预缓存的资源ID集合（避免重复请求）
   final Set<String> _precachedIds = {};
-
-  /// 上次预缓存时的索引
   int? _lastPrecacheIndex;
 
   @override
@@ -59,511 +49,319 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     final currentIndex = ref.watch(galleryCurrentIndexProvider);
 
     return assetsAsync.when(
-      loading: () => _buildLoadingState(),
-      error: (error, stack) => _buildErrorState(error),
-      data: (assets) => _buildDataState(assets, currentIndex),
+      loading: () => _buildCentered(const CircularProgressIndicator(color: Colors.white)),
+      error: (e, _) => _buildError(e),
+      data: (assets) => _buildData(assets, currentIndex),
     );
   }
 
-  Widget _buildLoadingState() {
-    return Container(
-      color: Colors.black,
-      child: const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      ),
-    );
-  }
+  // ---- 静态状态 ----
 
-  Widget _buildErrorState(Object error) {
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              '加载失败: $error',
-              style: const TextStyle(color: Colors.white),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => ref.invalidate(mediaAssetListProvider),
-              child: const Text('重试'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildCentered(Widget child) =>
+      Container(color: Colors.black, child: Center(child: child));
 
-  Widget _buildDataState(List<MediaAsset> assets, int currentIndex) {
-    if (assets.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    // 索引越界检查
-    if (currentIndex < 0 || currentIndex >= assets.length) {
-      final safeIndex = currentIndex.clamp(0, assets.length - 1);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(galleryCurrentIndexProvider.notifier).update(safeIndex);
-      });
-      return _buildLoadingState();
-    }
-
-    final currentAsset = assets[currentIndex];
-
-    // 如果当前文件已删除，自动跳到下一个未删除的
-    if (currentAsset.isDeleted) {
-      return _handleDeletedAsset(assets);
-    }
-
-    // 预加载附近图片（在 post frame callback 中执行，不在 build 中直接调用）
-    if (_lastPrecacheIndex != currentIndex) {
-      _lastPrecacheIndex = currentIndex;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _precacheNearbyImages(assets, currentIndex);
-        }
-      });
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Container(
-          color: Colors.black,
-          child: Stack(
-            children: [
-              // 主内容区 - 当前媒体
-              Positioned.fill(
-                child: MediaItemView(
-                  key: ValueKey('${currentAsset.id}_$_quarterTurns'),
-                  asset: currentAsset,
-                  rotationQuarterTurns: _quarterTurns,
-                ),
-              ),
-
-              // 底部进度指示 (当底部栏可见时上浮)
-              Positioned(
-                bottom: widget.bottomExcludeHeight > 0
-                    ? widget.bottomExcludeHeight + 8
-                    : 8,
-                left: 16,
-                right: 16,
-                child: IgnorePointer(
-                  child: _ProgressIndicator(
-                    current: currentIndex + 1,
-                    total: assets.length,
-                  ),
-                ),
-              ),
-
-              // 手势操作层 - 根据媒体类型选择不同交互方式
-              // 使用 Positioned.fill 确保手势层覆盖全屏，避免作为非定位子组件导致 0x0 布局
-              Positioned.fill(
-                child: currentAsset.isVideo
-                    ? _VideoControlOverlay(
-                        onPrevious: _hasPreviousNonDeleted(assets, currentIndex)
-                            ? widget.onPrevious
-                            : null,
-                        onNext: _hasNextNonDeleted(assets, currentIndex)
-                            ? widget.onNext
-                            : null,
-                        onRotate: _toggleRotation,
-                        onToggleBars: widget.onToggleBars,
-                      )
-                    : _buildGestureLayer(assets, currentIndex, constraints),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      color: Colors.black,
-      child: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.photo_library_outlined, color: Colors.grey, size: 64),
-            SizedBox(height: 16),
-            Text(
-              '暂无媒体文件\n请在设置中下载',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _handleDeletedAsset(List<MediaAsset> assets) {
-    final hasNonDeleted = assets.any((a) => !a.isDeleted);
-    if (!hasNonDeleted) {
-      return Container(
+  Widget _buildError(Object error) => Container(
         color: Colors.black,
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.delete_outline, color: Colors.grey, size: 64),
-              SizedBox(height: 16),
-              Text(
-                '所有文件已删除',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-                textAlign: TextAlign.center,
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text('加载失败: $error',
+                  style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(mediaAssetListProvider),
+                child: const Text('重试'),
               ),
             ],
           ),
         ),
       );
+
+  // ---- 数据状态 ----
+
+  Widget _buildData(List<MediaAsset> assets, int currentIndex) {
+    if (assets.isEmpty) {
+      return _buildCentered(const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.photo_library_outlined, color: Colors.grey, size: 64),
+          SizedBox(height: 16),
+          Text('暂无媒体文件\n请在设置中下载',
+              style: TextStyle(color: Colors.grey, fontSize: 16), textAlign: TextAlign.center),
+        ],
+      ));
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted();
-    });
-    return _buildLoadingState();
-  }
-
-  Widget _buildGestureLayer(
-    List<MediaAsset> assets,
-    int currentIndex,
-    BoxConstraints constraints,
-  ) {
-    return Stack(
-      children: [
-        // 左侧导航按钮 - 上一张
-        Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: constraints.maxWidth / 4,
-          child: _SimpleNavigationButton(
-            onTap: _hasPreviousNonDeleted(assets, currentIndex)
-                ? widget.onPrevious
-                : null,
-            icon: Icons.chevron_left,
-            alignment: Alignment.centerLeft,
-          ),
-        ),
-        // 右侧导航按钮 - 下一张
-        Positioned(
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: constraints.maxWidth / 4,
-          child: _SimpleNavigationButton(
-            onTap: _hasNextNonDeleted(assets, currentIndex)
-                ? widget.onNext
-                : null,
-            icon: Icons.chevron_right,
-            alignment: Alignment.centerRight,
-          ),
-        ),
-        // 中心区域 - 用于切换工具栏和旋转
-        Positioned(
-          left: constraints.maxWidth / 4,
-          right: constraints.maxWidth / 4,
-          top: 0,
-          bottom: 0,
-          child: _SimpleCenterZone(
-            onSingleTap: widget.onToggleBars,
-            onDoubleTap: _toggleRotation,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 切换旋转状态 (只在 0 和 1 之间切换)
-  void _toggleRotation() {
-    setState(() {
-      _quarterTurns = _quarterTurns == 0 ? 1 : 0;
-    });
-  }
-
-  /// 检查是否有上一个未删除的文件
-  bool _hasPreviousNonDeleted(List<MediaAsset> assets, int currentIndex) {
-    for (int i = currentIndex - 1; i >= 0; i--) {
-      if (!assets[i].isDeleted) return true;
+    // 索引越界保护
+    if (currentIndex < 0 || currentIndex >= assets.length) {
+      final safe = currentIndex.clamp(0, assets.length - 1);
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => ref.read(galleryCurrentIndexProvider.notifier).update(safe));
+      return _buildCentered(const CircularProgressIndicator(color: Colors.white));
     }
-    return false;
-  }
 
-  /// 检查是否有下一个未删除的文件
-  bool _hasNextNonDeleted(List<MediaAsset> assets, int currentIndex) {
-    for (int i = currentIndex + 1; i < assets.length; i++) {
-      if (!assets[i].isDeleted) return true;
-    }
-    return false;
-  }
+    final currentAsset = assets[currentIndex];
 
-  /// 预加载附近图片 (当前位置前 N 个、后 M 个未删除文件，跳过已删除)
-  /// 不再使用绝对索引范围，而是实际扫描非删除文件
-  void _precacheNearbyImages(List<MediaAsset> assets, int currentIndex) {
-    if (!mounted) return;
-
-    final apiClient = ref.read(apiClientManagerProvider);
-    final baseUrl = apiClient.baseUrl;
-    final headers = apiClient.headers;
-
-    const precacheBefore = 3;
-    const precacheAfter = 5;
-
-    // 收集需要预缓存的索引（跳过已删除）
-    final toPrecache = <int>[];
-
-    // 向前扫描
-    for (int i = currentIndex - 1, count = 0; i >= 0 && count < precacheBefore; i--) {
-      if (!assets[i].isDeleted) {
-        toPrecache.add(i);
-        count++;
+    // 已删除 → 自动跳到未删除
+    if (currentAsset.isDeleted) {
+      final hasLive = assets.any((a) => !a.isDeleted);
+      if (!hasLive) {
+        return _buildCentered(const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.grey, size: 64),
+            SizedBox(height: 16),
+            Text('所有文件已删除',
+                style: TextStyle(color: Colors.grey, fontSize: 16), textAlign: TextAlign.center),
+          ],
+        ));
       }
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted());
+      return _buildCentered(const CircularProgressIndicator(color: Colors.white));
     }
 
-    // 向后扫描
-    for (int i = currentIndex + 1, count = 0; i < assets.length && count < precacheAfter; i++) {
-      if (!assets[i].isDeleted) {
-        toPrecache.add(i);
-        count++;
-      }
+    // 预加载附近图片
+    if (_lastPrecacheIndex != currentIndex) {
+      _lastPrecacheIndex = currentIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _precache(assets, currentIndex);
+      });
     }
 
-    // 清理不再需要的缓存 ID（当前窗口外的旧缓存）
-    final activeIds = toPrecache.map((i) => assets[i].id).toSet();
-    _precachedIds.removeWhere((id) => !activeIds.contains(id));
-
-    for (final i in toPrecache) {
-      final asset = assets[i];
-
-      // 跳过已经预缓存过的
-      if (_precachedIds.contains(asset.id)) continue;
-      _precachedIds.add(asset.id);
-
-      if (asset.isImage) {
-        final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
-        precacheImage(
-          CachedNetworkImageProvider(imageUrl, headers: headers),
-          context,
-        ).catchError((_) {
-          // 预缓存失败时移除记录，下次可重试
-          _precachedIds.remove(asset.id);
-        });
-      }
-    }
-  }
-}
-
-/// 简化的中心区域 - 处理单击和双击
-class _SimpleCenterZone extends StatelessWidget {
-  final VoidCallback? onSingleTap;
-  final VoidCallback? onDoubleTap;
-
-  const _SimpleCenterZone({
-    this.onSingleTap,
-    this.onDoubleTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: onSingleTap,
-      onDoubleTap: onDoubleTap,
-      child: const SizedBox.expand(),
-    );
-  }
-}
-
-/// 简化的导航按钮 - 用于上一张/下一张
-class _SimpleNavigationButton extends StatelessWidget {
-  final VoidCallback? onTap;
-  final IconData icon;
-  final Alignment alignment;
-
-  const _SimpleNavigationButton({
-    required this.onTap,
-    required this.icon,
-    required this.alignment,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: onTap,
-      child: Container(
-        alignment: alignment,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: AnimatedOpacity(
-          opacity: onTap != null ? 0.3 : 0.0,
-          duration: const Duration(milliseconds: 200),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 40,
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        children: [
+          // 主内容
+          Positioned.fill(
+            child: MediaItemView(
+              key: ValueKey('${currentAsset.id}_${widget.rotationQuarterTurns}'),
+              asset: currentAsset,
+              rotationQuarterTurns: widget.rotationQuarterTurns,
+            ),
           ),
-        ),
+          // 底部进度
+          Positioned(
+            bottom: widget.bottomExcludeHeight > 0 ? widget.bottomExcludeHeight + 8 : 8,
+            left: 16,
+            right: 16,
+            child: IgnorePointer(
+              child: _ProgressBar(current: currentIndex + 1, total: assets.length),
+            ),
+          ),
+          // 手势/控制层
+          Positioned.fill(
+            child: currentAsset.isVideo
+                ? _buildVideoControls(assets, currentIndex)
+                : _buildImageGestures(assets, currentIndex),
+          ),
+        ],
       ),
     );
   }
-}
 
-/// 底部进度指示器
-class _ProgressIndicator extends StatelessWidget {
-  final int current;
-  final int total;
+  // ---- 图片手势 ----
 
-  const _ProgressIndicator({
-    required this.current,
-    required this.total,
-  });
+  Widget _buildImageGestures(List<MediaAsset> assets, int currentIndex) {
+    final hasPrev = _hasLiveBefore(assets, currentIndex);
+    final hasNext = _hasLiveAfter(assets, currentIndex);
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$current / $total',
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 12,
+    return LayoutBuilder(builder: (_, c) {
+      final qw = c.maxWidth / 4;
+      return Stack(
+        children: [
+          // 左 1/4
+          Positioned(
+            left: 0, top: 0, bottom: 0, width: qw,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: hasPrev ? widget.onPrevious : null,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: AnimatedOpacity(
+                    opacity: hasPrev ? 0.3 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(Icons.chevron_left, color: Colors.white, size: 40),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: total > 0 ? current / total : 0,
-            backgroundColor: Colors.white24,
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white70),
-            minHeight: 3,
+          // 右 1/4
+          Positioned(
+            right: 0, top: 0, bottom: 0, width: qw,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: hasNext ? widget.onNext : null,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: AnimatedOpacity(
+                    opacity: hasNext ? 0.3 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(Icons.chevron_right, color: Colors.white, size: 40),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
-    );
+          // 中心 — 单击切换工具栏 / 双击旋转
+          Positioned(
+            left: qw, right: qw, top: 0, bottom: 0,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: widget.onToggleBars,
+              onDoubleTap: widget.onRotate,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ],
+      );
+    });
   }
-}
 
-/// 视频控制覆盖层 - 使用浮动按钮不阻挡视频播放器控制
-class _VideoControlOverlay extends StatelessWidget {
-  final VoidCallback? onPrevious;
-  final VoidCallback? onNext;
-  final VoidCallback? onRotate;
-  final VoidCallback? onToggleBars;
+  // ---- 视频浮动控制 ----
 
-  const _VideoControlOverlay({
-    this.onPrevious,
-    this.onNext,
-    this.onRotate,
-    this.onToggleBars,
-  });
+  Widget _buildVideoControls(List<MediaAsset> assets, int currentIndex) {
+    final hasPrev = _hasLiveBefore(assets, currentIndex);
+    final hasNext = _hasLiveAfter(assets, currentIndex);
 
-  @override
-  Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 左下角 - 上一个按钮
-        Positioned(
-          left: 12,
-          bottom: 60, // 避开底部进度条
-          child: _FloatingControlButton(
-            icon: Icons.skip_previous_rounded,
-            onTap: onPrevious,
-            tooltip: '上一个',
-          ),
-        ),
-        // 右下角 - 下一个按钮
-        Positioned(
-          right: 12,
-          bottom: 60,
-          child: _FloatingControlButton(
-            icon: Icons.skip_next_rounded,
-            onTap: onNext,
-            tooltip: '下一个',
-          ),
-        ),
-        // 右上角 - 旋转按钮
-        Positioned(
-          right: 12,
-          top: 60, // 避开顶部安全区
-          child: _FloatingControlButton(
-            icon: Icons.rotate_right_rounded,
-            onTap: onRotate,
-            tooltip: '旋转',
-          ),
-        ),
-        // 左上角 - 切换工具栏按钮
-        Positioned(
-          left: 12,
-          top: 60,
-          child: _FloatingControlButton(
-            icon: Icons.visibility_rounded,
-            onTap: onToggleBars,
-            tooltip: '显示/隐藏工具栏',
-          ),
-        ),
+        Positioned(left: 12, bottom: 60,
+          child: _FloatingBtn(icon: Icons.skip_previous_rounded, tooltip: '上一个',
+              enabled: hasPrev, onTap: widget.onPrevious)),
+        Positioned(right: 12, bottom: 60,
+          child: _FloatingBtn(icon: Icons.skip_next_rounded, tooltip: '下一个',
+              enabled: hasNext, onTap: widget.onNext)),
+        Positioned(right: 12, top: 60,
+          child: _FloatingBtn(icon: Icons.rotate_right_rounded, tooltip: '旋转',
+              enabled: true, onTap: widget.onRotate)),
+        Positioned(left: 12, top: 60,
+          child: _FloatingBtn(icon: Icons.visibility_rounded, tooltip: '显示/隐藏工具栏',
+              enabled: true, onTap: widget.onToggleBars)),
       ],
     );
   }
+
+  // ---- 辅助 ----
+
+  bool _hasLiveBefore(List<MediaAsset> assets, int idx) {
+    for (int i = idx - 1; i >= 0; i--) {
+      if (!assets[i].isDeleted) return true;
+    }
+    return false;
+  }
+
+  bool _hasLiveAfter(List<MediaAsset> assets, int idx) {
+    for (int i = idx + 1; i < assets.length; i++) {
+      if (!assets[i].isDeleted) return true;
+    }
+    return false;
+  }
+
+  void _precache(List<MediaAsset> assets, int currentIndex) {
+    if (!mounted) return;
+    final api = ref.read(apiClientManagerProvider);
+    final base = api.baseUrl;
+    final hdrs = api.headers;
+
+    const before = 3, after = 5;
+    final targets = <int>[];
+    for (int i = currentIndex - 1, c = 0; i >= 0 && c < before; i--) {
+      if (!assets[i].isDeleted) { targets.add(i); c++; }
+    }
+    for (int i = currentIndex + 1, c = 0; i < assets.length && c < after; i++) {
+      if (!assets[i].isDeleted) { targets.add(i); c++; }
+    }
+
+    final activeIds = targets.map((i) => assets[i].id).toSet();
+    _precachedIds.removeWhere((id) => !activeIds.contains(id));
+
+    for (final i in targets) {
+      final a = assets[i];
+      if (_precachedIds.contains(a.id)) continue;
+      _precachedIds.add(a.id);
+      if (a.isImage) {
+        precacheImage(
+          CachedNetworkImageProvider('$base/API/gallery/${a.id}/file', headers: hdrs),
+          context,
+        ).catchError((_) => _precachedIds.remove(a.id));
+      }
+    }
+  }
 }
 
-/// 浮动控制按钮 - 半透明圆形按钮
-class _FloatingControlButton extends StatefulWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  final String tooltip;
+// ---- 私有小组件 ----
 
-  const _FloatingControlButton({
-    required this.icon,
-    this.onTap,
-    this.tooltip = '',
-  });
+class _ProgressBar extends StatelessWidget {
+  final int current, total;
+  const _ProgressBar({required this.current, required this.total});
 
   @override
-  State<_FloatingControlButton> createState() => _FloatingControlButtonState();
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$current / $total',
+              style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: total > 0 ? current / total : 0,
+              backgroundColor: Colors.white24,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white70),
+              minHeight: 3,
+            ),
+          ),
+        ],
+      );
 }
 
-class _FloatingControlButtonState extends State<_FloatingControlButton> {
-  bool _isPressed = false;
+class _FloatingBtn extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback? onTap;
+  const _FloatingBtn({required this.icon, this.tooltip = '', this.enabled = true, this.onTap});
+
+  @override
+  State<_FloatingBtn> createState() => _FloatingBtnState();
+}
+
+class _FloatingBtnState extends State<_FloatingBtn> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final isEnabled = widget.onTap != null;
-    
+    final ok = widget.enabled && widget.onTap != null;
     return Tooltip(
       message: widget.tooltip,
       child: GestureDetector(
-        onTapDown: isEnabled ? (_) => setState(() => _isPressed = true) : null,
-        onTapUp: isEnabled ? (_) => setState(() => _isPressed = false) : null,
-        onTapCancel: isEnabled ? () => setState(() => _isPressed = false) : null,
+        onTapDown: ok ? (_) => setState(() => _pressed = true) : null,
+        onTapUp: ok ? (_) => setState(() => _pressed = false) : null,
+        onTapCancel: ok ? () => setState(() => _pressed = false) : null,
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 44,
-          height: 44,
+          width: 44, height: 44,
           decoration: BoxDecoration(
-            color: _isPressed
+            color: _pressed
                 ? Colors.white.withValues(alpha: 0.4)
-                : Colors.black.withValues(alpha: isEnabled ? 0.5 : 0.2),
+                : Colors.black.withValues(alpha: ok ? 0.5 : 0.2),
             shape: BoxShape.circle,
             border: Border.all(
-              color: Colors.white.withValues(alpha: isEnabled ? 0.3 : 0.1),
-              width: 1,
-            ),
+                color: Colors.white.withValues(alpha: ok ? 0.3 : 0.1), width: 1),
           ),
-          child: Icon(
-            widget.icon,
-            color: Colors.white.withValues(alpha: isEnabled ? 0.9 : 0.3),
-            size: 24,
-          ),
+          child: Icon(widget.icon,
+              color: Colors.white.withValues(alpha: ok ? 0.9 : 0.3), size: 24),
         ),
       ),
     );
