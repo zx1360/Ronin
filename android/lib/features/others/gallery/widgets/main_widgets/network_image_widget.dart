@@ -33,11 +33,9 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   bool _isLoading = true;
   Size? _imageSize; // 图片实际像素尺寸 (从 imageBuilder 捕获)
 
-  // 用于手动控制缩放和平移
   final TransformationController _transformController =
       TransformationController();
 
-  // 最小/最大缩放
   static const double _minScale = 1.0;
   static const double _maxScale = 4.0;
 
@@ -56,13 +54,14 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   @override
   void didUpdateWidget(covariant NetworkImageWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.asset.id != widget.asset.id) {
+    final assetChanged = oldWidget.asset.id != widget.asset.id;
+    final rotationChanged =
+        oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns;
+    if (assetChanged) {
       _loadPlaceholder();
-      // 重置变换
-      _transformController.value = Matrix4.identity();
+      _imageSize = null;
     }
-    // 旋转变化时也重置变换
-    if (oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns) {
+    if (assetChanged || rotationChanged) {
       _transformController.value = Matrix4.identity();
     }
   }
@@ -95,54 +94,46 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   @override
   Widget build(BuildContext context) {
     final crop = _parseCrop();
+    final imgKey = ValueKey(
+      'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
+    );
+
+    Widget content = _buildCachedImage(imgKey);
+
+    if (crop != null) {
+      content = LayoutBuilder(
+        builder: (_, __) => Stack(
+          fit: StackFit.expand,
+          children: [
+            content,
+            IgnorePointer(
+              child: _CropPreview(crop: crop, imgSize: _imageSize),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       color: Colors.black,
       child: RotatedBox(
         quarterTurns: widget.rotationQuarterTurns,
-        child: crop != null
-            ? LayoutBuilder(
-                builder: (ctx, c) {
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CachedNetworkImage(
-                        imageUrl: widget.imageUrl,
-                        httpHeaders: widget.httpHeaders,
-                        imageBuilder: (_, p) {
-                          _captureImageSize(p);
-                          return _buildInteractiveImage(
-                            p,
-                            ValueKey(
-                              'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
-                            ),
-                          );
-                        },
-                        placeholder: (_, __) => _buildPlaceholderOrLoading(),
-                        errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
-                      ),
-                      IgnorePointer(
-                        child: _CropPreview(crop: crop, imgSize: _imageSize),
-                      ),
-                    ],
-                  );
-                },
-              )
-            : CachedNetworkImage(
-                imageUrl: widget.imageUrl,
-                httpHeaders: widget.httpHeaders,
-                imageBuilder: (_, p) {
-                  _captureImageSize(p);
-                  return _buildInteractiveImage(
-                    p,
-                    ValueKey(
-                      'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
-                    ),
-                  );
-                },
-                placeholder: (_, __) => _buildPlaceholderOrLoading(),
-                errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
-              ),
+        child: content,
       ),
+    );
+  }
+
+  /// 构建 CachedNetworkImage，消除 crop/no-crop 分支重复
+  Widget _buildCachedImage(Key key) {
+    return CachedNetworkImage(
+      imageUrl: widget.imageUrl,
+      httpHeaders: widget.httpHeaders,
+      imageBuilder: (_, p) {
+        _captureImageSize(p);
+        return _buildInteractiveImage(p, key);
+      },
+      placeholder: (_, __) => _buildPlaceholderOrLoading(),
+      errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
     );
   }
 
@@ -163,41 +154,70 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     return null;
   }
 
-  /// 从 imageProvider 捕获实际图片像素尺寸
+  /// 从 imageProvider 捕获实际图片像素尺寸。
+  /// 利用 ImageStreamListener 的 synchronousCall 参数：
+  /// - 同步触发：已在 build 周期内，直接设 _imageSize，当前帧即可用
+  /// - 异步触发：setState 触发重绘，下一帧生效
   void _captureImageSize(ImageProvider p) {
-    final resolved = p.resolve(const ImageConfiguration());
-    resolved.addListener(
-      ImageStreamListener((info, _) {
-        final sz = Size(
-          info.image.width.toDouble(),
-          info.image.height.toDouble(),
+    p
+        .resolve(const ImageConfiguration())
+        .addListener(
+          ImageStreamListener((info, sync) {
+            final sz = Size(
+              info.image.width.toDouble(),
+              info.image.height.toDouble(),
+            );
+            if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
+              _imageSize = sz;
+              if (!sync && mounted) {
+                setState(() {});
+              }
+            }
+          }),
         );
-        if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _imageSize = sz);
-          });
-        }
-      }),
-    );
   }
 
   Widget _buildInteractiveImage(ImageProvider imageProvider, Key key) {
     return LayoutBuilder(
-      builder: ((context, constraints) {
-        final width = constraints.maxWidth;
+      builder: (context, constraints) {
+        final cw = constraints.maxWidth;
+        final ch = constraints.maxHeight;
+
+        // 通过布局（而非 transform）控制初始对齐：
+        // - 图片高度 ≤ 视口 → 居中（SizedBox 撑满视口，Align 居中 image）
+        // - 图片高度 > 视口 → 顶格 top（SizedBox 与 image 等高，自然 top 对齐）
+        final imgSize = _imageSize;
+        final bool hasSize =
+            imgSize != null && imgSize.width > 0 && imgSize.height > 0;
+        final double imgH = hasSize ? cw * imgSize!.height / imgSize.width : 0;
+
+        // childHeight ≥ 视口高度，确保 InteractiveViewer pan 范围正确
+        final double childHeight = (hasSize && imgH > ch) ? imgH : ch;
+        // 仅在尺寸已知且不溢出时居中
+        final bool center = hasSize && imgH > 0 && imgH <= ch;
+
+        final image = Image(
+          image: imageProvider,
+          fit: BoxFit.fitWidth,
+          width: cw,
+        );
+
         return InteractiveViewer(
           key: key,
           transformationController: _transformController,
           minScale: _minScale,
           maxScale: _maxScale,
           constrained: false,
-          child: Image(
-            image: imageProvider,
-            fit: BoxFit.fitWidth,
-            width: width,
+          child: SizedBox(
+            width: cw,
+            height: childHeight,
+            child: Align(
+              alignment: center ? Alignment.center : Alignment.topCenter,
+              child: image,
+            ),
           ),
         );
-      }),
+      },
     );
   }
 

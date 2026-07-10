@@ -61,6 +61,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270°)
   int _quarterTurns = 0;
 
+  /// 数值配置
+  Color get _barBackgroundColor => Color.fromRGBO(0, 0, 0, 0.25);
+
   @override
   void initState() {
     super.initState();
@@ -151,7 +154,10 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
           // 预览小窗 - 仅在启用且存在下一个文件时显示
           if (ref.watch(galleryPreviewWindowEnabledProvider))
-            PreviewWindowWidget(onTap: _goToNext),
+            PreviewWindowWidget(
+              onTap: _goToNext,
+              rotationQuarterTurns: _quarterTurns,
+            ),
         ],
       ),
     );
@@ -164,7 +170,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     final editInfo = parseEditInfo(currentMedia);
 
     return Container(
-      color: Colors.black,
+      color: _barBackgroundColor,
       child: SafeArea(
         bottom: false,
         child: SizedBox(
@@ -173,7 +179,11 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
             children: [
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 tooltip: "返回",
               ),
               Expanded(
@@ -189,7 +199,10 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                     if (editInfo != null)
                       Text(
                         editInfo,
-                        style: const TextStyle(color: Colors.amber, fontSize: 10),
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 10,
+                        ),
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                       ),
@@ -270,7 +283,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
       top: false,
       child: Container(
         height: 56,
-        color: Colors.grey[900],
+        color: _barBackgroundColor,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
@@ -364,14 +377,12 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     if (media.isImage) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-            builder: (_) => ImageEditorPage(asset: media)),
+        MaterialPageRoute(builder: (_) => ImageEditorPage(asset: media)),
       );
     } else if (media.isVideo) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-            builder: (_) => VideoTrimmerPage(asset: media)),
+        MaterialPageRoute(builder: (_) => VideoTrimmerPage(asset: media)),
       );
     }
   }

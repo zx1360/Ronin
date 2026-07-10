@@ -16,10 +16,14 @@ class PreviewWindowWidget extends ConsumerStatefulWidget {
   /// 点击回调 - 跳转到下一个文件
   final VoidCallback? onTap;
 
+  /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270° CW)
+  final int rotationQuarterTurns;
+
   const PreviewWindowWidget({
     super.key,
     this.size = 80,
     this.onTap,
+    this.rotationQuarterTurns = 0,
   });
 
   @override
@@ -125,10 +129,14 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
         onPanUpdate: (details) {
           setState(() {
             // 更新位置，限制在屏幕范围内
-            final newDx = (_position.dx - details.delta.dx)
-                .clamp(8.0, screenSize.width - widget.size - 8);
-            final newDy = (_position.dy - details.delta.dy)
-                .clamp(8.0, screenSize.height - widget.size - 8);
+            final newDx = (_position.dx - details.delta.dx).clamp(
+              8.0,
+              screenSize.width - widget.size - 8,
+            );
+            final newDy = (_position.dy - details.delta.dy).clamp(
+              8.0,
+              screenSize.height - widget.size - 8,
+            );
             _position = Offset(newDx, newDy);
           });
         },
@@ -142,40 +150,40 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
   }
 
   Widget _buildWindowContent(MediaAsset nextAsset) {
-    return Container(
-      width: widget.size,
-      height: widget.size,
-      decoration: BoxDecoration(
-        color: Colors.black87,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.white24,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(7),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            _buildThumbnail(nextAsset),
-            // 播放图标（视频）
-            if (nextAsset.isVideo)
-              const Center(
-                child: Icon(
-                  Icons.play_circle_outline,
-                  color: Colors.white70,
-                  size: 28,
-                ),
-              ),
+    return RotatedBox(
+      quarterTurns: widget.rotationQuarterTurns,
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white24, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(7),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildThumbnail(nextAsset),
+              // 播放图标（视频）
+              if (nextAsset.isVideo)
+                const Center(
+                  child: Icon(
+                    Icons.play_circle_outline,
+                    color: Colors.white70,
+                    size: 28,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
