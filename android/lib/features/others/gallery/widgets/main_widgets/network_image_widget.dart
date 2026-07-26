@@ -178,12 +178,28 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   }
 
   Widget _buildInteractiveImage(ImageProvider imageProvider, Key key) {
+    final isLandscape = widget.rotationQuarterTurns % 2 == 1;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final cw = constraints.maxWidth;
         final ch = constraints.maxHeight;
 
-        // 通过布局（而非 transform）控制初始对齐：
+        // 横屏模式：contain 呈现，保留缩放手势
+        if (isLandscape) {
+          return InteractiveViewer(
+            key: key,
+            transformationController: _transformController,
+            minScale: _minScale,
+            maxScale: _maxScale,
+            constrained: true,
+            child: Center(
+              child: Image(image: imageProvider, fit: BoxFit.contain),
+            ),
+          );
+        }
+
+        // 竖屏模式：通过布局（而非 transform）控制初始对齐：
         // - 图片高度 ≤ 视口 → 居中（SizedBox 撑满视口，Align 居中 image）
         // - 图片高度 > 视口 → 顶格 top（SizedBox 与 image 等高，自然 top 对齐）
         final imgSize = _imageSize;
