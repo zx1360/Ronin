@@ -10,7 +10,6 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/network/mdns_discovery.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
-import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'network_config_provider.g.dart';
 
@@ -100,13 +99,15 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 
   @override
   NetworkConfigState build() {
-    // 初始加载配置
-    Future.microtask(() => _loadConfigs());
-    return const NetworkConfigState(isLoading: true);
+    // 同步加载持久化配置，保证首个消费者（如 ApiClientManager）能立即拿到有效地址
+    return _loadState();
   }
 
-  /// 加载配置
-  Future<void> _loadConfigs() async {
+  /// 同步读取持久化配置并组装状态
+  ///
+  /// 本 Provider 是服务器连接配置的唯一真相源；[ApiClientManager]
+  /// 通过监听本状态派生 ApiClient，因此这里不再需要手动向 ApiClient 推送。
+  NetworkConfigState _loadState() {
     try {
       final prefs = PrefsService().prefs;
       final apiKey = prefs.getString("API_KEY") ?? "";
@@ -133,35 +134,18 @@ class NetworkConfigManager extends _$NetworkConfigManager {
         activeIndex = 0;
       }
 
-      state = state.copyWith(
+      return NetworkConfigState(
         apiKey: apiKey,
         configs: configs,
         activeIndex: activeIndex,
         isLoading: false,
       );
-
-      // 同步当前活跃配置
-      await _syncActiveConfig();
     } catch (e) {
-      state = state.copyWith(
+      return NetworkConfigState(
         isLoading: false,
         message: '加载配置失败: $e',
       );
     }
-  }
-
-  /// 同步活跃配置到ApiClient
-  Future<void> _syncActiveConfig() async {
-    final config = state.activeConfig;
-    if (config != null && config.isValid) {
-      await ref.read(apiClientManagerProvider.notifier).setAddr(
-            host: config.host,
-            port: config.port,
-          );
-    }
-    await ref.read(apiClientManagerProvider.notifier).setApiKey(
-          state.apiKey,
-        );
   }
 
   /// 持久化配置
@@ -174,7 +158,7 @@ class NetworkConfigManager extends _$NetworkConfigManager {
   /// 保存API Key
   Future<void> saveApiKey(String apiKey) async {
     final trimmedKey = apiKey.trim();
-    await ref.read(apiClientManagerProvider.notifier).setApiKey(trimmedKey);
+    await PrefsService().prefs.setString("API_KEY", trimmedKey);
     state = state.copyWith(apiKey: trimmedKey, message: 'API Key已保存');
   }
 
@@ -186,12 +170,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     newConfigs[index] = newConfigs[index].copyWith(host: host, port: port);
     state = state.copyWith(configs: newConfigs);
     await _persistConfigs();
-
-    // 如果保存的是当前活跃配置，同步到 apiClientManager
-    if (index == state.activeIndex) {
-      await _syncActiveConfig();
-    }
-
     state = state.copyWith(message: '配置已保存');
   }
 
@@ -202,7 +180,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     final prefs = PrefsService().prefs;
     await prefs.setInt(_activeIndexKey, index);
     state = state.copyWith(activeIndex: index);
-    await _syncActiveConfig();
     state = state.copyWith(message: '已切换到该配置');
   }
 
@@ -233,14 +210,12 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     state = state.copyWith(configs: newConfigs, activeIndex: newActiveIndex);
     await _persistConfigs();
     await PrefsService().prefs.setInt(_activeIndexKey, newActiveIndex);
-    await _syncActiveConfig();
     state = state.copyWith(message: '配置已删除');
   }
 
-  /// 刷新配置
+  /// 刷新配置（重新从持久化存储读取）
   Future<void> refresh() async {
-    state = state.copyWith(isLoading: true, clearMessage: true);
-    await _loadConfigs();
+    state = _loadState();
   }
 
   /// 清除消息

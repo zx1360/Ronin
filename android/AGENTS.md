@@ -29,9 +29,11 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 ### 与后端协同
 
 - API 变更见 `../backend/references/api/`（`routes.json`）。
-- 网络层：`lib/core/services/`、`lib/providers/api_client/`。
-- 自签证书：`assets/cert/`，通过 `CertTrust` 加载。
-- 画廊支持双向同步：`POST /API/gallery/push`。
+- 网络层：`lib/core/services/`、`lib/providers/api_client/`、`lib/providers/network_config/`。
+- 服务器连接配置唯一真相源为 `providers/network_config/`（`NetworkConfigManager`，持久化于 SharedPreferences 的 `PC_HOST_LIST`/`PC_ACTIVE_INDEX`/`API_KEY`）；`providers/api_client/` 的 `ApiClientManager` 通过监听该状态派生 `ApiClient`，禁止再次直读 prefs 或手动双写地址/Key。
+- 统一异常：`ApiClient` 提供 `ApiException` 错误映射与幂等 GET 自动重试；fetcher 系列统一走 `ApiClient.mapError`，UI 不应直接处理底层协议异常。
+- 自签证书：`assets/cert/`，通过 `CertTrust` 加载（仅信任加载的自签证书，`withTrustedRoots=false`，与桌面端一致）。
+- 画廊支持双向同步：`POST /API/gallery/push`（后端事务 + upsert 保证幂等）。
 - mDNS 自动发现：设置页点击"发现"可自动扫描局域网内的 Monarch 服务，发现的新地址会自动添加到配置列表。
 
 ### 硬性要求

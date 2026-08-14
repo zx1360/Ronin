@@ -7,8 +7,6 @@ part of 'prefs_service.dart';
 // **************************************************************************
 
 AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => AppSettings(
-      ip: json['ip'] as String,
-      port: json['port'] as String,
       backgroundImages: (json['backgroundImages'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
@@ -24,8 +22,6 @@ AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => AppSettings(
 
 Map<String, dynamic> _$AppSettingsToJson(AppSettings instance) =>
     <String, dynamic>{
-      'ip': instance.ip,
-      'port': instance.port,
       'backgroundImages': instance.backgroundImages,
       'sidebarImages': instance.sidebarImages,
       'mottos': instance.mottos,

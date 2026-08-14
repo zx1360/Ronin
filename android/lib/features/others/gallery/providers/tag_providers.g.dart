@@ -6,7 +6,7 @@ part of 'tag_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$tagTreeHash() => r'03c77fa2c03d0b4b70e502f7461605318df44b9e';
+String _$tagTreeHash() => r'3dd6048a87d12b00a8befe00ab91e858a0d755e8';
 
 /// 标签树 Provider
 ///
@@ -23,7 +23,7 @@ final tagTreeProvider =
 );
 
 typedef _$TagTree = AutoDisposeAsyncNotifier<List<Tag>>;
-String _$currentMediaTagsHash() => r'ce3e37d342008ffe94967ade77de45e2a2983b98';
+String _$currentMediaTagsHash() => r'4b2102be481f75e1239cf3a9472ba4ac998e4413';
 
 /// 当前媒体文件的标签 Provider
 ///

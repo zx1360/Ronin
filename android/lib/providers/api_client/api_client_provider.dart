@@ -5,50 +5,33 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/providers/network_config/network_config_provider.dart';
 
 part 'api_client_provider.g.dart';
 
 // apiClient网络请求客户端提供(管理)者.
+//
+// 配置来源唯一：由 [networkConfigManagerProvider] 派生。
+// 仅当活跃配置或 API Key 实际变化时才重建 ApiClient，避免多余连接重建。
 @Riverpod(keepAlive: true)
 class ApiClientManager extends _$ApiClientManager {
   @override
   ApiClient build() {
-    final prefs = PrefsService().prefs;
-    final host = prefs.getString("PC_HOST") ?? "";
-    final port = prefs.getString("PC_PORT") ?? "";
-    final apiKey = prefs.getString("API_KEY");
+    final activeConfig = ref.watch(
+      networkConfigManagerProvider.select((s) => s.activeConfig),
+    );
+    final apiKey = ref.watch(
+      networkConfigManagerProvider.select((s) => s.apiKey),
+    );
+
     // 只有当 host 和 port 都非空时才构建有效 URL
-    final baseUrl = (host.isNotEmpty && port.isNotEmpty)
-        ? "https://$host:$port"
-        : "";
-    return ApiClient(baseUrl: baseUrl, apiKey: apiKey);
-  }
-
-  String get address => state.baseUrl;
-
-  Future<void> setAddr({required String host, required String port}) async {
-    final prefs = PrefsService().prefs;
-    await prefs.setString("PC_HOST", host);
-    await prefs.setString("PC_PORT", port);
-    final apiKey = prefs.getString("API_KEY");
-    // 只有当 host 和 port 都非空时才构建有效 URL
-    final baseUrl = (host.isNotEmpty && port.isNotEmpty)
-        ? "https://$host:$port"
-        : "";
-    state = ApiClient(baseUrl: baseUrl, apiKey: apiKey);
-  }
-
-  Future<void> setApiKey(String apiKey) async {
-    final prefs = PrefsService().prefs;
-    await prefs.setString("API_KEY", apiKey);
-    // 重新构建 ApiClient 以应用新的 API Key
-    final host = prefs.getString("PC_HOST") ?? "";
-    final port = prefs.getString("PC_PORT") ?? "";
-    final baseUrl = (host.isNotEmpty && port.isNotEmpty)
-        ? "https://$host:$port"
-        : "";
-    state = ApiClient(baseUrl: baseUrl, apiKey: apiKey.isNotEmpty ? apiKey : null);
+    final baseUrl = (activeConfig != null && activeConfig.isValid)
+        ? 'https://${activeConfig.host}:${activeConfig.port}'
+        : '';
+    return ApiClient(
+      baseUrl: baseUrl,
+      apiKey: apiKey.isEmpty ? null : apiKey,
+    );
   }
 }
 
@@ -71,7 +54,8 @@ Future<Response?> fetcher(
     );
     return resp;
   } catch (e) {
-    AppLogger().error("fetch'$path'出错: $e");
+    final apiError = ApiClient.mapError(e);
+    AppLogger().error("fetch '$path'出错: ${apiError.message}");
     return null;
   }
 }
@@ -95,7 +79,8 @@ Future<Response<Uint8List>?> bytesFetcher(
     );
     return resp;
   } catch (e) {
-    AppLogger().error("bytesFetcher '$path'出错: $e");
+    final apiError = ApiClient.mapError(e);
+    AppLogger().error("bytesFetcher '$path'出错: ${apiError.message}");
     return null;
   }
 }
@@ -121,7 +106,8 @@ Future<Response?> sender(
     );
     return resp;
   } catch (e) {
-    AppLogger().error("send出错: $e");
+    final apiError = ApiClient.mapError(e);
+    AppLogger().error("send出错: ${apiError.message}");
     return null;
   }
 }
@@ -143,7 +129,8 @@ Future<Response?> jsonSender(
     );
     return resp;
   } catch (e) {
-    AppLogger().error("jsonSend出错: $e");
+    final apiError = ApiClient.mapError(e);
+    AppLogger().error("jsonSend出错: ${apiError.message}");
     return null;
   }
 }

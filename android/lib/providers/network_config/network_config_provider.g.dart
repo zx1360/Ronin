@@ -7,7 +7,7 @@ part of 'network_config_provider.dart';
 // **************************************************************************
 
 String _$networkConfigManagerHash() =>
-    r'9d2f13aba715ea5673d054bca8a570d1f2c4ec2c';
+    r'd68c2f862537f30c73feb212bb7bfdee4b41124c';
 
 /// 网络配置管理Provider
 ///

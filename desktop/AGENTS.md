@@ -28,8 +28,8 @@ Riverpod + GoRouter + SharedPreferences + `dart:io` HttpClient（自签证书信
 
 ### 与后端协同
 
-- 通过 `OpsApiClient` 调用 `/API/ops/overview`。
-- 任务模板 (`default_task_templates.dart`) 需对照 `../backend/gizmos/` 的 CLI 参数。
+- 通过 `OpsApiClient` 调用 `/API/ops/overview` 及漫画管理接口；非 2xx 响应统一抛出 `OpsApiException`（含状态码与服务端错误体），UI 不直接处理底层协议细节。
+- 任务模板 (`default_task_templates.dart`) 需对照 `../backend/gizmos/` 的 CLI 参数（`-mode`/`-gallery-root`/`-concurrency`/`-batch`/`-resize*`/`-root`），任何 CLI 参数变更须同步模板。
 - 自签证书：`assets/cert/server.crt`。
 - 后端接口变更后查看 `../backend/references/api/routes.json`。
 - **mDNS 自动发现**：设置页点击"发现服务"可自动扫描局域网内的 Monarch 服务，发现后自动替换当前地址。
