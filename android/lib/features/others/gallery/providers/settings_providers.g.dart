@@ -235,9 +235,10 @@ final galleryGridPreviewModeNotifierProvider = NotifierProvider<
 
 typedef _$GalleryGridPreviewModeNotifier = Notifier<GalleryGridPreviewMode>;
 String _$galleryTagAutoApplyEnabledHash() =>
-    r'0000000000000000000000000000000000000000';
+    r'247e75b14b63dd990e7b521bd1da9946cf966fc6';
 
 /// 标签自动套用开关（默认关闭）
+/// 开启后，当前媒体文件的标签会自动套用到下一个成为"当前文件"的媒体上。
 ///
 /// Copied from [GalleryTagAutoApplyEnabled].
 @ProviderFor(GalleryTagAutoApplyEnabled)

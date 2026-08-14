@@ -3,7 +3,6 @@ package router
 import (
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -93,34 +92,10 @@ func SetupRouter() *gin.Engine {
 			galleryGroup.POST("/push", gallery_handler.Push)
 		}
 
-		// 库存页相关
-		_ = api.Group("/library")
-		{
-
-		}
-
 		// 工具api
 		api.GET("/test", util_handler.Test) // 免鉴权
 		api.GET("/ops/overview", util_handler.SystemOverview)
 	}
 
 	return r
-}
-
-// selectiveAuth 按请求路径选择性应用 API Key 鉴权：
-//
-//	免鉴权：/API/test、/API/comic/*、/static/comics/*
-//	需鉴权：其余所有路由
-func selectiveAuth() gin.HandlerFunc {
-	auth := util_handler.APIKeyAuth()
-	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/API/test") ||
-			strings.HasPrefix(path, "/API/comic") ||
-			strings.HasPrefix(path, "/static/comics") {
-			c.Next()
-			return
-		}
-		auth(c)
-	}
 }

@@ -17,7 +17,8 @@ class CertTrust {
   /// 应在 main() 中 WidgetsFlutterBinding.ensureInitialized() 之后调用.
   static Future<void> init() async {
     final certBytes = await rootBundle.load('assets/cert/server.crt');
-    _securityContext = SecurityContext(withTrustedRoots: true);
+    // 与桌面端保持一致：仅信任加载的自签证书，不额外信任系统根证书
+    _securityContext = SecurityContext(withTrustedRoots: false);
     _securityContext!.setTrustedCertificatesBytes(certBytes.buffer.asUint8List());
     HttpOverrides.global = _TrustedCertHttpOverrides(_securityContext!);
   }

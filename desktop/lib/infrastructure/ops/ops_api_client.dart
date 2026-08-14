@@ -5,6 +5,21 @@ import 'package:northstar/domain/ops/models/ops_overview.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
 import 'package:northstar/services/cert_trust.dart';
 
+/// 统一 Ops API 异常
+///
+/// 将 HTTP 状态码与响应体归一化为可读异常，供 UI 层统一展示，
+/// 避免各页面各自拼装错误信息。
+class OpsApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  final String? body;
+
+  const OpsApiException(this.message, {this.statusCode, this.body});
+
+  @override
+  String toString() => message;
+}
+
 class OpsApiClient {
   HttpClient? _client;
   Uri? _lastBaseUri;
@@ -65,9 +80,7 @@ class OpsApiClient {
     final response = await request.close().timeout(const Duration(seconds: 6));
     final responseBody = await response.transform(utf8.decoder).join();
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('接口请求失败: HTTP ${response.statusCode}');
-    }
+    _throwIfNotOk(response.statusCode, body: responseBody);
 
     final decoded = jsonDecode(responseBody);
     if (decoded is! Map) {
@@ -86,9 +99,7 @@ class OpsApiClient {
     final response = await request.close().timeout(const Duration(seconds: 10));
     final body = await response.transform(utf8.decoder).join();
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('接口请求失败: HTTP ${response.statusCode}');
-    }
+    _throwIfNotOk(response.statusCode, body: body);
 
     final parsed = jsonDecode(body);
     if (parsed is! List) {
@@ -121,12 +132,35 @@ class OpsApiClient {
     final response = await request.close().timeout(const Duration(seconds: 10));
     final responseBody = await response.transform(utf8.decoder).join();
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('接口请求失败: HTTP ${response.statusCode} $responseBody');
-    }
+    _throwIfNotOk(response.statusCode, body: responseBody);
 
     final parsed = jsonDecode(responseBody);
     return (parsed as Map).cast<String, dynamic>();
+  }
+
+  /// 非 2xx 状态统一抛出 [OpsApiException]，并附带服务端错误体（若可解析）。
+  void _throwIfNotOk(int statusCode, {String? body}) {
+    if (statusCode >= 200 && statusCode < 300) {
+      return;
+    }
+
+    var detail = '';
+    if (body != null && body.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is Map && decoded['error'] is String) {
+          detail = ': ${decoded['error']}';
+        }
+      } catch (_) {
+        // 非 JSON 响应体，忽略详情
+      }
+    }
+
+    throw OpsApiException(
+      '接口请求失败: HTTP $statusCode$detail',
+      statusCode: statusCode,
+      body: body,
+    );
   }
 
   Map<String, String> _buildHeaders(OpsSettings settings) {
