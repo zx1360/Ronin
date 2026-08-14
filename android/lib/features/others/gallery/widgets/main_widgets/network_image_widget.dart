@@ -36,6 +36,10 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   final TransformationController _transformController =
       TransformationController();
 
+  // 新增：管理 ImageStream 监听器
+  ImageStream? _imageStream;
+  ImageStreamListener? _imageStreamListener;
+
   static const double _minScale = 1.0;
   static const double _maxScale = 4.0;
 
@@ -47,6 +51,7 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
 
   @override
   void dispose() {
+    _removeImageStreamListener(); // 新增：释放监听器
     _transformController.dispose();
     super.dispose();
   }
@@ -54,15 +59,21 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   @override
   void didUpdateWidget(covariant NetworkImageWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final assetChanged = oldWidget.asset.id != widget.asset.id;
-    final rotationChanged =
-        oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns;
-    if (assetChanged) {
+    if (oldWidget.asset.id != widget.asset.id) {
       _loadPlaceholder();
-      _imageSize = null;
-    }
-    if (assetChanged || rotationChanged) {
       _transformController.value = Matrix4.identity();
+    }
+    if (oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns) {
+      _transformController.value = Matrix4.identity();
+    }
+  }
+
+  /// 新增：安全移除 ImageStream 监听器
+  void _removeImageStreamListener() {
+    if (_imageStream != null && _imageStreamListener != null) {
+      _imageStream!.removeListener(_imageStreamListener!);
+      _imageStream = null;
+      _imageStreamListener = null;
     }
   }
 
@@ -94,46 +105,54 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   @override
   Widget build(BuildContext context) {
     final crop = _parseCrop();
-    final imgKey = ValueKey(
-      'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
-    );
-
-    Widget content = _buildCachedImage(imgKey);
-
-    if (crop != null) {
-      content = LayoutBuilder(
-        builder: (_, __) => Stack(
-          fit: StackFit.expand,
-          children: [
-            content,
-            IgnorePointer(
-              child: _CropPreview(crop: crop, imgSize: _imageSize),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Container(
       color: Colors.black,
       child: RotatedBox(
         quarterTurns: widget.rotationQuarterTurns,
-        child: content,
+        child: crop != null
+            ? LayoutBuilder(
+                builder: (ctx, c) {
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CachedNetworkImage(
+                        imageUrl: widget.imageUrl,
+                        httpHeaders: widget.httpHeaders,
+                        imageBuilder: (_, p) {
+                          _captureImageSize(p);
+                          return _buildInteractiveImage(
+                            p,
+                            ValueKey(
+                              'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
+                            ),
+                          );
+                        },
+                        placeholder: (_, __) => _buildPlaceholderOrLoading(),
+                        errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
+                      ),
+                      IgnorePointer(
+                        child: _CropPreview(crop: crop, imgSize: _imageSize),
+                      ),
+                    ],
+                  );
+                },
+              )
+            : CachedNetworkImage(
+                imageUrl: widget.imageUrl,
+                httpHeaders: widget.httpHeaders,
+                imageBuilder: (_, p) {
+                  _captureImageSize(p);
+                  return _buildInteractiveImage(
+                    p,
+                    ValueKey(
+                      'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
+                    ),
+                  );
+                },
+                placeholder: (_, __) => _buildPlaceholderOrLoading(),
+                errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
+              ),
       ),
-    );
-  }
-
-  /// 构建 CachedNetworkImage，消除 crop/no-crop 分支重复
-  Widget _buildCachedImage(Key key) {
-    return CachedNetworkImage(
-      imageUrl: widget.imageUrl,
-      httpHeaders: widget.httpHeaders,
-      imageBuilder: (_, p) {
-        _captureImageSize(p);
-        return _buildInteractiveImage(p, key);
-      },
-      placeholder: (_, __) => _buildPlaceholderOrLoading(),
-      errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
     );
   }
 
@@ -155,85 +174,45 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   }
 
   /// 从 imageProvider 捕获实际图片像素尺寸。
-  /// 利用 ImageStreamListener 的 synchronousCall 参数：
-  /// - 同步触发：已在 build 周期内，直接设 _imageSize，当前帧即可用
-  /// - 异步触发：setState 触发重绘，下一帧生效
+  /// 修复：每次添加新监听器前移除旧监听器，避免累积。
   void _captureImageSize(ImageProvider p) {
-    p
-        .resolve(const ImageConfiguration())
-        .addListener(
-          ImageStreamListener((info, sync) {
-            final sz = Size(
-              info.image.width.toDouble(),
-              info.image.height.toDouble(),
-            );
-            if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
-              _imageSize = sz;
-              if (!sync && mounted) {
-                setState(() {});
-              }
-            }
-          }),
-        );
+    _removeImageStreamListener(); // 移除旧监听器
+
+    final stream = p.resolve(const ImageConfiguration());
+    final listener = ImageStreamListener((info, _) {
+      final sz = Size(
+        info.image.width.toDouble(),
+        info.image.height.toDouble(),
+      );
+      if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _imageSize = sz);
+        });
+      }
+    });
+
+    stream.addListener(listener);
+    _imageStream = stream;
+    _imageStreamListener = listener;
   }
 
   Widget _buildInteractiveImage(ImageProvider imageProvider, Key key) {
-    final isLandscape = widget.rotationQuarterTurns % 2 == 1;
-
     return LayoutBuilder(
-      builder: (context, constraints) {
-        final cw = constraints.maxWidth;
-        final ch = constraints.maxHeight;
-
-        // 横屏模式：contain 呈现，保留缩放手势
-        if (isLandscape) {
-          return InteractiveViewer(
-            key: key,
-            transformationController: _transformController,
-            minScale: _minScale,
-            maxScale: _maxScale,
-            constrained: true,
-            child: Center(
-              child: Image(image: imageProvider, fit: BoxFit.contain),
-            ),
-          );
-        }
-
-        // 竖屏模式：通过布局（而非 transform）控制初始对齐：
-        // - 图片高度 ≤ 视口 → 居中（SizedBox 撑满视口，Align 居中 image）
-        // - 图片高度 > 视口 → 顶格 top（SizedBox 与 image 等高，自然 top 对齐）
-        final imgSize = _imageSize;
-        final bool hasSize =
-            imgSize != null && imgSize.width > 0 && imgSize.height > 0;
-        final double imgH = hasSize ? cw * imgSize!.height / imgSize.width : 0;
-
-        // childHeight ≥ 视口高度，确保 InteractiveViewer pan 范围正确
-        final double childHeight = (hasSize && imgH > ch) ? imgH : ch;
-        // 仅在尺寸已知且不溢出时居中
-        final bool center = hasSize && imgH > 0 && imgH <= ch;
-
-        final image = Image(
-          image: imageProvider,
-          fit: BoxFit.fitWidth,
-          width: cw,
-        );
-
+      builder: ((context, constraints) {
+        final width = constraints.maxWidth;
         return InteractiveViewer(
           key: key,
           transformationController: _transformController,
           minScale: _minScale,
           maxScale: _maxScale,
-          constrained: false,
-          child: SizedBox(
-            width: cw,
-            height: childHeight,
-            child: Align(
-              alignment: center ? Alignment.center : Alignment.topCenter,
-              child: image,
-            ),
+          constrained: true,
+          child: Image(
+            image: imageProvider,
+            fit: BoxFit.contain,
+            width: width,
           ),
         );
-      },
+      }),
     );
   }
 
@@ -300,7 +279,7 @@ class _CropRect {
   });
 }
 
-/// 裁切预览 — 在 RotatedBox 内部，与图片共享坐标空间
+/// 裁切预览 — 在 RotatedBox 内部，与图片共享坐标空间 TODO: 缩放拖拽后裁切预览框位置不变的解决.
 class _CropPreview extends StatelessWidget {
   final _CropRect crop;
   final Size? imgSize; // 可选：已知的图片像素尺寸
