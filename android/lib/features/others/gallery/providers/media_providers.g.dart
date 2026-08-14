@@ -43,7 +43,7 @@ final mediaAssetListProvider =
 );
 
 typedef _$MediaAssetList = AutoDisposeAsyncNotifier<List<MediaAsset>>;
-String _$currentMediaAssetHash() => r'8a3c0029b21ded72ab4d944429865cb3eeb474d0';
+String _$currentMediaAssetHash() => r'2a16b351f4450c81be427cff277ca0862015e9be';
 
 /// 当前媒体文件 Provider
 /// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）

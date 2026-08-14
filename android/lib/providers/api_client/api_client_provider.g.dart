@@ -6,7 +6,7 @@ part of 'api_client_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$fetcherHash() => r'd39c2c6ea940c96dee633c069f2d902d82e9be68';
+String _$fetcherHash() => r'c96b00c935c83ada2ad1c69ea9f4841cfe4564bc';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -204,7 +204,7 @@ class _FetcherProviderElement
       (origin as FetcherProvider).onReceiveProgress;
 }
 
-String _$bytesFetcherHash() => r'e2fcfc546e6d1d950165f53a28fa015e3d95bfa8';
+String _$bytesFetcherHash() => r'fb1192c8f0dc5ea9b13eadb7d89072c6c4eb7c73';
 
 /// bytesFetcher方法提供者，专门用于获取二进制数据
 ///
@@ -396,7 +396,7 @@ class _BytesFetcherProviderElement
       (origin as BytesFetcherProvider).onReceiveProgress;
 }
 
-String _$senderHash() => r'95d5c4e4225269bd2e243fb1b5ede9b4021e9d9b';
+String _$senderHash() => r'10e80bc334caa3a08b5ab2832ed71ca578d08175';
 
 /// See also [sender].
 @ProviderFor(sender)
@@ -589,7 +589,7 @@ class _SenderProviderElement extends AutoDisposeFutureProviderElement<Response?>
       (origin as SenderProvider).onSendProgress;
 }
 
-String _$jsonSenderHash() => r'ef612a9f9c36a2b6b26d5dd476603176f4a07d7c';
+String _$jsonSenderHash() => r'46cb991bafd1723ba8ad3e8444a13fe590d8a8b8';
 
 /// See also [jsonSender].
 @ProviderFor(jsonSender)
@@ -750,7 +750,7 @@ class _JsonSenderProviderElement
   CancelToken? get cancelToken => (origin as JsonSenderProvider).cancelToken;
 }
 
-String _$apiClientManagerHash() => r'010afd2685ce1486e5736f506a5195716dfb3f31';
+String _$apiClientManagerHash() => r'40667a967224f0834ab10bd5aa12fd43adb12498';
 
 /// See also [ApiClientManager].
 @ProviderFor(ApiClientManager)

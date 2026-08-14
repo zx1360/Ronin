@@ -9,10 +9,6 @@ part 'prefs_service.g.dart';
 // 偏好设置数据类.
 @JsonSerializable()
 class AppSettings {
-  // northstar传输相关.
-  String ip;
-  String port;
-  
   // 外观相关 - 背景图片（共用于SplashPage/HomePage）
   // 存储相对路径，如 "preferences/background/xxx.jpg"
   List<String> backgroundImages;
@@ -30,8 +26,6 @@ class AppSettings {
   String? avatarPath;
   
   AppSettings({
-    required this.ip,
-    required this.port,
     required this.backgroundImages,
     required this.sidebarImages,
     required this.mottos,
@@ -42,8 +36,6 @@ class AppSettings {
 
   // copyWith方法
   AppSettings copyWith({
-    String? ip,
-    String? port,
     List<String>? backgroundImages,
     List<String>? sidebarImages,
     List<String>? mottos,
@@ -53,8 +45,6 @@ class AppSettings {
     bool clearAvatar = false,
   }) {
     return AppSettings(
-      ip: ip ?? this.ip,
-      port: port ?? this.port,
       backgroundImages: backgroundImages ?? this.backgroundImages,
       sidebarImages: sidebarImages ?? this.sidebarImages,
       mottos: mottos ?? this.mottos,
@@ -67,8 +57,6 @@ class AppSettings {
   // 偏好默认值
   factory AppSettings.defaultValue() {
     return AppSettings(
-      ip: "",
-      port: "",
       backgroundImages: [],
       sidebarImages: [],
       mottos: ["理想如星\n虽不能及,吾心往之"],

@@ -2,7 +2,7 @@ package gallery_handler
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -237,7 +237,7 @@ func Push(c *gin.Context) {
 
 	// 2. 全量覆写标签表
 	if err := gallery_repo.UpsertTagsTx(ctx, tx, req.Tags); err != nil {
-		fmt.Println(err.Error())
+		log.Printf("gallery push: 更新标签失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新标签失败: " + err.Error()})
 		return
 	}
