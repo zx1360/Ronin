@@ -1,4 +1,4 @@
-﻿## 项目说明 (Northstar)
+## 项目说明 (Northstar)
 
 Flutter Windows 桌面运维应用，Monarch 服务器的图形化管理面板。
 
@@ -8,10 +8,23 @@ Flutter Windows 桌面运维应用，Monarch 服务器的图形化管理面板�
 |------|------|------|
 | 仪表盘 | `/dashboard` | 调用 `/API/ops/overview` 展示运行状态 |
 | 漫画管理 | `/comics` | 管理后端漫画资源 |
+| 漫画爬虫 | `/comix` | comix 爬虫管理：搜索/添加/下载/追更/删除 + 任务生命周期面板 |
 | 日志 | `/logs` | 查看任务实时输出 |
 | 任务管理 | `/tasks` | 启停 Monarch、执行 Gallery/Comic CLI 任务 |
 | 设置 | `/settings` | API 地址、API Key 等连接参数 |
 | 帮助 | `/help` | 使用说明 |
+
+### comix 爬虫页（`/comix`）
+
+- 通过本地 HTTP 向 Monarch `/API/comix/*` 发送指令（`ComixApiClient`，复用 OpsSettings 的
+  apiBaseUrl/apiKey 与 CertTrust 自签证书信任）；**爬虫生命周期由 Go 端任务引擎管理**。
+- 代码分层：`domain/comix/models/`（模型）、`infrastructure/comix/comix_api_client.dart`、
+  `application/comix/providers/`（任务面板状态 + 轮询）、`ui/comix/`（页面与对话框）。
+- 添加走 `add-url`（直接按候选 detail_url，避免 `add` 重新搜索导致候选漂移）；
+  长命令（搜索/添加/下载/追更/删除/清理）均为异步任务，页面每 2s 轮询任务状态与日志，
+  运行中任务可一键中断；任务结束后自动刷新漫画列表。
+- 搜索/添加/下载等任务的 `candidates`/`downloaded`/`failed` 等结果经
+  `GET /API/comix/tasks/:id` 的 `result` 字段读取。
 
 ### 任务类型
 

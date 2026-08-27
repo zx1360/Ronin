@@ -8,6 +8,8 @@
 - API 契约: backend/references/api/
 - 数据库: backend/AGENTS_DB.md (索引), backend/references/db/ (明细)
 - CLI 文档: backend/references/cli/
+- comix 爬虫集成: 后端 `internal/service/comix/` + `/API/comix/*`（协议见外部项目 `D:\products\python\comix\docs\协议文档.md`，
+  配置在 backend/.env 的 `COMIX_PYTHON`/`COMIX_ROOT`；文件存储根见 comix `.env` 的 `COMIC_STORAGE_ROOT`）
 
 ### 开发工作流
 
