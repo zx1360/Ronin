@@ -26,9 +26,9 @@ func getComicMetaData(ctx context.Context, pool *pgxpool.Pool) (*model.ComicTota
 	var metadata model.ComicTotalMetaData
 	query := `
 		SELECT
-			(SELECT COUNT(*) FROM comics.comic_books) as book_count,
-			(SELECT COUNT(*) FROM comics.comic_chapters) as total_chapter_count,
-			(SELECT COUNT(*) FROM comics.comic_images) as total_image_count
+			(SELECT COUNT(*) FROM comix.comic_books) as book_count,
+			(SELECT COUNT(*) FROM comix.comic_chapters) as total_chapter_count,
+			(SELECT COUNT(*) FROM comix.comic_images) as total_image_count
 	`
 	err := pool.QueryRow(ctx, query).Scan(&metadata.BookCount, &metadata.TotalChapterCount, &metadata.TotalImageCount)
 	if err != nil {
@@ -50,10 +50,10 @@ func getAllComicInfos(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInf
 			b.id, b.title, b.cover_image, b.is_public, b.readed,
 			COUNT(DISTINCT ch.id) as chapter_count,
 			COUNT(img.id) as image_count
-		FROM comics.comic_books b
-		LEFT JOIN comics.comic_chapters ch ON ch.comic_id = b.id
-		LEFT JOIN comics.comic_images img ON img.chapter_id = ch.id
-		GROUP BY b.id
+		FROM comix.comic_books b
+		LEFT JOIN comix.comic_chapters ch ON ch.comic_id = b.id
+		LEFT JOIN comix.comic_images img ON img.chapter_id = ch.id
+		GROUP BY b.id, b.title, b.cover_image, b.is_public, b.readed
 		ORDER BY b.title
 	`
 	rows, err := pool.Query(ctx, query)
@@ -88,8 +88,8 @@ func getChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId str
 	query := `
 		SELECT ch.id, ch.comic_id, ch.dir_name, ch.chapter_index,
 			COUNT(ci.id) as image_count
-		FROM comics.comic_chapters ch
-		LEFT JOIN comics.comic_images ci ON ci.chapter_id = ch.id
+		FROM comix.comic_chapters ch
+		LEFT JOIN comix.comic_images ci ON ci.chapter_id = ch.id
 		WHERE ch.comic_id = $1
 		GROUP BY ch.id, ch.comic_id, ch.dir_name, ch.chapter_index
 		ORDER BY ch.chapter_index ASC
@@ -120,7 +120,7 @@ func GetImagesWithChapterId(chapterId string) ([]model.ImageInfo, error) {
 }
 func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId string) ([]model.ImageInfo, error) {
 	var images []model.ImageInfo
-	query := `select image_path, width, height from comics.comic_images where chapter_id=$1 order by sort_num asc;`
+	query := `select image_path, width, height from comix.comic_images where chapter_id=$1 order by sort_num asc;`
 	rows, err := pool.Query(ctx, query, chapterId)
 	if err != nil {
 		return nil, fmt.Errorf("查询章节下的图片信息失败: %w", err)
@@ -150,8 +150,8 @@ func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comic
         SELECT
             c.id as chapter_id, c.comic_id, c.dir_name, c.chapter_index,
             i.image_path, i.width, i.height
-        FROM comics.comic_chapters c
-        LEFT JOIN comics.comic_images i ON c.id = i.chapter_id
+        FROM comix.comic_chapters c
+        LEFT JOIN comix.comic_images i ON c.id = i.chapter_id
         WHERE c.comic_id = $1
         ORDER BY c.chapter_index ASC, i.sort_num ASC;
     `
@@ -251,7 +251,7 @@ func updateComicMeta(ctx context.Context, pool *pgxpool.Pool, comicId string, re
 	// 去掉末尾 ", "
 	setClauses = setClauses[:len(setClauses)-2]
 	args = append(args, comicId)
-	query := fmt.Sprintf("UPDATE comics.comic_books SET %s WHERE id=$%d", setClauses, argIdx)
+	query := fmt.Sprintf("UPDATE comix.comic_books SET %s WHERE id=$%d", setClauses, argIdx)
 
 	_, err := pool.Exec(ctx, query, args...)
 	if err != nil {
@@ -269,13 +269,13 @@ func DeleteComic(comicId string) (title string, err error) {
 func deleteComic(ctx context.Context, pool *pgxpool.Pool, comicId string) (string, error) {
 	// 先获取标题
 	var title string
-	if err := pool.QueryRow(ctx, `SELECT title FROM comics.comic_books WHERE id=$1`, comicId).Scan(&title); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT title FROM comix.comic_books WHERE id=$1`, comicId).Scan(&title); err != nil {
 		return "", fmt.Errorf("查询漫画标题失败: %w", err)
 	}
 
 	// 级联删除: comic_images → comic_chapters → comic_books
 	// 由于表有 CASCADE 外键约束，只需删除 comic_books 即可
-	if _, err := pool.Exec(ctx, `DELETE FROM comics.comic_books WHERE id=$1`, comicId); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM comix.comic_books WHERE id=$1`, comicId); err != nil {
 		return "", fmt.Errorf("删除漫画失败: %w", err)
 	}
 	return title, nil
@@ -294,7 +294,7 @@ func syncReadedStatus(ctx context.Context, pool *pgxpool.Pool, readedIds []strin
 
 	// 1. 批量标记 readed = true（如果有需要标记的ID）
 	if len(readedIds) > 0 {
-		tag, err := pool.Exec(ctx, `UPDATE comics.comic_books SET readed = TRUE WHERE id = ANY($1)`, readedIds)
+		tag, err := pool.Exec(ctx, `UPDATE comix.comic_books SET readed = TRUE WHERE id = ANY($1)`, readedIds)
 		if err != nil {
 			return nil, fmt.Errorf("批量更新已读状态失败: %w", err)
 		}
@@ -304,8 +304,8 @@ func syncReadedStatus(ctx context.Context, pool *pgxpool.Pool, readedIds []strin
 	// 2. 始终返回所有漫画的最新章节总数（供客户端对比增量）
 	rows, err := pool.Query(ctx, `
 		SELECT b.id, COUNT(ch.id)
-		FROM comics.comic_books b
-		LEFT JOIN comics.comic_chapters ch ON ch.comic_id = b.id
+		FROM comix.comic_books b
+		LEFT JOIN comix.comic_chapters ch ON ch.comic_id = b.id
 		GROUP BY b.id
 	`)
 	if err != nil {
