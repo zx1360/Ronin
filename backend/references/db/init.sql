@@ -7,7 +7,7 @@
 \set ON_ERROR_STOP on
 
 -- 创建 schema（如果不存在）
-CREATE SCHEMA IF NOT EXISTS comics;
+-- CREATE SCHEMA IF NOT EXISTS comics;
 CREATE SCHEMA IF NOT EXISTS gallery;
 CREATE SCHEMA IF NOT EXISTS user_data;
 
@@ -27,7 +27,7 @@ END;
 $$;
 
 -- =====================================================
--- comics schema
+-- 原comics schema, 现comix. 且通过视图而非表访问. 以下为原表定义, 现在使用的是同结构的视图.
 -- =====================================================
 
 -- 漫画主表

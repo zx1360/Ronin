@@ -30,6 +30,12 @@ type DbConfig struct {
 	DbName     string
 }
 
+// comix 爬虫集成配置（子进程调用 python -m comix.cli）
+type ComixConfig struct {
+	Python string // python 可执行文件（默认 "python"）
+	Root   string // comix 项目根目录（依赖 .env 与 util 包，必须设置）
+}
+
 // 运行模式
 var IsLocalMode bool
 
@@ -38,6 +44,7 @@ var (
 	AppConf AppConfig
 	NetConf NetConfig
 	DbConf  DbConfig
+	ComixConf ComixConfig
 )
 
 // 配置加载
@@ -60,6 +67,13 @@ func Load() error {
 	DbConf.DbUser = os.Getenv("DB_USER")
 	DbConf.DbPassword = os.Getenv("DB_PASSWORD")
 	DbConf.DbName = os.Getenv("DB_NAME")
+
+	// comix 爬虫集成配置（可选；未配置时相关 API 返回明确错误）
+	ComixConf.Python = os.Getenv("COMIX_PYTHON")
+	if strings.TrimSpace(ComixConf.Python) == "" {
+		ComixConf.Python = "python"
+	}
+	ComixConf.Root = os.Getenv("COMIX_ROOT")
 
 	return Validate()
 }
