@@ -8,6 +8,7 @@ import 'package:torrid/features/others/gallery/services/gallery_storage_service.
 
 /// 网络图片组件 - 使用本地缩略图/预览图作为占位符
 /// 支持旋转和缩放
+/// 修复：使用 Stack 重叠占位与网络图，避免切换闪烁
 class NetworkImageWidget extends StatefulWidget {
   final String imageUrl;
   final MediaAsset asset;
@@ -31,14 +32,17 @@ class NetworkImageWidget extends StatefulWidget {
 class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   File? _placeholderFile;
   bool _isLoading = true;
-  Size? _imageSize; // 图片实际像素尺寸 (从 imageBuilder 捕获)
+  Size? _imageSize; // 图片实际像素尺寸 (从 ImageStream 捕获)
 
   final TransformationController _transformController =
       TransformationController();
 
-  // 新增：管理 ImageStream 监听器
+  // 管理 ImageStream 监听器
   ImageStream? _imageStream;
   ImageStreamListener? _imageStreamListener;
+
+  // 用于实际显示的 ImageProvider
+  CachedNetworkImageProvider? _imageProvider;
 
   static const double _minScale = 1.0;
   static const double _maxScale = 4.0;
@@ -47,11 +51,12 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   void initState() {
     super.initState();
     _loadPlaceholder();
+    _updateImageProvider();
   }
 
   @override
   void dispose() {
-    _removeImageStreamListener(); // 新增：释放监听器
+    _removeImageStreamListener();
     _transformController.dispose();
     super.dispose();
   }
@@ -59,16 +64,27 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   @override
   void didUpdateWidget(covariant NetworkImageWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.asset.id != widget.asset.id) {
+    if (oldWidget.asset.id != widget.asset.id ||
+        oldWidget.imageUrl != widget.imageUrl) {
       _loadPlaceholder();
       _transformController.value = Matrix4.identity();
+      _updateImageProvider();
     }
     if (oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns) {
       _transformController.value = Matrix4.identity();
     }
   }
 
-  /// 新增：安全移除 ImageStream 监听器
+  void _updateImageProvider() {
+    _removeImageStreamListener();
+    _imageProvider = CachedNetworkImageProvider(
+      widget.imageUrl,
+      headers: widget.httpHeaders,
+    );
+    _captureImageSize(_imageProvider!);
+  }
+
+  /// 安全移除 ImageStream 监听器
   void _removeImageStreamListener() {
     if (_imageStream != null && _imageStreamListener != null) {
       _imageStream!.removeListener(_imageStreamListener!);
@@ -115,21 +131,7 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
                   return Stack(
                     fit: StackFit.expand,
                     children: [
-                      CachedNetworkImage(
-                        imageUrl: widget.imageUrl,
-                        httpHeaders: widget.httpHeaders,
-                        imageBuilder: (_, p) {
-                          _captureImageSize(p);
-                          return _buildInteractiveImage(
-                            p,
-                            ValueKey(
-                              'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
-                            ),
-                          );
-                        },
-                        placeholder: (_, __) => _buildPlaceholderOrLoading(),
-                        errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
-                      ),
+                      _buildInteractiveStack(),
                       IgnorePointer(
                         child: _CropPreview(crop: crop, imgSize: _imageSize),
                       ),
@@ -137,22 +139,61 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
                   );
                 },
               )
-            : CachedNetworkImage(
-                imageUrl: widget.imageUrl,
-                httpHeaders: widget.httpHeaders,
-                imageBuilder: (_, p) {
-                  _captureImageSize(p);
-                  return _buildInteractiveImage(
-                    p,
-                    ValueKey(
-                      'img_${widget.asset.id}_${widget.rotationQuarterTurns}',
-                    ),
-                  );
-                },
-                placeholder: (_, __) => _buildPlaceholderOrLoading(),
-                errorWidget: (_, __, ___) => _buildErrorOrPlaceholder(),
-              ),
+            : _buildInteractiveStack(),
       ),
+    );
+  }
+
+  /// 构建包含占位图和网络图的 Stack，并包裹 InteractiveViewer
+  Widget _buildInteractiveStack() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return InteractiveViewer(
+          transformationController: _transformController,
+          minScale: _minScale,
+          maxScale: _maxScale,
+          constrained: true,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 底层：占位图（始终存在，若加载中则显示指示器）
+              _buildPlaceholderLayer(),
+              // 上层：网络图片（加载完成后覆盖占位）
+              if (_imageProvider != null)
+                Image(
+                  image: _imageProvider!,
+                  fit: BoxFit.contain,
+                  width: width,
+                  errorBuilder: (ctx, error, stackTrace) {
+                    // 网络图加载失败时，保留底层的占位图，无需额外操作
+                    return const SizedBox.shrink();
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 占位图层：根据状态显示加载指示器、缩略图或空白
+  Widget _buildPlaceholderLayer() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
+    if (_placeholderFile != null) {
+      return Center(
+        child: Image.file(_placeholderFile!, fit: BoxFit.contain),
+      );
+    }
+
+    // 无缩略图可用时显示加载指示器（网络图可能很快加载）
+    return const Center(
+      child: CircularProgressIndicator(color: Colors.white),
     );
   }
 
@@ -173,12 +214,11 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     return null;
   }
 
-  /// 从 imageProvider 捕获实际图片像素尺寸。
-  /// 修复：每次添加新监听器前移除旧监听器，避免累积。
-  void _captureImageSize(ImageProvider p) {
-    _removeImageStreamListener(); // 移除旧监听器
+  /// 从 ImageProvider 捕获实际图片像素尺寸
+  void _captureImageSize(ImageProvider provider) {
+    _removeImageStreamListener();
 
-    final stream = p.resolve(const ImageConfiguration());
+    final stream = provider.resolve(const ImageConfiguration());
     final listener = ImageStreamListener((info, _) {
       final sz = Size(
         info.image.width.toDouble(),
@@ -195,77 +235,6 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     _imageStream = stream;
     _imageStreamListener = listener;
   }
-
-  Widget _buildInteractiveImage(ImageProvider imageProvider, Key key) {
-    return LayoutBuilder(
-      builder: ((context, constraints) {
-        final width = constraints.maxWidth;
-        return InteractiveViewer(
-          key: key,
-          transformationController: _transformController,
-          minScale: _minScale,
-          maxScale: _maxScale,
-          constrained: true,
-          child: Image(
-            image: imageProvider,
-            fit: BoxFit.contain,
-            width: width,
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildPlaceholderOrLoading() {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
-    }
-
-    if (_placeholderFile != null) {
-      return InteractiveViewer(
-        key: ValueKey(
-          'placeholder_${widget.asset.id}_${widget.rotationQuarterTurns}',
-        ),
-        minScale: _minScale,
-        maxScale: _maxScale,
-        constrained: true,
-        child: Center(
-          child: Image.file(_placeholderFile!, fit: BoxFit.contain),
-        ),
-      );
-    }
-
-    return const Center(child: CircularProgressIndicator(color: Colors.white));
-  }
-
-  Widget _buildErrorOrPlaceholder() {
-    if (_placeholderFile != null) {
-      return InteractiveViewer(
-        key: ValueKey(
-          'error_${widget.asset.id}_${widget.rotationQuarterTurns}',
-        ),
-        minScale: _minScale,
-        maxScale: _maxScale,
-        constrained: true,
-        child: Center(
-          child: Image.file(_placeholderFile!, fit: BoxFit.contain),
-        ),
-      );
-    }
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error, color: Colors.red, size: 48),
-          const SizedBox(height: 8),
-          Text('加载失败', style: TextStyle(color: Colors.grey[400])),
-        ],
-      ),
-    );
-  }
 }
 
 /// 裁切数据 (原始图片像素坐标)
@@ -279,10 +248,10 @@ class _CropRect {
   });
 }
 
-/// 裁切预览 — 在 RotatedBox 内部，与图片共享坐标空间 TODO: 缩放拖拽后裁切预览框位置不变的解决.
+/// 裁切预览 — 在 RotatedBox 内部，与图片共享坐标空间
 class _CropPreview extends StatelessWidget {
   final _CropRect crop;
-  final Size? imgSize; // 可选：已知的图片像素尺寸
+  final Size? imgSize;
   const _CropPreview({required this.crop, this.imgSize});
 
   @override
@@ -292,12 +261,10 @@ class _CropPreview extends StatelessWidget {
         final cw = c.maxWidth, ch = c.maxHeight;
         if (cw <= 0 || ch <= 0) return const SizedBox();
 
-        // 用 crop 的 [right, bottom] 估算图片尺寸；如果 imgSize 已知则用 imgSize
         final iw = imgSize?.width ?? crop.right;
         final ih = imgSize?.height ?? crop.bottom;
         if (iw <= 0 || ih <= 0) return const SizedBox();
 
-        // 与编辑器一致的 display rect 计算
         final ia = iw / ih, ca = cw / ch;
         double dw, dh;
         if (ia > ca) {
@@ -326,6 +293,7 @@ class _CropPreview extends StatelessWidget {
 class _CropPreviewPainter extends CustomPainter {
   final Rect r;
   _CropPreviewPainter(this.r);
+
   @override
   void paint(Canvas c, Size s) {
     final bg = Paint()..color = Colors.black45;
@@ -333,6 +301,7 @@ class _CropPreviewPainter extends CustomPainter {
     c.drawRect(Rect.fromLTWH(0, r.bottom, s.width, s.height - r.bottom), bg);
     c.drawRect(Rect.fromLTWH(0, r.top, r.left, r.height), bg);
     c.drawRect(Rect.fromLTWH(r.right, r.top, s.width - r.right, r.height), bg);
+
     final bd = Paint()
       ..color = Colors.white54
       ..style = PaintingStyle.stroke
