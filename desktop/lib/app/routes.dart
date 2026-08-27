@@ -7,6 +7,7 @@ import 'package:northstar/ui/ops/pages/task_manager_page.dart';
 import 'package:northstar/ui/ops/pages/logs_page.dart';
 import 'package:northstar/ui/ops/pages/settings_page.dart';
 import 'package:northstar/features/help/pages/help_page.dart';
+import 'package:northstar/ui/comix/pages/comix_page.dart';
 
 
 // 定义路由数据模型
@@ -40,6 +41,14 @@ final List<AppRoute> routes = [
     name: 'comics',
     icon: Icons.menu_book_rounded,
     builder: (context, state) => const ComicsPage(),
+  ),
+
+  // comix 漫画爬虫管理
+  AppRoute(
+    path: '/comix',
+    name: 'comix',
+    icon: Icons.auto_stories_rounded,
+    builder: (context, state) => const ComixPage(),
   ),
 
   // 日志

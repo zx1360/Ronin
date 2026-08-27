@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-14T05:30:41Z",
+  "generated_at": "2026-08-27T05:01:01Z",
   "routes": [
     {
       "method": "GET",
@@ -36,6 +36,66 @@
     {
       "method": "POST",
       "path": "/API/comic/sync-readed"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/add"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/add-url"
+    },
+    {
+      "method": "GET",
+      "path": "/API/comix/chapters/:comic-id"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/clean"
+    },
+    {
+      "method": "GET",
+      "path": "/API/comix/config"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/download"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/init"
+    },
+    {
+      "method": "GET",
+      "path": "/API/comix/list"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/search"
+    },
+    {
+      "method": "GET",
+      "path": "/API/comix/sites"
+    },
+    {
+      "method": "GET",
+      "path": "/API/comix/tasks"
+    },
+    {
+      "method": "GET",
+      "path": "/API/comix/tasks/:task-id"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/tasks/:task-id/stop"
+    },
+    {
+      "method": "POST",
+      "path": "/API/comix/update-check"
     },
     {
       "method": "GET",

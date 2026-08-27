@@ -1,4 +1,4 @@
-﻿## 项目说明 (Monarch)
+## 项目说明 (Monarch)
 
 Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
@@ -6,6 +6,22 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
 - **Monarch HTTP**：Gin 服务器，为 Torrid (Android) 和 Northstar (Desktop) 提供 REST API。
 - **Gizmos CLI**（`gizmos/`）：独立 Go module，命令行批处理（漫画索引、媒体摄入/刷新/删除）。
+- **comix 爬虫集成**（`internal/service/comix/` + `internal/handler/comix_handler/`）：以子进程方式调用
+  外部 comix 项目（`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
+  提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
+
+### comix 集成要点
+
+- 配置：`.env` 的 `COMIX_PYTHON`（默认 `python`，LookPath 解析绝对路径）与 `COMIX_ROOT`
+  （comix 项目根目录，必须含 `.env` 与 `util` 包）。未配置时 `/API/comix/config` 返回
+  `available=false`，其余接口返回明确错误。
+- 接口分两类：**同步**（`config`/`init`/`sites`/`list`/`chapters`）与**异步任务**
+  （`search`/`add`/`add-url`/`download`/`update-check`/`delete`/`clean`）。
+  异步任务经 `POST /API/comix/tasks/:id/stop` 中断（`process.Kill` + `taskkill /T /F` 进程树），
+  中断残留由 comix 的 `download` 自愈或 `clean` 全局回收。
+- 响应遵循 comix 协议：业务错误（`ok=false`，如多候选带 `candidates`）返回 HTTP 200，
+  仅传输/配置级故障返回 HTTP 500。
+- 漫画文件存储在 comix `.env` 的 `COMIC_STORAGE_ROOT`（本环境为 `static/comics`，经 `/static/*` 直接可访问）。
 
 ### 技术栈
 

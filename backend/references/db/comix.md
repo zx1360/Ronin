@@ -1,4 +1,4 @@
-# 漫画数据表 (comics schema)
+# 漫画数据表 (comix schema)
 
 ## comic_books
 | 列          | 类型                  |
