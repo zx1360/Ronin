@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"monarch/internal/config"
 )
@@ -111,4 +113,112 @@ func parseOutput(stdout, stderr string, exitCode int, runErr error) (*Result, er
 		return nil, fmt.Errorf("comix 命令执行失败(exit %d): %s", exitCode, strings.TrimSpace(stderr))
 	}
 	return nil, fmt.Errorf("comix 输出解析失败: %v (stdout=%q stderr=%q)", parseErr, stdout, stderr)
+}
+
+// ---------------------------------------------------------------------------
+// 存储路径（与 comix 端 util/common 的语义保持一致）
+// ---------------------------------------------------------------------------
+
+var (
+	storageOnce sync.Once
+	storageRoot string
+	storageErr  error
+)
+
+// StorageRoot 返回 comix 的漫画存储根目录（COMIC_STORAGE_ROOT）。
+//
+// 该值定义在 comix 项目根目录的 .env 中（backend/.env 不重复维护，避免双真相源）；
+// 相对路径按 comix 约定相对其项目根解析。首次调用后缓存。
+func StorageRoot() (string, error) {
+	storageOnce.Do(func() {
+		root := strings.TrimSpace(config.ComixConf.Root)
+		if root == "" {
+			storageErr = errors.New("COMIX_ROOT 未配置（请在 backend/.env 中设置 comix 项目根目录）")
+			return
+		}
+		storageRoot, storageErr = readStorageRoot(root)
+	})
+	return storageRoot, storageErr
+}
+
+func readStorageRoot(comixRoot string) (string, error) {
+	envFile := filepath.Join(comixRoot, ".env")
+	data, err := os.ReadFile(envFile)
+	if err != nil {
+		return "", fmt.Errorf("读取 comix .env 失败: %v", err)
+	}
+	value := ""
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, val, found := strings.Cut(line, "=")
+		if !found {
+			continue
+		}
+		if strings.TrimSpace(key) == "COMIC_STORAGE_ROOT" {
+			value = strings.TrimSpace(val)
+			break
+		}
+	}
+	if value == "" {
+		value = "./comics" // comix 默认值
+	}
+	if !filepath.IsAbs(value) {
+		value = filepath.Join(comixRoot, value)
+	}
+	// 清理可能的引号
+	return strings.Trim(value, `"'`), nil
+}
+
+// StoragePath 将 DB 中的 rel_dir（形如 `comics/{comic_id}/{chapter_id}`）
+// 解析为存储根下的绝对路径（`comics/` 前缀对应存储根下的目录）。
+func StoragePath(relDir string) (string, error) {
+	root, err := StorageRoot()
+	if err != nil {
+		return "", err
+	}
+	relative := relDir
+	if strings.HasPrefix(relative, "comics/") {
+		relative = relative[len("comics/"):]
+	}
+	return filepath.Join(root, filepath.FromSlash(relative)), nil
+}
+
+// RemoveDirSafely 删除目录（Windows 下重试 + 处理只读文件）。
+func RemoveDirSafely(path string) error {
+	if path == "" {
+		return nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := os.RemoveAll(path); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		clearReadOnly(path)
+		time.Sleep(time.Duration(attempt+1) * 300 * time.Millisecond)
+	}
+	return lastErr
+}
+
+// clearReadOnly 清除目录树内所有文件的只读属性（RemoveAll 失败时的兜底）。
+func clearReadOnly(root string) {
+	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info, statErr := d.Info(); statErr == nil && info.Mode()&0200 == 0 {
+			_ = os.Chmod(p, 0644)
+		}
+		return nil
+	})
 }

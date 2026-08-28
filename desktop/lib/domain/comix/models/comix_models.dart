@@ -36,14 +36,21 @@ class ComixSite {
   final String code;
   final String name;
   final String baseUrl;
+  final bool enabled;
 
-  const ComixSite({required this.code, required this.name, required this.baseUrl});
+  const ComixSite({
+    required this.code,
+    required this.name,
+    required this.baseUrl,
+    this.enabled = true,
+  });
 
   factory ComixSite.fromJson(Map<String, dynamic> json) {
     return ComixSite(
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? '',
       baseUrl: json['base_url'] as String? ?? '',
+      enabled: json['enabled'] as bool? ?? true,
     );
   }
 }

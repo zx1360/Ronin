@@ -110,3 +110,127 @@ class ComixBoardNotifier extends Notifier<ComixBoardState> {
 final comixBoardProvider = NotifierProvider<ComixBoardNotifier, ComixBoardState>(
   ComixBoardNotifier.new,
 );
+
+// ---------------------------------------------------------------------------
+// 搜索状态（提取自页面，便于 Tab 切换后状态保留与轮询收集结果）
+// ---------------------------------------------------------------------------
+
+/// 搜索状态。
+class ComixSearchState {
+  final String keyword;
+  final String? siteFilter;
+  final List<ComixCandidate> candidates;
+  final bool searching;
+  final String? error;
+  final String? taskId;
+
+  const ComixSearchState({
+    this.keyword = '',
+    this.siteFilter,
+    this.candidates = const [],
+    this.searching = false,
+    this.error,
+    this.taskId,
+  });
+
+  ComixSearchState copyWith({
+    String? keyword,
+    String? siteFilter,
+    bool clearSiteFilter = false,
+    List<ComixCandidate>? candidates,
+    bool? searching,
+    String? error,
+    bool clearError = false,
+    String? taskId,
+    bool clearTaskId = false,
+  }) {
+    return ComixSearchState(
+      keyword: keyword ?? this.keyword,
+      siteFilter: clearSiteFilter ? null : (siteFilter ?? this.siteFilter),
+      candidates: candidates ?? this.candidates,
+      searching: searching ?? this.searching,
+      error: clearError ? null : (error ?? this.error),
+      taskId: clearTaskId ? null : (taskId ?? this.taskId),
+    );
+  }
+}
+
+/// 搜索控制器：提交搜索任务、站点过滤、收集任务结果。
+class ComixSearchNotifier extends Notifier<ComixSearchState> {
+  @override
+  ComixSearchState build() {
+    return const ComixSearchState();
+  }
+
+  Future<void> startSearch(String keyword) async {
+    state = state.copyWith(
+      keyword: keyword,
+      searching: true,
+      clearError: true,
+      candidates: const [],
+    );
+    try {
+      final taskId = await ref
+          .read(comixBoardProvider.notifier)
+          .startTask('search', {'name': keyword});
+      state = state.copyWith(taskId: taskId);
+    } catch (e) {
+      state = state.copyWith(searching: false, error: e.toString());
+    }
+  }
+
+  void setSiteFilter(String? site) {
+    state = state.copyWith(siteFilter: site);
+  }
+
+  /// 由页面轮询调用：搜索任务结束后取回候选结果。
+  Future<void> collectResult() async {
+    final taskId = state.taskId;
+    if (taskId == null) return;
+
+    final board = ref.read(comixBoardProvider);
+    var running = false;
+    for (final task in board.tasks) {
+      if (task.id == taskId && task.isRunning) {
+        running = true;
+        break;
+      }
+    }
+    if (running) return;
+
+    state = state.copyWith(clearTaskId: true);
+    try {
+      final settings = ref.read(opsSettingsControllerProvider);
+      final client = ref.read(comixApiClientProvider);
+      final detail = await client.fetchTask(settings, taskId);
+      final result = detail.result;
+      if (result != null && result['ok'] == true) {
+        final data = result['data'];
+        final list = data is Map<String, dynamic> ? data['candidates'] : null;
+        state = state.copyWith(
+          searching: false,
+          candidates: list is List
+              ? list
+                    .whereType<Map<String, dynamic>>()
+                    .map(ComixCandidate.fromJson)
+                    .toList()
+              : const [],
+          clearError: true,
+        );
+      } else {
+        state = state.copyWith(
+          searching: false,
+          candidates: const [],
+          error: (result?['error'] as String?) ?? detail.error ?? '搜索失败',
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(searching: false, error: e.toString());
+    }
+  }
+}
+
+final comixSearchProvider =
+    NotifierProvider<ComixSearchNotifier, ComixSearchState>(
+      ComixSearchNotifier.new,
+    );

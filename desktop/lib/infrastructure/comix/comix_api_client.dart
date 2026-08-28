@@ -147,6 +147,22 @@ class ComixApiClient {
     await _request(settings, 'POST', '/API/comix/tasks/$taskId/stop');
   }
 
+  /// 同步删除漫画（Go 端直查库：DB 级联 + 文件删除）。
+  /// 大漫画的文件删除可能耗时，超时放宽至 120s。
+  Future<Map<String, dynamic>> deleteComic(
+    OpsSettings settings,
+    int comicId, {
+    bool keepFiles = false,
+  }) async {
+    return _request(
+      settings,
+      'POST',
+      '/API/comix/delete',
+      body: <String, dynamic>{'comic_id': comicId, 'keep_files': keepFiles},
+      timeout: const Duration(seconds: 120),
+    );
+  }
+
   // --- 内部工具 ---
 
   Future<Map<String, dynamic>> _getJson(
@@ -170,6 +186,7 @@ class ComixApiClient {
     String method,
     String endpoint, {
     Map<String, dynamic>? body,
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     final uri = _buildUri(settings.apiBaseUrl, endpoint);
     final client = _getClient(uri);
@@ -185,7 +202,7 @@ class ComixApiClient {
       request.add(bytes);
     }
 
-    final response = await request.close().timeout(const Duration(seconds: 30));
+    final response = await request.close().timeout(timeout);
     final responseBody = await response.transform(utf8.decoder).join();
     return _decode(settings, response.statusCode, responseBody);
   }

@@ -12,6 +12,7 @@ package comix_handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
+	"monarch/internal/repository/comix_repo"
 	"monarch/internal/service/comix"
 )
 
@@ -79,27 +81,75 @@ func GetConfig(c *gin.Context) {
 	})
 }
 
-// Init 建表并注册站点（幂等）。
+// ---- 同步查询（直查库，毫秒级） ----
+
+// Init 建表并注册站点（幂等，Python 端）。
 func Init(c *gin.Context) {
 	runSync(c, "init")
 }
 
-// Sites 列出可用站点。
+// Sites 列出可用站点（直查库）。
 func Sites(c *gin.Context) {
-	runSync(c, "sites")
+	sites, err := comix_repo.ListSites()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"sites": sites}})
 }
 
-// List 列出已登记漫画。
+// List 列出已登记漫画（直查库，单条 SQL 聚合）。
 func List(c *gin.Context) {
-	runSync(c, "list")
+	comics, err := comix_repo.ListComics()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"comics": comics}})
 }
 
-// Chapters 查看指定漫画的章节状态。
+// Chapters 查看指定漫画的章节状态（直查库，精简列）。
 func Chapters(c *gin.Context) {
-	runSync(c, "chapters", c.Param("comic-id"))
+	comicID, err := strconv.Atoi(c.Param("comic-id"))
+	if err != nil || comicID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "comic-id 无效"})
+		return
+	}
+	chapters, err := comix_repo.ListChapters(comicID)
+	if err != nil {
+		if errors.Is(err, comix_repo.ErrComicNotFound) {
+			c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ok":   true,
+		"data": gin.H{"comic_id": comicID, "chapters": chapters},
+	})
 }
 
-// ---- 异步任务 ----
+// Delete 删除漫画（直查库：DB 级联 + 文件删除，可 keep-files）。
+func Delete(c *gin.Context) {
+	var req DeleteRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.ComicID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少 comic_id"})
+		return
+	}
+	result, err := comix_repo.DeleteComic(req.ComicID, req.KeepFiles)
+	if err != nil {
+		if errors.Is(err, comix_repo.ErrComicNotFound) {
+			c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": result})
+}
+
+// ---- 异步任务（Python 端爬虫操作） ----
 
 // Search 全站搜索候选。
 func Search(c *gin.Context) {
@@ -189,20 +239,6 @@ func UpdateCheck(c *gin.Context) {
 		name = "全站追更检查"
 	}
 	startTask(c, name, "update-check", args...)
-}
-
-// Delete 删除漫画（默认连文件删除，可 keep-files）。
-func Delete(c *gin.Context) {
-	var req DeleteRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.ComicID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少 comic_id"})
-		return
-	}
-	args := []string{strconv.Itoa(req.ComicID)}
-	if req.KeepFiles {
-		args = append(args, "--keep-files")
-	}
-	startTask(c, "删除 #"+strconv.Itoa(req.ComicID), "delete", args...)
 }
 
 // Clean 回收中断残留（running 任务 + .downloading 临时目录）。
