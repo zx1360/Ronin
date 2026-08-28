@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"monarch/internal/config"
+	"monarch/internal/handler/util_handler"
 	"monarch/internal/router"
 	"monarch/internal/service/mdns"
 	"monarch/internal/service/tls"
@@ -14,6 +15,9 @@ import (
 
 // StartServer 根据运行模式启动 HTTP 或 HTTPS 服务
 func StartServer() {
+	// 后台预热目录用量缓存（ops/overview 毫秒级响应）
+	util_handler.StartDirUsageRefresher()
+
 	r := router.SetupRouter()
 
 	if config.IsLocalMode {
