@@ -14,9 +14,6 @@ import 'package:torrid/features/others/comic/models/comic_info.dart';
 // gallery库
 // comic漫画
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
-// changya 随机唱歌音频
-// lathe倒计时
-import 'package:torrid/features/others/lathe/models/countdown_timer_model.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {
@@ -28,8 +25,6 @@ class HiveService {
   static const String yearSummaryBoxName = 'yearSummaries';
   static const String labelBoxName = 'labels';
   static const String essayBoxName = 'essays';
-  // lathe倒计时
-  static const String countdownTimerBoxName = 'countdownTimers';
   // ----非常用
   // comic漫画
   static const String comicPrefBoxName = "comicPreference";
@@ -56,9 +51,6 @@ class HiveService {
     Hive.registerAdapter(ComicInfoAdapter());
     Hive.registerAdapter(ChapterInfoAdapter());
     Hive.registerAdapter(ComicPreferenceAdapter());
-    // lathe倒计时
-    Hive.registerAdapter(CountdownTimerStatusAdapter());
-    Hive.registerAdapter(CountdownTimerModelAdapter());
 
     // 打开(创建)箱
     await Hive.openBox<Style>(styleBoxName);
@@ -79,12 +71,6 @@ class HiveService {
     }
     if (!Hive.isBoxOpen(chapterBoxName)) {
       await Hive.openBox<ChapterInfo>(chapterBoxName);
-    }
-  }
-
-  static Future<void> initLathe()async{
-    if (!Hive.isBoxOpen(countdownTimerBoxName)) {
-      await Hive.openBox<CountdownTimerModel>(countdownTimerBoxName);
     }
   }
 }
