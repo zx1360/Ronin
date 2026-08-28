@@ -16,15 +16,18 @@ Flutter Windows 桌面运维应用，Monarch 服务器的图形化管理面板�
 
 ### comix 爬虫页（`/comix`）
 
+- 布局为 **4 个 Tab**（搜索添加 / 漫画列表 / 任务面板 / 设置），各 Tab 独立滚动互不挤压。
 - 通过本地 HTTP 向 Monarch `/API/comix/*` 发送指令（`ComixApiClient`，复用 OpsSettings 的
   apiBaseUrl/apiKey 与 CertTrust 自签证书信任）；**爬虫生命周期由 Go 端任务引擎管理**。
 - 代码分层：`domain/comix/models/`（模型）、`infrastructure/comix/comix_api_client.dart`、
-  `application/comix/providers/`（任务面板状态 + 轮询）、`ui/comix/`（页面与对话框）。
-- 添加走 `add-url`（直接按候选 detail_url，避免 `add` 重新搜索导致候选漂移）；
-  长命令（搜索/添加/下载/追更/删除/清理）均为异步任务，页面每 2s 轮询任务状态与日志，
-  运行中任务可一键中断；任务结束后自动刷新漫画列表。
+  `application/comix/providers/`（任务面板 + 搜索状态）、`ui/comix/`（页面/Tab/对话框）。
+- **查询数据（站点/漫画列表/章节）由 Go 端直查库提供（毫秒级）**；添加走 `add-url`
+  （直接按候选 detail_url，避免 `add` 重新搜索导致候选漂移）；搜索/添加/下载/追更/清理为
+  异步任务，页面每 2s 轮询任务状态与日志，运行中任务可一键中断；任务结束自动刷新漫画列表。
+- **删除为同步调用**（Go 端直查库：DB 级联 + 文件删除，可 keep-files），大漫画删除时显示
+  加载遮罩，结果含 `files_removed`/`leftover_path`。
 - 搜索/添加/下载等任务的 `candidates`/`downloaded`/`failed` 等结果经
-  `GET /API/comix/tasks/:id` 的 `result` 字段读取。
+  `GET /API/comix/tasks/:id` 的 `result` 字段读取；章节对话框带关键词过滤（大章节数漫画）。
 
 ### 任务类型
 

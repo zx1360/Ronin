@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/comix/models/comix_models.dart';
+import 'package:northstar/ui/comix/widgets/comix_widgets.dart';
 
 /// 添加漫画选项。
 class AddComicOptions {
@@ -457,6 +458,113 @@ class _DeleteDialogState extends State<_DeleteDialog> {
             Navigator.of(context).pop(DeleteOptions(keepFiles: _keepFiles));
           },
           child: const Text('确认删除'),
+        ),
+      ],
+    );
+  }
+}
+
+/// 展示章节列表对话框（带搜索过滤，便于大章节数漫画）。
+Future<void> showChaptersDialog(
+  BuildContext context, {
+  required ComixComic comic,
+  required List<ComixChapter> chapters,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => _ChaptersDialog(comic: comic, chapters: chapters),
+  );
+}
+
+class _ChaptersDialog extends StatefulWidget {
+  final ComixComic comic;
+  final List<ComixChapter> chapters;
+
+  const _ChaptersDialog({required this.comic, required this.chapters});
+
+  @override
+  State<_ChaptersDialog> createState() => _ChaptersDialogState();
+}
+
+class _ChaptersDialogState extends State<_ChaptersDialog> {
+  final _filterController = TextEditingController();
+  String _filter = '';
+
+  @override
+  void dispose() {
+    _filterController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final done = widget.chapters.where((c) => c.status == 'done').length;
+    final failed = widget.chapters.where((c) => c.status == 'failed').length;
+
+    final filtered = _filter.isEmpty
+        ? widget.chapters
+        : widget.chapters.where((c) {
+            final keyword = _filter.toLowerCase();
+            return c.title.toLowerCase().contains(keyword) ||
+                '${c.chapterNo}'.contains(keyword) ||
+                c.status.contains(keyword);
+          }).toList();
+
+    return AlertDialog(
+      title: Text('章节：${widget.comic.title}'),
+      content: SizedBox(
+        width: 540,
+        height: 520,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '共 ${widget.chapters.length} 章 · 已下载 $done · 失败 $failed',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _filterController,
+              decoration: const InputDecoration(
+                labelText: '过滤（标题/章节号/状态）',
+                prefixIcon: Icon(Icons.search_rounded, size: 18),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _filter = v.trim()),
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final ch = filtered[index];
+                  return ListTile(
+                    dense: true,
+                    leading: ChapterStatusChip(status: ch.status),
+                    title: Text(
+                      '${ch.chapterNo} · ${ch.title}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      ch.status == 'done'
+                          ? '${ch.pageCount} 页 · ${ch.relDir}'
+                          : (ch.error.isNotEmpty ? ch.error : ch.relDir),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
         ),
       ],
     );
