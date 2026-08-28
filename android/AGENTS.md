@@ -14,7 +14,6 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 | 阅读(RSS) | `/news` | 独立 |
 | 漫画 | `/others/comic` | `/API/comic/*` |
 | 画廊 | `/others/gallery` | `/API/gallery/*` |
-| 车削(工具) | `/others/lathe` | - |
 | 个人 | `/profile` | 本地存储 |
 
 ### 技术栈
