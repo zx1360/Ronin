@@ -4,30 +4,6 @@ import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/comix/models/comix_models.dart';
 import 'package:northstar/ui/comix/widgets/comix_widgets.dart';
 
-/// 添加漫画选项。
-class AddComicOptions {
-  final bool noDownload;
-  final int? latest;
-  final String? range;
-
-  const AddComicOptions({
-    required this.noDownload,
-    this.latest,
-    this.range,
-  });
-
-  /// 走 add-url：直接按候选的站点与详情 URL 添加，跳过重新搜索（确定性强）。
-  Map<String, dynamic> toBody(ComixCandidate candidate) {
-    return <String, dynamic>{
-      'site': candidate.site,
-      'url': candidate.detailUrl,
-      if (noDownload) 'no_download': true,
-      if (!noDownload && latest != null) 'latest': latest,
-      if (!noDownload && range != null && range!.isNotEmpty) 'range': range,
-    };
-  }
-}
-
 /// 下载选项。
 class DownloadOptions {
   final int? latest;
@@ -77,17 +53,6 @@ class DeleteOptions {
   }
 }
 
-/// 展示添加漫画选项对话框（候选确认后）。
-Future<AddComicOptions?> showAddComicDialog(
-  BuildContext context,
-  ComixCandidate candidate,
-) {
-  return showDialog<AddComicOptions>(
-    context: context,
-    builder: (_) => _AddComicDialog(candidate: candidate),
-  );
-}
-
 /// 展示下载选项对话框。
 Future<DownloadOptions?> showDownloadDialog(
   BuildContext context,
@@ -120,103 +85,6 @@ Future<DeleteOptions?> showDeleteComicDialog(
     context: context,
     builder: (_) => _DeleteDialog(comic: comic),
   );
-}
-
-// ---------------------------------------------------------------------------
-// 添加漫画对话框
-// ---------------------------------------------------------------------------
-
-class _AddComicDialog extends StatefulWidget {
-  final ComixCandidate candidate;
-
-  const _AddComicDialog({required this.candidate});
-
-  @override
-  State<_AddComicDialog> createState() => _AddComicDialogState();
-}
-
-class _AddComicDialogState extends State<_AddComicDialog> {
-  bool _noDownload = false;
-  final _latestController = TextEditingController();
-  final _rangeController = TextEditingController();
-
-  @override
-  void dispose() {
-    _latestController.dispose();
-    _rangeController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('添加漫画'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.candidate.title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '[${widget.candidate.siteName}] ${widget.candidate.detailUrl}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const Divider(height: 20),
-            CheckboxListTile(
-              value: _noDownload,
-              onChanged: (v) => setState(() => _noDownload = v ?? false),
-              title: const Text('仅登记不下载'),
-              subtitle: const Text('只写入数据库，不下载图片（懒创建目录）'),
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-            ),
-            const SizedBox(height: 8),
-            if (!_noDownload) ...[
-              TextField(
-                controller: _latestController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: '仅下载最新 N 章（留空=全部待下载章节）',
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _rangeController,
-                decoration: const InputDecoration(
-                  labelText: '章节区间（如 1-5,8,10-12，与最新N章二选一）',
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final latest = int.tryParse(_latestController.text.trim());
-            Navigator.of(context).pop(
-              AddComicOptions(
-                noDownload: _noDownload,
-                latest: latest,
-                range: _rangeController.text.trim(),
-              ),
-            );
-          },
-          child: const Text('确认添加'),
-        ),
-      ],
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------

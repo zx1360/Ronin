@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:northstar/application/ops/providers/core_services_provider.dart';
-import 'package:northstar/application/ops/providers/ops_settings_provider.dart';
+import 'package:northstar/core/providers/ops/core_services_provider.dart';
+import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/domain/ops/models/ops_overview.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 

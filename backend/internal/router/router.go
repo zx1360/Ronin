@@ -88,9 +88,7 @@ func SetupRouter() *gin.Engine {
 			comixGroup.GET("/list", comix_handler.List)
 			comixGroup.GET("/chapters/:comic-id", comix_handler.Chapters)
 			// 爬虫操作（异步任务）
-			comixGroup.POST("/search", comix_handler.Search)
-			comixGroup.POST("/add", comix_handler.Add)
-			comixGroup.POST("/add-url", comix_handler.AddURL)
+			comixGroup.POST("/download-url", comix_handler.DownloadURL)
 			comixGroup.POST("/download", comix_handler.Download)
 			comixGroup.POST("/update-check", comix_handler.UpdateCheck)
 			comixGroup.POST("/delete", comix_handler.Delete)

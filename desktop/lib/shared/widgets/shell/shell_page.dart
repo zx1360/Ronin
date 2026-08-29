@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:system_tray/system_tray.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'package:northstar/application/ops/providers/runtime_process_provider.dart';
+import 'package:northstar/core/providers/ops/runtime_process_provider.dart';
 import 'package:northstar/shared/widgets/shell/side_navbar/side_navbar.dart';
 import 'package:northstar/shared/widgets/shell/titlebar/titlebar.dart';
 

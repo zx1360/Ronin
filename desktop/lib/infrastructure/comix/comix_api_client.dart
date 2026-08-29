@@ -134,6 +134,31 @@ class ComixApiClient {
         .toList();
   }
 
+  /// 按详情页 URL 批量启动下载任务（服务端自动识别站点，多个 URL 并发）。
+  /// 返回每个 URL 的提交结果：{url, site?, task_id?, status?, error?}。
+  Future<List<Map<String, dynamic>>> downloadUrls(
+    OpsSettings settings,
+    List<String> urls, {
+    int? latest,
+  }) async {
+    final json = await _request(
+      settings,
+      'POST',
+      '/API/comix/download-url',
+      body: <String, dynamic>{
+        'urls': urls,
+        if (latest != null) 'latest': latest,
+      },
+    );
+    final data = json['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ComixApiException('download-url 接口返回结构异常');
+    }
+    final list = data['tasks'];
+    if (list is! List) return const [];
+    return list.whereType<Map<String, dynamic>>().toList();
+  }
+
   Future<ComixTask> fetchTask(OpsSettings settings, String taskId) async {
     final json = await _getJson(settings, '/API/comix/tasks/$taskId');
     final data = json['data'];
