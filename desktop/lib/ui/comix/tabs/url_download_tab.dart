@@ -1,12 +1,48 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:northstar/core/providers/comix/comix_providers.dart';
 import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/app/theme.dart';
+import 'package:northstar/domain/comix/models/comix_models.dart';
+import 'package:northstar/ui/comix/widgets/comix_widgets.dart';
+
+/// 单个 URL 的提交与实时状态。
+class UrlTaskResult {
+  final String url;
+  final String site;
+  final String? taskId;
+  ComixTaskStatus status;
+  String? error;
+  String? summary;
+
+  UrlTaskResult({
+    required this.url,
+    required this.site,
+    required this.taskId,
+    this.status = ComixTaskStatus.unknown,
+    this.error,
+    this.summary,
+  });
+
+  factory UrlTaskResult.fromSubmit(Map<String, dynamic> item) {
+    final taskId = item['task_id'] as String?;
+    return UrlTaskResult(
+      url: item['url'] as String? ?? '',
+      site: item['site'] as String? ?? '',
+      taskId: taskId,
+      status: taskId == null
+          ? ComixTaskStatus.unknown
+          : ComixTaskStatus.parse(item['status'] as String?),
+      error: item['error'] as String?,
+    );
+  }
+}
 
 /// 网址下载 Tab：粘贴漫画详情页 URL（支持多行/多个并发），
-/// 服务端自动识别站点并启动对应爬虫下载。
+/// 服务端自动识别站点并启动对应爬虫下载；列表实时刷新任务状态。
 class UrlDownloadTab extends ConsumerStatefulWidget {
   const UrlDownloadTab({super.key});
 
@@ -14,14 +50,20 @@ class UrlDownloadTab extends ConsumerStatefulWidget {
   ConsumerState<UrlDownloadTab> createState() => _UrlDownloadTabState();
 }
 
-class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab> {
+class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
+    with AutomaticKeepAliveClientMixin {
   final _urlsController = TextEditingController();
   final _latestController = TextEditingController();
   bool _submitting = false;
-  List<Map<String, dynamic>>? _results;
+  List<UrlTaskResult> _results = [];
+  Timer? _statusTimer;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
+    _statusTimer?.cancel();
     _urlsController.dispose();
     _latestController.dispose();
     super.dispose();
@@ -41,7 +83,7 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab> {
 
     setState(() {
       _submitting = true;
-      _results = null;
+      _results = [];
     });
 
     try {
@@ -51,19 +93,69 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab> {
           .read(comixApiClientProvider)
           .downloadUrls(settings, urls, latest: latest);
       if (!mounted) return;
-      setState(() => _results = results);
+
+      setState(() {
+        _submitting = false;
+        _results = results.map(UrlTaskResult.fromSubmit).toList();
+      });
+
+      // 任务面板立即可见 + 本列表实时轮询任务状态
+      ref.read(comixBoardProvider.notifier).refresh();
       ref.invalidate(comixComicsProvider);
-      final okCount = results.where((r) => r['task_id'] != null).length;
-      final failCount = results.length - okCount;
+      _startStatusPolling();
+
+      final okCount = _results.where((r) => r.taskId != null).length;
+      final failCount = _results.length - okCount;
       _snack(
         okCount > 0
-            ? '已启动 $okCount 个下载任务${failCount > 0 ? '，$failCount 个失败' : ''}，可在任务面板查看进度'
+            ? '已启动 $okCount 个下载任务${failCount > 0 ? '，$failCount 个失败' : ''}，进度见下方与任务面板'
             : '提交失败：$failCount 个网址均无法识别',
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
       _snack('提交失败: $e');
+    }
+  }
+
+  /// 每 3s 刷新各任务实时状态；全部结束后停止。
+  void _startStatusPolling() {
+    _statusTimer?.cancel();
+    _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _pollStatuses();
+    });
+    _pollStatuses();
+  }
+
+  Future<void> _pollStatuses() async {
+    final running = _results
+        .where((r) => r.taskId != null && r.status == ComixTaskStatus.running)
+        .toList();
+    if (running.isEmpty) {
+      _statusTimer?.cancel();
+      return;
+    }
+
+    final settings = ref.read(opsSettingsControllerProvider);
+    final client = ref.read(comixApiClientProvider);
+    for (final item in running) {
+      try {
+        final task = await client.fetchTask(settings, item.taskId!);
+        if (!mounted) return;
+        setState(() {
+          item.status = task.status;
+          item.error = task.error;
+          item.summary = comixTaskSummary(task);
+        });
+      } catch (_) {
+        // 单次查询失败忽略，下轮重试
+      }
+    }
+    if (!mounted) return;
+    final stillRunning = _results
+        .any((r) => r.taskId != null && r.status == ComixTaskStatus.running);
+    if (!stillRunning) {
+      _statusTimer?.cancel();
     }
   }
 
@@ -75,6 +167,7 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimens.paddingL),
       child: Card(
@@ -116,7 +209,7 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab> {
                   const SizedBox(width: AppDimens.spacingM),
                   Expanded(
                     child: Text(
-                      '留空时按增量语义下载全部未完成章节（已下载的自动跳过）',
+                      '留空将下载全部未完成章节（大章节漫画耗时较长，建议先限量试跑）',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -134,12 +227,11 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab> {
                     : const Icon(Icons.download_rounded),
                 label: Text(_submitting ? '提交中...' : '开始下载'),
               ),
-              if (_results != null) ...[
+              if (_results.isNotEmpty) ...[
                 const Divider(height: 24),
                 Text('提交结果', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: AppDimens.spacingS),
-                for (final item in _results!)
-                  _ResultTile(item: item),
+                for (final item in _results) _ResultTile(item: item),
               ],
             ],
           ),
@@ -150,35 +242,58 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab> {
 }
 
 class _ResultTile extends StatelessWidget {
-  final Map<String, dynamic> item;
+  final UrlTaskResult item;
 
   const _ResultTile({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    final url = item['url'] as String? ?? '';
-    final site = item['site'] as String? ?? '';
-    final taskId = item['task_id'] as String? ?? '';
-    final error = item['error'] as String? ?? '';
+    final ok = item.taskId != null;
+    final color = switch (item.status) {
+      ComixTaskStatus.running => Colors.blueAccent,
+      ComixTaskStatus.finished => Colors.greenAccent.shade400,
+      ComixTaskStatus.failed => Colors.redAccent,
+      ComixTaskStatus.killed => Colors.orange,
+      ComixTaskStatus.unknown => ok
+          ? Colors.blueGrey
+          : Theme.of(context).colorScheme.error,
+    };
+    final statusLabel = switch (item.status) {
+      ComixTaskStatus.running => '运行中',
+      ComixTaskStatus.finished => '完成',
+      ComixTaskStatus.failed => '失败',
+      ComixTaskStatus.killed => '已中断',
+      ComixTaskStatus.unknown => ok ? '等待中' : '站点识别失败',
+    };
 
-    final ok = taskId.isNotEmpty;
-    final color = ok ? Colors.greenAccent.shade400 : Theme.of(context).colorScheme.error;
+    final subtitle = item.taskId == null
+        ? (item.error ?? '未知错误')
+        : '站点: ${item.site} · 任务: ${item.taskId} · $statusLabel'
+            '${item.error != null && item.error!.isNotEmpty ? ' · ${item.error}' : ''}'
+            '${item.summary != null && item.summary!.isNotEmpty ? '\n${item.summary}' : ''}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         dense: true,
-        leading: Icon(
-          ok ? Icons.check_circle_outline : Icons.error_outline,
-          color: color,
-          size: 20,
-        ),
-        title: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(
-          ok ? '站点: $site · 任务: $taskId（已在任务面板运行）' : error,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
+        leading: item.status == ComixTaskStatus.running
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                item.status == ComixTaskStatus.finished
+                    ? Icons.check_circle_outline
+                    : (item.status == ComixTaskStatus.failed ||
+                            item.taskId == null)
+                        ? Icons.error_outline
+                        : Icons.info_outline,
+                color: color,
+                size: 20,
+              ),
+        title: Text(item.url, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis),
       ),
     );
   }
