@@ -17,19 +17,17 @@ Flutter Windows 桌面运维应用，Monarch 服务器的图形化管理面板�
 ### comix 爬虫页（`/comix`）
 
 - 布局为 **4 个 Tab**（网址下载 / 漫画列表 / 任务面板 / 设置），各 Tab 独立滚动互不挤压。
-- 通过本地 HTTP 向 Monarch `/API/comix/*` 发送指令（`ComixApiClient`，复用 OpsSettings 的
-  apiBaseUrl/apiKey 与 CertTrust 自签证书信任）；**爬虫生命周期由 Go 端任务引擎管理**。
-- **下载入口为「网址下载」Tab**：粘贴漫画详情页 URL（多行/多个并发），服务端自动识别站点
-  （`POST /API/comix/download-url`），可选"仅下载最新 N 章"；提交结果显示每个 URL 的
-  站点识别与任务状态。按名搜索候选下载功能已移除。
+- 通过本地 HTTP 向 Monarch `/API/comix/*` 发送指令（`ComixApiClient`；**爬虫生命周期由 Go 端任务引擎管理**。
+- **下载入口为「网址下载」Tab**：粘贴漫画详情页 URL（多行/多个并发），服务端自动识别站点；提交后**列表每 3s 实时刷新
+  每个任务的状态**（运行中/完成/失败/已中断 + 结果摘要），任务面板可见。
 - 代码分层：`domain/comix/models/`（模型）、`infrastructure/comix/comix_api_client.dart`、
-  `application/comix/providers/`（任务面板状态）、`ui/comix/`（页面/Tab/对话框）。
+  `core/providers/comix/`（任务面板状态）、`ui/comix/`（页面/Tab/对话框）。
 - **查询数据（站点/漫画列表/章节）由 Go 端直查库提供（毫秒级）**；下载/追更/清理为
-  异步任务，页面每 2s 轮询任务状态与日志，运行中任务可一键中断；任务结束自动刷新漫画列表。
+  异步任务，页面每 2s 轮询任务状态与日志.
 - **删除为同步调用**（Go 端直查库：DB 级联 + 文件删除，可 keep-files），大漫画删除时显示
   加载遮罩，结果含 `files_removed`/`leftover_path`。
 - 任务结果经 `GET /API/comix/tasks/:id` 的 `result` 字段读取（`add-url` 下载结果嵌套于
-  `data.download`，任务摘要已解包展示）；章节对话框带关键词过滤（大章节数漫画）。
+  `data.download`，任务摘要已解包展示）；
 
 ### 任务类型
 

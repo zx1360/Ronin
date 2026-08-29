@@ -48,7 +48,8 @@ class _ComixPageState extends ConsumerState<ComixPage>
     super.dispose();
   }
 
-  /// 轮询：任务运行期间刷新面板；任务结束刷新漫画列表。
+  /// 轮询：无条件刷新任务面板（新提交的任务也能及时出现），
+  /// 任务结束刷新漫画列表。
   Future<void> _onPollTick() async {
     final board = ref.read(comixBoardProvider);
     final runningNow = board.tasks
@@ -56,14 +57,12 @@ class _ComixPageState extends ConsumerState<ComixPage>
         .map((t) => t.id)
         .toSet();
     final finishedNow = _runningTaskIds.difference(runningNow);
-    final hadRunning = _runningTaskIds.isNotEmpty;
     _runningTaskIds
       ..clear()
       ..addAll(runningNow);
 
-    if (board.hasRunningTasks || hadRunning) {
-      await ref.read(comixBoardProvider.notifier).refresh();
-    }
+    // 无条件刷新：GET /tasks 已直查库毫秒级，且能拾取新提交的任务
+    await ref.read(comixBoardProvider.notifier).refresh();
     if (finishedNow.isNotEmpty) {
       ref.invalidate(comixComicsProvider);
     }
