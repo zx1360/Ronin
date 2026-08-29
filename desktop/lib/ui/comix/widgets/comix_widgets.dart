@@ -108,6 +108,20 @@ String comixTaskSummary(ComixTask task) {
       parts.add('检查 ${reports.length} 部');
       parts.add(newCount > 0 ? '新增 $newCount 章' : '无新章节');
     }
+    // add-url 结果嵌套在 data.download 下（协议文档 §4.2），先解包
+    final download = data['download'];
+    if (download is Map<String, dynamic>) {
+      if (download['downloaded'] is List) {
+        parts.add('下载 ${(download['downloaded'] as List).length} 章');
+      }
+      if (download['failed'] is List && (download['failed'] as List).isNotEmpty) {
+        parts.add('失败 ${(download['failed'] as List).length} 章');
+      }
+      if (download['message'] is String &&
+          (download['message'] as String).isNotEmpty) {
+        parts.add(download['message'].toString());
+      }
+    }
     if (data['downloaded'] is List) {
       parts.add('下载 ${(data['downloaded'] as List).length} 章');
     }
@@ -127,10 +141,6 @@ String comixTaskSummary(ComixTask task) {
   }
   if (!ok) {
     final error = result['error'] as String? ?? '';
-    final candidates = result['candidates'];
-    if (candidates is List && candidates.isNotEmpty) {
-      return '需要选择候选（${candidates.length} 个）: $error';
-    }
     return '业务错误: $error';
   }
   return '';

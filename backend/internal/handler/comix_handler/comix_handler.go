@@ -15,6 +15,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,23 +28,6 @@ import (
 const syncTimeout = 90 * time.Second
 
 // ---- 请求体 ----
-
-type AddRequest struct {
-	Name       string `json:"name"`
-	Site       string `json:"site,omitempty"`
-	Pick       *int   `json:"pick,omitempty"`
-	NoDownload bool   `json:"no_download,omitempty"`
-	Range      string `json:"range,omitempty"`
-	Latest     *int   `json:"latest,omitempty"`
-}
-
-type AddURLRequest struct {
-	Site       string `json:"site"`
-	URL        string `json:"url"`
-	NoDownload bool   `json:"no_download,omitempty"`
-	Range      string `json:"range,omitempty"`
-	Latest     *int   `json:"latest,omitempty"`
-}
 
 type DownloadRequest struct {
 	ComicID       int    `json:"comic_id"`
@@ -151,46 +135,61 @@ func Delete(c *gin.Context) {
 
 // ---- 异步任务（Python 端爬虫操作） ----
 
-// Search 全站搜索候选。
-func Search(c *gin.Context) {
+// DownloadURL 按详情页 URL 批量启动下载任务。
+//
+// 每个 URL 自动识别站点（comix.site.base_url host 匹配），识别成功后
+// 启动独立异步任务（多个 URL 并发下载）；不支持的站点在对应条目中
+// 返回明确错误，不影响其他 URL。
+func DownloadURL(c *gin.Context) {
 	var req struct {
-		Name string `json:"name"`
+		URLs   []string `json:"urls"`
+		Latest *int     `json:"latest,omitempty"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少搜索关键词 name"})
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.URLs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少 urls 列表"})
 		return
 	}
-	startTask(c, "搜索: "+req.Name, "search", req.Name)
-}
 
-// Add 搜索并添加漫画（候选选择后可选下载）。
-func Add(c *gin.Context) {
-	var req AddRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少漫画名称 name"})
+	sites, err := comix_repo.ListSites()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
 		return
 	}
-	startTask(c, "添加: "+req.Name, "add", addArgs(req)...)
-}
 
-// AddURL 按详情页 URL 直接添加漫画。
-func AddURL(c *gin.Context) {
-	var req AddURLRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Site == "" || req.URL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少 site 或 url"})
-		return
+	type urlTask struct {
+		URL    string `json:"url"`
+		Site   string `json:"site,omitempty"`
+		TaskID string `json:"task_id,omitempty"`
+		Status string `json:"status,omitempty"`
+		Error  string `json:"error,omitempty"`
 	}
-	args := []string{req.Site, req.URL}
-	if req.NoDownload {
-		args = append(args, "--no-download")
+	tasks := make([]urlTask, 0, len(req.URLs))
+
+	for _, raw := range req.URLs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		siteCode, matchErr := comix_repo.MatchSiteByURL(raw, sites)
+		if matchErr != nil {
+			tasks = append(tasks, urlTask{URL: raw, Error: matchErr.Error()})
+			continue
+		}
+		args := []string{siteCode, raw}
+		if req.Latest != nil {
+			args = append(args, "--latest", strconv.Itoa(*req.Latest))
+		}
+		task, startErr := comix.Manager.Start("下载: "+raw, "add-url", args...)
+		if startErr != nil {
+			tasks = append(tasks, urlTask{URL: raw, Site: siteCode, Error: startErr.Error()})
+			continue
+		}
+		tasks = append(tasks, urlTask{
+			URL: raw, Site: siteCode, TaskID: task.ID, Status: string(task.Status),
+		})
 	}
-	if req.Range != "" {
-		args = append(args, "--range", req.Range)
-	}
-	if req.Latest != nil {
-		args = append(args, "--latest", strconv.Itoa(*req.Latest))
-	}
-	startTask(c, "添加(URL): "+req.URL, "add-url", args...)
+
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"tasks": tasks}})
 }
 
 // Download 增量下载指定漫画。
@@ -324,25 +323,4 @@ func startTask(c *gin.Context, name, cmd string, rest ...string) {
 			"started_at": task.StartedAt,
 		},
 	})
-}
-
-// addArgs 构建 add 命令参数。
-func addArgs(req AddRequest) []string {
-	args := []string{req.Name}
-	if req.Site != "" {
-		args = append(args, "--site", req.Site)
-	}
-	if req.Pick != nil {
-		args = append(args, "--pick", strconv.Itoa(*req.Pick))
-	}
-	if req.NoDownload {
-		args = append(args, "--no-download")
-	}
-	if req.Range != "" {
-		args = append(args, "--range", req.Range)
-	}
-	if req.Latest != nil {
-		args = append(args, "--latest", strconv.Itoa(*req.Latest))
-	}
-	return args
 }

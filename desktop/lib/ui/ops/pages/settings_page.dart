@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:northstar/application/ops/providers/ops_settings_provider.dart';
-import 'package:northstar/application/ops/providers/task_profiles_provider.dart';
+import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
+import 'package:northstar/core/providers/ops/task_profiles_provider.dart';
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';

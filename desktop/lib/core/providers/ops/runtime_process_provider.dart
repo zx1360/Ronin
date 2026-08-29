@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:northstar/application/ops/providers/core_services_provider.dart';
+import 'package:northstar/core/providers/ops/core_services_provider.dart';
 import 'package:northstar/domain/ops/models/process_log_entry.dart';
 import 'package:northstar/domain/ops/models/runtime_process_state.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';

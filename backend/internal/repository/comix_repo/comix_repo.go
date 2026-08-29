@@ -9,9 +9,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -56,6 +59,51 @@ type Chapter struct {
 
 // ErrComicNotFound 漫画不存在。
 var ErrComicNotFound = errors.New("漫画不存在")
+
+// MatchSiteByURL 根据详情页 URL 的 host 匹配已注册站点（comix.site.base_url）。
+// 比较时忽略协议与 "www." 前缀；匹配失败返回不支持站点的明确错误。
+func MatchSiteByURL(rawURL string, sites []Site) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Host == "" {
+		return "", fmt.Errorf("URL 无效: %s", rawURL)
+	}
+	host := normalizeHost(parsed.Host)
+	for _, site := range sites {
+		if !site.Enabled || site.BaseURL == "" {
+			continue
+		}
+		base, parseErr := url.Parse(site.BaseURL)
+		if parseErr != nil || base.Host == "" {
+			continue
+		}
+		if normalizeHost(base.Host) == host {
+			return site.Code, nil
+		}
+	}
+	return "", fmt.Errorf("不支持的漫画站点: %s（支持: %s）", parsed.Host, supportedSiteNames(sites))
+}
+
+// normalizeHost 统一 host 比较形式（小写、去 "www." 前缀、去端口）。
+func normalizeHost(host string) string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return strings.TrimPrefix(host, "www.")
+}
+
+func supportedSiteNames(sites []Site) string {
+	var names []string
+	for _, site := range sites {
+		if site.Enabled && site.BaseURL != "" {
+			names = append(names, site.Name)
+		}
+	}
+	if len(names) == 0 {
+		return "无"
+	}
+	return strings.Join(names, " / ")
+}
 
 // ListSites 列出全部站点。
 func ListSites() ([]Site, error) {

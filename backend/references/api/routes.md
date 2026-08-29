@@ -1,7 +1,7 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-08-27T05:01:01Z
-- TotalRoutes: 50
+- GeneratedAt: 2026-08-28T10:37:35Z
+- TotalRoutes: 48
 
 | Method | Path |
 | --- | --- |
@@ -14,16 +14,14 @@
 | GET | /API/comic/download/:comic-id |
 | GET | /API/comic/meta-info |
 | POST | /API/comic/sync-readed |
-| POST | /API/comix/add |
-| POST | /API/comix/add-url |
 | GET | /API/comix/chapters/:comic-id |
 | POST | /API/comix/clean |
 | GET | /API/comix/config |
 | POST | /API/comix/delete |
 | POST | /API/comix/download |
+| POST | /API/comix/download-url |
 | POST | /API/comix/init |
 | GET | /API/comix/list |
-| POST | /API/comix/search |
 | GET | /API/comix/sites |
 | GET | /API/comix/tasks |
 | GET | /API/comix/tasks/:task-id |

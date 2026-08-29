@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:northstar/application/ops/providers/core_services_provider.dart';
+import 'package:northstar/core/providers/ops/core_services_provider.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
 import 'package:northstar/services/cert_trust.dart';
 import 'package:northstar/services/mdns_discovery.dart';

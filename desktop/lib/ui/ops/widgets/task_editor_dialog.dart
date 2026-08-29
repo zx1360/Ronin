@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:northstar/application/ops/providers/core_services_provider.dart';
+import 'package:northstar/core/providers/ops/core_services_provider.dart';
 import 'package:northstar/domain/ops/models/arg_preset.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';
 import 'package:northstar/domain/ops/utils/arg_parser.dart';

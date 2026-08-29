@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:northstar/application/comix/providers/comix_providers.dart';
-import 'package:northstar/application/ops/providers/ops_settings_provider.dart';
+import 'package:northstar/core/providers/comix/comix_providers.dart';
+import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/comix/models/comix_models.dart';
 import 'package:northstar/ui/comix/widgets/comix_dialogs.dart';
