@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:northstar/application/ops/providers/ops_overview_provider.dart';
-import 'package:northstar/application/ops/providers/ops_settings_provider.dart';
+import 'package:northstar/core/providers/ops/ops_overview_provider.dart';
+import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/ops/models/ops_overview.dart';
 import 'package:northstar/domain/ops/utils/format_utils.dart';

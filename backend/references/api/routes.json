@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-27T05:01:01Z",
+  "generated_at": "2026-08-28T10:37:35Z",
   "routes": [
     {
       "method": "GET",
@@ -38,14 +38,6 @@
       "path": "/API/comic/sync-readed"
     },
     {
-      "method": "POST",
-      "path": "/API/comix/add"
-    },
-    {
-      "method": "POST",
-      "path": "/API/comix/add-url"
-    },
-    {
       "method": "GET",
       "path": "/API/comix/chapters/:comic-id"
     },
@@ -67,15 +59,15 @@
     },
     {
       "method": "POST",
+      "path": "/API/comix/download-url"
+    },
+    {
+      "method": "POST",
       "path": "/API/comix/init"
     },
     {
       "method": "GET",
       "path": "/API/comix/list"
-    },
-    {
-      "method": "POST",
-      "path": "/API/comix/search"
     },
     {
       "method": "GET",

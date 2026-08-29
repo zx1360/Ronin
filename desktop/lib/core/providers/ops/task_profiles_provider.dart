@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'dart:async';
 
-import 'package:northstar/application/ops/providers/core_services_provider.dart';
+import 'package:northstar/core/providers/ops/core_services_provider.dart';
 import 'package:northstar/domain/ops/models/arg_preset.dart';
 import 'package:northstar/domain/ops/models/default_task_templates.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';

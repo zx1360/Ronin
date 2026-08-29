@@ -14,16 +14,20 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
 - 职责边界：**Go 端负责全部查询与删除**（`sites`/`list`/`chapters` 直查 `comix.*` 表，单条 SQL
   聚合，毫秒级；删除为改名目录→DB 级联→移除，DB 失败自动回滚改名，支持 `keep_files`）。
-  **Python 端只保留爬虫操作**（`search`/`add`/`add-url`/`download`/`update-check`/`clean`/`init`）。
+  **Python 端只保留爬虫操作**（`add-url`/`download`/`update-check`/`clean`/`init`）。
 - 配置：`.env` 的 `COMIX_PYTHON`（默认 `python`，LookPath 解析绝对路径）与 `COMIX_ROOT`
   （comix 项目根目录，必须含 `.env` 与 `util` 包）。未配置时 `/API/comix/config` 返回
   `available=false`，其余接口返回明确错误。
 - 接口分两类：**同步直查库**（`config`/`sites`/`list`/`chapters`/`delete`）与**异步任务**
-  （`search`/`add`/`add-url`/`download`/`update-check`/`clean`）。
+  （`download-url`/`download`/`update-check`/`clean`）。
+- **下载入口为 `POST /API/comix/download-url`**：粘贴详情页 URL 列表（`{urls: [...], latest?}`），
+  服务端按 `comix.site.base_url` 的 host 自动识别站点（忽略协议与 `www.` 前缀，`comix_repo.MatchSiteByURL`），
+  每个 URL 启动独立异步任务并发下载；不支持的站点在对应条目返回明确错误，不影响其他 URL。
+  按名搜索候选下载功能已移除（无 `search`/`add` 接口）。
   异步任务经 `POST /API/comix/tasks/:id/stop` 中断（`process.Kill` + `taskkill /T /F` 进程树），
   中断残留由 comix 的 `download` 自愈或 `clean` 全局回收。
-- 响应遵循 comix 协议：业务错误（`ok=false`，如多候选带 `candidates`）返回 HTTP 200，
-  仅传输/配置级故障返回 HTTP 500。
+- 响应遵循 comix 协议：业务错误（`ok=false`）返回 HTTP 200，仅传输/配置级故障返回 HTTP 500；
+  `add-url` 的下载结果嵌套在 `data.download` 下（协议文档 §4.2）。
 - 漫画文件存储在 comix `.env` 的 `COMIC_STORAGE_ROOT`（本环境为 `static/comics`，经 `/static/*`
   直接可访问）。Go 端删除通过读取 comix `.env` 解析存储根（`comix.StorageRoot`），不重复维护。
 - `/API/ops/overview`：gallery Media/Deleted 用 `gallery.media_assets` 聚合（DB 毫秒级），

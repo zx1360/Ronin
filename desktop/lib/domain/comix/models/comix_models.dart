@@ -55,33 +55,6 @@ class ComixSite {
   }
 }
 
-/// 搜索候选。
-class ComixCandidate {
-  final String title;
-  final String detailUrl;
-  final String site;
-  final String siteName;
-  final String match;
-
-  const ComixCandidate({
-    required this.title,
-    required this.detailUrl,
-    required this.site,
-    required this.siteName,
-    required this.match,
-  });
-
-  factory ComixCandidate.fromJson(Map<String, dynamic> json) {
-    return ComixCandidate(
-      title: json['title'] as String? ?? '',
-      detailUrl: json['detail_url'] as String? ?? '',
-      site: json['site'] as String? ?? '',
-      siteName: json['site_name'] as String? ?? '',
-      match: json['match'] as String? ?? 'fuzzy',
-    );
-  }
-}
-
 /// 已登记漫画（list 命令输出）。
 class ComixComic {
   final int comicId;
@@ -256,18 +229,4 @@ class ComixTask {
   }
 
   bool get isRunning => status == ComixTaskStatus.running;
-
-  /// 任务结果是否携带候选列表（搜索/添加多候选场景）。
-  bool get hasCandidates {
-    final data = result?['data'];
-    return data is Map<String, dynamic> && data['candidates'] is List;
-  }
-
-  List<Map<String, dynamic>> get candidates {
-    final data = result?['data'];
-    if (data is! Map<String, dynamic>) return const [];
-    final list = data['candidates'];
-    if (list is! List) return const [];
-    return list.whereType<Map<String, dynamic>>().toList();
-  }
 }
