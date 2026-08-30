@@ -62,6 +62,13 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 > gallery `edit_params` 契约（Android 编辑 → `gallery execute` 处理）见
 > `references/db/gallery.md`：图片裁切坐标为**原始像素空间**（后端先旋转再换算裁剪）；
 > 视频剪辑统一为**秒级**参数（`trim_start_sec`/`trim_end_sec`，0 = 到结尾）。
+> 另：`GET /API/gallery/:id/frame?sec=<秒>` 用 ffmpeg 提取视频指定位置的单帧
+> JPEG（带 LRU 缓存），供 Android 剪辑页拖动滑块实时预览帧画面；
+> `GET /API/gallery/:id/video-info` 返回 `{duration_ms,width,height}`（ffprobe 探测，
+> 带缓存），供剪辑页初始化（剪辑页为纯图片预览、无视频播放器）。
+> 视频剪辑输出强制音视频时间戳归零（`setpts=PTS-STARTPTS` +
+> `aresample=async=1:first_pts=0`），避免部分源（如含负起始时间戳的手机录制）
+> 剪辑后"开头黑屏有声音"的音视频错位。
 
 ### CLI 工具 (Gizmos)
 

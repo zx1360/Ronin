@@ -37,11 +37,15 @@ type VideoEditParams struct {
 //   - start 与 end 均 > 0   → 剪取 [start, end) 区间
 //   - 两者均 <= 0           → 无操作，返回 ErrNoOp
 //
-// 实现采用 "输入侧 -ss 快进 + 重新编码" 方式：
-//   - `-ss` 放在 `-i` 之前（输入侧 seek），现代 ffmpeg 在重新编码时会丢弃
-//     目标点之前的帧，起止点**帧级准确**，且解码开销远小于输出侧 seek；
+// 实现要点：
+//   - `-ss` 放在 `-i` 之前（输入侧 seek），快进到目标附近再重新编码，
+//     起止点帧级准确，且解码开销远小于输出侧 seek；
 //   - 重新编码（H.264 + AAC）保证任意容器/编码都能得到时间轴正确的输出，
-//     避免 `-c copy` 在非关键帧处剪切导致的画面黑帧、音画不同步等问题。
+//     避免 `-c copy` 在非关键帧处剪切导致的画面黑帧、音画不同步等；
+//   - **音视频时间戳强制归零**（`setpts=PTS-STARTPTS` +
+//     `aresample=async=1:first_pts=0`）：实测某些源（如含负起始时间戳的
+//     手机录制视频）剪辑后视频轨起始 PTS 未归零而音轨已归零，导致输出
+//     "开头黑屏有声音" 的音视频错位，此修复保证两轨都从 0 开始。
 func ApplyVideoEdit(srcPath, dstPath string, editParamsJSON string) error {
 	var params VideoEditParams
 	if err := json.Unmarshal([]byte(editParamsJSON), &params); err != nil {
@@ -96,6 +100,9 @@ func ApplyVideoEdit(srcPath, dstPath string, editParamsJSON string) error {
 	args = append(args,
 		"-map", "0:v:0", // 视频流
 		"-map", "0:a?", // 音频流（可选，无音轨的视频也能处理）
+		// 时间戳归零：两轨强制从 0 开始，避免开头黑屏有声音
+		"-vf", "setpts=PTS-STARTPTS",
+		"-af", "aresample=async=1:first_pts=0",
 		"-c:v", "libx264",
 		"-preset", "veryfast",
 		"-crf", "18",
