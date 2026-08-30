@@ -34,6 +34,12 @@
 *.test
 *.out
 
+# Go 构建缓存（本地沙箱构建时使用）
+.gocache/
+
+# Dart 依赖缓存（本地沙箱构建时使用）
+.pub-cache/
+
 # 测试覆盖率
 **/coverage/
 

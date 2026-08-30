@@ -1,4 +1,4 @@
-﻿## 项目说明 (Torrid)
+## 项目说明 (Torrid)
 
 Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费端。所有持久化数据通过 Monarch 后端 API 存取。
 
@@ -34,6 +34,13 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 - 自签证书：`assets/cert/`，通过 `CertTrust` 加载（仅信任加载的自签证书，`withTrustedRoots=false`，与桌面端一致）。
 - 画廊支持双向同步：`POST /API/gallery/push`（后端事务 + upsert 保证幂等）。
 - mDNS 自动发现：设置页点击"发现"可自动扫描局域网内的 Monarch 服务，发现的新地址会自动添加到配置列表。
+- 编辑参数 `edit_params`（图片裁切/视频剪辑）随 push 上传，由后端 `gallery execute` CLI 应用：
+  - 图片：`type=image`，裁切坐标为**原始图片像素空间**（后端负责旋转后换算）；
+  - 视频：`type=video`，起止时间一律为**秒**（`trim_start_sec`/`trim_end_sec`，0=到结尾），
+    由 `video_trimmer_page.dart` 按播放器真实时长计算，不再使用估算帧数。
+- **拖拽打标签**：gallery 主页底部"标签"按钮**点击**打开标签管理页（原行为），
+  **向上拖动**激活 `widgets/tag_drag_overlay.dart` 浮层 —— 拖到标签行松手=添加/移除该标签、
+  悬停父标签展开子级、接近面板边缘自动滚动、拖到右上角=取消。
 
 ### 硬性要求
 

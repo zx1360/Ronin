@@ -421,3 +421,14 @@ func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.Medi
 	)
 	return err
 }
+
+// ClearEditParams 仅清除指定资产的 edit_params（用于"无操作编辑"场景，不触碰任何文件）
+func (r *Repository) ClearEditParams(ctx context.Context, id uuid.UUID) error {
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE gallery.media_assets SET
+			updated_at  = NOW(),
+			edit_params = NULL
+		WHERE id = $1
+	`, id)
+	return err
+}
