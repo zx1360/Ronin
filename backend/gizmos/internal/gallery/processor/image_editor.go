@@ -24,7 +24,12 @@ type ImageEditParams struct {
 }
 
 // ApplyImageEdit 对图片应用旋转和裁切，结果写入 dstPath
-// crop 坐标是应用 rotation 后的显示坐标；处理流程：先旋转再裁切
+//
+// 契约（与 Android 端 ImageEditorPage 对齐）：
+//   - 裁切坐标始终是**原始图片（未旋转）的像素坐标**；
+//   - 处理流程：先旋转，再裁切 —— 本函数会把原始坐标换算到旋转后的
+//     坐标系再执行裁剪（`imaging.Rotate90` 为逆时针旋转，与 Android 端一致）；
+//   - 旋转与裁切均为无操作时返回 ErrNoOp（调用方仅清除 edit_params，不动文件）。
 func ApplyImageEdit(srcPath, dstPath string, editParamsJSON string) error {
 	var params ImageEditParams
 	if err := json.Unmarshal([]byte(editParamsJSON), &params); err != nil {
@@ -35,12 +40,17 @@ func ApplyImageEdit(srcPath, dstPath string, editParamsJSON string) error {
 		return fmt.Errorf("非图片编辑参数: %s", params.Type)
 	}
 
-	// 打开源图片（原生解码失败时自动 ffmpeg 后备）
+	// 打开源图片（原生解码失败时自动 ffmpeg 后备；AutoOrientation 与
+	// Android 端解码行为一致，保证两端处于同一"已校正 EXIF 方向"的像素空间）
 	proc := &Processor{ffmpegPath: "ffmpeg"}
 	src, err := proc.openImageWithFallback(srcPath)
 	if err != nil {
 		return fmt.Errorf("打开图片失败: %w", err)
 	}
+
+	// 原始尺寸（旋转前），裁切坐标的参照系
+	origW := src.Bounds().Dx()
+	origH := src.Bounds().Dy()
 
 	// 1. 旋转
 	rotation := params.Rotation % 360
@@ -56,38 +66,72 @@ func ApplyImageEdit(srcPath, dstPath string, editParamsJSON string) error {
 		src = imaging.Rotate270(src)
 	}
 
-	// 2. 裁切（坐标是旋转后的显示坐标）
-	bounds := src.Bounds()
-	imgW := bounds.Dx()
-	imgH := bounds.Dy()
+	// 旋转后的尺寸
+	rotW := src.Bounds().Dx()
+	rotH := src.Bounds().Dy()
 
+	// 2. 归一化原始空间的裁切参数（默认全幅）
 	cl := params.CropLeft
 	ct := params.CropTop
 	cr := params.CropRight
 	cb := params.CropBottom
+	if cl < 0 {
+		cl = 0
+	}
+	if ct < 0 {
+		ct = 0
+	}
+	if cr <= 0 || cr > origW {
+		cr = origW
+	}
+	if cb <= 0 || cb > origH {
+		cb = origH
+	}
 
-	// 如果裁切参数有效（不全为 0 且不超出范围）
-	if cl > 0 || ct > 0 || (cr > 0 && cr < imgW) || (cb > 0 && cb < imgH) {
-		// 边界保护
-		if cl < 0 {
-			cl = 0
+	// 是否真的需要裁切（相比原图全幅是否发生了变化）
+	hasCrop := cl > 0 || ct > 0 || cr < origW || cb < origH
+
+	// 无旋转且无裁切 → 无操作
+	if rotation == 0 && !hasCrop {
+		return ErrNoOp
+	}
+
+	// 3. 把原始坐标换算到旋转后坐标系（半开区间 [left, right) x [top, bottom)）
+	//    - 90° 逆时针:  (x, y) -> (y, origW - x)
+	//    - 180°:        (x, y) -> (origW - x, origH - y)
+	//    - 270° 逆时针:  (x, y) -> (origH - y, x)
+	if hasCrop && cl < cr && ct < cb {
+		var nl, nt, nr, nb int
+		switch rotation {
+		case 90:
+			nl, nt, nr, nb = ct, origW-cr, cb, origW-cl
+		case 180:
+			nl, nt, nr, nb = origW-cr, origH-cb, origW-cl, origH-ct
+		case 270:
+			nl, nt, nr, nb = origH-cb, cl, origH-ct, cr
+		default:
+			nl, nt, nr, nb = cl, ct, cr, cb
 		}
-		if ct < 0 {
-			ct = 0
+
+		// 边界保护 + 排除"恰好等于旋转后全幅"的情况
+		if nl < 0 {
+			nl = 0
 		}
-		if cr <= 0 || cr > imgW {
-			cr = imgW
+		if nt < 0 {
+			nt = 0
 		}
-		if cb <= 0 || cb > imgH {
-			cb = imgH
+		if nr > rotW {
+			nr = rotW
 		}
-		if cl < cr && ct < cb && (cl != 0 || ct != 0 || cr != imgW || cb != imgH) {
-			cropRect := image.Rect(cl, ct, cr, cb)
-			src = imaging.Crop(src, cropRect)
+		if nb > rotH {
+			nb = rotH
+		}
+		if nl < nr && nt < nb && (nl != 0 || nt != 0 || nr != rotW || nb != rotH) {
+			src = imaging.Crop(src, image.Rect(nl, nt, nr, nb))
 		}
 	}
 
-	// 3. 编码保存，保持原格式
+	// 4. 编码保存，保持原格式
 	ext := strings.ToLower(filepath.Ext(dstPath))
 	switch ext {
 	case ".png":

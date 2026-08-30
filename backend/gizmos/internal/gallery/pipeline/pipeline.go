@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -420,17 +421,28 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	tmpPath := filepath.Join(os.TempDir(), fmt.Sprintf("gallery_edit_%s%s", asset.ID.String(), ext))
 
 	// 应用编辑到临时文件
+	var editErr error
 	switch editType.Type {
 	case "image":
-		if err := processor.ApplyImageEdit(srcPath, tmpPath, *asset.EditParams); err != nil {
-			return fmt.Errorf("图片编辑失败: %w", err)
-		}
+		editErr = processor.ApplyImageEdit(srcPath, tmpPath, *asset.EditParams)
 	case "video":
-		if err := processor.ApplyVideoEdit(srcPath, tmpPath, *asset.EditParams); err != nil {
-			return fmt.Errorf("视频编辑失败: %w", err)
-		}
+		editErr = processor.ApplyVideoEdit(srcPath, tmpPath, *asset.EditParams)
 	default:
 		return fmt.Errorf("未知编辑类型: %s", editType.Type)
+	}
+
+	// 无操作编辑（如旋转 0°+全幅裁切、剪辑全片）：不搬移文件，仅清除 edit_params
+	if errors.Is(editErr, processor.ErrNoOp) {
+		log.Printf("编辑参数为无操作，清除 edit_params: %s", asset.FilePath)
+		dbCtx, dbCancel := db.GetDefaultCtx()
+		defer dbCancel()
+		if err := p.repository.ClearEditParams(dbCtx, asset.ID); err != nil {
+			return fmt.Errorf("清除 edit_params 失败: %w", err)
+		}
+		return nil
+	}
+	if editErr != nil {
+		return fmt.Errorf("%s 编辑失败: %w", editType.Type, editErr)
 	}
 
 	// 移动原文件到 trash
