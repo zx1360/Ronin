@@ -27,6 +27,10 @@ const (
 	JpegQuality = 85  // JPEG 压缩质量
 )
 
+// ErrNoOp 表示编辑参数实际为无操作（无需处理），
+// 调用方应跳过文件搬移并仅清除数据库中的 edit_params。
+var ErrNoOp = fmt.Errorf("编辑参数为无操作")
+
 // Processor 媒体处理器
 type Processor struct {
 	thumbsDir  string // 缩略图目录

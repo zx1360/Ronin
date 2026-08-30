@@ -59,6 +59,10 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用） |
 | `/api/*` | 所有方法 | Immich 反向代理 |
 
+> gallery `edit_params` 契约（Android 编辑 → `gallery execute` 处理）见
+> `references/db/gallery.md`：图片裁切坐标为**原始像素空间**（后端先旋转再换算裁剪）；
+> 视频剪辑统一为**秒级**参数（`trim_start_sec`/`trim_end_sec`，0 = 到结尾）。
+
 ### CLI 工具 (Gizmos)
 
 详见 `references/cli/`。主要命令: Comic Indexer（`refresh`/`full-reindex`）、Gallery（`ingest`/`execute`/`refresh`）。

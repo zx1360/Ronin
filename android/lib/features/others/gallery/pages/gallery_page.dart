@@ -12,6 +12,7 @@ import 'package:torrid/features/others/gallery/pages/video_trimmer_page.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/content_widget.dart';
 import 'package:torrid/features/others/gallery/widgets/preview_window_widget.dart';
+import 'package:torrid/features/others/gallery/widgets/tag_drag_overlay.dart';
 
 /// 解析编辑参数 JSON，生成人类可读的编辑提示文本。
 /// 返回 null 表示没有有效的编辑信息。
@@ -60,6 +61,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270°)
   int _quarterTurns = 0;
+
+  /// 拖拽打标签浮层控制器（由"标签"按钮手势驱动）
+  final GlobalKey<TagDragOverlayState> _tagDragKey = GlobalKey();
 
   /// 数值配置
   Color get _barBackgroundColor => Color.fromRGBO(0, 0, 0, 0.25);
@@ -158,6 +162,14 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
               onTap: _goToNext,
               rotationQuarterTurns: _quarterTurns,
             ),
+
+          // 拖拽打标签浮层（非拖动时为空组件，不拦截任何交互）
+          Positioned.fill(
+            child: TagDragOverlay(
+              key: _tagDragKey,
+              bottomInset: bottomBarHeight,
+            ),
+          ),
         ],
       ),
     );
@@ -287,13 +299,23 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // 标签管理
-            _BottomBarButton(
-              icon: const IconData(0xe63e, fontFamily: "iconfont"),
-              label: "标签",
-              onPressed: currentMedia != null
-                  ? () => _openLabelPage(context, currentMedia.id)
+            // 标签管理：点击打开标签管理页；**向上拖动**激活"拖拽打标签"浮层
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanStart: currentMedia != null
+                  ? (d) => _tagDragKey.currentState?.startDrag(d.globalPosition)
                   : null,
+              onPanUpdate: (d) =>
+                  _tagDragKey.currentState?.updateDrag(d.globalPosition),
+              onPanEnd: (d) => _tagDragKey.currentState?.endDrag(d.globalPosition),
+              onPanCancel: () => _tagDragKey.currentState?.cancelDrag(),
+              child: _BottomBarButton(
+                icon: const IconData(0xe63e, fontFamily: "iconfont"),
+                label: "标签",
+                onPressed: currentMedia != null
+                    ? () => _openLabelPage(context, currentMedia.id)
+                    : null,
+              ),
             ),
             // 网格视图 / 捆绑
             _BottomBarButton(

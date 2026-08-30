@@ -1,15 +1,21 @@
 import 'dart:convert';
 
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 
 /// 视频剪辑页面
-/// 使用 video_player + chewie 播放，时间轴拖拽选择起止帧
+///
+/// 时间单位统一为**秒**（以 video_player 提供的真实时长为准），不再使用
+/// 估算帧数 —— 旧实现硬编码 30 FPS 导致 24/60 FPS 视频的剪辑点完全错误。
+///
+/// 保存的 edit_params 契约（与后端 gizmos `ApplyVideoEdit` 对齐）：
+///   {"type":"video","trim_start_sec":double,"trim_end_sec":double,"duration":double}
+/// 其中 trim_end_sec <= 0 表示"到视频结尾"。
 class VideoTrimmerPage extends ConsumerStatefulWidget {
   final MediaAsset asset;
 
@@ -23,18 +29,18 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
 
-  /// 剪辑起始帧
-  int _startFrame = 0;
-  /// 剪辑结束帧 (0 表示末尾)
-  int _endFrame = 0;
+  /// 剪辑起止秒数；[_endSec] 默认等于视频总时长
+  double _startSec = 0;
+  double _endSec = 0;
 
-  /// 视频总帧数
-  int _totalFrames = 0;
-  /// FPS
-  double _fps = 30.0;
+  /// 视频总时长（秒），来自播放器初始化结果，真实可靠
+  double _duration = 0;
 
   bool _initialized = false;
   bool _saving = false;
+
+  /// 容差：低于该值视为"从头/到结尾"，避免浮点噪声
+  static const double _eps = 0.05;
 
   @override
   void initState() {
@@ -62,23 +68,37 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
 
     await controller.initialize();
 
-    final dur = controller.value.duration;
-    const fps = 30.0; // video_player 2.x 不提供 fpsHint，默认 30 FPS
-    final totalFrames = (dur.inMilliseconds / 1000 * fps).round();
+    final durationSec = controller.value.duration.inMilliseconds / 1000.0;
 
-    // 解析已有编辑参数
-    int startFrame = 0;
-    int endFrame = 0;
+    // 解析已有编辑参数（优先秒数；旧版帧数协议作为后备）
+    double startSec = 0;
+    double endSec = durationSec;
     final params = widget.asset.editParams;
     if (params != null) {
       try {
         final json = jsonDecode(params) as Map<String, dynamic>;
         if (json['type'] == 'video') {
-          startFrame = json['trim_start_frame'] as int? ?? 0;
-          endFrame = json['trim_end_frame'] as int? ?? 0;
+          final s = (json['trim_start_sec'] as num?)?.toDouble();
+          final e = (json['trim_end_sec'] as num?)?.toDouble();
+          if (s != null && s > 0) startSec = s;
+          if (e != null && e > 0) endSec = e;
+          if ((s == null || s <= 0) && json['trim_start_frame'] is int) {
+            final fps = (json['fps'] as num?)?.toDouble() ?? 30.0;
+            startSec = (json['trim_start_frame'] as int) / (fps > 0 ? fps : 30);
+          }
+          if ((e == null || e <= 0) && json['trim_end_frame'] is int) {
+            final fps = (json['fps'] as num?)?.toDouble() ?? 30.0;
+            final f = (json['trim_end_frame'] as int);
+            if (f > 0) endSec = f / (fps > 0 ? fps : 30);
+          }
         }
       } catch (_) {}
     }
+
+    // 边界收敛
+    if (startSec < 0) startSec = 0;
+    if (endSec > durationSec) endSec = durationSec;
+    if (endSec <= startSec + _eps) endSec = durationSec;
 
     if (mounted) {
       setState(() {
@@ -90,36 +110,36 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
           allowFullScreen: false,
           showControls: true,
         );
-        _fps = fps;
-        _totalFrames = totalFrames;
-        _startFrame = startFrame;
-        _endFrame = endFrame > 0 ? endFrame : totalFrames;
+        _duration = durationSec;
+        _startSec = startSec;
+        _endSec = endSec;
         _initialized = true;
       });
     }
   }
 
-  String _buildEditParamsJson() {
+  /// 是否实际发生了剪辑（起止点有一处偏离"从头到尾"即视为有剪辑）
+  bool get _hasTrim => _startSec > _eps || _endSec < _duration - _eps;
+
+  String? _buildEditParamsJson() {
+    if (!_hasTrim) return null;
     final map = <String, dynamic>{
       'type': 'video',
-      'trim_start_frame': _startFrame,
-      'trim_end_frame': _endFrame < _totalFrames ? _endFrame : 0,
-      'fps': _fps,
-      'trim_start_sec': _frameToSeconds(_startFrame),
-      'trim_end_sec': _frameToSeconds(_endFrame < _totalFrames ? _endFrame : _totalFrames),
+      'trim_start_sec': _startSec,
+      // 到结尾时传 0（后端语义：<=0 表示到结尾）
+      'trim_end_sec': _endSec < _duration - _eps ? _endSec : 0,
+      'duration': _duration,
     };
     return jsonEncode(map);
   }
 
-  double _frameToSeconds(int frame) {
-    return _fps > 0 ? frame / _fps : 0;
-  }
-
-  String _formatTime(int frame) {
-    final sec = _frameToSeconds(frame);
-    final min = (sec / 60).floor();
-    final s = (sec % 60).floor();
-    return '${min.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  String _formatTime(double sec) {
+    final s = sec < 0 ? 0 : sec;
+    final min = (s / 60).floor();
+    final rem = (s % 60);
+    final whole = rem.floor();
+    final tenth = ((rem - whole) * 10).floor();
+    return '${min.toString().padLeft(2, '0')}:${whole.toString().padLeft(2, '0')}.$tenth';
   }
 
   Future<void> _save() async {
@@ -128,8 +148,10 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
 
     try {
       final db = ref.read(galleryDatabaseProvider);
+      final editParams = _buildEditParamsJson();
       final updatedAsset = widget.asset.copyWith(
-        editParams: _buildEditParamsJson(),
+        editParams: editParams,
+        clearEditParams: editParams == null,
       );
       await db.updateMediaAsset(updatedAsset);
 
@@ -138,9 +160,11 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('剪辑参数已保存，同步后将应用'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(
+              editParams == null ? '已还原为完整视频' : '剪辑参数已保存，同步后将应用',
+            ),
+            duration: const Duration(seconds: 2),
           ),
         );
         Navigator.pop(context);
@@ -189,7 +213,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
                   child: Chewie(controller: _chewieController!),
                 ),
                 const SizedBox(height: 16),
-                // 时间轴滑块
+                // 时间轴滑块（秒）
                 _buildTimeline(),
                 const SizedBox(height: 16),
                 // 快捷按钮
@@ -197,9 +221,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
                 const SizedBox(height: 8),
                 // 信息
                 Text(
-                  '起始: ${_formatTime(_startFrame)} (帧 $_startFrame)  |  '
-                  '结束: ${_formatTime(_endFrame)} (帧 $_endFrame)  |  '
-                  'FPS: ${_fps.toStringAsFixed(1)}',
+                  '起始: ${_formatTime(_startSec)}  |  结束: ${_formatTime(_endSec)}  |  总长: ${_formatTime(_duration)}',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
@@ -209,75 +231,84 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
   }
 
   Widget _buildTimeline() {
-    final maxFrames = _totalFrames > 0 ? _totalFrames : 1;
+    final maxSec = _duration > 0 ? _duration : 1.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // 起始帧滑块
-          Row(
-            children: [
-              const SizedBox(
-                  width: 40,
-                  child: Text('起始',
-                      style: TextStyle(color: Colors.white54, fontSize: 11))),
-              Expanded(
-                child: Slider(
-                  value: _startFrame.toDouble(),
-                  min: 0,
-                  max: maxFrames.toDouble(),
-                  activeColor: Colors.green,
-                  onChanged: (v) {
-                    setState(() {
-                      _startFrame = v.round();
-                      if (_startFrame >= _endFrame) {
-                        _startFrame = _endFrame - 1;
-                      }
-                    });
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 60,
-                child: Text('$_startFrame帧',
-                    style: const TextStyle(color: Colors.white54, fontSize: 11)),
-              ),
-            ],
+          _buildSliderRow(
+            label: '起始',
+            color: Colors.green,
+            value: _startSec,
+            max: maxSec,
+            onChanged: (v) {
+              setState(() {
+                _startSec = v;
+                // 保证最小片段长度
+                if (_startSec >= _endSec - _eps) {
+                  _startSec = (_endSec - _eps).clamp(0.0, maxSec).toDouble();
+                }
+              });
+            },
           ),
-          // 结束帧滑块
-          Row(
-            children: [
-              const SizedBox(
-                  width: 40,
-                  child: Text('结束',
-                      style: TextStyle(color: Colors.white54, fontSize: 11))),
-              Expanded(
-                child: Slider(
-                  value: _endFrame.toDouble(),
-                  min: 0,
-                  max: maxFrames.toDouble(),
-                  activeColor: Colors.red,
-                  onChanged: (v) {
-                    setState(() {
-                      _endFrame = v.round();
-                      if (_endFrame <= _startFrame) {
-                        _endFrame = _startFrame + 1;
-                      }
-                    });
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 60,
-                child: Text('$_endFrame帧',
-                    style: const TextStyle(color: Colors.white54, fontSize: 11)),
-              ),
-            ],
+          _buildSliderRow(
+            label: '结束',
+            color: Colors.red,
+            value: _endSec,
+            max: maxSec,
+            onChanged: (v) {
+              setState(() {
+                _endSec = v;
+                if (_endSec <= _startSec + _eps) {
+                  _endSec = (_startSec + _eps).clamp(0.0, maxSec).toDouble();
+                }
+              });
+            },
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildSliderRow({
+    required String label,
+    required Color color,
+    required double value,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 40,
+          child: Text(label,
+              style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        ),
+        Expanded(
+          child: Slider(
+            value: value.clamp(0.0, max).toDouble(),
+            min: 0,
+            max: max,
+            activeColor: color,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(
+          width: 64,
+          child: Text(_formatTime(value),
+              style: const TextStyle(color: Colors.white54, fontSize: 11),
+              textAlign: TextAlign.right),
+        ),
+      ],
+    );
+  }
+
+  /// 当前播放位置（秒）
+  double? get _currentPositionSec {
+    final pos = _videoController?.value.position;
+    if (pos == null) return null;
+    return pos.inMilliseconds / 1000.0;
   }
 
   Widget _buildQuickActions() {
@@ -288,41 +319,38 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
           label: '剪开头',
           icon: Icons.skip_previous,
           onTap: () {
-            final currentPos = _videoController?.value.position;
-            if (currentPos != null && _fps > 0) {
-              final frame = (currentPos.inMilliseconds / 1000 * _fps).round();
-              setState(() => _startFrame = frame.clamp(0, _endFrame - 1));
-            }
+            final pos = _currentPositionSec;
+            if (pos == null) return;
+            setState(() {
+              _startSec = pos.clamp(0.0, _endSec - _eps).toDouble();
+            });
           },
         ),
         _ActionButton(
           label: '剪结尾',
           icon: Icons.skip_next,
           onTap: () {
-            final currentPos = _videoController?.value.position;
-            if (currentPos != null && _fps > 0) {
-              final frame = (currentPos.inMilliseconds / 1000 * _fps).round();
-              setState(() =>
-                  _endFrame = frame.clamp(_startFrame + 1, _totalFrames));
-            }
+            final pos = _currentPositionSec;
+            if (pos == null) return;
+            setState(() {
+              _endSec = pos.clamp(_startSec + _eps, _duration).toDouble();
+            });
           },
         ),
         _ActionButton(
           label: '选取中间',
           icon: Icons.center_focus_strong,
           onTap: () {
-            final currentPos = _videoController?.value.position;
-            if (currentPos != null && _fps > 0) {
-              final frame = (currentPos.inMilliseconds / 1000 * _fps).round();
-              final half = (_endFrame - _startFrame) ~/ 2;
-              setState(() {
-                _startFrame = (frame - half).clamp(0, _totalFrames);
-                _endFrame = (frame + half).clamp(0, _totalFrames);
-                if (_startFrame >= _endFrame) {
-                  _endFrame = _startFrame + 1;
-                }
-              });
-            }
+            final pos = _currentPositionSec;
+            if (pos == null) return;
+            final half = (_endSec - _startSec) / 2;
+            setState(() {
+              _startSec = (pos - half).clamp(0.0, _duration).toDouble();
+              _endSec = (pos + half).clamp(0.0, _duration).toDouble();
+              if (_endSec <= _startSec + _eps) {
+                _endSec = (_startSec + _eps).clamp(0.0, _duration).toDouble();
+              }
+            });
           },
         ),
         _ActionButton(
@@ -330,8 +358,8 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
           icon: Icons.refresh,
           onTap: () {
             setState(() {
-              _startFrame = 0;
-              _endFrame = _totalFrames;
+              _startSec = 0;
+              _endSec = _duration;
             });
           },
         ),
