@@ -10,7 +10,7 @@ import 'package:torrid/features/others/gallery/providers/gallery_providers.dart'
 ///
 /// 交互（由底部"标签"按钮的 GestureDetector 驱动，本组件只响应其回调）：
 ///  1. 手指按住底部"标签"按钮并**向上拖动** → 浮层从底部弹出；
-///  2. 手指滑到某个标签行上 → 高亮该行；悬停有子级的标签 350ms 自动展开下一级；
+///  2. 手指滑到某个标签行上 → 高亮该行；悬停有子级的标签自动展开下一级；
 ///  3. 手指接近面板上/下边缘 → 列表自动滚动，露出屏幕外的标签；
 ///  4. 松手在标签行上 → 添加/移除该标签（已有标签则移除，未打则添加）；
 ///  5. 拖到**右上角取消区**松手 → 不生效，关闭浮层。
@@ -67,7 +67,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
   Rect? _cancelZoneRect;
 
   static const double _edge = 56; // 自动滚动触发边缘宽度
-  static const int _expandDelay = 350; // 悬停展开延迟 (ms)
+  static const int _expandDelay = 150; // 悬停展开延迟 (ms)
 
   @override
   void dispose() {
@@ -125,22 +125,20 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
 
     if (targetTagId != null) {
       HapticFeedback.mediumImpact();
-      final tag = _findTag(targetTagId);
+      // final tag = _findTag(targetTagId);
       final applied = _appliedTagIds.contains(targetTagId);
       final notifier = ref.read(currentMediaTagsProvider.notifier);
       try {
         if (applied) {
           await notifier.removeTag(targetTagId);
-          if (mounted && tag != null) _toast('已移除标签「${tag.name}」');
+          // if (mounted && tag != null) _toast('已移除标签「${tag.name}」');
         } else {
           await notifier.addTag(targetTagId);
-          if (mounted && tag != null) _toast('已添加标签「${tag.name}」');
+          // if (mounted && tag != null) _toast('已添加标签「${tag.name}」');
         }
       } catch (e) {
         if (mounted) _toast('操作失败: $e');
       }
-    } else if (inCancel) {
-      if (mounted) _toast('已取消拖拽');
     }
   }
 
