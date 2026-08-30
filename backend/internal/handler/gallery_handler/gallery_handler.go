@@ -1,11 +1,18 @@
 package gallery_handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +22,157 @@ import (
 	"monarch/internal/model"
 	"monarch/internal/repository/gallery_repo"
 )
+
+// ============ 视频取帧（供 Android 剪辑页拖动滑块时实时预览帧画面） ============
+
+// frameCacheKey 取帧缓存键：assetID|取整到 0.05s 的秒数
+type frameCacheKey struct {
+	assetID uuid.UUID
+	sec     int64
+}
+
+// frameCache 简单的 LRU 取帧缓存（FIFO 淘汰），避免拖动滑块时重复调用 ffmpeg
+var (
+	frameCacheMu    sync.Mutex
+	frameCache      = make(map[frameCacheKey][]byte)
+	frameCacheOrder []frameCacheKey
+)
+
+const (
+	frameCacheMax = 64 // 缓存帧数上限（约几十 MB 级别，自用足够）
+	frameSecStep  = 50 // 缓存键按 50ms 取整，拖动抖动不击穿缓存
+)
+
+// VideoInfo 视频信息响应（/API/gallery/:id/video-info）
+type VideoInfo struct {
+	DurationMs int64 `json:"duration_ms"`
+	Width      int   `json:"width"`
+	Height     int   `json:"height"`
+}
+
+// videoInfoCache 视频信息缓存（键: assetID）
+var (
+	videoInfoCacheMu sync.Mutex
+	videoInfoCache   = make(map[uuid.UUID]VideoInfo)
+)
+
+// probeVideoInfo 用 ffprobe 探测视频时长与分辨率（带缓存）
+func probeVideoInfo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
+	videoInfoCacheMu.Lock()
+	if info, ok := videoInfoCache[assetID]; ok {
+		videoInfoCacheMu.Unlock()
+		return info, nil
+	}
+	videoInfoCacheMu.Unlock()
+
+	ffprobePath := "ffprobe"
+	if _, err := exec.LookPath(ffprobePath); err != nil {
+		return VideoInfo{}, fmt.Errorf("ffprobe 不可用: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, ffprobePath,
+		"-v", "error",
+		"-show_entries", "format=duration:stream=width,height",
+		"-of", "json",
+		srcPath,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return VideoInfo{}, fmt.Errorf("ffprobe 失败: %w", err)
+	}
+
+	var parsed struct {
+		Format struct {
+			Duration string `json:"duration"`
+		} `json:"format"`
+		Streams []struct {
+			Width  int    `json:"width"`
+			Height int    `json:"height"`
+			Codec  string `json:"codec_type"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		return VideoInfo{}, fmt.Errorf("解析 ffprobe 输出失败: %w", err)
+	}
+
+	durSec, _ := strconv.ParseFloat(parsed.Format.Duration, 64)
+	info := VideoInfo{DurationMs: int64(durSec * 1000)}
+	for _, s := range parsed.Streams {
+		if s.Codec == "video" {
+			info.Width = s.Width
+			info.Height = s.Height
+			break
+		}
+	}
+
+	videoInfoCacheMu.Lock()
+	videoInfoCache[assetID] = info
+	videoInfoCacheMu.Unlock()
+
+	return info, nil
+}
+
+// extractVideoFrame 用 ffmpeg 提取视频指定秒数的帧（JPEG），带 LRU 缓存。
+// `-ss` 置于 `-i` 前做输入侧快进，再解码到目标位置输出单帧：又快又准。
+func extractVideoFrame(assetID uuid.UUID, srcPath string, sec float64) ([]byte, error) {
+	if sec < 0 {
+		sec = 0
+	}
+	key := frameCacheKey{assetID: assetID, sec: int64(sec * 1000 / frameSecStep)}
+
+	frameCacheMu.Lock()
+	if data, ok := frameCache[key]; ok {
+		frameCacheMu.Unlock()
+		return data, nil
+	}
+	frameCacheMu.Unlock()
+
+	// 检查 ffmpeg 可用性
+	ffmpegPath := "ffmpeg"
+	if _, err := exec.LookPath(ffmpegPath); err != nil {
+		return nil, fmt.Errorf("ffmpeg 不可用: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, ffmpegPath,
+		"-ss", strconv.FormatFloat(sec, 'f', 2, 64),
+		"-i", srcPath,
+		"-frames:v", "1",
+		"-q:v", "3",
+		"-f", "image2pipe",
+		"-vcodec", "mjpeg",
+		"-",
+	)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("ffmpeg 提取帧失败: %w", err)
+	}
+	if out.Len() == 0 {
+		return nil, fmt.Errorf("ffmpeg 未生成帧数据")
+	}
+
+	data := out.Bytes()
+
+	// 写入缓存（FIFO 淘汰）
+	frameCacheMu.Lock()
+	if len(frameCache) >= frameCacheMax {
+		if len(frameCacheOrder) > 0 {
+			delete(frameCache, frameCacheOrder[0])
+			frameCacheOrder = frameCacheOrder[1:]
+		}
+	}
+	frameCache[key] = data
+	frameCacheOrder = append(frameCacheOrder, key)
+	frameCacheMu.Unlock()
+
+	return data, nil
+}
 
 // FetchBatch 处理 GET /api/gallery/batch 请求
 // 响应指定数量的媒体资产 + 全量标签 + 对应的标签关联关系
@@ -187,11 +345,63 @@ func FetchMediaAsset(c *gin.Context) {
 			return
 		}
 		filePath = filepath.Join(config.AppConf.GalleryDir, "Preview", *asset.PreviewPath)
+	case "frame":
+		// 视频取帧：?sec=秒数，返回该位置一帧 JPEG（Android 剪辑页拖动预览用）
+		if !isVideoAsset(asset) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "非视频资产"})
+			return
+		}
+		sec := 0.0
+		if raw := c.Query("sec"); raw != "" {
+			if v, err := strconv.ParseFloat(raw, 64); err == nil {
+				sec = v
+			}
+		}
+		srcPath := filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
+		data, err := extractVideoFrame(id, srcPath, sec)
+		if err != nil {
+			log.Printf("gallery 取帧失败 [%s @%.1fs]: %v", asset.FilePath, sec, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "提取视频帧失败: " + err.Error()})
+			return
+		}
+		c.Header("Cache-Control", "no-store")
+		c.Data(http.StatusOK, "image/jpeg", data)
+		return
+	case "video-info":
+		// 视频信息：时长/宽高（Android 剪辑页初始化用，避免引入视频播放器）
+		if !isVideoAsset(asset) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "非视频资产"})
+			return
+		}
+		srcPath := filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
+		info, err := probeVideoInfo(id, srcPath)
+		if err != nil {
+			log.Printf("gallery 探测视频信息失败 [%s]: %v", asset.FilePath, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "探测视频信息失败: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, info)
+		return
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的类型参数"})
 		return
 	}
 	downloadFile(c, filePath)
+}
+
+// isVideoAsset 根据 MIME 或扩展名判断是否为视频资产
+func isVideoAsset(asset *model.MediaAsset) bool {
+	if asset.MimeType != nil {
+		if len(*asset.MimeType) >= 6 && (*asset.MimeType)[:6] == "video/" {
+			return true
+		}
+	}
+	ext := strings.ToLower(filepath.Ext(asset.FilePath))
+	switch ext {
+	case ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts":
+		return true
+	}
+	return false
 }
 
 // Push 处理 POST /api/gallery/push 请求
