@@ -10,30 +10,6 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
   外部 comix 项目（`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
   提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
 
-### comix 集成要点
-
-- 职责边界：**Go 端负责全部查询与删除**（`sites`/`list`/`chapters` 直查 `comix.*` 表，单条 SQL
-  聚合，毫秒级；删除为改名目录→DB 级联→移除，DB 失败自动回滚改名，支持 `keep_files`）。
-  **Python 端只保留爬虫操作**（`add-url`/`download`/`update-check`/`clean`/`init`）。
-- 配置：`.env` 的 `COMIX_PYTHON`（默认 `python`，LookPath 解析绝对路径）与 `COMIX_ROOT`
-  （comix 项目根目录，必须含 `.env` 与 `util` 包）。未配置时 `/API/comix/config` 返回
-  `available=false`，其余接口返回明确错误。
-- 接口分两类：**同步直查库**（`config`/`sites`/`list`/`chapters`/`delete`）与**异步任务**
-  （`download-url`/`download`/`update-check`/`clean`）。
-- **下载入口为 `POST /API/comix/download-url`**：粘贴详情页 URL 列表（`{urls: [...], latest?}`），
-  服务端按 `comix.site.base_url` 的 host 自动识别站点（忽略协议与 `www.` 前缀，`comix_repo.MatchSiteByURL`），
-  每个 URL 启动独立异步任务并发下载；不支持的站点在对应条目返回明确错误，不影响其他 URL。
-  按名搜索候选下载功能已移除（无 `search`/`add` 接口）。
-  异步任务经 `POST /API/comix/tasks/:id/stop` 中断（`process.Kill` + `taskkill /T /F` 进程树），
-  中断残留由 comix 的 `download` 自愈或 `clean` 全局回收。
-- 响应遵循 comix 协议：业务错误（`ok=false`）返回 HTTP 200，仅传输/配置级故障返回 HTTP 500；
-  `add-url` 的下载结果嵌套在 `data.download` 下（协议文档 §4.2）。
-- 漫画文件存储在 comix `.env` 的 `COMIC_STORAGE_ROOT`（本环境为 `static/comics`，经 `/static/*`
-  直接可访问）。Go 端删除通过读取 comix `.env` 解析存储根（`comix.StorageRoot`），不重复维护。
-- `/API/ops/overview`：gallery Media/Deleted 用 `gallery.media_assets` 聚合（DB 毫秒级），
-  static 等目录用量由后台 TTL 缓存遍历提供（`util_handler.StartDirUsageRefresher`，5 分钟刷新、
-  启动预热），**不修改任何表结构**。
-
 ### 技术栈
 
 Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权。Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
@@ -58,17 +34,6 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 | `/API/gallery` | `/batch`, `/tags`, `/:id/:type`, `POST /push` | 媒体资产浏览、文件流、推送 |
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用） |
 | `/api/*` | 所有方法 | Immich 反向代理 |
-
-> gallery `edit_params` 契约（Android 编辑 → `gallery execute` 处理）见
-> `references/db/gallery.md`：图片裁切坐标为**原始像素空间**（后端先旋转再换算裁剪）；
-> 视频剪辑统一为**秒级**参数（`trim_start_sec`/`trim_end_sec`，0 = 到结尾）。
-> 另：`GET /API/gallery/:id/frame?sec=<秒>` 用 ffmpeg 提取视频指定位置的单帧
-> JPEG（带 LRU 缓存），供 Android 剪辑页拖动滑块实时预览帧画面；
-> `GET /API/gallery/:id/video-info` 返回 `{duration_ms,width,height}`（ffprobe 探测，
-> 带缓存），供剪辑页初始化（剪辑页为纯图片预览、无视频播放器）。
-> 视频剪辑输出强制音视频时间戳归零（`setpts=PTS-STARTPTS` +
-> `aresample=async=1:first_pts=0`），避免部分源（如含负起始时间戳的手机录制）
-> 剪辑后"开头黑屏有声音"的音视频错位。
 
 ### CLI 工具 (Gizmos)
 
