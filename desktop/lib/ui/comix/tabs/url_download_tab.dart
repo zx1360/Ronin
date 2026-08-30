@@ -102,7 +102,6 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
       // 任务面板立即可见 + 本列表实时轮询任务状态
       ref.read(comixBoardProvider.notifier).refresh();
       ref.invalidate(comixComicsProvider);
-      _startStatusPolling();
 
       final okCount = _results.where((r) => r.taskId != null).length;
       final failCount = _results.length - okCount;
@@ -115,47 +114,6 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
       if (!mounted) return;
       setState(() => _submitting = false);
       _snack('提交失败: $e');
-    }
-  }
-
-  /// 每 3s 刷新各任务实时状态；全部结束后停止。
-  void _startStatusPolling() {
-    _statusTimer?.cancel();
-    _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      _pollStatuses();
-    });
-    _pollStatuses();
-  }
-
-  Future<void> _pollStatuses() async {
-    final running = _results
-        .where((r) => r.taskId != null && r.status == ComixTaskStatus.running)
-        .toList();
-    if (running.isEmpty) {
-      _statusTimer?.cancel();
-      return;
-    }
-
-    final settings = ref.read(opsSettingsControllerProvider);
-    final client = ref.read(comixApiClientProvider);
-    for (final item in running) {
-      try {
-        final task = await client.fetchTask(settings, item.taskId!);
-        if (!mounted) return;
-        setState(() {
-          item.status = task.status;
-          item.error = task.error;
-          item.summary = comixTaskSummary(task);
-        });
-      } catch (_) {
-        // 单次查询失败忽略，下轮重试
-      }
-    }
-    if (!mounted) return;
-    final stillRunning = _results
-        .any((r) => r.taskId != null && r.status == ComixTaskStatus.running);
-    if (!stillRunning) {
-      _statusTimer?.cancel();
     }
   }
 
