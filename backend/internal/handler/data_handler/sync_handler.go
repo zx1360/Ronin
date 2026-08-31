@@ -61,11 +61,17 @@ func syncFromDB(c *gin.Context, moduleName string) {
 		// 将 DB 模型转为 JSON 友好格式
 		stylesJSON := make([]map[string]interface{}, 0, len(styles))
 		for _, s := range styles {
-			stylesJSON = append(stylesJSON, toMap(s))
+			m := toMap(s)
+			// 日历日期以 date-only 字符串下发（与 Android 端 dateFromJson/dateToJson 约定一致），
+			// 避免 RFC3339 往返引入时区偏移。
+			m["start_date"] = s.StartDate.UTC().Format("2006-01-02")
+			stylesJSON = append(stylesJSON, m)
 		}
 		recordsJSON := make([]map[string]interface{}, 0, len(records))
 		for _, r := range records {
-			recordsJSON = append(recordsJSON, toMap(r))
+			m := toMap(r)
+			m["date"] = r.Date.UTC().Format("2006-01-02")
+			recordsJSON = append(recordsJSON, m)
 		}
 
 		mergedData["styles"] = stylesJSON

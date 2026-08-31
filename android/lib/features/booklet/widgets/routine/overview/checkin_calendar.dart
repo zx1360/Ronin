@@ -6,14 +6,13 @@ import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/core/utils/util.dart';
 
 class CheckinCalendar extends StatelessWidget {
-  final BuildContext context;
   final Style? style;
   final List<Record> records;
+
   /// 选中的任务ID，用于筛选日历展示单个任务的完成情况
   final String? selectedTaskId;
   const CheckinCalendar({
     super.key,
-    required this.context,
     required this.style,
     required this.records,
     this.selectedTaskId,
@@ -35,22 +34,11 @@ class CheckinCalendar extends StatelessWidget {
   /// 获取打卡日历的日期范围（当前样式的第一条记录 ~ 最后一条记录）
   DateTimeRange _getCalendarDateRange() {
     if (records.isEmpty) {
-      return DateTimeRange(
-        start: getTodayDate(),
-        end: getTodayDate(),
-      );
+      return DateTimeRange(start: getTodayDate(), end: getTodayDate());
     }
     // 相关记录已按日期倒序，最早日期=最后一条记录，最晚日期=第一条记录
-    final earliestDate = DateTime(
-      records.last.date.year,
-      records.last.date.month,
-      records.last.date.day,
-    );
-    final latestDate = DateTime(
-      records.first.date.year,
-      records.first.date.month,
-      records.first.date.day,
-    );
+    final earliestDate = dateOnly(records.last.date);
+    final latestDate = dateOnly(records.first.date);
     return DateTimeRange(start: earliestDate, end: latestDate);
   }
 
@@ -60,8 +48,10 @@ class CheckinCalendar extends StatelessWidget {
   int _getCheckInStatusIndex(DateTime date) {
     if (style == null) return 0;
 
-    final targetRecords = records.where((record)=>isSameDay(record.date, date));
-    if(targetRecords.isEmpty){
+    final targetRecords = records.where(
+      (record) => isSameDay(record.date, date),
+    );
+    if (targetRecords.isEmpty) {
       return 0;
     }
     final targetRecord = targetRecords.first;
@@ -113,8 +103,9 @@ class CheckinCalendar extends StatelessWidget {
   }
 
   /// 打开日期详情弹窗（展示该日期的打卡记录和任务完成情况）
+  /// [context]：弹窗宿主上下文
   /// [date]：目标日期
-  void _openDateDetailDialog(DateTime date) {
+  void _openDateDetailDialog(BuildContext context, DateTime date) {
     if (style == null) return;
 
     final targetRecord = records.firstWhere(
@@ -321,7 +312,7 @@ class CheckinCalendar extends StatelessWidget {
                   // 无记录且无留言时，不触发弹窗
                   onTap: (statusIndex == 0 && targetRecord.message == "")
                       ? null
-                      : () => _openDateDetailDialog(date),
+                      : () => _openDateDetailDialog(context, date),
                   child: Stack(
                     alignment: Alignment.center,
                     children: [

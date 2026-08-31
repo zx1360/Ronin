@@ -374,6 +374,14 @@ func parseFlexTime(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("无法解析日期: %s", s)
 }
 
+// dateOnly 将任意时刻规整为该时刻所在日期的 UTC 零点。
+// booklet 的 start_date/date 语义为"日历日期"（无时间概念），
+// 规整为 UTC 零点可保证同步往返稳定，并避免旧客户端"本地时间无时区字符串"
+// 被 time.Parse 当作 UTC 解析后逐次备份累积偏移的问题。
+func dateOnly(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
 // getString 从 map 中安全获取字符串
 func getString(m map[string]interface{}, key string) string {
 	if v, ok := m[key]; ok {
@@ -455,7 +463,7 @@ func parseBookletStyle(m map[string]interface{}) (model.BookletStyle, error) {
 
 	return model.BookletStyle{
 		ID:                 id,
-		StartDate:          startDate,
+		StartDate:          dateOnly(startDate),
 		ValidCheckIn:       getInt(m, "valid_check_in"),
 		FullyDone:          getInt(m, "fully_done"),
 		LongestStreak:      getInt(m, "longest_streak"),
@@ -483,7 +491,7 @@ func parseBookletRecord(m map[string]interface{}) (model.BookletRecord, error) {
 	return model.BookletRecord{
 		ID:             id,
 		StyleID:        styleID,
-		Date:           date,
+		Date:           dateOnly(date),
 		Message:        getString(m, "message"),
 		TaskCompletion: toJSONRaw(m["task_completion"]),
 		Mood:           getOptionalString(m, "mood"),

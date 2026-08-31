@@ -21,9 +21,9 @@ part 'essay_notifier_provider.g.dart';
 // ============================================================================
 
 /// Essay 模块的数据仓库
-/// 
+///
 /// 封装对 [YearSummary]、[Essay]、[Label] 三个 Box 的访问。
-/// 
+///
 /// **重构说明**: 原名 `Cashier`，重命名为语义更清晰的 `EssayRepository`。
 class EssayRepository {
   final Box<YearSummary> summaryBox;
@@ -42,7 +42,7 @@ class EssayRepository {
 // ============================================================================
 
 /// Essay 模块的核心服务
-/// 
+///
 /// 提供以下功能：
 /// - 随笔 CRUD 操作
 /// - 标签管理
@@ -64,7 +64,7 @@ class EssayService extends _$EssayService {
   // --------------------------------------------------------------------------
 
   /// 刷新所有年度统计信息
-  /// 
+  ///
   /// 遍历所有年度，根据当前随笔数据重新计算统计信息。
   /// 如果某年度没有随笔，则删除该年度记录。
   Future<void> refreshYear() async {
@@ -99,41 +99,44 @@ class EssayService extends _$EssayService {
   // --------------------------------------------------------------------------
 
   /// 写入新随笔
-  /// 
+  ///
   /// 同时更新相关标签计数和年度/月度统计信息。
   Future<void> writeEssay({required Essay essay}) async {
     await state.essayBox.put(essay.id, essay);
-    
-    // 更新标签计数
+
+    // 更新标签计数（标签不存在时跳过，避免脏数据崩溃）
     for (final labelId in essay.labels) {
-      final label = state.labelBox.get(labelId)!;
+      final label = state.labelBox.get(labelId);
+      if (label == null) continue;
       await state.labelBox.put(
         labelId,
         label.copyWith(essayCount: label.essayCount + 1),
       );
     }
-    
+
     // 更新年度统计
     await _updateYearSummaryOnAdd(essay);
   }
 
   /// 删除随笔
-  /// 
+  ///
   /// 同时更新相关标签计数和年度/月度统计信息。
   Future<void> deleteEssay(Essay essay) async {
     await state.essayBox.delete(essay.id);
-    
-    // 更新标签计数
+
+    // 更新标签计数（标签不存在时跳过）
     for (final labelId in essay.labels) {
-      final label = state.labelBox.get(labelId)!;
+      final label = state.labelBox.get(labelId);
+      if (label == null) continue;
       await state.labelBox.put(
         labelId,
         label.copyWith(essayCount: label.essayCount - 1),
       );
     }
-    
-    // 更新年度统计
-    final yearSummary = state.summaryBox.get(essay.date.year.toString())!;
+
+    // 更新年度统计（年度汇总缺失时跳过）
+    final yearSummary = state.summaryBox.get(essay.date.year.toString());
+    if (yearSummary == null) return;
     await state.summaryBox.put(
       yearSummary.year,
       yearSummary.edit(essay: essay, isAppend: false),
@@ -144,7 +147,7 @@ class EssayService extends _$EssayService {
   Future<void> _updateYearSummaryOnAdd(Essay essay) async {
     final yearKey = essay.date.year.toString();
     final yearSummary = state.summaryBox.get(yearKey);
-    
+
     if (yearSummary == null) {
       // 创建新年度统计
       final newYearSummary = YearSummary(
@@ -174,44 +177,37 @@ class EssayService extends _$EssayService {
   // --------------------------------------------------------------------------
 
   /// 对某篇随笔的标签进行切换（添加/移除）
-  /// 
+  ///
   /// 确保每篇随笔至少有一个标签。
   Future<void> retag(String essayId, String labelId) async {
-    final originalEssay = state.essayBox.get(essayId)!;
-    final originalLabel = state.labelBox.get(labelId)!;
-    
+    final originalEssay = state.essayBox.get(essayId);
+    final originalLabel = state.labelBox.get(labelId);
+    if (originalEssay == null || originalLabel == null) return;
+
+    final List<String> updatedLabels;
+    final int labelCountDelta;
     if (originalEssay.labels.contains(labelId)) {
       // 移除标签（确保至少保留一个）
       if (originalEssay.labels.length <= 1) return;
-      
-      final updatedLabels = List<String>.from(originalEssay.labels)
-        ..remove(labelId);
-      await state.essayBox.put(
-        originalEssay.id,
-        originalEssay.copyWith(labels: updatedLabels),
-      );
-      await state.labelBox.put(
-        labelId,
-        originalLabel.copyWith(essayCount: originalLabel.essayCount - 1),
-      );
+      updatedLabels = List<String>.from(originalEssay.labels)..remove(labelId);
+      labelCountDelta = -1;
     } else {
       // 添加标签
-      final updatedLabels = List<String>.from(originalEssay.labels)
-        ..add(labelId);
-      await state.essayBox.put(
-        originalEssay.id,
-        originalEssay.copyWith(labels: updatedLabels),
-      );
-      await state.labelBox.put(
-        labelId,
-        originalLabel.copyWith(essayCount: originalLabel.essayCount + 1),
-      );
+      updatedLabels = List<String>.from(originalEssay.labels)..add(labelId);
+      labelCountDelta = 1;
     }
 
+    final updatedEssay = originalEssay.copyWith(labels: updatedLabels);
+    await state.essayBox.put(updatedEssay.id, updatedEssay);
+    await state.labelBox.put(
+      labelId,
+      originalLabel.copyWith(
+        essayCount: originalLabel.essayCount + labelCountDelta,
+      ),
+    );
+
     // 更新当前显示的随笔
-    ref
-        .read(contentServerProvider.notifier)
-        .switchEssay(state.essayBox.get(essayId)!);
+    ref.read(contentServerProvider.notifier).switchEssay(updatedEssay);
     await refreshLabel();
   }
 
@@ -219,7 +215,7 @@ class EssayService extends _$EssayService {
   Future<void> appendMessage(String essayId, Message message) async {
     final originalEssay = state.essayBox.get(essayId);
     if (originalEssay == null) return;
-    
+
     final updatedMessages = List<Message>.from(originalEssay.messages)
       ..add(message);
     final essay = originalEssay.copyWith(messages: updatedMessages);
@@ -248,14 +244,14 @@ class EssayService extends _$EssayService {
   // --------------------------------------------------------------------------
 
   /// 从服务器同步数据
-  /// 
+  ///
   /// 清空本地数据后导入服务器数据。
   /// 注意：图片下载由 TransferController._downloadImages 统一处理（带进度），此处仅导入数据。
   Future<void> syncData(dynamic json) async {
     await state.summaryBox.clear();
     await state.labelBox.clear();
     await state.essayBox.clear();
-    
+
     // 导入年度统计
     for (final yearSummary in (json['year_summaries'] as List)) {
       await state.summaryBox.put(
@@ -263,7 +259,7 @@ class EssayService extends _$EssayService {
         YearSummary.fromJson(yearSummary as Map<String, dynamic>),
       );
     }
-    
+
     // 导入标签（需要建立 ID 映射）
     final Map<String, String> labelIdMap = {};
     for (final label in (json['labels'] as List)) {
@@ -272,12 +268,14 @@ class EssayService extends _$EssayService {
       labelIdMap[labelData['id'] as String] = newLabel.id;
       await state.labelBox.put(newLabel.id, newLabel);
     }
-    
-    // 导入随笔（更新标签引用）
+
+    // 导入随笔（更新标签引用；缺失标签时保留原 ID，避免空断言崩溃）
     for (final essay in (json['essays'] as List)) {
       var essayData = Essay.fromJson(essay as Map<String, dynamic>);
       essayData = essayData.copyWith(
-        labels: essayData.labels.map((label) => labelIdMap[label]!).toList(),
+        labels: essayData.labels
+            .map((label) => labelIdMap[label] ?? label)
+            .toList(),
       );
       await state.essayBox.put(essayData.id, essayData);
     }
@@ -285,21 +283,24 @@ class EssayService extends _$EssayService {
 
   /// 打包本地数据用于备份
   Map<String, dynamic> packUp() {
-    final yearSummaries = (state.summaryBox.values.toList()
-          ..sort((a, b) => b.year.compareTo(a.year)))
-        .map((item) => item.toJson())
-        .toList();
-        
-    final labels = (state.labelBox.values.toList()
-          ..sort((a, b) => b.essayCount.compareTo(a.essayCount)))
-        .map((item) => item.toJson())
-        .toList();
-        
-    final essays = (state.essayBox.values.toList()
-          ..sort((a, b) => b.date.compareTo(a.date)))
-        .map((item) => item.toJson())
-        .toList();
-        
+    final yearSummaries =
+        (state.summaryBox.values.toList()
+              ..sort((a, b) => b.year.compareTo(a.year)))
+            .map((item) => item.toJson())
+            .toList();
+
+    final labels =
+        (state.labelBox.values.toList()
+              ..sort((a, b) => b.essayCount.compareTo(a.essayCount)))
+            .map((item) => item.toJson())
+            .toList();
+
+    final essays =
+        (state.essayBox.values.toList()
+              ..sort((a, b) => b.date.compareTo(a.date)))
+            .map((item) => item.toJson())
+            .toList();
+
     return {
       "jsonData": jsonEncode({
         "year_summaries": yearSummaries,
