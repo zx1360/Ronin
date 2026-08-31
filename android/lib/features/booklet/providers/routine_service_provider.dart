@@ -152,32 +152,30 @@ class RoutineService extends _$RoutineService {
     }
 
     // 修复历史漂移：旧版本"本地时间无时区字符串被服务端按 UTC 解析"会使
-    // style.start_date 每次备份/同步往返累积偏移（日历日可能超前 1~2 天）。
-    // 打卡记录日期可靠（后端 DATE 列按日截断、自愈），故以该 style 的
-    // 最早记录日期为基准，将超前漂移的 start_date 校正回来。
-    await _healDriftedStartDates();
+    // style.start_date 每次备份/同步往返累积偏移
+    // await _healDriftedStartDates();
   }
 
   /// 校正历史遗留的 start_date 漂移（仅当 start_date 晚于该 style 的最早记录日期时）。
-  Future<void> _healDriftedStartDates() async {
-    for (final style in state.styleBox.values.toList()) {
-      final styleRecords = state.recordBox.values
-          .where((r) => r.styleId == style.id)
-          .toList();
-      if (styleRecords.isEmpty) continue;
+  // Future<void> _healDriftedStartDates() async {
+  //   for (final style in state.styleBox.values.toList()) {
+  //     final styleRecords = state.recordBox.values
+  //         .where((r) => r.styleId == style.id)
+  //         .toList();
+  //     if (styleRecords.isEmpty) continue;
 
-      final earliestDate = styleRecords
-          .map((r) => dateOnly(r.date))
-          .reduce((a, b) => a.isBefore(b) ? a : b);
+  //     final earliestDate = styleRecords
+  //         .map((r) => dateOnly(r.date))
+  //         .reduce((a, b) => a.isBefore(b) ? a : b);
 
-      if (dateOnly(style.startDate).isAfter(earliestDate)) {
-        await state.styleBox.put(
-          style.id,
-          style.copyWith(startDate: earliestDate),
-        );
-      }
-    }
-  }
+  //     if (dateOnly(style.startDate).isAfter(earliestDate)) {
+  //       await state.styleBox.put(
+  //         style.id,
+  //         style.copyWith(startDate: earliestDate),
+  //       );
+  //     }
+  //   }
+  // }
 
   /// 备份数据，打包 JSON
   Map<String, dynamic> packUp() {
