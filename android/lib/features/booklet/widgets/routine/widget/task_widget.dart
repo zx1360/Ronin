@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 
@@ -15,7 +14,9 @@ class TaskWidget extends StatelessWidget {
   final String description;
   final String imgUrl;
   final bool completed;
-  final Function switchCB;
+
+  /// 完成状态切换回调（复选框值可能为 null）
+  final ValueChanged<bool?> switchCB;
 
   @override
   Widget build(BuildContext context) {

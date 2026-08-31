@@ -73,7 +73,7 @@ int taskCompletionCount(
   String taskId,
 ) {
   final records = ref.watch(recordsByStyleIdProvider(styleId));
-  
+
   int count = 0;
   for (final record in records) {
     if (record.taskCompletion[taskId] == true) {
@@ -92,14 +92,14 @@ Map<String, int> allTaskCompletionCounts(
 ) {
   final records = ref.watch(recordsByStyleIdProvider(styleId));
   final style = ref.watch(styleByIdProvider(styleId));
-  
+
   if (style == null) return {};
-  
+
   final Map<String, int> counts = {};
   for (final task in style.tasks) {
     counts[task.id] = 0;
   }
-  
+
   for (final record in records) {
     for (final entry in record.taskCompletion.entries) {
       if (entry.value == true && counts.containsKey(entry.key)) {
@@ -107,7 +107,7 @@ Map<String, int> allTaskCompletionCounts(
       }
     }
   }
-  
+
   return counts;
 }
 
@@ -121,19 +121,19 @@ int currentStreak(CurrentStreakRef ref, String styleId) {
   if (currentRecords.isEmpty) return 0;
 
   // 转为日期对象排序
-  final currentDates = currentRecords
-      .map((r) => DateTime(r.date.year, r.date.month, r.date.day))
-      .toList();
+  final currentDates = currentRecords.map((r) => dateOnly(r.date)).toList();
   final today = DateTime.now();
   final todayDate = DateTime(today.year, today.month, today.day);
   final yesterdayDate = todayDate.subtract(const Duration(days: 1));
-  
+
   // 今/昨有无打卡记录
   final hasTodayRecord = currentDates.any((d) => isSameDay(d, todayDate));
-  final hasYesterdayRecord = currentDates.any((d) => isSameDay(d, yesterdayDate));
+  final hasYesterdayRecord = currentDates.any(
+    (d) => isSameDay(d, yesterdayDate),
+  );
 
   if (!hasTodayRecord && !hasYesterdayRecord) return 0;
-  
+
   int streak = 0;
   DateTime currentDate = hasTodayRecord ? todayDate : yesterdayDate;
   while (currentDates.any((d) => isSameDay(d, currentDate))) {
@@ -149,23 +149,16 @@ int currentStreak(CurrentStreakRef ref, String styleId) {
 @riverpod
 DateTimeRange? styleDateRange(StyleDateRangeRef ref, {required Style? style}) {
   if (style == null) return null;
-  
+
   final records = ref.watch(recordsByStyleIdProvider(style.id));
   if (records.isEmpty) {
-    return DateTimeRange(
-      start: getTodayDate(),
-      end: getTodayDate(),
-    );
+    return DateTimeRange(start: getTodayDate(), end: getTodayDate());
   }
-  
+
   // 相关记录已按日期倒序，最早日期=最后一条记录，最晚日期=第一条记录
-  final earliestDate = DateTime(
-    records.last.date.year,
-    records.last.date.month,
-    records.last.date.day,
-  );
+  final earliestDate = dateOnly(records.last.date);
   final today = DateTime.now();
   final latestDate = DateTime(today.year, today.month, today.day);
-  
+
   return DateTimeRange(start: earliestDate, end: latestDate);
 }

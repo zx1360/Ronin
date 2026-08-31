@@ -13,10 +13,7 @@ class Essay {
   final String id;
 
   @HiveField(1)
-  @JsonKey(
-    fromJson: dateFromJson,
-    toJson: dateToJson,
-  )
+  @JsonKey(fromJson: dateTimeFromJson, toJson: dateTimeToJson)
   final DateTime date;
 
   @HiveField(2)
@@ -80,4 +77,3 @@ class Essay {
   int get year => date.year;
   int get month => date.month;
 }
-

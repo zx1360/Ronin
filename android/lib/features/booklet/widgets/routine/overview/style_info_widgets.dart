@@ -28,9 +28,7 @@ class StyleDropdown extends ConsumerWidget {
       child: DropdownButtonFormField<String>(
         initialValue: currentStyle!.id,
         items: allStyles.map((style) {
-          final startDateStr = fullDateFormatter
-              .format(style.startDate)
-              .split(' ')[0];
+          final startDateStr = dateFormatter.format(style.startDate);
           return DropdownMenuItem<String>(
             value: style.id,
             child: Text(
@@ -120,7 +118,10 @@ class CompactStyleOverview extends ConsumerWidget {
               // 当前连续打卡高亮
               if (currentStreak > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: currentStreak >= 7
                         ? Colors.orange.shade100

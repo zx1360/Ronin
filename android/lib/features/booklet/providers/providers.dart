@@ -12,6 +12,3 @@ export 'record_provider.dart';
 
 // 业务服务
 export 'routine_service_provider.dart';
-
-// 备份相关
-export 'backup_provider.dart';

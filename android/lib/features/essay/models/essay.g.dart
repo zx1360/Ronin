@@ -67,7 +67,7 @@ class EssayAdapter extends TypeAdapter<Essay> {
 
 Essay _$EssayFromJson(Map<String, dynamic> json) => Essay(
       id: json['id'] as String,
-      date: dateFromJson(json['date'] as String),
+      date: dateTimeFromJson(json['date'] as String),
       wordCount: (json['word_count'] as num).toInt(),
       content: json['content'] as String,
       imgs: (json['imgs'] as List<dynamic>).map((e) => e as String).toList(),
@@ -82,7 +82,7 @@ Essay _$EssayFromJson(Map<String, dynamic> json) => Essay(
 
 Map<String, dynamic> _$EssayToJson(Essay instance) => <String, dynamic>{
       'id': instance.id,
-      'date': dateToJson(instance.date),
+      'date': dateTimeToJson(instance.date),
       'word_count': instance.wordCount,
       'content': instance.content,
       'imgs': instance.imgs,
