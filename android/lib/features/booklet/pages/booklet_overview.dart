@@ -462,7 +462,6 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                 ),
                 const SizedBox(height: 12),
                 CheckinCalendar(
-                  context: context,
                   style: _currentStyle,
                   records: _relatedRecords,
                   selectedTaskId: _selectedTaskId,

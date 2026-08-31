@@ -31,5 +31,6 @@ final TextStyle noteSmall = TextStyle(
 
 // 日期格式化器
 final DateFormat fullDateFormatter = DateFormat('yyyy年MM月dd日 EEEE');
+final DateFormat dateFormatter = DateFormat('yyyy年MM月dd日');
 final DateFormat monthFormatter = DateFormat('yyyy年MM月');
 final DateFormat dayFormatter = DateFormat('d');

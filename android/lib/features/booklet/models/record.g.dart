@@ -62,7 +62,7 @@ class RecordAdapter extends TypeAdapter<Record> {
 Record _$RecordFromJson(Map<String, dynamic> json) => Record(
       id: json['id'] as String,
       styleId: json['style_id'] as String,
-      date: DateTime.parse(json['date'] as String),
+      date: dateFromJson(json['date'] as String),
       message: json['message'] as String,
       taskCompletion: Map<String, bool>.from(json['task_completion'] as Map),
       mood: const MoodTypeConverter().fromJson(json['mood'] as String?),
@@ -71,7 +71,7 @@ Record _$RecordFromJson(Map<String, dynamic> json) => Record(
 Map<String, dynamic> _$RecordToJson(Record instance) => <String, dynamic>{
       'id': instance.id,
       'style_id': instance.styleId,
-      'date': instance.date.toIso8601String(),
+      'date': dateToJson(instance.date),
       'message': instance.message,
       'task_completion': instance.taskCompletion,
       'mood': const MoodTypeConverter().toJson(instance.mood),

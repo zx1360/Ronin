@@ -48,11 +48,11 @@ class MessageAdapter extends TypeAdapter<Message> {
 // **************************************************************************
 
 Message _$MessageFromJson(Map<String, dynamic> json) => Message(
-      timestamp: dateFromJson(json['timestamp'] as String),
+      timestamp: dateTimeFromJson(json['timestamp'] as String),
       content: json['content'] as String,
     );
 
 Map<String, dynamic> _$MessageToJson(Message instance) => <String, dynamic>{
-      'timestamp': dateToJson(instance.timestamp),
+      'timestamp': dateTimeToJson(instance.timestamp),
       'content': instance.content,
     };

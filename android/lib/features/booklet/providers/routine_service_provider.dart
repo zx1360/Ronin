@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:hive/hive.dart';
@@ -9,6 +8,7 @@ import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/providers/data_source_provider.dart';
 import 'package:torrid/features/booklet/providers/style_provider.dart';
 import 'package:torrid/features/booklet/providers/record_provider.dart';
+import 'package:torrid/features/booklet/utils/checkin_stats.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'routine_service_provider.g.dart';
@@ -23,10 +23,7 @@ class RoutineDataContainer {
   final Box<Style> styleBox;
   final Box<Record> recordBox;
 
-  RoutineDataContainer({
-    required this.styleBox,
-    required this.recordBox,
-  });
+  RoutineDataContainer({required this.styleBox, required this.recordBox});
 }
 
 /// 核心业务操作，管理所有的数据修改
@@ -60,7 +57,8 @@ class RoutineService extends _$RoutineService {
     required String styleId,
     required Record record,
   }) async {
-    final shouldDelete = record.message.isEmpty &&
+    final shouldDelete =
+        record.message.isEmpty &&
         record.taskCompletion.values.every((isCompleted) => !isCompleted);
 
     if (shouldDelete) {
@@ -107,7 +105,7 @@ class RoutineService extends _$RoutineService {
     }
   }
 
-  // ==================== 统计计算（私有方法） ====================
+  // ==================== 统计信息刷新 ====================
 
   /// 刷新单个 Style 的统计信息
   Future<void> _refreshStyleStats(String styleId) async {
@@ -115,66 +113,21 @@ class RoutineService extends _$RoutineService {
     if (style == null) return;
 
     final relatedRecords = ref.read(recordsByStyleIdProvider(styleId));
-    
-    // 计算各统计值
+
+    // 计算各统计值（复用模块通用统计函数）
     final validCheckIn = relatedRecords.length;
-    final fullyDoneCount = _calculateFullyDone(relatedRecords);
-    final longestStreak = _calculateLongestStreak(relatedRecords);
-    final longestFullyStreak = _calculateLongestFullyStreak(relatedRecords);
+    final fullyDoneCount = countFullyDone(relatedRecords);
+    final longestStreakDays = longestStreak(relatedRecords);
+    final longestFullyStreakDays = longestFullyStreak(relatedRecords);
 
     final updatedStyle = style.copyWith(
       validCheckIn: validCheckIn,
       fullyDone: fullyDoneCount,
-      longestStreak: longestStreak,
-      longestFullyStreak: longestFullyStreak,
+      longestStreak: longestStreakDays,
+      longestFullyStreak: longestFullyStreakDays,
     );
 
     await state.styleBox.put(style.id, updatedStyle);
-  }
-
-  /// 计算完全完成的天数
-  int _calculateFullyDone(List<Record> records) {
-    return records.where((record) {
-      return record.taskCompletion.values.every((flag) => flag);
-    }).length;
-  }
-
-  /// 计算最长连续打卡天数
-  int _calculateLongestStreak(List<Record> records) {
-    final sortedDates = records
-        .map((r) => DateTime(r.date.year, r.date.month, r.date.day))
-        .toList()
-      ..sort();
-    return _getLongestConsecutiveDays(sortedDates);
-  }
-
-  /// 计算最长连续全完成天数
-  int _calculateLongestFullyStreak(List<Record> records) {
-    final fullyDoneDates = records
-        .where((r) => r.taskCompletion.values.every((v) => v))
-        .map((r) => DateTime(r.date.year, r.date.month, r.date.day))
-        .toList()
-      ..sort();
-    return _getLongestConsecutiveDays(fullyDoneDates);
-  }
-
-  /// 获取最长连续天数
-  int _getLongestConsecutiveDays(List<DateTime> sortedDates) {
-    if (sortedDates.isEmpty) return 0;
-
-    int maxStreak = 1;
-    int currentStreak = 1;
-
-    for (int i = 1; i < sortedDates.length; i++) {
-      final dayDiff = sortedDates[i].difference(sortedDates[i - 1]).inDays;
-      if (dayDiff == 1) {
-        currentStreak++;
-        maxStreak = max(maxStreak, currentStreak);
-      } else {
-        currentStreak = 1;
-      }
-    }
-    return maxStreak;
   }
 
   // ==================== 数据同步 ====================
@@ -186,30 +139,59 @@ class RoutineService extends _$RoutineService {
     await state.recordBox.clear();
 
     // 存储 JSON 数据到 Hive
-    List jsonStyles = json['styles'];
-    List jsonRecords = json['records'];
-    
-    for (dynamic style in jsonStyles) {
-      Style style_ = Style.fromJson(style);
-      await state.styleBox.put(style_.id, style_);
+    final jsonStyles = json['styles'] as List;
+    final jsonRecords = json['records'] as List;
+
+    for (final styleJson in jsonStyles) {
+      final parsedStyle = Style.fromJson(styleJson as Map<String, dynamic>);
+      await state.styleBox.put(parsedStyle.id, parsedStyle);
     }
-    for (dynamic record in jsonRecords) {
-      Record record_ = Record.fromJson(record);
-      await state.recordBox.put(record_.id, record_);
+    for (final recordJson in jsonRecords) {
+      final parsedRecord = Record.fromJson(recordJson as Map<String, dynamic>);
+      await state.recordBox.put(parsedRecord.id, parsedRecord);
+    }
+
+    // 修复历史漂移：旧版本"本地时间无时区字符串被服务端按 UTC 解析"会使
+    // style.start_date 每次备份/同步往返累积偏移（日历日可能超前 1~2 天）。
+    // 打卡记录日期可靠（后端 DATE 列按日截断、自愈），故以该 style 的
+    // 最早记录日期为基准，将超前漂移的 start_date 校正回来。
+    await _healDriftedStartDates();
+  }
+
+  /// 校正历史遗留的 start_date 漂移（仅当 start_date 晚于该 style 的最早记录日期时）。
+  Future<void> _healDriftedStartDates() async {
+    for (final style in state.styleBox.values.toList()) {
+      final styleRecords = state.recordBox.values
+          .where((r) => r.styleId == style.id)
+          .toList();
+      if (styleRecords.isEmpty) continue;
+
+      final earliestDate = styleRecords
+          .map((r) => dateOnly(r.date))
+          .reduce((a, b) => a.isBefore(b) ? a : b);
+
+      if (dateOnly(style.startDate).isAfter(earliestDate)) {
+        await state.styleBox.put(
+          style.id,
+          style.copyWith(startDate: earliestDate),
+        );
+      }
     }
   }
 
   /// 备份数据，打包 JSON
   Map<String, dynamic> packUp() {
-    final styles = (state.styleBox.values.toList()
-          ..sort((a, b) => b.startDate.compareTo(a.startDate)))
-        .map((item) => item.toJson())
-        .toList();
+    final styles =
+        (state.styleBox.values.toList()
+              ..sort((a, b) => b.startDate.compareTo(a.startDate)))
+            .map((item) => item.toJson())
+            .toList();
 
-    final records = (state.recordBox.values.toList()
-          ..sort((a, b) => b.date.compareTo(a.date)))
-        .map((item) => item.toJson())
-        .toList();
+    final records =
+        (state.recordBox.values.toList()
+              ..sort((a, b) => b.date.compareTo(a.date)))
+            .map((item) => item.toJson())
+            .toList();
 
     return {
       "jsonData": jsonEncode({"styles": styles, "records": records}),
@@ -223,11 +205,11 @@ class RoutineService extends _$RoutineService {
       style.tasks
           .where((task) => task.image.isNotEmpty && task.image != '')
           .forEach((task) {
-        final relativePath = task.image.startsWith("/")
-            ? task.image.replaceFirst("/", "")
-            : task.image;
-        urls.add(relativePath);
-      });
+            final relativePath = task.image.startsWith("/")
+                ? task.image.replaceFirst("/", "")
+                : task.image;
+            urls.add(relativePath);
+          });
     }
     return urls;
   }

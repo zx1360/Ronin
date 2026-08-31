@@ -9,7 +9,7 @@ part 'message.g.dart';
 @JsonSerializable(fieldRename: FieldRename.none)
 class Message {
   @HiveField(0)
-  @JsonKey(fromJson: dateFromJson, toJson: dateToJson)
+  @JsonKey(fromJson: dateTimeFromJson, toJson: dateTimeToJson)
   final DateTime timestamp;
 
   @HiveField(1)

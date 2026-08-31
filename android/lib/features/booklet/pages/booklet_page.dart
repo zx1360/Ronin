@@ -171,7 +171,10 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                           ? _completions[index]
                           : false,
                       switchCB: (value) {
-                        toggleCompletion(_latestStyle!.tasks[index].id, value);
+                        toggleCompletion(
+                          _latestStyle!.tasks[index].id,
+                          value ?? false,
+                        );
                       },
                     ),
                   );

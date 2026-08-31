@@ -3,6 +3,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/core/models/mood.dart';
+import 'package:torrid/core/utils/serialization.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'record.g.dart';
@@ -17,6 +18,7 @@ class Record {
   final String styleId;
 
   @HiveField(2)
+  @JsonKey(fromJson: dateFromJson, toJson: dateToJson)
   late final DateTime date;
 
   @HiveField(3)
