@@ -52,7 +52,10 @@ class _ComicsTabState extends ConsumerState<ComicsTab> {
     if (options == null) return;
     if (!mounted) return;
 
-    // 同步删除：显示加载遮罩（大漫画文件删除可能耗时）
+    // 同步删除：显示加载遮罩（大漫画文件删除可能耗时）。
+    // 该对话框挂在根 Navigator 上且不可关闭，因此 pop 必须用 await 之前捕获的
+    // NavigatorState——若用 mounted 门控，widget 卸载时会留下无法关闭的死锁弹窗。
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -75,20 +78,21 @@ class _ComicsTabState extends ConsumerState<ComicsTab> {
       final result = await ref
           .read(comixApiClientProvider)
           .deleteComic(settings, comic.comicId, keepFiles: options.keepFiles);
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (rootNavigator.canPop()) rootNavigator.pop();
       ref.invalidate(comixComicsProvider);
       final data = result['data'];
+      // 先判 keepFiles：保留文件是用户主动选择，不能报成"文件清理失败"
       var message = '「${comic.title}」已删除';
-      if (data is Map<String, dynamic>) {
-        if (data['files_removed'] == false) {
-          message = '记录已删除，文件清理失败，残留目录：${data['leftover_path']}';
-        } else if (options.keepFiles) {
-          message = '记录已删除（文件已保留）';
-        }
+      if (options.keepFiles) {
+        message = '「${comic.title}」记录已删除（本地文件已保留）';
+      } else if (data is Map<String, dynamic> && data['files_removed'] == false) {
+        message = '记录已删除，文件清理失败，残留目录：${data['leftover_path'] ?? '未知'}';
       }
       _snack(message);
     } catch (e) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (rootNavigator.canPop()) rootNavigator.pop();
+      // 删除失败也要刷新：服务端可能已部分完成（如 DB 已删、文件残留）
+      ref.invalidate(comixComicsProvider);
       _snack('删除失败: $e');
     }
   }
@@ -124,6 +128,11 @@ class _ComicsTabState extends ConsumerState<ComicsTab> {
   @override
   Widget build(BuildContext context) {
     final comics = ref.watch(comixComicsProvider);
+    final baseUrl = ref
+        .watch(opsSettingsControllerProvider)
+        .apiBaseUrl
+        .trim()
+        .replaceAll(RegExp(r'/+$'), '');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -174,6 +183,7 @@ class _ComicsTabState extends ConsumerState<ComicsTab> {
                   final comic = list[index];
                   return _ComicTile(
                     comic: comic,
+                    baseUrl: baseUrl,
                     onDownload: () => _download(comic),
                     onUpdateCheck: () => _updateCheck(
                       comicId: comic.comicId,
@@ -209,6 +219,7 @@ class _ComicsTabState extends ConsumerState<ComicsTab> {
 
 class _ComicTile extends StatelessWidget {
   final ComixComic comic;
+  final String baseUrl;
   final VoidCallback onDownload;
   final VoidCallback onUpdateCheck;
   final VoidCallback onChapters;
@@ -216,6 +227,7 @@ class _ComicTile extends StatelessWidget {
 
   const _ComicTile({
     required this.comic,
+    required this.baseUrl,
     required this.onDownload,
     required this.onUpdateCheck,
     required this.onChapters,
@@ -224,9 +236,13 @@ class _ComicTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pending = comic.totalChapters - comic.downloaded;
+    // 待下载 = 未下载且未失败；failed 必须单独列出，否则会被同时算作"待下载"
+    final pending = comic.pending;
+    final coverUrl =
+        comic.coverImage.isEmpty ? '' : '$baseUrl/static/${comic.coverImage}';
     return ListTile(
       dense: true,
+      leading: _coverThumb(context, coverUrl),
       title: Text(
         comic.title,
         maxLines: 1,
@@ -236,6 +252,7 @@ class _ComicTile extends StatelessWidget {
         '[${comic.siteName}] 已下载 ${comic.downloaded}/${comic.totalChapters} 章'
         '${comic.failed > 0 ? ' · 失败 ${comic.failed}' : ''}'
         '${pending > 0 ? ' · 待下载 $pending' : ''}'
+        '${comic.totalChapters == 0 ? ' · 未解析到章节' : ''}'
         '${comic.isLegacy ? ' · legacy(不参与追更)' : ''}',
       ),
       trailing: Wrap(
@@ -270,6 +287,46 @@ class _ComicTile extends StatelessWidget {
             visualDensity: VisualDensity.compact,
           ),
         ],
+      ),
+    );
+  }
+
+  /// 封面缩略图：无封面时用占位图标，让"缺封面"这件事可见。
+  Widget _coverThumb(BuildContext context, String url) {
+    if (url.isEmpty) {
+      return Tooltip(
+        message: '无封面（该漫画尚无已下载章节时不会生成封面）',
+        child: Container(
+          width: 36,
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Icon(Icons.image_not_supported_outlined, size: 16),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        url,
+        width: 36,
+        height: 48,
+        fit: BoxFit.cover,
+        // 自签证书由 CertTrust 的全局 HttpOverrides 处理；
+        // 封面缺失/加载失败不应让整个列表报错。
+        errorBuilder: (_, __, ___) => Container(
+          width: 36,
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Icon(Icons.broken_image_outlined, size: 16),
+        ),
       ),
     );
   }

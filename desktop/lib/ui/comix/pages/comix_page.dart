@@ -25,7 +25,6 @@ class ComixPage extends ConsumerStatefulWidget {
 class _ComixPageState extends ConsumerState<ComixPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  final Set<String> _runningTaskIds = <String>{};
   Timer? _pollTimer;
 
   @override
@@ -48,22 +47,32 @@ class _ComixPageState extends ConsumerState<ComixPage>
     super.dispose();
   }
 
-  /// 轮询：无条件刷新任务面板（新提交的任务也能及时出现），
-  /// 任务结束刷新漫画列表。
+  /// 轮询：无条件刷新任务面板（新提交的任务也能及时出现）。
+  ///
+  /// 刷新前/后比较"运行中任务集合"与"已出现结果的任务数"：
+  /// 只要有任务结束或新结果出现，就刷新漫画列表的下载计数，
+  /// 不依赖"本页是否恰好观测到 running"（否则短任务/外部触发的任务
+  /// 完成后列表计数会长期停在旧值）。
   Future<void> _onPollTick() async {
-    final board = ref.read(comixBoardProvider);
-    final runningNow = board.tasks
+    final before = ref.read(comixBoardProvider);
+    final runningBefore = before.tasks
         .where((t) => t.isRunning)
         .map((t) => t.id)
         .toSet();
-    final finishedNow = _runningTaskIds.difference(runningNow);
-    _runningTaskIds
-      ..clear()
-      ..addAll(runningNow);
+    final resultsBefore = before.tasks.where((t) => t.result != null).length;
 
-    // 无条件刷新：GET /tasks 已直查库毫秒级，且能拾取新提交的任务
     await ref.read(comixBoardProvider.notifier).refresh();
-    if (finishedNow.isNotEmpty) {
+    if (!mounted) return;
+
+    final after = ref.read(comixBoardProvider);
+    final runningAfter = after.tasks
+        .where((t) => t.isRunning)
+        .map((t) => t.id)
+        .toSet();
+    final resultsAfter = after.tasks.where((t) => t.result != null).length;
+
+    final finishedNow = runningBefore.difference(runningAfter);
+    if (finishedNow.isNotEmpty || resultsAfter > resultsBefore) {
       ref.invalidate(comixComicsProvider);
     }
   }
