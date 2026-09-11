@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"monarch/internal/model"
 	"monarch/internal/service/db"
+	"path/filepath"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -260,25 +261,32 @@ func updateComicMeta(ctx context.Context, pool *pgxpool.Pool, comicId string, re
 	return nil
 }
 
-// DeleteComic 删除漫画及级联数据，返回该漫画在文件系统中的目录名(title)用于后续清理
-func DeleteComic(comicId string) (title string, err error) {
+// DeleteComic 删除漫画及级联数据，返回该漫画的标题与存储相对路径(rel_dir)用于后续清理
+//
+// 两者都需要：legacy 资源的目录以标题命名（comics/{title}），
+// 爬虫登记的资源以主键命名（comics/{comic_id}）。
+// 只用标题删目录会漏掉爬虫资源，在 static/comics 下残留整本漫画文件。
+func DeleteComic(comicId string) (title string, relDir string, err error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 	return deleteComic(ctx, db.GetPool(), comicId)
 }
-func deleteComic(ctx context.Context, pool *pgxpool.Pool, comicId string) (string, error) {
-	// 先获取标题
-	var title string
-	if err := pool.QueryRow(ctx, `SELECT title FROM comix.comic_books WHERE id=$1`, comicId).Scan(&title); err != nil {
-		return "", fmt.Errorf("查询漫画标题失败: %w", err)
+func deleteComic(ctx context.Context, pool *pgxpool.Pool, comicId string) (string, string, error) {
+	// 先取标题与存储相对路径（删除后无法再查；rel_dir 为纯列，视图不暴露）
+	// 用 id::text 与入参（text）比较：与旧视图语义一致，且可走 idx_comic_id_text。
+	var title, relDir string
+	if err := pool.QueryRow(ctx,
+		`SELECT title, rel_dir FROM comix.comic WHERE id::text = $1`, comicId,
+	).Scan(&title, &relDir); err != nil {
+		return "", "", fmt.Errorf("查询漫画标题失败: %w", err)
 	}
 
 	// 级联删除: comic_images → comic_chapters → comic_books
 	// 由于表有 CASCADE 外键约束，只需删除 comic_books 即可
 	if _, err := pool.Exec(ctx, `DELETE FROM comix.comic_books WHERE id=$1`, comicId); err != nil {
-		return "", fmt.Errorf("删除漫画失败: %w", err)
+		return "", "", fmt.Errorf("删除漫画失败: %w", err)
 	}
-	return title, nil
+	return title, filepath.ToSlash(relDir), nil
 }
 
 // SyncReadedStatus 批量更新 readed 状态并返回每本漫画服务器上的章节数（用于增量下载判断）

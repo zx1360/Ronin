@@ -4,6 +4,40 @@ import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/comix/models/comix_models.dart';
 import 'package:northstar/ui/comix/widgets/comix_widgets.dart';
 
+/// 章节区间格式校验：`1-5,8,10-12`（正整数/正区间，逗号分隔）。
+/// 返回错误提示；null 表示合法（空串视为未填写）。
+String? validateChapterRange(String raw) {
+  final text = raw.trim();
+  if (text.isEmpty) return null;
+  for (final part in text.split(',')) {
+    final seg = part.trim();
+    if (seg.isEmpty) continue;
+    final match = RegExp(r'^(\d+)(?:-(\d+))?$').firstMatch(seg);
+    if (match == null) {
+      return '章节区间格式无效："$seg"（应形如 1-5,8,10-12）';
+    }
+    final start = int.parse(match.group(1)!);
+    final endText = match.group(2);
+    if (start <= 0) return '章节号必须为正整数："$seg"';
+    if (endText != null) {
+      final end = int.parse(endText);
+      if (end <= 0) return '章节号必须为正整数："$seg"';
+      if (end < start) return '区间结束值小于起始值："$seg"';
+    }
+  }
+  return null;
+}
+
+/// "仅下载最新 N 章"校验。返回错误提示；null 表示合法（空串=不限量）。
+String? validateLatestCount(String raw) {
+  final text = raw.trim();
+  if (text.isEmpty) return null;
+  final parsed = int.tryParse(text);
+  if (parsed == null) return '请输入正整数（留空表示不限量）';
+  if (parsed <= 0) return 'N 必须大于 0（留空表示不限量）';
+  return null;
+}
+
 /// 下载选项。
 class DownloadOptions {
   final int? latest;
@@ -102,6 +136,7 @@ class _DownloadDialog extends StatefulWidget {
 
 class _DownloadDialogState extends State<_DownloadDialog> {
   bool _noRetryFailed = false;
+  String? _error;
   final _latestController = TextEditingController();
   final _rangeController = TextEditingController();
 
@@ -112,9 +147,33 @@ class _DownloadDialogState extends State<_DownloadDialog> {
     super.dispose();
   }
 
+  void _submit() {
+    // 非法输入此前会被静默丢弃（latest 变 null = 全量下载；range 抛错导致
+    // 任务以空错误信息失败），必须在这里拦下并说清原因。
+    final latestError = validateLatestCount(_latestController.text);
+    final rangeError = validateChapterRange(_rangeController.text);
+    final latestText = _latestController.text.trim();
+    final rangeText = _rangeController.text.trim();
+    if (latestError != null || rangeError != null) {
+      setState(() => _error = latestError ?? rangeError);
+      return;
+    }
+    if (latestText.isNotEmpty && rangeText.isNotEmpty) {
+      setState(() => _error = '「最新 N 章」与「章节区间」不能同时填写');
+      return;
+    }
+    Navigator.of(context).pop(
+      DownloadOptions(
+        latest: latestText.isEmpty ? null : int.parse(latestText),
+        range: rangeText,
+        noRetryFailed: _noRetryFailed,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pending = widget.comic.totalChapters - widget.comic.downloaded;
+    final pending = widget.comic.pending;
     return AlertDialog(
       title: const Text('增量下载'),
       content: SizedBox(
@@ -129,7 +188,9 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             ),
             const SizedBox(height: 4),
             Text(
-              '已下载 ${widget.comic.downloaded}/${widget.comic.totalChapters} 章，待下载 $pending 章',
+              '已下载 ${widget.comic.downloaded}/${widget.comic.totalChapters} 章，'
+              '未下载 $pending 章'
+              '${widget.comic.failed > 0 ? '，失败 ${widget.comic.failed} 章（会重试）' : ''}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const Divider(height: 20),
@@ -156,6 +217,17 @@ class _DownloadDialogState extends State<_DownloadDialog> {
               controlAffinity: ListTileControlAffinity.leading,
               dense: true,
             ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _error!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -165,16 +237,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
           child: const Text('取消'),
         ),
         ElevatedButton(
-          onPressed: () {
-            final latest = int.tryParse(_latestController.text.trim());
-            Navigator.of(context).pop(
-              DownloadOptions(
-                latest: latest,
-                range: _rangeController.text.trim(),
-                noRetryFailed: _noRetryFailed,
-              ),
-            );
-          },
+          onPressed: _submit,
           child: const Text('开始下载'),
         ),
       ],
@@ -198,12 +261,28 @@ class _UpdateCheckDialog extends StatefulWidget {
 
 class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
   bool _download = false;
+  String? _error;
   final _latestController = TextEditingController();
 
   @override
   void dispose() {
     _latestController.dispose();
     super.dispose();
+  }
+
+  void _submit() {
+    final latestError = _download ? validateLatestCount(_latestController.text) : null;
+    if (latestError != null) {
+      setState(() => _error = latestError);
+      return;
+    }
+    final latestText = _latestController.text.trim();
+    Navigator.of(context).pop(
+      UpdateCheckOptions(
+        download: _download,
+        latest: _download && latestText.isNotEmpty ? int.parse(latestText) : null,
+      ),
+    );
   }
 
   @override
@@ -225,22 +304,43 @@ class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
             const Divider(height: 20),
             CheckboxListTile(
               value: _download,
-              onChanged: (v) => setState(() => _download = v ?? false),
-              title: const Text('发现新章节自动下载'),
+              onChanged: (v) => setState(() {
+                _download = v ?? false;
+                _error = null;
+              }),
+              title: const Text('自动下载（新章节 + 尚未下载的章节）'),
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               dense: true,
             ),
             if (_download) ...[
-              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 6),
+                child: Text(
+                  '已勾选：会同时补齐「已登记但从未下载」的章节'
+                  '${widget.all ? '，对全部漫画生效（可能耗时较长且占用磁盘）' : ''}。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
               TextField(
                 controller: _latestController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: '自动下载时仅取最新 N 章（留空=全部新章节）',
+                  labelText: '自动下载时仅取最新 N 章（留空=全部）',
                 ),
               ),
             ],
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  _error!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -250,15 +350,7 @@ class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
           child: const Text('取消'),
         ),
         ElevatedButton(
-          onPressed: () {
-            final latest = int.tryParse(_latestController.text.trim());
-            Navigator.of(context).pop(
-              UpdateCheckOptions(
-                download: _download,
-                latest: _download ? latest : null,
-              ),
-            );
-          },
+          onPressed: _submit,
           child: const Text('开始检查'),
         ),
       ],
