@@ -66,7 +66,11 @@ class ComixComic {
   final int totalChapters;
   final int downloaded;
   final int failed;
+  final int pending;
   final int maxChapterNo;
+  final String coverUrl;
+  final String coverImage;
+  final bool isLegacy;
 
   const ComixComic({
     required this.comicId,
@@ -78,25 +82,44 @@ class ComixComic {
     required this.totalChapters,
     required this.downloaded,
     required this.failed,
+    required this.pending,
     required this.maxChapterNo,
+    this.coverUrl = '',
+    this.coverImage = '',
+    this.isLegacy = false,
   });
 
   factory ComixComic.fromJson(Map<String, dynamic> json) {
+    final site = json['site'] as String? ?? '';
+    final downloaded = (json['downloaded'] as num?)?.toInt() ?? 0;
+    final failed = (json['failed'] as num?)?.toInt() ?? 0;
+    final total = (json['total_chapters'] as num?)?.toInt() ?? 0;
     return ComixComic(
       comicId: (json['comic_id'] as num?)?.toInt() ?? 0,
       title: json['title'] as String? ?? '',
-      site: json['site'] as String? ?? '',
+      site: site,
       siteName: json['site_name'] as String? ?? '',
       detailUrl: json['detail_url'] as String? ?? '',
       relDir: json['rel_dir'] as String? ?? '',
-      totalChapters: (json['total_chapters'] as num?)?.toInt() ?? 0,
-      downloaded: (json['downloaded'] as num?)?.toInt() ?? 0,
-      failed: (json['failed'] as num?)?.toInt() ?? 0,
+      totalChapters: total,
+      downloaded: downloaded,
+      failed: failed,
+      // pending 优先取后端显式字段；旧后端未返回时按 total-done-failed 回退，
+      // 避免把 failed 章节同时算进"待下载"（重复计数的旧逻辑）。
+      pending: (json['pending'] as num?)?.toInt() ??
+          (total - downloaded - failed).clamp(0, total),
       maxChapterNo: (json['max_chapter_no'] as num?)?.toInt() ?? 0,
+      coverUrl: json['cover_url'] as String? ?? '',
+      coverImage: json['cover_image'] as String? ?? '',
+      isLegacy: json['is_legacy'] as bool? ?? (site == 'legacy'),
     );
   }
 
-  bool get isLegacy => site == 'legacy';
+  /// 是否已有可用封面（本地封面路径优先，站点地址兜底）。
+  bool get hasCover => coverImage.isNotEmpty || coverUrl.isNotEmpty;
+
+  /// 已下载 + 失败 + 未下载 != 章节总数时为 true，提示统计口径不一致。
+  bool get countsConsistent => downloaded + failed + pending == totalChapters;
 }
 
 /// 章节状态（chapters 命令输出）。
@@ -177,7 +200,7 @@ class ComixLogEntry {
   }
 }
 
-/// 一次爬虫任务（search/add/download/update-check/delete/clean）。
+/// 一次爬虫任务（download-url/download/update-check/delete/clean/init）。
 class ComixTask {
   final String id;
   final String name;
@@ -228,5 +251,51 @@ class ComixTask {
     );
   }
 
+  ComixTask copyWith({
+    ComixTaskStatus? status,
+    String? finishedAt,
+    int? exitCode,
+    String? error,
+    Map<String, dynamic>? result,
+    List<ComixLogEntry>? logs,
+  }) {
+    return ComixTask(
+      id: id,
+      name: name,
+      command: command,
+      status: status ?? this.status,
+      pid: pid,
+      startedAt: startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+      exitCode: exitCode ?? this.exitCode,
+      error: error ?? this.error,
+      result: result ?? this.result,
+      logs: logs ?? this.logs,
+    );
+  }
+
   bool get isRunning => status == ComixTaskStatus.running;
+
+  /// 子进程正常退出（含退出码 2 的业务错误）但业务结果为 ok=false。
+  bool get isBusinessError =>
+      result != null && result!['ok'] == false;
+
+  /// 任务最终是否为"失败"语义：进程级失败或业务级失败都算。
+  /// 后端把退出码 2 的 ok=false 记为 finished，直接把 finished 画成绿色"完成"
+  /// 会把"漫画不存在/参数错误"这类失败伪装成成功。
+  bool get isFailure =>
+      status == ComixTaskStatus.failed ||
+      status == ComixTaskStatus.killed ||
+      isBusinessError ||
+      (exitCode != null && exitCode != 0);
+
+  /// 业务错误文本（result.error），无则回退到任务级 error。
+  String get failureReason {
+    final business = result?['error'];
+    if (business is String && business.isNotEmpty) return business;
+    if (error != null && error!.isNotEmpty) return error!;
+    final stderr = result?['stderr'];
+    if (stderr is String && stderr.isNotEmpty) return stderr;
+    return '';
+  }
 }

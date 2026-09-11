@@ -69,6 +69,59 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
     super.dispose();
   }
 
+  /// 轮询本页已提交任务的状态，直到全部结束。  TODO:似乎未实现"全部任务结束后自动停止轮询"的逻辑，导致后台一直轮询.
+  void _ensureStatusPolling() {
+    if (_statusTimer != null) return;
+    _statusTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _refreshStatuses(),
+    );
+  }
+
+  Future<void> _refreshStatuses() async {
+    final pendingIds = _results
+        .where((r) => r.taskId != null && r.status == ComixTaskStatus.running)
+        .map((r) => r.taskId!)
+        .toSet();
+    if (pendingIds.isEmpty) {
+      _stopStatusPolling();
+      return;
+    }
+    try {
+      final settings = ref.read(opsSettingsControllerProvider);
+      final tasks = await ref.read(comixApiClientProvider).fetchTasks(settings);
+      if (!mounted) return;
+      final byId = <String, ComixTask>{for (final t in tasks) t.id: t};
+      var allSettled = true;
+      setState(() {
+        for (final item in _results) {
+          final id = item.taskId;
+          if (id == null) continue;
+          final task = byId[id];
+          if (task == null) {
+            // 任务已被后端裁剪（超过保留上限）：无法再跟踪
+            continue;
+          }
+          item.status = task.status;
+          item.error = task.isFailure && task.failureReason.isNotEmpty
+              ? task.failureReason
+              : null;
+          final summary = comixTaskSummary(task);
+          item.summary = summary.isEmpty ? null : summary;
+          if (task.isRunning) allSettled = false;
+        }
+      });
+      if (allSettled) _stopStatusPolling();
+    } catch (_) {
+      // 轮询失败（如 Monarch 未启动）静默重试，不影响用户提交新任务
+    }
+  }
+
+  void _stopStatusPolling() {
+    _statusTimer?.cancel();
+    _statusTimer = null;
+  }
+
   Future<void> _submit() async {
     final urls = _urlsController.text
         .split('\n')
@@ -79,16 +132,26 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
       _snack('请先粘贴至少一个漫画详情页网址');
       return;
     }
+    final latestText = _latestController.text.trim();
+    if (latestText.isNotEmpty) {
+      final parsed = int.tryParse(latestText);
+      if (parsed == null || parsed <= 0) {
+        // 非法输入会被后端当作"留空=全部"，静默变成全量下载，必须拦下
+        _snack('"仅下载最新 N 章"必须是正整数（留空表示全部）');
+        return;
+      }
+    }
     FocusScope.of(context).unfocus();
 
     setState(() {
       _submitting = true;
       _results = [];
     });
+    _stopStatusPolling();
 
     try {
       final settings = ref.read(opsSettingsControllerProvider);
-      final latest = int.tryParse(_latestController.text.trim());
+      final latest = int.tryParse(latestText);
       final results = await ref
           .read(comixApiClientProvider)
           .downloadUrls(settings, urls, latest: latest);
@@ -99,17 +162,23 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
         _results = results.map(UrlTaskResult.fromSubmit).toList();
       });
 
-      // 任务面板立即可见 + 本列表实时轮询任务状态
+      // 任务面板立即可见 + 本列表开始轮询任务状态
       ref.read(comixBoardProvider.notifier).refresh();
-      ref.invalidate(comixComicsProvider);
+      if (_results.any((r) => r.taskId != null)) {
+        _ensureStatusPolling();
+      }
 
       final okCount = _results.where((r) => r.taskId != null).length;
       final failCount = _results.length - okCount;
-      _snack(
-        okCount > 0
-            ? '已启动 $okCount 个下载任务${failCount > 0 ? '，$failCount 个失败' : ''}，进度见下方与任务面板'
-            : '提交失败：$failCount 个网址均无法识别',
-      );
+      if (okCount == 0) {
+        _snack(
+          '提交失败：${failCount == 0 ? '服务端未返回任何任务' : '$failCount 个网址均未能启动任务'}',
+        );
+      } else {
+        _snack(
+          '已启动 $okCount 个下载任务${failCount > 0 ? '，$failCount 个提交失败' : ''}，可在下方查看进度与结果',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -207,9 +276,20 @@ class _ResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ok = item.taskId != null;
+    // 进程结束但业务 ok=false（后端记为 finished）也算失败，
+    // 不能画成绿色"完成"。
+    final businessError = item.status == ComixTaskStatus.finished &&
+        item.error != null &&
+        item.error!.isNotEmpty;
+    final failed = !ok ||
+        businessError ||
+        item.status == ComixTaskStatus.failed ||
+        item.status == ComixTaskStatus.killed;
     final color = switch (item.status) {
       ComixTaskStatus.running => Colors.blueAccent,
-      ComixTaskStatus.finished => Colors.greenAccent.shade400,
+      ComixTaskStatus.finished => businessError
+          ? Colors.redAccent
+          : Colors.greenAccent.shade400,
       ComixTaskStatus.failed => Colors.redAccent,
       ComixTaskStatus.killed => Colors.orange,
       ComixTaskStatus.unknown => ok
@@ -218,14 +298,14 @@ class _ResultTile extends StatelessWidget {
     };
     final statusLabel = switch (item.status) {
       ComixTaskStatus.running => '运行中',
-      ComixTaskStatus.finished => '完成',
+      ComixTaskStatus.finished => businessError ? '业务错误' : '完成',
       ComixTaskStatus.failed => '失败',
       ComixTaskStatus.killed => '已中断',
-      ComixTaskStatus.unknown => ok ? '等待中' : '站点识别失败',
+      ComixTaskStatus.unknown => ok ? '等待中' : '提交失败',
     };
 
     final subtitle = item.taskId == null
-        ? (item.error ?? '未知错误')
+        ? (item.error ?? '未知错误（可能是站点不支持或 comix 集成不可用）')
         : '站点: ${item.site} · 任务: ${item.taskId} · $statusLabel'
             '${item.error != null && item.error!.isNotEmpty ? ' · ${item.error}' : ''}'
             '${item.summary != null && item.summary!.isNotEmpty ? '\n${item.summary}' : ''}';
@@ -241,17 +321,12 @@ class _ResultTile extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : Icon(
-                item.status == ComixTaskStatus.finished
-                    ? Icons.check_circle_outline
-                    : (item.status == ComixTaskStatus.failed ||
-                            item.taskId == null)
-                        ? Icons.error_outline
-                        : Icons.info_outline,
+                failed ? Icons.error_outline : Icons.check_circle_outline,
                 color: color,
                 size: 20,
               ),
         title: Text(item.url, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis),
+        subtitle: Text(subtitle, maxLines: 4, overflow: TextOverflow.ellipsis),
       ),
     );
   }

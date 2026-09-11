@@ -54,7 +54,13 @@ type Task struct {
 
 	killed atomic.Bool
 	proc   *exec.Cmd // 由 runTask 设置，Stop 读取（经 manager 锁保护）
+	// stderrTail 保留 stderr 末尾若干字节，用于失败时给出可读原因
+	// （CLI 的 traceback/错误信息都走 stderr）。不加 json tag 且非导出，不参与序列化。
+	stderrTail strings.Builder
 }
+
+// maxStderrTail 错误上报保留的 stderr 尾部长度上限。
+const maxStderrTail = 4 * 1024
 
 // TaskManager 维护全部任务的内存注册表。
 type TaskManager struct {
@@ -128,10 +134,16 @@ func (m *TaskManager) run(task *Task, cmd string, rest ...string) {
 			m.appendLog(task, "system", fmt.Sprintf("读取 stdout 失败: %v", err))
 		}
 	}()
-	go m.streamLines(task, stderrPipe)
+	stderrDone := make(chan struct{})
+	go func() {
+		defer close(stderrDone)
+		m.streamLines(task, stderrPipe)
+	}()
 
 	waitErr := process.Wait()
 	<-stdoutDone
+	// 等 stderr 读完：既保证日志完整，也保证失败时能拿到错误原因
+	<-stderrDone
 
 	if task.killed.Load() {
 		m.finish(task, TaskKilled, nil, fmt.Errorf("任务已被中断"))
@@ -142,7 +154,7 @@ func (m *TaskManager) run(task *Task, cmd string, rest ...string) {
 	if process.ProcessState != nil {
 		exitCode = process.ProcessState.ExitCode()
 	}
-	result, parseErr := parseOutput(stdoutBuf.String(), "", exitCode, waitErr)
+	result, parseErr := parseOutput(stdoutBuf.String(), m.stderrTailOf(task), exitCode, waitErr)
 	if parseErr != nil {
 		m.finish(task, TaskFailed, nil, parseErr)
 		return
@@ -151,13 +163,38 @@ func (m *TaskManager) run(task *Task, cmd string, rest ...string) {
 	m.finish(task, TaskFinished, result, nil)
 }
 
-// streamLines 逐行读取子进程 stderr 并追加到任务日志。
+// streamLines 逐行读取子进程 stderr 并追加到任务日志（同时保留尾部用于错误上报）。
 func (m *TaskManager) streamLines(task *Task, reader io.Reader) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	for scanner.Scan() {
-		m.appendLog(task, "stderr", scanner.Text())
+		line := scanner.Text()
+		m.appendLog(task, "stderr", line)
+		m.appendStderrTail(task, line)
 	}
+}
+
+// appendStderrTail 保留 stderr 末尾内容（滚动裁剪，最长 maxStderrTail）。
+func (m *TaskManager) appendStderrTail(task *Task, line string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if task.stderrTail.Len() > 0 {
+		task.stderrTail.WriteByte('\n')
+	}
+	task.stderrTail.WriteString(line)
+	if task.stderrTail.Len() > maxStderrTail {
+		tail := task.stderrTail.String()
+		tail = tail[len(tail)-maxStderrTail:]
+		task.stderrTail.Reset()
+		task.stderrTail.WriteString(tail)
+	}
+}
+
+// stderrTailOf 读取 stderr 尾部快照。
+func (m *TaskManager) stderrTailOf(task *Task) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return task.stderrTail.String()
 }
 
 // Stop 中断任务：先 TerminateProcess 直接终止主进程（Windows 下可靠，

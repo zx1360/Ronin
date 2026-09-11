@@ -56,16 +56,25 @@ class ChapterStatusChip extends StatelessWidget {
 }
 
 /// 任务状态徽章。
+///
+/// [businessFailure] 用于把"进程正常结束但业务结果 ok=false/非零退出码"的任务
+/// 标成失败，而不是绿色"完成"（后端把退出码 2 记为 finished）。
 class TaskStatusChip extends StatelessWidget {
   final ComixTaskStatus status;
+  final bool businessFailure;
 
-  const TaskStatusChip({super.key, required this.status});
+  const TaskStatusChip({
+    super.key,
+    required this.status,
+    this.businessFailure = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final (color, label) = switch (status) {
       ComixTaskStatus.running => (Colors.blueAccent, '运行中'),
-      ComixTaskStatus.finished => (Colors.greenAccent.shade400, '完成'),
+      ComixTaskStatus.finished =>
+        businessFailure ? (Colors.redAccent, '业务错误') : (Colors.greenAccent.shade400, '完成'),
       ComixTaskStatus.failed => (Colors.redAccent, '失败'),
       ComixTaskStatus.killed => (Colors.orange, '已中断'),
       ComixTaskStatus.unknown => (Colors.grey, '未知'),
@@ -85,7 +94,9 @@ class TaskStatusChip extends StatelessWidget {
   }
 }
 
-/// 任务结果摘要（下载/失败/新章节/候选数/回收统计等）。
+/// 任务结果摘要（下载/失败/新章节/追更进度/回收统计等）。
+///
+/// 后端 `/tasks` 列表已带 result，因此任务结束后摘要依然可见（不再随详情消失）。
 String comixTaskSummary(ComixTask task) {
   final result = task.result;
   if (result == null) return '';
@@ -97,53 +108,100 @@ String comixTaskSummary(ComixTask task) {
       parts.add(data['title'].toString());
     }
     if (data['reports'] is List) {
-      final reports = data['reports'] as List;
-      var newCount = 0;
-      for (final report in reports) {
-        if (report is Map<String, dynamic>) {
-          final news = report['new_chapters'];
-          if (news is List) newCount += news.length;
-        }
-      }
-      parts.add('检查 ${reports.length} 部');
-      parts.add(newCount > 0 ? '新增 $newCount 章' : '无新章节');
+      parts.addAll(_updateCheckSummary(data['reports'] as List));
     }
-    // add-url 结果嵌套在 data.download 下（协议文档 §4.2），先解包
+    // add-url / update-check 的下载结果嵌套在 data.download 下（协议文档 §4.2/§4.4）
     final download = data['download'];
     if (download is Map<String, dynamic>) {
-      if (download['downloaded'] is List) {
-        parts.add('下载 ${(download['downloaded'] as List).length} 章');
-      }
-      if (download['failed'] is List && (download['failed'] as List).isNotEmpty) {
-        parts.add('失败 ${(download['failed'] as List).length} 章');
-      }
-      if (download['message'] is String &&
-          (download['message'] as String).isNotEmpty) {
-        parts.add(download['message'].toString());
-      }
+      parts.addAll(_downloadSummary(download, prefix: '新章节'));
     }
-    if (data['downloaded'] is List) {
-      parts.add('下载 ${(data['downloaded'] as List).length} 章');
-    }
-    if (data['failed'] is List && (data['failed'] as List).isNotEmpty) {
-      parts.add('失败 ${(data['failed'] as List).length} 章');
-    }
-    if (data['message'] is String && (data['message'] as String).isNotEmpty) {
-      parts.add(data['message'].toString());
+    if (data['downloaded'] is List || data['failed'] is List) {
+      parts.addAll(_downloadSummary(data));
     }
     if (data['recovered_tasks'] != null || data['removed_temp_dirs'] != null) {
       parts.add(
         '回收任务 ${data['recovered_tasks'] ?? 0} · 清理临时目录 ${data['removed_temp_dirs'] ?? 0}',
       );
     }
+    if (data['already_exists'] == true) {
+      parts.add('已登记过，复用现有记录');
+    }
     if (parts.isNotEmpty) return parts.join(' · ');
     return '完成';
   }
   if (!ok) {
     final error = result['error'] as String? ?? '';
-    return '业务错误: $error';
+    final stderr = result['stderr'] as String? ?? '';
+    if (error.isNotEmpty) return '业务错误: $error';
+    if (stderr.isNotEmpty) return '业务错误: ${_firstLine(stderr)}';
+    return '业务错误（无错误详情，可展开日志查看）';
   }
   return '';
+}
+
+/// 追更检查摘要：逐部给出"新增章节/本地进度/站点不可达"，不再只数新章节数。
+List<String> _updateCheckSummary(List reports) {
+  final parts = <String>[];
+  var newCount = 0;
+  var errorCount = 0;
+  final details = <String>[];
+  for (final report in reports) {
+    if (report is! Map<String, dynamic>) continue;
+    final news = report['new_chapters'];
+    if (news is List) newCount += news.length;
+    final error = report['error'];
+    if (error is String && error.isNotEmpty) {
+      errorCount++;
+      // 站点不可达/解析失败必须显式暴露，否则"检查了但没有更新"无法与
+      // "根本没检查成功"区分。
+      details.add('${report['title'] ?? report['comic_id']}: 站点不可达');
+      continue;
+    }
+    final message = report['message'];
+    if (message is String && message.isNotEmpty) {
+      details.add('${report['title'] ?? report['comic_id']}: $message');
+    }
+  }
+  parts.add('检查 ${reports.length} 部');
+  parts.add(newCount > 0 ? '新增 $newCount 章' : '无新章节');
+  if (errorCount > 0) parts.add('$errorCount 部站点不可达');
+  if (details.isNotEmpty) parts.add(details.join('；'));
+  return parts;
+}
+
+/// 下载结果摘要（downloaded/failed/message/未下载提示）。
+List<String> _downloadSummary(Map<String, dynamic> data, {String prefix = ''}) {
+  final parts = <String>[];
+  final downloaded = data['downloaded'];
+  final failed = data['failed'];
+  if (downloaded is List && downloaded.isNotEmpty) {
+    parts.add('$prefix下载成功 ${downloaded.length} 章');
+  }
+  if (failed is List && failed.isNotEmpty) {
+    parts.add('$prefix失败 ${failed.length} 章（已重试一轮）');
+    // 给出首个失败原因，避免只报数量让用户无从下手
+    final first = failed.first;
+    if (first is Map<String, dynamic>) {
+      final err = first['error'];
+      if (err is String && err.isNotEmpty) {
+        parts.add('示例: ${_firstLine(err)}');
+      }
+    }
+  }
+  if (downloaded is List && downloaded.isEmpty && (failed is! List || failed.isEmpty)) {
+    parts.add('无待下载章节');
+  }
+  final message = data['message'];
+  if (message is String && message.isNotEmpty) {
+    parts.add(message);
+  }
+  return parts;
+}
+
+String _firstLine(String text) {
+  final index = text.indexOf('\n');
+  final line = index >= 0 ? text.substring(0, index) : text;
+  return line.length > 160 ? '${line.substring(0, 160)}…' : line;
 }
 
 /// 日志文本样式。

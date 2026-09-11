@@ -2,6 +2,7 @@ package comic_handler
 
 import (
 	"fmt"
+	"monarch/internal/config"
 	"monarch/internal/model"
 	"monarch/internal/repository/comic_repo"
 	"os"
@@ -147,20 +148,36 @@ func UpdateComic(c *gin.Context) {
 func DeleteComic(c *gin.Context) {
 	comicId := c.Param("comic-id")
 
-	// 先获取标题用于删除文件
-	title, err := comic_repo.DeleteComic(comicId)
+	// 先获取标题与存储相对路径用于删除文件
+	title, relDir, err := comic_repo.DeleteComic(comicId)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 删除文件系统中的漫画资源目录
-	comicDir := filepath.Join("static", "comics", title)
-	if err := os.RemoveAll(comicDir); err != nil {
+	// 删除文件系统中的漫画资源目录。
+	// 两套布局都要覆盖：爬虫资源为 {STATIC_DIR}/{comic_id}（rel_dir，权威来源），
+	// legacy 资源为 {STATIC_DIR}/comics/{title}。
+	// 目录不存在时 RemoveAll 返回 nil，因此只需收集真正的失败。
+	var failed []string
+	targets := make([]string, 0, 2)
+	if relDir != "" {
+		targets = append(targets, filepath.Join(config.AppConf.StaticDir, filepath.FromSlash(relDir)))
+	}
+	if title != "" {
+		targets = append(targets, filepath.Join(config.AppConf.StaticDir, "comics", title))
+	}
+	for _, dir := range targets {
+		if err := os.RemoveAll(dir); err != nil {
+			failed = append(failed, fmt.Sprintf("%s: %v", dir, err))
+		}
+	}
+	if len(failed) > 0 {
 		// 文件删除失败不阻塞响应，但记录
 		c.JSON(200, gin.H{
 			"status":  "partial",
-			"message": fmt.Sprintf("数据库记录已删除，但文件清理失败: %v", err),
+			"message": fmt.Sprintf("数据库记录已删除，但文件清理失败: %v", failed),
+			"deleted": title,
 		})
 		return
 	}

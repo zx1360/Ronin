@@ -219,6 +219,14 @@ func UpdateCheck(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "请求体无效"})
 		return
 	}
+	// 既不指定漫画也不要求全站时，明确报错.
+	if req.ComicID == nil && !req.All {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"ok":    false,
+			"error": "需要指定 comic_id 或 all（否则不会检查任何漫画）",
+		})
+		return
+	}
 	args := []string{}
 	if req.ComicID != nil {
 		args = append(args, "--comic-id", strconv.Itoa(*req.ComicID))
@@ -248,6 +256,8 @@ func Clean(c *gin.Context) {
 // ---- 任务生命周期 ----
 
 // ListTasks 列出任务（含运行中与最近完成的）。
+//
+// summary 里带上 result：桌面端只在任务"运行中"时才拉详情，
 func ListTasks(c *gin.Context) {
 	tasks := comix.Manager.List()
 	type summary struct {
@@ -260,13 +270,14 @@ func ListTasks(c *gin.Context) {
 		FinishedAt *time.Time       `json:"finished_at"`
 		ExitCode   *int             `json:"exit_code"`
 		Error      string           `json:"error"`
+		Result     *comix.Result    `json:"result,omitempty"`
 	}
 	out := make([]summary, 0, len(tasks))
 	for _, t := range tasks {
 		out = append(out, summary{
 			ID: t.ID, Name: t.Name, Command: t.Command, Status: t.Status,
 			PID: t.PID, StartedAt: t.StartedAt, FinishedAt: t.FinishedAt,
-			ExitCode: t.ExitCode, Error: t.Error,
+			ExitCode: t.ExitCode, Error: t.Error, Result: t.Result,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"tasks": out}})

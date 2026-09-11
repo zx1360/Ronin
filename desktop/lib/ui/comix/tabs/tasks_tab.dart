@@ -69,7 +69,12 @@ class TasksTab extends ConsumerWidget {
         const SizedBox(height: AppDimens.spacingS),
         Expanded(
           child: tasks.isEmpty
-              ? const Center(child: Text('暂无任务'))
+              ? const Center(
+                  child: Text(
+                    '暂无任务\n（任务记录由 Monarch 内存维护，重启服务后清空）',
+                    textAlign: TextAlign.center,
+                  ),
+                )
               : ListView.separated(
                   padding: const EdgeInsets.all(AppDimens.paddingL),
                   itemCount: tasks.length,
@@ -78,6 +83,7 @@ class TasksTab extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final task = tasks[index];
                     return _TaskTile(
+                      key: ValueKey(task.id),
                       task: task,
                       onStop: () => _stop(ref, context, task.id),
                     );
@@ -93,7 +99,7 @@ class _TaskTile extends StatefulWidget {
   final ComixTask task;
   final VoidCallback onStop;
 
-  const _TaskTile({required this.task, required this.onStop});
+  const _TaskTile({super.key, required this.task, required this.onStop});
 
   @override
   State<_TaskTile> createState() => _TaskTileState();
@@ -116,7 +122,10 @@ class _TaskTileState extends State<_TaskTile> {
           children: [
             Row(
               children: [
-                TaskStatusChip(status: task.status),
+                TaskStatusChip(
+                  status: task.status,
+                  businessFailure: task.isBusinessError,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -154,14 +163,24 @@ class _TaskTileState extends State<_TaskTile> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            if (task.error != null && task.error!.isNotEmpty)
+            // 失败原因优先展示（含后端透传的 stderr 尾部）
+            if (task.isFailure && task.failureReason.isNotEmpty)
               Text(
-                task.error!,
+                task.failureReason,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             if (task.result != null)
               Text(
                 comixTaskSummary(task),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: task.isBusinessError
+                          ? Theme.of(context).colorScheme.error
+                          : null,
+                    ),
+              ),
+            if (task.isRunning && task.result == null)
+              Text(
+                '运行中，进度见下方日志…',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             if (task.pid > 0)
@@ -169,6 +188,11 @@ class _TaskTileState extends State<_TaskTile> {
                 'PID ${task.pid} · 开始 ${task.startedAt ?? '-'}'
                 '${task.finishedAt != null ? ' · 结束 ${task.finishedAt}' : ''}'
                 '${task.exitCode != null ? ' · exit ${task.exitCode}' : ''}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            if (_expanded && task.logs.isEmpty)
+              Text(
+                '（无日志输出：Monarch 重启会清空任务日志，或该命令未产生进度输出）',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             if (_expanded && task.logs.isNotEmpty) ...[

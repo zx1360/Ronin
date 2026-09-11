@@ -43,7 +43,15 @@ type Comic struct {
 	TotalChapters int    `json:"total_chapters"`
 	Downloaded    int    `json:"downloaded"`
 	Failed        int    `json:"failed"`
+	Pending       int    `json:"pending"`
 	MaxChapterNo  int    `json:"max_chapter_no"`
+	// 封面：cover_url 为站点原始地址（可能为空，如 xmanhua 站点未解析到）；
+	// cover_image 为本地相对路径 comics/{id}/{chapter_id}/{file}（空表示无可用封面）。
+	// 桌面端用 cover_image 经 /static/{cover_image} 展示缩略图。
+	CoverURL   string `json:"cover_url"`
+	CoverImage string `json:"cover_image"`
+	// IsLegacy：legacy 站点的本地历史资源，不参与追更（Python 端同样跳过）。
+	IsLegacy bool `json:"is_legacy"`
 }
 
 // Chapter 章节（chapters 语义，精简列）。
@@ -153,14 +161,19 @@ func listComics(ctx context.Context, pool *pgxpool.Pool) ([]Comic, error) {
 			s.name,
 			c.detail_url,
 			c.rel_dir,
-			COUNT(ch.id)                                    AS total_chapters,
-			COUNT(ch.id) FILTER (WHERE ch.status = 'done')  AS downloaded,
-			COUNT(ch.id) FILTER (WHERE ch.status = 'failed') AS failed,
-			COALESCE(MAX(ch.chapter_no), 0)                 AS max_chapter_no
+			COUNT(ch.id)                                       AS total_chapters,
+			COUNT(ch.id) FILTER (WHERE ch.status = 'done')     AS downloaded,
+			COUNT(ch.id) FILTER (WHERE ch.status = 'failed')   AS failed,
+			COUNT(ch.id) FILTER (WHERE ch.status = 'pending')  AS pending,
+			COALESCE(MAX(ch.chapter_no), 0)                    AS max_chapter_no,
+			c.cover_url,
+			c.cover_image,
+			(s.code = 'legacy')                                AS is_legacy
 		FROM comix.comic c
 		JOIN comix.site s ON s.id = c.site_id
 		LEFT JOIN comix.chapter ch ON ch.comic_id = c.id
-		GROUP BY c.id, c.title, s.code, s.name, c.detail_url, c.rel_dir
+		GROUP BY c.id, c.title, s.code, s.name, c.detail_url, c.rel_dir,
+		         c.cover_url, c.cover_image
 		ORDER BY c.id
 	`)
 	if err != nil {
@@ -173,7 +186,8 @@ func listComics(ctx context.Context, pool *pgxpool.Pool) ([]Comic, error) {
 		var c Comic
 		if err := rows.Scan(&c.ComicID, &c.Title, &c.Site, &c.SiteName,
 			&c.DetailURL, &c.RelDir, &c.TotalChapters,
-			&c.Downloaded, &c.Failed, &c.MaxChapterNo); err != nil {
+			&c.Downloaded, &c.Failed, &c.Pending, &c.MaxChapterNo,
+			&c.CoverURL, &c.CoverImage, &c.IsLegacy); err != nil {
 			return nil, fmt.Errorf("扫描漫画数据失败: %w", err)
 		}
 		comics = append(comics, c)

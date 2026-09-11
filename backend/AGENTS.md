@@ -9,6 +9,10 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 - **comix 爬虫集成**（`internal/service/comix/` + `internal/handler/comix_handler/`）：以子进程方式调用
   外部 comix 项目（`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
   提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
+  - `/API/comix/tasks` 的列表摘要**必须携带 `result`**（含 ok/error/章节统计），
+    否则桌面端只能在任务运行期间看到详情，任务一结束就失去全部反馈。
+  - 子进程 stderr 除流式进日志外，还需保留尾部用于 `parseOutput` 的错误上报
+    （`Task.stderrTail`），否则 CLI 异常只留下"exit 1"而没有任何原因。
 
 ### 技术栈
 
