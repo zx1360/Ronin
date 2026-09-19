@@ -7,7 +7,7 @@ part of 'ops_overview_provider.dart';
 // **************************************************************************
 
 String _$opsOverviewControllerHash() =>
-    r'6d18e93d2169801148acc8c7c423a95718ab21fc';
+    r'f0c30a1b785eb5086132054a3a9c9830c73f0c76';
 
 /// See also [OpsOverviewController].
 @ProviderFor(OpsOverviewController)
