@@ -1,4 +1,4 @@
-单仓库多目标工作区. Go 后端 Monarch + Flutter 安卓端 Torrid + Flutter 桌面端 Northstar.
+单仓库多目标工作区. Go 后端(Monarch) + Flutter 安卓端(Torrid) + Flutter 桌面端(Northstar).
 
 - backend: backend/AGENTS.md
 - android: android/AGENTS.md
@@ -20,4 +20,4 @@
 
 - 自签证书：三端统一，Flutter 端通过 `assets/cert/server.crt` 信任
 
-> 当改动影响项目结构或开发流程时, 请更新涉及到的 AGENTS.md 中的相关部分. 当改动影响契约文件时, 请运行 `backend/references/scripts/generate_refs.ps1` 来生成最新的 references/ 产物.
+> 当改动影响项目结构或开发流程时, 请更新涉及到的 AGENTS.md 中的相关部分(务必始终保持AGENTS.md的精简). 当改动影响契约文件时, 请运行 `backend/references/scripts/generate_refs.ps1` 来生成最新的 references/ 产物.
