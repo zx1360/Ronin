@@ -6,6 +6,11 @@ import 'package:northstar/shared/widgets/shell/shell_page.dart';
 final GoRouter router = GoRouter(
   initialLocation: "/dashboard",
   routes: [
+    // 旧路由兼容：/comics 已合并进 /comix 漫画资源页
+    GoRoute(
+      path: '/comics',
+      redirect: (context, state) => '/comix',
+    ),
     StatefulShellRoute.indexedStack(
       branches: [
         for (final route in routes)

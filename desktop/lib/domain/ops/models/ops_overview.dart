@@ -50,15 +50,21 @@ class OpsServiceOverview {
   final bool isLocalMode;
   final int? port;
 
+  /// static 目录的绝对路径（服务端视角）：桌面端替换封面需要直接读写该目录，
+  /// 相对路径在客户端无法解析（两端工作目录不同）。
+  final String staticDir;
+
   const OpsServiceOverview({
     required this.isLocalMode,
     required this.port,
+    this.staticDir = '',
   });
 
   factory OpsServiceOverview.fromJson(Map<String, dynamic> json) {
     return OpsServiceOverview(
       isLocalMode: json['isLocalMode'] == true,
       port: int.tryParse((json['port'] ?? '').toString()),
+      staticDir: (json['staticDir'] ?? '').toString(),
     );
   }
 }

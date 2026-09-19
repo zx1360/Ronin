@@ -55,7 +55,7 @@ class ComixSite {
   }
 }
 
-/// 已登记漫画（list 命令输出）。
+/// 已登记漫画（/API/comix/list 输出：下载进度 + 书库管理字段）。
 class ComixComic {
   final int comicId;
   final String title;
@@ -71,6 +71,11 @@ class ComixComic {
   final String coverUrl;
   final String coverImage;
   final bool isLegacy;
+  // 书库管理字段（与 /API/comic/comic-info 同源，随列表一次返回）
+  final bool isPublic;
+  final bool readed;
+  final int chapterCount;
+  final int imageCount;
 
   const ComixComic({
     required this.comicId,
@@ -87,6 +92,10 @@ class ComixComic {
     this.coverUrl = '',
     this.coverImage = '',
     this.isLegacy = false,
+    this.isPublic = true,
+    this.readed = false,
+    this.chapterCount = 0,
+    this.imageCount = 0,
   });
 
   factory ComixComic.fromJson(Map<String, dynamic> json) {
@@ -112,6 +121,34 @@ class ComixComic {
       coverUrl: json['cover_url'] as String? ?? '',
       coverImage: json['cover_image'] as String? ?? '',
       isLegacy: json['is_legacy'] as bool? ?? (site == 'legacy'),
+      isPublic: json['is_public'] as bool? ?? true,
+      readed: json['readed'] as bool? ?? false,
+      chapterCount: (json['chapter_count'] as num?)?.toInt() ?? total,
+      imageCount: (json['image_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// 就地更新管理字段（避免整列表重取导致滚动回顶）。
+  ComixComic copyWith({bool? isPublic, bool? readed, String? coverImage}) {
+    return ComixComic(
+      comicId: comicId,
+      title: title,
+      site: site,
+      siteName: siteName,
+      detailUrl: detailUrl,
+      relDir: relDir,
+      totalChapters: totalChapters,
+      downloaded: downloaded,
+      failed: failed,
+      pending: pending,
+      maxChapterNo: maxChapterNo,
+      coverUrl: coverUrl,
+      coverImage: coverImage ?? this.coverImage,
+      isLegacy: isLegacy,
+      isPublic: isPublic ?? this.isPublic,
+      readed: readed ?? this.readed,
+      chapterCount: chapterCount,
+      imageCount: imageCount,
     );
   }
 

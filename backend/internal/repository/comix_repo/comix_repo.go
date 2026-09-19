@@ -32,7 +32,7 @@ type Site struct {
 	Enabled bool   `json:"enabled"`
 }
 
-// Comic 已登记漫画（list 语义，含聚合统计）。
+// Comic 已登记漫画（list 语义，含下载进度与书库管理字段）。
 type Comic struct {
 	ComicID       int    `json:"comic_id"`
 	Title         string `json:"title"`
@@ -47,11 +47,17 @@ type Comic struct {
 	MaxChapterNo  int    `json:"max_chapter_no"`
 	// 封面：cover_url 为站点原始地址（可能为空，如 xmanhua 站点未解析到）；
 	// cover_image 为本地相对路径 comics/{id}/{chapter_id}/{file}（空表示无可用封面）。
-	// 桌面端用 cover_image 经 /static/{cover_image} 展示缩略图。
+	// 客户端用 cover_image 经 /static/{cover_image} 展示缩略图。
 	CoverURL   string `json:"cover_url"`
 	CoverImage string `json:"cover_image"`
 	// IsLegacy：legacy 站点的本地历史资源，不参与追更（Python 端同样跳过）。
 	IsLegacy bool `json:"is_legacy"`
+	// 书库管理字段（comix.comic_books 视图）；记录缺失时给出默认值，
+	// 使客户端无需再请求 /API/comic/comic-info 即可完成管理操作。
+	IsPublic     bool `json:"is_public"`
+	Readed       bool `json:"readed"`
+	ChapterCount int  `json:"chapter_count"`
+	ImageCount   int  `json:"image_count"`
 }
 
 // Chapter 章节（chapters 语义，精简列）。
@@ -146,6 +152,10 @@ func listSites(ctx context.Context, pool *pgxpool.Pool) ([]Site, error) {
 }
 
 // ListComics 列出全部已登记漫画（单条 SQL 聚合，替代 Python 端 N+1 查询）。
+//
+// 同时带出书库管理字段（公开/已读/章节数/图片数），使客户端只需一次请求。
+// 图片数取 chapter.page_count 汇总：与爬虫写入的页数一致，且避免 COUNT 图片表
+// （12 万行）带来的数量级开销。
 func ListComics() ([]Comic, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
@@ -161,19 +171,24 @@ func listComics(ctx context.Context, pool *pgxpool.Pool) ([]Comic, error) {
 			s.name,
 			c.detail_url,
 			c.rel_dir,
-			COUNT(ch.id)                                       AS total_chapters,
-			COUNT(ch.id) FILTER (WHERE ch.status = 'done')     AS downloaded,
-			COUNT(ch.id) FILTER (WHERE ch.status = 'failed')   AS failed,
-			COUNT(ch.id) FILTER (WHERE ch.status = 'pending')  AS pending,
-			COALESCE(MAX(ch.chapter_no), 0)                    AS max_chapter_no,
+			COUNT(ch.id)                                            AS total_chapters,
+			COUNT(ch.id) FILTER (WHERE ch.status = 'done')          AS downloaded,
+			COUNT(ch.id) FILTER (WHERE ch.status = 'failed')        AS failed,
+			COUNT(ch.id) FILTER (WHERE ch.status = 'pending')       AS pending,
+			COALESCE(MAX(ch.chapter_no), 0)                         AS max_chapter_no,
 			c.cover_url,
 			c.cover_image,
-			(s.code = 'legacy')                                AS is_legacy
+			(s.code = 'legacy')                                     AS is_legacy,
+			COALESCE(b.is_public, TRUE)                             AS is_public,
+			COALESCE(b.readed, FALSE)                               AS readed,
+			COUNT(ch.id)                                            AS chapter_count,
+			COALESCE(SUM(ch.page_count), 0)                         AS image_count
 		FROM comix.comic c
 		JOIN comix.site s ON s.id = c.site_id
+		LEFT JOIN comix.comic_books b ON b.id = c.id::text
 		LEFT JOIN comix.chapter ch ON ch.comic_id = c.id
 		GROUP BY c.id, c.title, s.code, s.name, c.detail_url, c.rel_dir,
-		         c.cover_url, c.cover_image
+		         c.cover_url, c.cover_image, b.is_public, b.readed
 		ORDER BY c.id
 	`)
 	if err != nil {
@@ -187,7 +202,8 @@ func listComics(ctx context.Context, pool *pgxpool.Pool) ([]Comic, error) {
 		if err := rows.Scan(&c.ComicID, &c.Title, &c.Site, &c.SiteName,
 			&c.DetailURL, &c.RelDir, &c.TotalChapters,
 			&c.Downloaded, &c.Failed, &c.Pending, &c.MaxChapterNo,
-			&c.CoverURL, &c.CoverImage, &c.IsLegacy); err != nil {
+			&c.CoverURL, &c.CoverImage, &c.IsLegacy,
+			&c.IsPublic, &c.Readed, &c.ChapterCount, &c.ImageCount); err != nil {
 			return nil, fmt.Errorf("扫描漫画数据失败: %w", err)
 		}
 		comics = append(comics, c)

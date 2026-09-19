@@ -39,6 +39,21 @@ bool FlutterWindow::OnCreate() {
   return true;
 }
 
+// Explicit, ordered Flutter engine shutdown. Must run before the window is
+// destroyed: relying on the default destructor order makes the Windows
+// embedder wait several seconds for its platform thread and occasionally throw
+// an unhandled exception (0xC000041D) from a window callback. That is what the
+// user sees as "app freezes for seconds on close, then must be force-killed".
+void FlutterWindow::ShutdownEngine() {
+  if (!flutter_controller_) {
+    return;
+  }
+  // Release the controller: the engine is already down, so destroying it later
+  // would repeat the wait described above.
+  flutter_controller_->engine()->ShutDown();
+  flutter_controller_ = nullptr;
+}
+
 void FlutterWindow::OnDestroy() {
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
