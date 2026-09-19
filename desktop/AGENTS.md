@@ -29,12 +29,7 @@ Riverpod + GoRouter + SharedPreferences + `dart:io` HttpClient（自签证书信
 
 ### 与后端协同
 
-- 通过 `OpsApiClient` 调用 `/API/ops/overview` 及漫画管理接口；非 2xx 响应统一抛出 `OpsApiException`（含状态码与服务端错误体），UI 不直接处理底层协议细节。
-- **comix 任务反馈**：`/API/comix/tasks` 列表已带 `result`（后端 `ListTasks`），
-  `ComixBoardNotifier` 另按 task_id 缓存详情（`/tasks/:id`，含完整日志），
-  因此任务结束后结果与日志依然可见。任务状态渲染必须区分
-  「进程结束」与「业务失败」：`ComixTask.isBusinessError`（result.ok=false）
-  要显示为业务错误而非绿色"完成"（后端把退出码 2 记为 finished）。
+- 通过 `OpsApiClient` 调用 `/API/ops/overview` 及漫画管理接口；非 2xx 响应统一抛出 `OpsApiException`（含状态码与服务端错误体）.
 - 任务模板 (`default_task_templates.dart`) 需对照 `../backend/gizmos/` 的 CLI 参数（`-mode`/`-gallery-root`/`-concurrency`/`-batch`/`-resize*`/`-root`），任何 CLI 参数变更须同步模板。
 - 自签证书：`assets/cert/server.crt`。
 - 后端接口变更后查看 `../backend/references/api/routes.json`。
