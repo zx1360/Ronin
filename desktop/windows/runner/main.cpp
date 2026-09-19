@@ -38,6 +38,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
+  // Shutdown order matters: close the engine explicitly, then destroy the
+  // window. With the default destructor order the embedder stalls for several
+  // seconds and can raise an unhandled callback exception (0xC000041D), which
+  // users experience as "close hangs for seconds; clicking during it forces a
+  // kill".
+  window.ShutdownEngine();
+  window.Destroy();
+
   ::CoUninitialize();
   return EXIT_SUCCESS;
 }

@@ -12,17 +12,14 @@ part 'ops_settings_provider.g.dart';
 class OpsSettingsController extends _$OpsSettingsController {
   @override
   OpsSettings build() {
-    Future<void>(() async {
-      final repository = ref.read(opsPersistenceRepositoryProvider);
-      final cached = await repository.loadSettings();
-      if (cached == null) {
-        await repository.saveSettings(state);
-        return;
-      }
-      state = cached;
-      CertTrust.setApiKey(cached.apiKey);
-    });
-    return OpsSettings.defaults();
+    // 配置在 main() 预载完成，这里同步取持久化值：若在 build 里异步补载，
+    // 首个请求会先带默认配置发出（连错端口/端口），启动后必须手动刷新才能恢复。
+    final cached = ref.read(opsPersistenceRepositoryProvider).settings;
+    if (cached == null) {
+      return OpsSettings.defaults();
+    }
+    CertTrust.setApiKey(cached.apiKey);
+    return cached;
   }
 
   Future<void> update({

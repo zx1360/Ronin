@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:northstar/ui/ops/pages/dashboard_page.dart';
-import 'package:northstar/ui/ops/pages/comics_page.dart';
 import 'package:northstar/ui/ops/pages/task_manager_page.dart';
 import 'package:northstar/ui/ops/pages/logs_page.dart';
 import 'package:northstar/ui/ops/pages/settings_page.dart';
@@ -25,7 +24,7 @@ class AppRoute {
   });
 }
 
-// 所有路由定义: 1仪表盘, 2漫画, 3日志, 4任务, 5设置
+// 所有路由定义: 1仪表盘, 2漫画资源, 3日志, 4任务, 5设置, 6帮助
 final List<AppRoute> routes = [
   // Dashboard
   AppRoute(
@@ -35,15 +34,7 @@ final List<AppRoute> routes = [
     builder: (context, state) => const DashboardPage(),
   ),
 
-  // 漫画资源管理
-  AppRoute(
-    path: '/comics',
-    name: 'comics',
-    icon: Icons.menu_book_rounded,
-    builder: (context, state) => const ComicsPage(),
-  ),
-
-  // comix 漫画爬虫管理
+  // 漫画资源：爬虫操作 + 书库管理（原 /comics 已合并至此）
   AppRoute(
     path: '/comix',
     name: 'comix',

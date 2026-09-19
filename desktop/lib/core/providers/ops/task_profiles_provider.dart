@@ -20,28 +20,25 @@ class TaskProfilesController extends _$TaskProfilesController {
   @override
   List<TaskProfile> build() {
     final defaults = buildDefaultTaskTemplates();
+    final repository = ref.read(opsPersistenceRepositoryProvider);
 
-    Future<void>(() async {
-      final repository = ref.read(opsPersistenceRepositoryProvider);
-      final cached = await repository.loadTaskProfiles();
-      if (cached == null || cached.isEmpty) {
-        state = defaults;
-        await repository.saveTaskProfiles(defaults);
-        return;
-      }
+    // 任务档案同样在 main() 预载完成，build 只做无副作用的纯计算；
+    // 需要落盘时排到当前帧之后，避免在 build 内改状态。
+    final cached = repository.taskProfiles;
+    if (cached == null || cached.isEmpty) {
+      Future(() => repository.saveTaskProfiles(defaults));
+      return defaults;
+    }
 
-      final migrated = _migrateCachedTaskProfiles(
-        cached: cached,
-        defaults: defaults,
-      );
+    final migrated = _migrateCachedTaskProfiles(
+      cached: cached,
+      defaults: defaults,
+    );
 
-      state = migrated;
-      if (!_taskListsSemanticallyEqual(cached, migrated)) {
-        await repository.saveTaskProfiles(migrated);
-      }
-    });
-
-    return defaults;
+    if (!_taskListsSemanticallyEqual(cached, migrated)) {
+      Future(() => repository.saveTaskProfiles(migrated));
+    }
+    return migrated;
   }
 
   List<TaskProfile> _migrateCachedTaskProfiles({

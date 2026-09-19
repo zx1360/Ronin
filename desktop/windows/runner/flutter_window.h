@@ -15,6 +15,10 @@ class FlutterWindow : public Win32Window {
   explicit FlutterWindow(const flutter::DartProject& project);
   virtual ~FlutterWindow();
 
+  // Shut the Flutter engine down and release the view. Must be called before
+  // the window is destroyed.
+  void ShutdownEngine();
+
  protected:
   // Win32Window:
   bool OnCreate() override;

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,11 +12,11 @@ class UrlTaskResult {
   final String url;
   final String site;
   final String? taskId;
-  ComixTaskStatus status;
-  String? error;
-  String? summary;
+  final ComixTaskStatus status;
+  final String? error;
+  final String? summary;
 
-  UrlTaskResult({
+  const UrlTaskResult({
     required this.url,
     required this.site,
     required this.taskId,
@@ -42,7 +40,7 @@ class UrlTaskResult {
 }
 
 /// 网址下载 Tab：粘贴漫画详情页 URL（支持多行/多个并发），
-/// 服务端自动识别站点并启动对应爬虫下载；列表实时刷新任务状态。
+/// 服务端自动识别站点并启动对应爬虫下载；提交结果随后端轮询实时更新。
 class UrlDownloadTab extends ConsumerStatefulWidget {
   const UrlDownloadTab({super.key});
 
@@ -56,70 +54,55 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
   final _latestController = TextEditingController();
   bool _submitting = false;
   List<UrlTaskResult> _results = [];
-  Timer? _statusTimer;
 
   @override
   bool get wantKeepAlive => true;
 
   @override
   void dispose() {
-    _statusTimer?.cancel();
     _urlsController.dispose();
     _latestController.dispose();
     super.dispose();
   }
 
-  /// 轮询本页已提交任务的状态，直到全部结束。  TODO:似乎未实现"全部任务结束后自动停止轮询"的逻辑，导致后台一直轮询.
-  void _ensureStatusPolling() {
-    if (_statusTimer != null) return;
-    _statusTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => _refreshStatuses(),
-    );
-  }
+  /// 用任务面板的最新快照刷新本页提交结果。
+  ///
+  /// 轮询完全由 [comixBoardProvider] 负责（按需启停），本页只做映射，
+  /// 避免再起一个独立定时器重复请求 `/API/comix/tasks`。
+  void _syncResults(List<ComixTask> tasks) {
+    if (_results.isEmpty) return;
+    final byId = <String, ComixTask>{for (final t in tasks) t.id: t};
+    var changed = false;
+    final next = _results.map((item) {
+      final id = item.taskId;
+      if (id == null) return item;
+      final task = byId[id];
+      if (task == null) return item;
 
-  Future<void> _refreshStatuses() async {
-    final pendingIds = _results
-        .where((r) => r.taskId != null && r.status == ComixTaskStatus.running)
-        .map((r) => r.taskId!)
-        .toSet();
-    if (pendingIds.isEmpty) {
-      _stopStatusPolling();
-      return;
-    }
-    try {
-      final settings = ref.read(opsSettingsControllerProvider);
-      final tasks = await ref.read(comixApiClientProvider).fetchTasks(settings);
-      if (!mounted) return;
-      final byId = <String, ComixTask>{for (final t in tasks) t.id: t};
-      var allSettled = true;
-      setState(() {
-        for (final item in _results) {
-          final id = item.taskId;
-          if (id == null) continue;
-          final task = byId[id];
-          if (task == null) {
-            // 任务已被后端裁剪（超过保留上限）：无法再跟踪
-            continue;
-          }
-          item.status = task.status;
-          item.error = task.isFailure && task.failureReason.isNotEmpty
-              ? task.failureReason
-              : null;
-          final summary = comixTaskSummary(task);
-          item.summary = summary.isEmpty ? null : summary;
-          if (task.isRunning) allSettled = false;
-        }
-      });
-      if (allSettled) _stopStatusPolling();
-    } catch (_) {
-      // 轮询失败（如 Monarch 未启动）静默重试，不影响用户提交新任务
-    }
-  }
+      final error = task.isFailure && task.failureReason.isNotEmpty
+          ? task.failureReason
+          : null;
+      final summary = comixTaskSummary(task);
+      final newSummary = summary.isEmpty ? null : summary;
+      if (item.status == task.status &&
+          item.error == error &&
+          item.summary == newSummary) {
+        return item;
+      }
+      changed = true;
+      return UrlTaskResult(
+        url: item.url,
+        site: item.site,
+        taskId: item.taskId,
+        status: task.status,
+        error: error,
+        summary: newSummary,
+      );
+    }).toList(growable: false);
 
-  void _stopStatusPolling() {
-    _statusTimer?.cancel();
-    _statusTimer = null;
+    if (changed) {
+      setState(() => _results = next);
+    }
   }
 
   Future<void> _submit() async {
@@ -147,7 +130,6 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
       _submitting = true;
       _results = [];
     });
-    _stopStatusPolling();
 
     try {
       final settings = ref.read(opsSettingsControllerProvider);
@@ -162,11 +144,12 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
         _results = results.map(UrlTaskResult.fromSubmit).toList();
       });
 
-      // 任务面板立即可见 + 本列表开始轮询任务状态
-      ref.read(comixBoardProvider.notifier).refresh();
-      if (_results.any((r) => r.taskId != null)) {
-        _ensureStatusPolling();
-      }
+      // 任务面板刷新并（在有任务时）开启轮询；本页结果随其快照更新。
+      final taskIds = _results
+          .map((r) => r.taskId)
+          .whereType<String>()
+          .toList(growable: false);
+      ref.read(comixBoardProvider.notifier).trackSubmitted(taskIds);
 
       final okCount = _results.where((r) => r.taskId != null).length;
       final failCount = _results.length - okCount;
@@ -195,6 +178,7 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(comixBoardProvider, (_, next) => _syncResults(next.tasks));
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimens.paddingL),
       child: Card(

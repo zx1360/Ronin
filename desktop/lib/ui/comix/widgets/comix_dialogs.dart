@@ -121,6 +121,48 @@ Future<DeleteOptions?> showDeleteComicDialog(
   );
 }
 
+/// 展示删除确认（漫画库网格用：连同本地文件一起删除，不可恢复）。
+Future<bool?> showDeleteComicConfirmDialog(
+  BuildContext context,
+  ComixComic comic,
+) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('删除漫画'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '确认删除「${comic.title}」吗？',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '将同时删除数据库记录与本地文件（${comic.relDir}），不可恢复。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('取消'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('确认删除'),
+        ),
+      ],
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 下载对话框
 // ---------------------------------------------------------------------------

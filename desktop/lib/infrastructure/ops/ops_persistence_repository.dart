@@ -14,7 +14,31 @@ class OpsPersistenceRepository {
   static const _settingsFileName = 'ops.settings.v1.json';
   static const _tasksFileName = 'ops.tasks.v1.json';
 
-  Future<OpsSettings?> loadSettings() async {
+  // 启动预载结果。构造后立即在后台读取，因此 provider 可以同步拿到持久化配置
+  // ——异步读取会让依赖配置的首次请求带着默认值发出去（必然连错端口）。
+  late final Future<void> _preload = _preloadAll();
+  OpsSettings? _settingsCache;
+  List<TaskProfile>? _tasksCache;
+
+  /// 等待预载完成（供启动流程使用；provider 侧直接读取同步快照）。
+  Future<void> ensureLoaded() => _preload;
+
+  /// 已持久化的配置；未预载/无缓存时返回 null。
+  OpsSettings? get settings => _settingsCache;
+
+  /// 已持久化的任务档案；未预载/无缓存时返回 null。
+  List<TaskProfile>? get taskProfiles => _tasksCache;
+
+  Future<void> _preloadAll() async {
+    try {
+      _settingsCache = await _loadSettingsFromDisk();
+      _tasksCache = await _loadTaskProfilesFromDisk();
+    } catch (_) {
+      // 预载失败时保持 null，由调用方回退到默认值。
+    }
+  }
+
+  Future<OpsSettings?> _loadSettingsFromDisk() async {
     final localRaw = await _readPrimaryFile(_settingsFileName);
     final localJson = _decodeJsonMap(localRaw);
     if (localJson != null) {
@@ -33,6 +57,7 @@ class OpsPersistenceRepository {
   }
 
   Future<void> saveSettings(OpsSettings settings) async {
+    _settingsCache = settings;
     final payload = jsonEncode(settings.toJson());
     final savedToPrimary = await _writePrimaryFile(_settingsFileName, payload);
     if (!savedToPrimary) {
@@ -40,7 +65,7 @@ class OpsPersistenceRepository {
     }
   }
 
-  Future<List<TaskProfile>?> loadTaskProfiles() async {
+  Future<List<TaskProfile>?> _loadTaskProfilesFromDisk() async {
     final localRaw = await _readPrimaryFile(_tasksFileName);
     final localJson = _decodeJsonList(localRaw);
     if (localJson != null) {
@@ -59,6 +84,7 @@ class OpsPersistenceRepository {
   }
 
   Future<void> saveTaskProfiles(List<TaskProfile> tasks) async {
+    _tasksCache = tasks;
     final payload = tasks.map((item) => item.toJson()).toList(growable: false);
     final encoded = jsonEncode(payload);
     final savedToPrimary = await _writePrimaryFile(_tasksFileName, encoded);

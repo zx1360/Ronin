@@ -17,11 +17,50 @@ class ComixApiException implements Exception {
   String toString() => message;
 }
 
+/// comix 接口契约：便于测试替换实现（正式运行只用 [ComixApiClient]）。
+abstract class ComixApi {
+  void dispose();
+
+  Future<List<ComixComic>> fetchComics(OpsSettings settings);
+
+  Future<List<ComixChapter>> fetchChapters(OpsSettings settings, int comicId);
+
+  Future<List<ComixTask>> fetchTasks(OpsSettings settings);
+
+  Future<ComixTask> fetchTask(OpsSettings settings, String taskId);
+
+  Future<String> startTask(
+    OpsSettings settings,
+    String endpoint,
+    Map<String, dynamic> body,
+  );
+
+  Future<void> stopTask(OpsSettings settings, String taskId);
+
+  Future<List<Map<String, dynamic>>> downloadUrls(
+    OpsSettings settings,
+    List<String> urls, {
+    int? latest,
+  });
+
+  Future<Map<String, dynamic>> deleteComic(
+    OpsSettings settings,
+    int comicId, {
+    bool keepFiles = false,
+  });
+
+  Future<void> updateComicMeta(
+    OpsSettings settings,
+    int comicId,
+    Map<String, dynamic> body,
+  );
+}
+
 /// Monarch `/API/comix/*` 的 HTTP 客户端。
 ///
 /// 复用 OpsSettings（apiBaseUrl + apiKey）与 CertTrust（自签证书），
 /// 与 OpsApiClient 同一套连接模式；仅 comix 接口专用。
-class ComixApiClient {
+class ComixApiClient implements ComixApi {
   HttpClient? _client;
   Uri? _lastBaseUri;
 
@@ -38,6 +77,7 @@ class ComixApiClient {
     return _client!;
   }
 
+  @override
   void dispose() {
     _client?.close(force: true);
     _client = null;
@@ -69,6 +109,7 @@ class ComixApiClient {
         .toList();
   }
 
+  @override
   Future<List<ComixComic>> fetchComics(OpsSettings settings) async {
     final json = await _getJson(settings, '/API/comix/list');
     final data = json['data'];
@@ -83,6 +124,7 @@ class ComixApiClient {
         .toList();
   }
 
+  @override
   Future<List<ComixChapter>> fetchChapters(
     OpsSettings settings,
     int comicId,
@@ -103,6 +145,7 @@ class ComixApiClient {
   // --- 异步任务接口 ---
 
   /// 启动一个异步任务，返回 task_id。
+  @override
   Future<String> startTask(
     OpsSettings settings,
     String endpoint,
@@ -120,6 +163,7 @@ class ComixApiClient {
     return taskId;
   }
 
+  @override
   Future<List<ComixTask>> fetchTasks(OpsSettings settings) async {
     final json = await _getJson(settings, '/API/comix/tasks');
     final data = json['data'];
@@ -136,6 +180,7 @@ class ComixApiClient {
 
   /// 按详情页 URL 批量启动下载任务（服务端自动识别站点，多个 URL 并发）。
   /// 返回每个 URL 的提交结果：{url, site?, task_id?, status?, error?}。
+  @override
   Future<List<Map<String, dynamic>>> downloadUrls(
     OpsSettings settings,
     List<String> urls, {
@@ -159,6 +204,24 @@ class ComixApiClient {
     return list.whereType<Map<String, dynamic>>().toList();
   }
 
+  /// 更新书库管理字段（公开/已读/封面）。
+  ///
+  /// 该接口由 Android 端与漫画管理共用，路径仍在 `/API/comic` 下。
+  @override
+  Future<void> updateComicMeta(
+    OpsSettings settings,
+    int comicId,
+    Map<String, dynamic> body,
+  ) async {
+    await _request(
+      settings,
+      'PUT',
+      '/API/comic/comic-info/$comicId',
+      body: body,
+    );
+  }
+
+  @override
   Future<ComixTask> fetchTask(OpsSettings settings, String taskId) async {
     final json = await _getJson(settings, '/API/comix/tasks/$taskId');
     final data = json['data'];
@@ -168,12 +231,15 @@ class ComixApiClient {
     return ComixTask.fromJson(data);
   }
 
+  /// 中断运行中的任务。
+  @override
   Future<void> stopTask(OpsSettings settings, String taskId) async {
     await _request(settings, 'POST', '/API/comix/tasks/$taskId/stop');
   }
 
-  /// 同步删除漫画（Go 端直查库：DB 级联 + 文件删除）。
+  /// 删除漫画（同步：DB 级联 + 文件删除）。
   /// 大漫画的文件删除可能耗时，超时放宽至 120s。
+  @override
   Future<Map<String, dynamic>> deleteComic(
     OpsSettings settings,
     int comicId, {

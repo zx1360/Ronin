@@ -30,9 +30,10 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 | 路由组 | 关键端点 | 用途 |
 |--------|---------|------|
 | `/API/user-data` | `GET /sync/:module`, `POST /backup/:module` | 用户数据同步/备份 |
-| `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download` | 漫画浏览与离线下载 |
+| `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download` | 漫画浏览与离线下载（Android 端主用） |
+| `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Desktop 端主用） |
 | `/API/gallery` | `/batch`, `/tags`, `/:id/:type`, `POST /push` | 媒体资产浏览、文件流、推送 |
-| `/API/ops` | `GET /overview` | 系统概览（Desktop 用） |
+| `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
 | `/api/*` | 所有方法 | Immich 反向代理 |
 
 ### CLI 工具 (Gizmos)

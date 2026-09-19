@@ -168,6 +168,10 @@ func SystemOverview(c *gin.Context) {
 		dbErr = "database pool is nil"
 	}
 
+	// static 绝对路径：桌面端需要直接读写封面文件，而相对路径按其自身运行目录
+	// 无法解析（服务端与客户端的 CWD 不同）。
+	staticDir, absErr := filepath.Abs(config.AppConf.StaticDir)
+
 	c.JSON(http.StatusOK, gin.H{
 		"service": gin.H{
 			"isLocalMode": config.IsLocalMode,
@@ -176,6 +180,13 @@ func SystemOverview(c *gin.Context) {
 					return config.NetConf.LocalDebugPort
 				}
 				return config.NetConf.LocalPort
+			}(),
+			"staticDir": staticDir,
+			"staticDirError": func() string {
+				if absErr != nil {
+					return absErr.Error()
+				}
+				return ""
 			}(),
 		},
 		"database": gin.H{

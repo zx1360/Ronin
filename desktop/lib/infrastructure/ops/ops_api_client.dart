@@ -51,23 +51,6 @@ class OpsApiClient {
     return OpsOverview.fromJson(parsed.cast<String, dynamic>());
   }
 
-  // --- 漫画管理 API ---
-
-  /// 获取所有漫画列表
-  Future<List<Map<String, dynamic>>> fetchComics(OpsSettings settings) async {
-    return _getJsonList(settings, '/API/comic/comic-info');
-  }
-
-  /// 更新漫画元数据
-  Future<void> updateComic(OpsSettings settings, String comicId, Map<String, dynamic> body) async {
-    await _request(settings, 'PUT', '/API/comic/comic-info/$comicId', body: body);
-  }
-
-  /// 删除漫画
-  Future<void> deleteComic(OpsSettings settings, String comicId) async {
-    await _request(settings, 'DELETE', '/API/comic/comic-info/$comicId');
-  }
-
   // --- 内部工具 ---
 
   Future<Map<String, dynamic>> _getJson(OpsSettings settings, String endpoint) async {
@@ -77,7 +60,7 @@ class OpsApiClient {
 
     final request = await client.getUrl(uri);
     headers.forEach(request.headers.set);
-    final response = await request.close().timeout(const Duration(seconds: 6));
+    final response = await request.close().timeout(const Duration(seconds: 20));
     final responseBody = await response.transform(utf8.decoder).join();
 
     _throwIfNotOk(response.statusCode, body: responseBody);
@@ -87,55 +70,6 @@ class OpsApiClient {
       throw Exception('接口返回不是对象结构');
     }
     return Map<String, dynamic>.from(decoded);
-  }
-
-  Future<List<Map<String, dynamic>>> _getJsonList(OpsSettings settings, String endpoint) async {
-    final uri = _buildUri(settings.apiBaseUrl, endpoint);
-    final client = _getClient(uri);
-    final headers = _buildHeaders(settings);
-
-    final request = await client.getUrl(uri);
-    headers.forEach(request.headers.set);
-    final response = await request.close().timeout(const Duration(seconds: 10));
-    final body = await response.transform(utf8.decoder).join();
-
-    _throwIfNotOk(response.statusCode, body: body);
-
-    final parsed = jsonDecode(body);
-    if (parsed is! List) {
-      throw Exception('接口返回不是数组结构');
-    }
-
-    return parsed.cast<Map<String, dynamic>>();
-  }
-
-  Future<Map<String, dynamic>> _request(
-    OpsSettings settings,
-    String method,
-    String endpoint, {
-    Map<String, dynamic>? body,
-  }) async {
-    final uri = _buildUri(settings.apiBaseUrl, endpoint);
-    final client = _getClient(uri);
-    final headers = _buildHeaders(settings);
-    headers['Content-Type'] = 'application/json';
-
-    final request = await client.openUrl(method, uri);
-    headers.forEach(request.headers.set);
-
-    if (body != null) {
-      final jsonBytes = utf8.encode(jsonEncode(body));
-      request.contentLength = jsonBytes.length;
-      request.add(jsonBytes);
-    }
-
-    final response = await request.close().timeout(const Duration(seconds: 10));
-    final responseBody = await response.transform(utf8.decoder).join();
-
-    _throwIfNotOk(response.statusCode, body: responseBody);
-
-    final parsed = jsonDecode(responseBody);
-    return (parsed as Map).cast<String, dynamic>();
   }
 
   /// 非 2xx 状态统一抛出 [OpsApiException]，并附带服务端错误体（若可解析）。
