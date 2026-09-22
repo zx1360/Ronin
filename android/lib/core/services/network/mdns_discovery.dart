@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:multicast_dns/multicast_dns.dart';
 
@@ -36,34 +35,74 @@ class MDnsDiscovery {
 
   static const String _serviceType = '_monarch._tcp';
 
-  /// 扫描局域网内的 Monarch 服务，在 [timeout] 内收集所有发现的服务。
+  /// 扫描局域网内的 Monarch 服务
+  ///
+  /// 收到首个响应后若 [quietPeriod] 内没有新服务即提前返回, 因此正常情况下
+  /// 几百毫秒即可完成; [timeout] 是"什么都没发现"时的等待上限.
   static Future<List<DiscoveredService>> discover({
-    Duration timeout = const Duration(seconds: 3),
+    Duration timeout = const Duration(seconds: 2),
+    Duration quietPeriod = const Duration(milliseconds: 350),
   }) async {
     final client = MDnsClient();
-    await client.start();
-
     final services = <String, DiscoveredService>{};
 
     try {
-      await for (final ptr in client.lookup<PtrResourceRecord>(
-        ResourceRecordQuery.serverPointer(_serviceType),
-      ).timeout(timeout)) {
-        await _resolveService(client, ptr.domainName, services);
-      }
-    } on TimeoutException {
-      // 超时后返回已发现的服务
-    } catch (e) {
-      // 仅诊断网络不可达错误，其他静默处理
-      if (e is SocketException && e.osError?.errorCode == 10049) {
-        // 网络不可用
-      }
+      await client.start();
+      await _collect(client, services, timeout, quietPeriod);
+    } catch (_) {
+      // 网络不可用或查询异常: 返回已收集到的部分结果
     } finally {
       client.stop();
     }
 
     return services.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  /// 收集 PTR 响应并解析, 直到静默期或总超时结束
+  static Future<void> _collect(
+    MDnsClient client,
+    Map<String, DiscoveredService> services,
+    Duration timeout,
+    Duration quietPeriod,
+  ) async {
+    final pending = <Future<void>>[];
+    final done = Completer<void>();
+    Timer? quietTimer;
+
+    void finish() {
+      if (!done.isCompleted) done.complete();
+    }
+
+    final overallTimer = Timer(timeout, finish);
+    final subscription = client
+        .lookup<PtrResourceRecord>(
+          ResourceRecordQuery.serverPointer(_serviceType),
+        )
+        .listen(
+      (ptr) {
+        pending.add(_resolveService(client, ptr.domainName, services));
+        quietTimer?.cancel();
+        quietTimer = Timer(quietPeriod, finish);
+      },
+      onError: (_) {},
+    );
+
+    try {
+      await done.future;
+    } finally {
+      overallTimer.cancel();
+      quietTimer?.cancel();
+      await subscription.cancel();
+    }
+
+    // 等待已开始的解析, 避免丢掉刚发现的服务
+    if (pending.isNotEmpty) {
+      await Future.wait(pending).timeout(
+        const Duration(milliseconds: 800),
+        onTimeout: () => <void>[],
+      );
+    }
   }
 
   /// 解析服务的 SRV / A / TXT 记录

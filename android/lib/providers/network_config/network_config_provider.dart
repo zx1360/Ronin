@@ -3,40 +3,60 @@
 /// 提供服务器连接配置的统一管理，支持：
 /// - 多服务器配置 (增删改切换)
 /// - mDNS 自动服务发现
+/// - 单个地址的连通性状态 (serverReachableProvider)
 library;
 
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:torrid/core/services/network/cert_trust.dart';
 import 'package:torrid/core/services/network/mdns_discovery.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:uuid/uuid.dart';
 
 part 'network_config_provider.g.dart';
 
 /// 主机配置
+///
+/// [id] 是稳定标识: 列表项身份、连通性缓存键都基于它,
+/// 避免增删配置后按下标复用组件造成状态错位.
 class HostConfig {
+  final String id;
   final String host;
   final String port;
 
-  const HostConfig({required this.host, required this.port});
+  const HostConfig({required this.id, required this.host, required this.port});
+
+  /// 新建配置 (自动分配稳定 ID)
+  factory HostConfig.create({String host = '', String port = ''}) {
+    return HostConfig(id: const Uuid().v4(), host: host, port: port);
+  }
 
   HostConfig copyWith({String? host, String? port}) {
     return HostConfig(
+      id: id,
       host: host ?? this.host,
       port: port ?? this.port,
     );
   }
 
-  Map<String, dynamic> toJson() => {'host': host, 'port': port};
+  /// "host:port", 用于连通性探测键与去重
+  String get address => '$host:$port';
+
+  Map<String, dynamic> toJson() => {'id': id, 'host': host, 'port': port};
 
   factory HostConfig.fromJson(dynamic json) {
     if (json is Map<String, dynamic>) {
+      final id = (json['id'] ?? '').toString();
       return HostConfig(
+        // 兼容早期没有 id 的持久化数据
+        id: id.isEmpty ? const Uuid().v4() : id,
         host: (json['host'] ?? '').toString(),
         port: (json['port'] ?? '').toString(),
       );
     }
-    return const HostConfig(host: '', port: '');
+    return HostConfig.create();
   }
 
   bool get isValid => host.isNotEmpty && port.isNotEmpty;
@@ -47,14 +67,17 @@ class NetworkConfigState {
   final String apiKey;
   final List<HostConfig> configs;
   final int activeIndex;
-  final bool isLoading;
+
+  /// 是否正在执行 mDNS 服务发现 (仅用于"发现"按钮的局部进度提示)
+  final bool isDiscovering;
+
   final String? message;
 
   const NetworkConfigState({
     this.apiKey = '',
     this.configs = const [],
     this.activeIndex = 0,
-    this.isLoading = false,
+    this.isDiscovering = false,
     this.message,
   });
 
@@ -62,7 +85,7 @@ class NetworkConfigState {
     String? apiKey,
     List<HostConfig>? configs,
     int? activeIndex,
-    bool? isLoading,
+    bool? isDiscovering,
     String? message,
     bool clearMessage = false,
   }) {
@@ -70,7 +93,7 @@ class NetworkConfigState {
       apiKey: apiKey ?? this.apiKey,
       configs: configs ?? this.configs,
       activeIndex: activeIndex ?? this.activeIndex,
-      isLoading: isLoading ?? this.isLoading,
+      isDiscovering: isDiscovering ?? this.isDiscovering,
       message: clearMessage ? null : (message ?? this.message),
     );
   }
@@ -87,7 +110,7 @@ class NetworkConfigState {
   String get serverAddress {
     final config = activeConfig;
     if (config == null || !config.isValid) return '未配置';
-    return '${config.host}:${config.port}';
+    return config.address;
   }
 }
 
@@ -126,11 +149,11 @@ class NetworkConfigManager extends _$NetworkConfigManager {
       if (configs.isEmpty) {
         final host = prefs.getString("PC_HOST") ?? "";
         final port = prefs.getString("PC_PORT") ?? "";
-        configs.add(HostConfig(host: host, port: port));
+        configs.add(HostConfig.create(host: host, port: port));
       }
 
       // 确保 activeIndex 在有效范围内
-      if (activeIndex >= configs.length) {
+      if (activeIndex < 0 || activeIndex >= configs.length) {
         activeIndex = 0;
       }
 
@@ -138,21 +161,20 @@ class NetworkConfigManager extends _$NetworkConfigManager {
         apiKey: apiKey,
         configs: configs,
         activeIndex: activeIndex,
-        isLoading: false,
       );
     } catch (e) {
-      return NetworkConfigState(
-        isLoading: false,
-        message: '加载配置失败: $e',
-      );
+      return NetworkConfigState(message: '加载配置失败: $e');
     }
   }
 
-  /// 持久化配置
-  Future<void> _persistConfigs() async {
+  /// 持久化配置与激活下标
+  Future<void> _persist() async {
     final prefs = PrefsService().prefs;
-    final encoded = jsonEncode(state.configs.map((e) => e.toJson()).toList());
-    await prefs.setString(_hostsKey, encoded);
+    await prefs.setString(
+      _hostsKey,
+      jsonEncode(state.configs.map((e) => e.toJson()).toList()),
+    );
+    await prefs.setInt(_activeIndexKey, state.activeIndex);
   }
 
   /// 保存API Key
@@ -167,49 +189,48 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     if (index < 0 || index >= state.configs.length) return;
 
     final newConfigs = List<HostConfig>.from(state.configs);
-    newConfigs[index] = newConfigs[index].copyWith(host: host, port: port);
+    newConfigs[index] =
+        newConfigs[index].copyWith(host: host.trim(), port: port.trim());
     state = state.copyWith(configs: newConfigs);
-    await _persistConfigs();
+    await _persist();
     state = state.copyWith(message: '配置已保存');
   }
 
   /// 激活配置
   Future<void> activateConfig(int index) async {
     if (index < 0 || index >= state.configs.length) return;
+    if (index == state.activeIndex) return;
 
-    final prefs = PrefsService().prefs;
-    await prefs.setInt(_activeIndexKey, index);
     state = state.copyWith(activeIndex: index);
+    await _persist();
     state = state.copyWith(message: '已切换到该配置');
   }
 
   /// 添加配置
   Future<void> addConfig() async {
-    final newConfigs = List<HostConfig>.from(state.configs);
-    newConfigs.add(const HostConfig(host: '', port: ''));
+    final newConfigs = List<HostConfig>.from(state.configs)
+      ..add(HostConfig.create());
     state = state.copyWith(configs: newConfigs);
-    await _persistConfigs();
+    await _persist();
   }
 
   /// 删除配置
   Future<void> removeConfig(int index) async {
+    if (index < 0 || index >= state.configs.length) return;
     if (state.configs.length <= 1) return;
 
-    final newConfigs = List<HostConfig>.from(state.configs);
-    newConfigs.removeAt(index);
+    final newConfigs = List<HostConfig>.from(state.configs)..removeAt(index);
 
     var newActiveIndex = state.activeIndex;
-    if (newActiveIndex >= newConfigs.length) {
-      newActiveIndex = newConfigs.length - 1;
-    } else if (index < newActiveIndex) {
+    if (index < newActiveIndex) {
       newActiveIndex--;
     } else if (index == newActiveIndex) {
       newActiveIndex = 0;
     }
+    newActiveIndex = newActiveIndex.clamp(0, newConfigs.length - 1);
 
     state = state.copyWith(configs: newConfigs, activeIndex: newActiveIndex);
-    await _persistConfigs();
-    await PrefsService().prefs.setInt(_activeIndexKey, newActiveIndex);
+    await _persist();
     state = state.copyWith(message: '配置已删除');
   }
 
@@ -228,14 +249,16 @@ class NetworkConfigManager extends _$NetworkConfigManager {
   /// 扫描局域网内的 Monarch 服务，若发现的服务地址不在已有配置中，
   /// 则自动添加 (不自动切换激活).
   Future<List<DiscoveredService>> discoverServices() async {
-    state = state.copyWith(isLoading: true, message: '正在搜索局域网服务...');
+    if (state.isDiscovering) return [];
+
+    state = state.copyWith(isDiscovering: true, message: '正在搜索局域网服务...');
 
     try {
       final discovered = await MDnsDiscovery.discover();
 
       if (discovered.isEmpty) {
         state = state.copyWith(
-          isLoading: false,
+          isDiscovering: false,
           message: '未发现局域网内的 Monarch 服务',
         );
         return discovered;
@@ -245,32 +268,29 @@ class NetworkConfigManager extends _$NetworkConfigManager {
       int added = 0;
       final existingHosts = state.configs
           .where((c) => c.isValid)
-          .map((c) => '${c.host}:${c.port}')
+          .map((c) => c.address)
           .toSet();
 
       final newConfigs = List<HostConfig>.from(state.configs);
       for (final svc in discovered) {
         final key = '${svc.host}:${svc.port}';
         if (!existingHosts.contains(key)) {
-          newConfigs.add(HostConfig(
-            host: svc.host,
-            port: svc.port.toString(),
-          ));
+          newConfigs.add(HostConfig.create(host: svc.host, port: '${svc.port}'));
           existingHosts.add(key);
           added++;
         }
       }
 
       if (added > 0) {
-        state = state.copyWith(configs: newConfigs);
-        await _persistConfigs();
+        state = state.copyWith(configs: newConfigs, isDiscovering: false);
+        await _persist();
         state = state.copyWith(
-          isLoading: false,
+          isDiscovering: false,
           message: '发现 $added 个新服务，已添加到列表',
         );
       } else {
         state = state.copyWith(
-          isLoading: false,
+          isDiscovering: false,
           message: '发现的 ${discovered.length} 个服务均已存在',
         );
       }
@@ -278,10 +298,37 @@ class NetworkConfigManager extends _$NetworkConfigManager {
       return discovered;
     } catch (e) {
       state = state.copyWith(
-        isLoading: false,
+        isDiscovering: false,
         message: '服务发现失败: $e',
       );
       return [];
     }
+  }
+}
+
+/// 单个服务器地址的连通性探测（"host:port" 为键）
+///
+/// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+/// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
+@Riverpod(keepAlive: true)
+Future<bool> serverReachable(ServerReachableRef ref, String address) async {
+  final apiKey =
+      ref.watch(networkConfigManagerProvider.select((s) => s.apiKey));
+
+  final dio = CertTrust.createDio(
+    options: BaseOptions(
+      baseUrl: 'https://$address',
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 8),
+      headers:
+          apiKey.isNotEmpty ? {'X-API-Key': apiKey} : const <String, String>{},
+    ),
+  );
+
+  try {
+    final resp = await dio.get('/API/test');
+    return resp.statusCode == 200;
+  } catch (_) {
+    return false;
   }
 }

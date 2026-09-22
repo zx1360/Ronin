@@ -44,9 +44,13 @@ class TagTree extends _$TagTree {
   /// 删除标签
   Future<void> deleteTag(String tagId) async {
     final db = ref.read(galleryDatabaseProvider);
-    await db.deleteTag(tagId);
-    // 标签删除后级联清除了关联记录，刷新标签指示器数据
+    // 级联清除了关联记录, 返回被删掉的标签 ID (含子孙)
+    final removedIds = await db.deleteTag(tagId);
+    // 快捷标签里若包含被删除的标签则一并清理
+    await ref.read(galleryFavoriteTagIdsProvider.notifier).removeMany(removedIds);
+    // 标签删除后级联清除了关联记录，刷新标签指示器与当前媒体标签
     ref.invalidate(mediaIdsWithTagsProvider);
+    ref.invalidate(currentMediaTagsProvider);
     await refresh();
   }
 
@@ -102,17 +106,42 @@ class CurrentMediaTags extends _$CurrentMediaTags {
     return await db.getTagsForMedia(currentMedia.id);
   }
 
-  /// 设置标签
+  /// 设置标签（全量覆盖）
+  ///
+  /// 先用标签树缓存做乐观更新，避免每次勾选都等待数据库往返（影响打标签手感）；
+  /// 写库失败则回滚到修改前的状态。
   Future<void> setTags(List<String> tagIds) async {
     final currentMedia = ref.read(currentMediaAssetProvider);
     if (currentMedia == null) return;
-    
+
     final db = ref.read(galleryDatabaseProvider);
-    await db.setTagsForMedia(currentMedia.id, tagIds);
-    
+    final allTags = ref.read(tagTreeProvider).valueOrNull;
+    final previous = state;
+
+    // 标签树不可用时无法本地映射，退回"写完再重读"
+    final canOptimistic = allTags != null;
+    if (canOptimistic) {
+      final byId = {for (final t in allTags) t.id: t};
+      final mapped = [
+        for (final id in tagIds)
+          if (byId[id] != null) byId[id]!,
+      ]..sort((a, b) =>
+          (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name));
+      state = AsyncData(mapped);
+    }
+
+    try {
+      await db.setTagsForMedia(currentMedia.id, tagIds);
+    } catch (e) {
+      state = previous;
+      rethrow;
+    }
+
+    if (!canOptimistic) ref.invalidateSelf();
+
     // 标签关联变化后刷新标签指示器数据
     ref.invalidate(mediaIdsWithTagsProvider);
-    
+
     // 更新 modified_count
     final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     final index = assets.indexWhere((a) => a.id == currentMedia.id);
@@ -122,24 +151,31 @@ class CurrentMediaTags extends _$CurrentMediaTags {
         await ref.read(galleryModifiedCountProvider.notifier).update(index);
       }
     }
-    
-    ref.invalidateSelf();
   }
 
   /// 添加标签
   Future<void> addTag(String tagId) async {
-    final currentTags = state.valueOrNull ?? [];
-    final tagIds = currentTags.map((t) => t.id).toList();
-    if (!tagIds.contains(tagId)) {
-      tagIds.add(tagId);
-      await setTags(tagIds);
-    }
+    await _mutate((ids) {
+      if (!ids.contains(tagId)) ids.add(tagId);
+    });
   }
 
   /// 移除标签
   Future<void> removeTag(String tagId) async {
-    final currentTags = state.valueOrNull ?? [];
-    final tagIds = currentTags.map((t) => t.id).where((id) => id != tagId).toList();
+    await _mutate((ids) => ids.remove(tagId));
+  }
+
+  /// 基于数据库现状做增量修改
+  ///
+  /// 不能以 [state] 作为增删依据: 切换媒体时 provider 会短暂处于加载态,
+  /// 其残留值属于上一张媒体, 据此写回会造成标签串档或丢失.
+  Future<void> _mutate(void Function(List<String> tagIds) change) async {
+    final currentMedia = ref.read(currentMediaAssetProvider);
+    if (currentMedia == null) return;
+
+    final db = ref.read(galleryDatabaseProvider);
+    final tagIds = await db.getTagIdsForMedia(currentMedia.id);
+    change(tagIds);
     await setTags(tagIds);
   }
 }

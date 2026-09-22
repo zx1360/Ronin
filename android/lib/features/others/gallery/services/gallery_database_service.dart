@@ -264,27 +264,84 @@ class GalleryDatabaseService {
 
   // ============ Tag CRUD ============
 
-  /// 插入或更新标签 (批量) - 全量替换
-  Future<void> replaceAllTags(List<Tag> tags) async {
+  /// 合并式写入标签 (批量): 只新增/更新, 绝不删除本地已有标签
+  ///
+  /// 下载同步必须走这里: 服务端标签是最新副本, 但本地可能存在尚未上传的新建标签,
+  /// 全量替换会连带级联删除这些标签及其全部媒体关联 (已打的标签白打).
+  /// 按父先子后的顺序写入以满足 parent_id 外键约束.
+  Future<void> mergeTags(List<Tag> tags) async {
+    if (tags.isEmpty) return;
     final db = await database;
+    final ordered = sortTagsByHierarchy(tags);
+
     await db.transaction((txn) async {
-      // 先删除所有标签
-      await txn.delete('tags');
-      // 再批量插入
-      for (final tag in tags) {
-        await txn.insert('tags', tag.toDbMap());
+      for (final tag in ordered) {
+        try {
+          // 先确保行存在, 再用 UPDATE 覆盖字段.
+          // 不能用 INSERT OR REPLACE: 它会先删除冲突行, 从而级联删除该标签的子标签.
+          await txn.insert(
+            'tags',
+            tag.toDbMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+          final updated = await txn.update(
+            'tags',
+            tag.toDbMap(),
+            where: 'id = ?',
+            whereArgs: [tag.id],
+          );
+          if (updated == 0) {
+            AppLogger().error(
+                '标签未能写入(同级同名冲突): ${tag.fullPath ?? tag.name}');
+          }
+        } catch (e) {
+          AppLogger().error('合并标签失败 ${tag.fullPath ?? tag.name}: $e');
+        }
       }
     });
   }
 
-  /// 插入或更新标签 (单个)
+  /// 按层级排序标签, 保证父标签先于子标签 (环状数据不会死循环)
+  static List<Tag> sortTagsByHierarchy(List<Tag> tags) {
+    final byId = {for (final t in tags) t.id: t};
+    final result = <Tag>[];
+    final visited = <String>{};
+
+    void visit(Tag tag) {
+      if (!visited.add(tag.id)) return;
+      final parentId = tag.parentId;
+      if (parentId != null) {
+        final parent = byId[parentId];
+        if (parent != null) visit(parent);
+      }
+      result.add(tag);
+    }
+
+    for (final tag in tags) {
+      visit(tag);
+    }
+    return result;
+  }
+
+  /// 插入标签 (单个)
+  ///
+  /// 不使用 INSERT OR REPLACE: 它会在同名冲突时先删除旧行,
+  /// 进而级联删除该标签已有的子标签. 同级同名直接报错由调用方提示.
   Future<void> upsertTag(Tag tag) async {
     final db = await database;
-    await db.insert(
+    final existing = await db.query(
       'tags',
-      tag.toDbMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      columns: ['id'],
+      where: tag.parentId == null
+          ? 'name = ? AND parent_id IS NULL'
+          : 'name = ? AND parent_id = ?',
+      whereArgs:
+          tag.parentId == null ? [tag.name] : [tag.name, tag.parentId],
     );
+    if (existing.isNotEmpty) {
+      throw StateError('同级已存在同名标签「${tag.name}」');
+    }
+    await db.insert('tags', tag.toDbMap());
   }
 
   /// 获取所有标签
@@ -331,14 +388,14 @@ class GalleryDatabaseService {
     return maps.map((m) => m['media_id'] as String).toSet();
   }
 
-  /// 删除标签 (级联删除子标签和关联)
+  /// 删除标签 (级联删除子标签和关联), 返回被删除的全部标签 ID (含子孙)
   /// 
   /// 通过事务显式处理：先收集所有受影响的标签 ID（含子孙），
   /// 再删除关联的 media_tag_links，最后删除标签本身。
   /// 不依赖 SQLite PRAGMA foreign_keys 的 CASCADE 行为。
-  Future<void> deleteTag(String tagId) async {
+  Future<List<String>> deleteTag(String tagId) async {
     final db = await database;
-    await db.transaction((txn) async {
+    return await db.transaction((txn) async {
       // 1. 递归收集所有子孙标签 ID
       final allTagIds = await _collectDescendantTagIds(txn, tagId);
       allTagIds.add(tagId);
@@ -352,6 +409,8 @@ class GalleryDatabaseService {
       for (final tid in allTagIds) {
         await txn.delete('tags', where: 'id = ?', whereArgs: [tid]);
       }
+
+      return allTagIds;
     });
   }
 

@@ -254,5 +254,26 @@ final galleryTagAutoApplyEnabledProvider =
 );
 
 typedef _$GalleryTagAutoApplyEnabled = Notifier<bool>;
+String _$galleryFavoriteTagIdsHash() =>
+    r'9e712c2f93d5e000c2f8ad1c6677769fa011e9cd';
+
+/// 快捷标签 ID 列表（高频使用标签，列表顺序即展示顺序）
+///
+/// 仅存 ID，标签本体仍在 tags 表；标签被删除时同步清理失效 ID.
+///
+/// Copied from [GalleryFavoriteTagIds].
+@ProviderFor(GalleryFavoriteTagIds)
+final galleryFavoriteTagIdsProvider =
+    NotifierProvider<GalleryFavoriteTagIds, List<String>>.internal(
+  GalleryFavoriteTagIds.new,
+  name: r'galleryFavoriteTagIdsProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryFavoriteTagIdsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryFavoriteTagIds = Notifier<List<String>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

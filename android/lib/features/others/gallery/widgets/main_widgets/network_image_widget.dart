@@ -6,9 +6,43 @@ import 'package:flutter/material.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 
+/// 计算图片在容器内的绘制矩形
+///
+/// - 竖屏容器(宽 < 高): 先按宽度对齐容器; 高度超出则从图片顶部开始显示
+///   (由调用方提供纵向拖动), 未超出则垂直居中;
+/// - 横屏容器(含应用内旋转 90° 后的显示区域): 保持等比完整显示并居中.
+///
+/// 图片尺寸未知时退化为铺满容器(与改动前的等比显示等价).
+Rect imageDisplayRect(Size viewport, Size? image) {
+  if (image == null ||
+      image.width <= 0 ||
+      image.height <= 0 ||
+      viewport.width <= 0 ||
+      viewport.height <= 0) {
+    return Offset.zero & viewport;
+  }
+
+  final aspect = image.width / image.height;
+  final widthFit = viewport.width < viewport.height;
+  double dw, dh;
+  if (widthFit || aspect > viewport.width / viewport.height) {
+    dw = viewport.width;
+    dh = dw / aspect;
+  } else {
+    dh = viewport.height;
+    dw = dh * aspect;
+  }
+
+  final dx = (viewport.width - dw) / 2;
+  final overflows = widthFit && dh > viewport.height;
+  final dy = overflows ? 0.0 : (viewport.height - dh) / 2;
+  return Rect.fromLTWH(dx, dy, dw, dh);
+}
+
 /// 网络图片组件 - 使用本地缩略图/预览图作为占位符
-/// 支持旋转和缩放
-/// 修复：使用 Stack 重叠占位与网络图，避免切换闪烁
+///
+/// 呈现规则见 [imageDisplayRect].
+/// 使用 Stack 重叠占位图与网络图, 避免切换闪烁.
 class NetworkImageWidget extends StatefulWidget {
   final String imageUrl;
   final MediaAsset asset;
@@ -32,20 +66,23 @@ class NetworkImageWidget extends StatefulWidget {
 class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   File? _placeholderFile;
   bool _isLoading = true;
-  Size? _imageSize; // 图片实际像素尺寸 (从 ImageStream 捕获)
+
+  /// 网络原图像素尺寸
+  Size? _imageSize;
+
+  /// 本地占位图像素尺寸 (原图未就绪时按它布局, 避免尺寸跳变)
+  Size? _placeholderSize;
+
+  CachedNetworkImageProvider? _imageProvider;
 
   final TransformationController _transformController =
       TransformationController();
 
-  // 管理 ImageStream 监听器
-  ImageStream? _imageStream;
-  ImageStreamListener? _imageStreamListener;
-
-  // 用于实际显示的 ImageProvider
-  CachedNetworkImageProvider? _imageProvider;
-
   static const double _minScale = 1.0;
   static const double _maxScale = 4.0;
+
+  /// 当前用于布局的图片尺寸
+  Size? get _layoutImageSize => _imageSize ?? _placeholderSize;
 
   @override
   void initState() {
@@ -56,7 +93,6 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
 
   @override
   void dispose() {
-    _removeImageStreamListener();
     _transformController.dispose();
     super.dispose();
   }
@@ -66,8 +102,11 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.asset.id != widget.asset.id ||
         oldWidget.imageUrl != widget.imageUrl) {
-      _loadPlaceholder();
+      _imageSize = null;
+      _placeholderSize = null;
+      _placeholderFile = null;
       _transformController.value = Matrix4.identity();
+      _loadPlaceholder();
       _updateImageProvider();
     }
     if (oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns) {
@@ -76,27 +115,36 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   }
 
   void _updateImageProvider() {
-    _removeImageStreamListener();
-    _imageProvider = CachedNetworkImageProvider(
-      widget.imageUrl,
-      headers: widget.httpHeaders,
-    );
-    _captureImageSize(_imageProvider!);
+    _imageProvider =
+        CachedNetworkImageProvider(widget.imageUrl, headers: widget.httpHeaders);
+    _resolveImageSize(_imageProvider!, (size) {
+      if (_imageSize != size) _imageSize = size;
+    });
   }
 
-  /// 安全移除 ImageStream 监听器
-  void _removeImageStreamListener() {
-    if (_imageStream != null && _imageStreamListener != null) {
-      _imageStream!.removeListener(_imageStreamListener!);
-      _imageStream = null;
-      _imageStreamListener = null;
-    }
+  /// 一次性读取 [provider] 的像素尺寸 (读取后立即移除监听)
+  void _resolveImageSize(ImageProvider provider, void Function(Size) apply) {
+    final stream = provider.resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        stream.removeListener(listener);
+        final size = Size(
+          info.image.width.toDouble(),
+          info.image.height.toDouble(),
+        );
+        if (size.width <= 0 || size.height <= 0 || !mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => apply(size));
+        });
+      },
+      onError: (_, __) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
   }
 
   Future<void> _loadPlaceholder() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     File? file;
     try {
@@ -107,14 +155,16 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
         file = await widget.storage.getThumbFile(widget.asset.thumbPath!);
       }
     } catch (e) {
-      // 忽略错误,使用加载指示器
+      // 忽略错误, 使用加载指示器
     }
 
-    if (mounted) {
-      setState(() {
-        _placeholderFile = file;
-        _isLoading = false;
-      });
+    if (!mounted) return;
+    setState(() {
+      _placeholderFile = file;
+      _isLoading = false;
+    });
+    if (file != null) {
+      _resolveImageSize(FileImage(file), (size) => _placeholderSize = size);
     }
   }
 
@@ -125,56 +175,78 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
       color: Colors.black,
       child: RotatedBox(
         quarterTurns: widget.rotationQuarterTurns,
-        child: crop != null
-            ? LayoutBuilder(
-                builder: (ctx, c) {
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _buildInteractiveStack(),
-                      IgnorePointer(
-                        child: _CropPreview(crop: crop, imgSize: _imageSize),
-                      ),
-                    ],
-                  );
-                },
-              )
-            : _buildInteractiveStack(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final viewport =
+                Size(constraints.maxWidth, constraints.maxHeight);
+            final painted = _paintedRect(viewport);
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildInteractive(painted, viewport),
+                if (crop != null)
+                  IgnorePointer(
+                    child: _CropPreview(
+                      crop: crop,
+                      imgSize: _layoutImageSize,
+                      painted: painted,
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  /// 构建包含占位图和网络图的 Stack，并包裹 InteractiveViewer
-  Widget _buildInteractiveStack() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        return InteractiveViewer(
-          transformationController: _transformController,
-          minScale: _minScale,
-          maxScale: _maxScale,
-          constrained: true,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 底层：占位图（始终存在，若加载中则显示指示器）
-              _buildPlaceholderLayer(),
-              // 上层：网络图片（加载完成后覆盖占位）
-              if (_imageProvider != null)
-                Image(
-                  image: _imageProvider!,
-                  fit: BoxFit.contain,
-                  width: width,
-                  errorBuilder: (ctx, error, stackTrace) {
-                    // 网络图加载失败时，保留底层的占位图，无需额外操作
-                    return const SizedBox.shrink();
-                  },
-                ),
-            ],
-          ),
-        );
-      },
+  /// 图片在容器内的实际绘制矩形
+  Rect _paintedRect(Size viewport) =>
+      imageDisplayRect(viewport, _layoutImageSize);
+
+  /// 构建可缩放的图片层
+  Widget _buildInteractive(Rect painted, Size viewport) {
+    final overflows = painted.height > viewport.height + 0.5;
+    if (!overflows) {
+      // 完整可见: 与改动前一致的等比显示 (居中)
+      return InteractiveViewer(
+        transformationController: _transformController,
+        minScale: _minScale,
+        maxScale: _maxScale,
+        constrained: true,
+        child: Stack(fit: StackFit.expand, children: _imageLayers()),
+      );
+    }
+
+    // 竖向超出: 以显式尺寸约束图片, 使 InteractiveViewer 允许纵向拖动查看
+    return InteractiveViewer(
+      transformationController: _transformController,
+      minScale: _minScale,
+      maxScale: _maxScale,
+      constrained: false,
+      child: SizedBox(
+        width: painted.width,
+        height: painted.height,
+        child: Stack(fit: StackFit.expand, children: _imageLayers()),
+      ),
     );
+  }
+
+  /// 底层占位图 + 上层网络图
+  List<Widget> _imageLayers() {
+    final provider = _imageProvider;
+    return [
+      _buildPlaceholderLayer(),
+      if (provider != null)
+        Image(
+          image: provider,
+          fit: BoxFit.contain,
+          errorBuilder: (ctx, error, stackTrace) {
+            // 网络图加载失败时保留底层占位图
+            return const SizedBox.shrink();
+          },
+        ),
+    ];
   }
 
   /// 占位图层：根据状态显示加载指示器、缩略图或空白
@@ -213,28 +285,6 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     } catch (_) {}
     return null;
   }
-
-  /// 从 ImageProvider 捕获实际图片像素尺寸
-  void _captureImageSize(ImageProvider provider) {
-    _removeImageStreamListener();
-
-    final stream = provider.resolve(const ImageConfiguration());
-    final listener = ImageStreamListener((info, _) {
-      final sz = Size(
-        info.image.width.toDouble(),
-        info.image.height.toDouble(),
-      );
-      if (_imageSize != sz && sz.width > 0 && sz.height > 0) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => _imageSize = sz);
-        });
-      }
-    });
-
-    stream.addListener(listener);
-    _imageStream = stream;
-    _imageStreamListener = listener;
-  }
 }
 
 /// 裁切数据 (原始图片像素坐标)
@@ -252,41 +302,34 @@ class _CropRect {
 class _CropPreview extends StatelessWidget {
   final _CropRect crop;
   final Size? imgSize;
-  const _CropPreview({required this.crop, this.imgSize});
+
+  /// 图片在容器内的绘制矩形
+  final Rect painted;
+
+  const _CropPreview({
+    required this.crop,
+    required this.painted,
+    this.imgSize,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, c) {
-        final cw = c.maxWidth, ch = c.maxHeight;
-        if (cw <= 0 || ch <= 0) return const SizedBox();
+    final iw = imgSize?.width ?? crop.right;
+    final ih = imgSize?.height ?? crop.bottom;
+    if (iw <= 0 || ih <= 0 || painted.width <= 0 || painted.height <= 0) {
+      return const SizedBox();
+    }
 
-        final iw = imgSize?.width ?? crop.right;
-        final ih = imgSize?.height ?? crop.bottom;
-        if (iw <= 0 || ih <= 0) return const SizedBox();
-
-        final ia = iw / ih, ca = cw / ch;
-        double dw, dh;
-        if (ia > ca) {
-          dw = cw;
-          dh = cw / ia;
-        } else {
-          dh = ch;
-          dw = ch * ia;
-        }
-        final ox = (cw - dw) / 2, oy = (ch - dh) / 2;
-        final sx = dw / iw, sy = dh / ih;
-
-        final cl = crop.left * sx + ox;
-        final ct = crop.top * sy + oy;
-        final cr = crop.right * sx + ox;
-        final cb = crop.bottom * sy + oy;
-
-        return CustomPaint(
-          painter: _CropPreviewPainter(Rect.fromLTRB(cl, ct, cr, cb)),
-        );
-      },
+    final sx = painted.width / iw;
+    final sy = painted.height / ih;
+    final rect = Rect.fromLTRB(
+      crop.left * sx + painted.left,
+      crop.top * sy + painted.top,
+      crop.right * sx + painted.left,
+      crop.bottom * sy + painted.top,
     );
+
+    return CustomPaint(painter: _CropPreviewPainter(rect));
   }
 }
 
