@@ -152,9 +152,8 @@ class GallerySyncService extends _$GallerySyncService {
       state = state.copyWith(message: '正在保存数据...');
       
       await db.upsertMediaAssets(assets);
-      if (tags.isNotEmpty) {
-        await db.replaceAllTags(tags);
-      }
+      // 合并式写入: 本地未上传的新建标签不会被服务端数据覆盖删除
+      await db.mergeTags(tags);
       if (links.isNotEmpty) {
         await db.upsertMediaTagLinks(links);
       }

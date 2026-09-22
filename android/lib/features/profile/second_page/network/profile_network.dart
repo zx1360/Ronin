@@ -1,17 +1,18 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/spacing.dart';
-import 'package:torrid/core/services/network/cert_trust.dart';
 import 'package:torrid/providers/network_config/network_config_provider.dart';
 
 /// 网络设置页面
 ///
 /// 提供服务器连接配置，包括：
 /// - API Key 设置
-/// - 服务器地址配置（IP/端口）
-/// - 多配置管理
+/// - 服务器地址配置（IP/端口）与多配置管理
+/// - 局域网服务发现
+///
+/// 每个配置的连接状态由 [serverReachableProvider] 按地址派生，页面重建不会
+/// 造成状态错位或重复探测.
 class ProfileNetwork extends ConsumerStatefulWidget {
   const ProfileNetwork({super.key});
 
@@ -21,14 +22,12 @@ class ProfileNetwork extends ConsumerStatefulWidget {
 
 class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
   final _apiKeyController = TextEditingController();
+  bool _obscureApiKey = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final configState = ref.read(networkConfigManagerProvider);
-      _apiKeyController.text = configState.apiKey;
-    });
+    _apiKeyController.text = ref.read(networkConfigManagerProvider).apiKey;
   }
 
   @override
@@ -41,12 +40,11 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
   Widget build(BuildContext context) {
     final configState = ref.watch(networkConfigManagerProvider);
 
-    // 监听配置状态变化，更新API Key输入框
+    // 监听配置状态变化，同步 API Key 输入框并显示提示消息
     ref.listen(networkConfigManagerProvider, (prev, next) {
       if (prev?.apiKey != next.apiKey && _apiKeyController.text != next.apiKey) {
         _apiKeyController.text = next.apiKey;
       }
-      // 显示消息
       if (next.message != null && next.message != prev?.message) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(next.message!)),
@@ -55,10 +53,6 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
       }
     });
 
-    if (configState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
@@ -66,14 +60,7 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
         _buildSection(
           title: 'API Key',
           children: [
-            _ApiKeyTile(
-              controller: _apiKeyController,
-              onSave: () {
-                ref
-                    .read(networkConfigManagerProvider.notifier)
-                    .saveApiKey(_apiKeyController.text);
-              },
-            ),
+            _buildApiKeyTile(),
           ],
         ),
 
@@ -85,20 +72,28 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton.icon(
-                onPressed: () {
-                  ref
+              if (configState.isDiscovering)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                TextButton.icon(
+                  onPressed: () => ref
                       .read(networkConfigManagerProvider.notifier)
-                      .discoverServices();
-                },
-                icon: const Icon(Icons.wifi_find, size: 18),
-                label: const Text('发现'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      .discoverServices(),
+                  icon: const Icon(Icons.wifi_find, size: 18),
+                  label: const Text('发现'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
-              ),
               const SizedBox(width: 4),
               TextButton.icon(
                 onPressed: () =>
@@ -114,22 +109,17 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
             ],
           ),
           children: [
-            ...configState.configs.asMap().entries.map((entry) {
-              final index = entry.key;
-              final config = entry.value;
-              return Column(
-                children: [
-                  if (index > 0) const Divider(height: 1),
-                  _ServerConfigTile(
-                    index: index,
-                    config: config,
-                    apiKey: configState.apiKey,
-                    isActive: index == configState.activeIndex,
-                    canRemove: configState.configs.length > 1,
-                  ),
-                ],
-              );
-            }),
+            for (final entry in configState.configs.asMap().entries) ...[
+              if (entry.key > 0) const Divider(height: 1),
+              _ServerConfigTile(
+                // 以稳定 ID 作为身份, 避免增删配置后组件状态与配置错位
+                key: ValueKey(entry.value.id),
+                index: entry.key,
+                config: entry.value,
+                isActive: entry.key == configState.activeIndex,
+                canRemove: configState.configs.length > 1,
+              ),
+            ],
           ],
         ),
 
@@ -147,6 +137,54 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildApiKeyTile() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _apiKeyController,
+              decoration: InputDecoration(
+                hintText: '请输入API Key（可选）',
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                isDense: true,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureApiKey ? Icons.visibility_off : Icons.visibility,
+                    size: 18,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscureApiKey = !_obscureApiKey),
+                ),
+              ),
+              obscureText: _obscureApiKey,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          ElevatedButton(
+            onPressed: () => ref
+                .read(networkConfigManagerProvider.notifier)
+                .saveApiKey(_apiKeyController.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -189,68 +227,17 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
   }
 }
 
-/// API Key 设置项
-class _ApiKeyTile extends StatelessWidget {
-  final TextEditingController controller;
-  final VoidCallback onSave;
-
-  const _ApiKeyTile({
-    required this.controller,
-    required this.onSave,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: '请输入API Key（可选）',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
-                isDense: true,
-              ),
-              obscureText: true,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          ElevatedButton(
-            onPressed: onSave,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-            ),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 服务器配置项
+/// 单个服务器配置项
 class _ServerConfigTile extends ConsumerStatefulWidget {
   final int index;
   final HostConfig config;
-  final String apiKey;
   final bool isActive;
   final bool canRemove;
 
   const _ServerConfigTile({
+    super.key,
     required this.index,
     required this.config,
-    required this.apiKey,
     required this.isActive,
     required this.canRemove,
   });
@@ -260,30 +247,33 @@ class _ServerConfigTile extends ConsumerStatefulWidget {
 }
 
 class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
-  late TextEditingController _hostController;
-  late TextEditingController _portController;
-  bool _isTesting = false;
-  bool? _isConnected;
+  late final TextEditingController _hostController =
+      TextEditingController(text: widget.config.host);
+  late final TextEditingController _portController =
+      TextEditingController(text: widget.config.port);
+
+  /// 输入内容与已保存配置不一致
+  bool _dirty = false;
 
   @override
   void initState() {
     super.initState();
-    _hostController = TextEditingController(text: widget.config.host);
-    _portController = TextEditingController(text: widget.config.port);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _testConnection();
-    });
+    _hostController.addListener(_checkDirty);
+    _portController.addListener(_checkDirty);
   }
 
   @override
   void didUpdateWidget(_ServerConfigTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.config.host != widget.config.host) {
+    // 配置被外部修改（保存 / 服务发现 / 删除其它项导致下标变化）时同步输入框
+    if (!_dirty &&
+        (oldWidget.config.id != widget.config.id ||
+            oldWidget.config.host != widget.config.host ||
+            oldWidget.config.port != widget.config.port)) {
       _hostController.text = widget.config.host;
-    }
-    if (oldWidget.config.port != widget.config.port) {
       _portController.text = widget.config.port;
     }
+    _checkDirty();
   }
 
   @override
@@ -293,64 +283,27 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
     super.dispose();
   }
 
-  Future<void> _testConnection() async {
-    final host = _hostController.text.trim();
-    final port = _portController.text.trim();
-    if (host.isEmpty || port.isEmpty) {
-      if (mounted) {
-        setState(() => _isConnected = null);
-      }
-      return;
-    }
-
-    if (mounted) {
-      setState(() => _isTesting = true);
-    }
-
-    final dio = CertTrust.createDio(
-      options: BaseOptions(
-        baseUrl: 'https://$host:$port',
-        connectTimeout: const Duration(seconds: 5),
-        receiveTimeout: const Duration(seconds: 8),
-        headers: widget.apiKey.isNotEmpty
-            ? {'X-API-Key': widget.apiKey}
-            : const {},
-      ),
-    );
-
-    bool connected = false;
-    try {
-      final resp = await dio.get("/API/test");
-      connected = resp.statusCode == 200;
-    } catch (_) {
-      connected = false;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isTesting = false;
-        _isConnected = connected;
-      });
-    }
+  void _checkDirty() {
+    final dirty = _hostController.text.trim() != widget.config.host ||
+        _portController.text.trim() != widget.config.port;
+    if (dirty != _dirty && mounted) setState(() => _dirty = dirty);
   }
 
   Future<void> _handleSave() async {
     await ref.read(networkConfigManagerProvider.notifier).saveConfig(
           widget.index,
-          _hostController.text.trim(),
-          _portController.text.trim(),
+          _hostController.text,
+          _portController.text,
         );
-    await _testConnection();
+  }
+
+  void _testConnection() {
+    if (!widget.config.isValid) return;
+    ref.invalidate(serverReachableProvider(widget.config.address));
   }
 
   @override
   Widget build(BuildContext context) {
-    final iconColor = _isConnected == null
-        ? Colors.amber
-        : _isConnected!
-            ? Colors.green
-            : Colors.red;
-
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: widget.isActive
@@ -374,33 +327,7 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
                 ),
               ),
               const SizedBox(width: 8),
-              // 连接状态指示
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.circle, color: iconColor, size: 10),
-                  const SizedBox(width: 4),
-                  if (_isTesting)
-                    const SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    Text(
-                      _isConnected == null
-                          ? '未测试'
-                          : _isConnected!
-                              ? '已连接'
-                              : '未连接',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: iconColor,
-                      ),
-                    ),
-                ],
-              ),
-              const Spacer(),
+              Expanded(child: _buildStatus()),
               if (widget.isActive)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -462,7 +389,7 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton(
-                onPressed: _testConnection,
+                onPressed: widget.config.isValid ? _testConnection : null,
                 child: const Text('测试连接'),
               ),
               if (!widget.isActive)
@@ -483,7 +410,7 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
                   child: const Text('删除'),
                 ),
               ElevatedButton(
-                onPressed: _handleSave,
+                onPressed: _dirty ? _handleSave : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
@@ -494,6 +421,70 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 连接状态：由已保存地址派生，输入未保存时提示"未保存"
+  Widget _buildStatus() {
+    if (!widget.config.isValid) {
+      return const _StatusLabel(color: Colors.grey, text: '未配置');
+    }
+    if (_dirty) {
+      return const _StatusLabel(color: Colors.amber, text: '未保存');
+    }
+
+    final reachable = ref.watch(serverReachableProvider(widget.config.address));
+    return reachable.when(
+      loading: () => const _StatusLabel(
+        color: Colors.amber,
+        text: '测试中',
+        busy: true,
+      ),
+      error: (_, __) => const _StatusLabel(color: Colors.red, text: '未连接'),
+      data: (ok) => _StatusLabel(
+        color: ok ? Colors.green : Colors.red,
+        text: ok ? '已连接' : '未连接',
+      ),
+    );
+  }
+}
+
+/// 连接状态标签
+class _StatusLabel extends StatelessWidget {
+  final Color color;
+  final String text;
+  final bool busy;
+
+  const _StatusLabel({
+    required this.color,
+    required this.text,
+    this.busy = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.circle, color: color, size: 10),
+        const SizedBox(width: 4),
+        if (busy)
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 12, color: color),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

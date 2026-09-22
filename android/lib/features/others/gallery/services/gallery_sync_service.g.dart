@@ -30,7 +30,7 @@ final galleryUploadStatsProvider =
 
 typedef GalleryUploadStatsRef = AutoDisposeFutureProviderRef<UploadStats>;
 String _$gallerySyncServiceHash() =>
-    r'e9ed5a95d7b24757a233693356ce9b39958cfff7';
+    r'3282089fb3f9b8d71e5f70e50b878bc3a1c96985';
 
 /// Gallery 同步服务 Provider
 ///
