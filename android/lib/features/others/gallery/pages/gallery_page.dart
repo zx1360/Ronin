@@ -167,7 +167,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
           Positioned.fill(
             child: TagDragOverlay(
               key: _tagDragKey,
-              bottomInset: bottomBarHeight,
+              bottomInset: _barsVisible ? bottomBarHeight : 8,
             ),
           ),
         ],
@@ -299,7 +299,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // 标签管理：点击打开标签管理页；**向上拖动**激活"拖拽打标签"浮层
+            // 标签管理：点击打开标签管理页；向上拖动激活"拖拽打标签"浮层；长按打开常驻浮层
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onPanStart: currentMedia != null
@@ -309,6 +309,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                   _tagDragKey.currentState?.updateDrag(d.globalPosition),
               onPanEnd: (d) => _tagDragKey.currentState?.endDrag(d.globalPosition),
               onPanCancel: () => _tagDragKey.currentState?.cancelDrag(),
+              onLongPress: currentMedia != null
+                  ? () => _tagDragKey.currentState?.openPinned()
+                  : null,
               child: _BottomBarButton(
                 icon: const IconData(0xe63e, fontFamily: "iconfont"),
                 label: "标签",
