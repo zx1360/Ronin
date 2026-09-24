@@ -10,6 +10,11 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
+        // 国内镜像优先：直连 dl.google.com / repo.maven.apache.org 在国内会超时或极慢
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/public")
+        maven("https://maven.aliyun.com/repository/gradle-plugin")
+        // 官方源作为兜底
         google()
         mavenCentral()
         gradlePluginPortal()
