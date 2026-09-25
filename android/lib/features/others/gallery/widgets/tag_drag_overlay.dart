@@ -228,6 +228,15 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     }
   }
 
+  /// 设置/取消快捷标签（服务端持久化）
+  Future<void> _setFavorite(Tag tag, bool value) async {
+    try {
+      await ref.read(tagTreeProvider.notifier).setFavorite(tag.id, value);
+    } catch (e) {
+      _toast('快捷标签更新失败: $e');
+    }
+  }
+
   // ---- 几何（全部实时读取，避免布局变化后失效） ----
 
   Rect? _rectOf(GlobalKey key) {
@@ -358,12 +367,10 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
             const <Tag>[])
         .map((t) => t.id)
         .toSet();
-    final favoriteIds = ref.watch(galleryFavoriteTagIdsProvider);
-    final tagById = {for (final t in allTags) t.id: t};
-    final favorites = [
-      for (final id in favoriteIds)
-        if (tagById[id] != null) tagById[id]!,
-    ];
+    final favoriteIds = {
+      for (final tag in ref.watch(favoriteTagsProvider)) tag.id,
+    };
+    final favorites = ref.watch(favoriteTagsProvider);
 
     final childrenMap = <String, List<Tag>>{};
     for (final t in allTags) {
@@ -604,9 +611,8 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     );
   }
 
-  /// 快捷标签管理菜单
+  /// 快捷标签管理菜单（收藏状态持久化在服务端）
   Future<void> _showFavoriteMenu(Tag tag) async {
-    final favoriteTags = ref.read(galleryFavoriteTagIdsProvider.notifier);
     await showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(
@@ -620,27 +626,11 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.arrow_upward, size: 20),
-              title: const Text('上移'),
-              onTap: () {
-                favoriteTags.move(tag.id, -1);
-                Navigator.pop(sheetContext);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.arrow_downward, size: 20),
-              title: const Text('下移'),
-              onTap: () {
-                favoriteTags.move(tag.id, 1);
-                Navigator.pop(sheetContext);
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.star_border, size: 20),
               title: const Text('移出快捷标签'),
               onTap: () {
-                favoriteTags.toggle(tag.id);
                 Navigator.pop(sheetContext);
+                _setFavorite(tag, false);
               },
             ),
           ],

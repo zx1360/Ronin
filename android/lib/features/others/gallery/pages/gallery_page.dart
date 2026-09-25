@@ -99,6 +99,15 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
 
+    // 服务端写入最终失败（已回滚）时的提示
+    ref.listen(galleryWriteStatusProvider, (prev, next) {
+      if (next == null || next == prev) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(next), duration: const Duration(seconds: 2)),
+      );
+      ref.read(galleryWriteStatusProvider.notifier).clear();
+    });
+
     final mediaQuery = MediaQuery.of(context);
     final topBarHeight = mediaQuery.padding.top + 44;
     final bottomBarHeight = mediaQuery.padding.bottom + 56 + 40;

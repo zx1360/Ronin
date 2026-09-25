@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/features/others/gallery/widgets/fullscreen_image_viewer.dart';
@@ -514,15 +515,20 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
 
     try {
       final db = ref.read(galleryDatabaseProvider);
+      final message = _messageController.text.trim();
       final updatedAsset = widget.asset.copyWith(
-        message: _messageController.text.trim().isEmpty
-            ? null
-            : _messageController.text.trim(),
+        message: message.isEmpty ? null : message,
+        clearMessage: message.isEmpty,
       );
 
       await db.updateMediaAsset(updatedAsset);
+      // 服务端权威: 本地先生效, 备注经缓冲写入服务端
+      ref.read(galleryWriteBufferProvider).queuePatch(
+            widget.asset.id,
+            MediaPatchIntent(message: message),
+            baselineAsset: widget.asset,
+          );
       ref.invalidate(mediaAssetListProvider);
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

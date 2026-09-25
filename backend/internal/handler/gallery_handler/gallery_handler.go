@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,7 +23,6 @@ import (
 	"monarch/internal/model"
 	"monarch/internal/repository/gallery_repo"
 )
-
 // ============ 视频取帧（供 Android 剪辑页拖动滑块时实时预览帧画面） ============
 
 // frameCacheKey 取帧缓存键：assetID|取整到 0.05s 的秒数
@@ -404,73 +404,367 @@ func isVideoAsset(asset *model.MediaAsset) bool {
 	return false
 }
 
-// Push 处理 POST /api/gallery/push 请求
-// 接收客户端上传的数据，更新数据库
-// 使用事务确保三个表操作的原子性
-// @Summary 推送媒体与标签数据
-// @Description 客户端全量/增量推送媒体资产、标签和标签关联
+// ============ 标签与媒体标注操作（服务端权威，客户端"操作式写入"） ============
+
+// respondRepoError 将仓库层业务错误映射为对应 HTTP 状态码
+func respondRepoError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, gallery_repo.ErrTagNotFound),
+		errors.Is(err, gallery_repo.ErrMediaNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+	case errors.Is(err, gallery_repo.ErrTagNameConflict):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, gallery_repo.ErrTagParentNotFound),
+		errors.Is(err, gallery_repo.ErrTagCycle),
+		errors.Is(err, gallery_repo.ErrTagEmptyName),
+		errors.Is(err, gallery_repo.ErrMediaSelfGroup):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+}
+
+// parseUUIDParam 解析路径参数中的 UUID
+func parseUUIDParam(c *gin.Context, name string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(c.Param(name))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID 格式"})
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// CreateTag 处理 POST /api/gallery/tags
+// @Summary 新建标签
 // @Tags gallery
 // @Accept json
 // @Produce json
 // @Security ApiKeyAuth
-// @Param body body model.BatchData true "推送数据"
-// @Success 200 {object} model.PushResponse
+// @Param body body model.TagCreateRequest true "标签信息"
+// @Success 201 {object} map[string]model.Tag
 // @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /api/gallery/push [post]
-func Push(c *gin.Context) {
-	var req model.BatchData
+// @Failure 409 {object} map[string]string
+// @Router /api/gallery/tags [post]
+func CreateTag(c *gin.Context) {
+	var req model.TagCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+		return
+	}
+	tag, err := gallery_repo.CreateTag(req.Name, req.ParentID)
+	if err != nil {
+		respondRepoError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"tag": tag})
+}
+
+// UpdateTag 处理 PUT /api/gallery/tags/:id
+// @Summary 更新标签（改名/移动/收藏）
+// @Description 字段缺省表示不修改；parent_id 显式传 null 表示移动到根级
+// @Tags gallery
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "标签 ID"
+// @Param body body model.TagUpdateRequest true "更新内容"
+// @Success 200 {object} map[string]model.Tag
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /api/gallery/tags/{id} [put]
+func UpdateTag(c *gin.Context) {
+	id, ok := parseUUIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var req model.TagUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
 		return
 	}
 
-	// 创建带超时的上下文
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// 开启事务，确保三个表操作的原子性
-	tx, err := gallery_repo.BeginTx(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "开启事务失败: " + err.Error()})
-		return
-	}
-	defer tx.Rollback(ctx) // 确保出错时回滚
-
-	// 1. 更新媒体资产.
-	if len(req.MediaAssets) > 0 {
-		if err := gallery_repo.UpdateMediaAssetsTx(ctx, tx, req.MediaAssets); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新媒体资产失败: " + err.Error()})
-			return
+	patch := gallery_repo.TagPatch{Name: req.Name, IsFavorite: req.IsFavorite}
+	if len(req.ParentID) > 0 {
+		if strings.TrimSpace(string(req.ParentID)) == "null" {
+			patch.MoveToRoot = true
+		} else {
+			var parentID uuid.UUID
+			if err := json.Unmarshal(req.ParentID, &parentID); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "parent_id 格式错误"})
+				return
+			}
+			patch.ParentID = &parentID
 		}
 	}
 
-	// 2. 全量覆写标签表
-	if err := gallery_repo.UpsertTagsTx(ctx, tx, req.Tags); err != nil {
-		log.Printf("gallery push: 更新标签失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新标签失败: " + err.Error()})
+	tag, err := gallery_repo.UpdateTag(id, patch)
+	if err != nil {
+		respondRepoError(c, err)
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"tag": tag})
+}
 
-	// 3. 获取本次推送涉及的媒体 ID，全量覆写媒体-标签关联
-	mediaIDs := make([]uuid.UUID, len(req.MediaAssets))
-	for i, asset := range req.MediaAssets {
-		mediaIDs[i] = asset.ID
-	}
-
-	if err := gallery_repo.UpsertMediaTagLinksTx(ctx, tx, mediaIDs, req.MediaTagLinks); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新标签关联失败: " + err.Error()})
+// DeleteTag 处理 DELETE /api/gallery/tags/:id
+// @Summary 删除标签（级联删除子孙与标签关联）
+// @Tags gallery
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "标签 ID"
+// @Success 200 {object} model.TagDeleteResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /api/gallery/tags/{id} [delete]
+func DeleteTag(c *gin.Context) {
+	id, ok := parseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
-
-	// 提交事务
-	if err := tx.Commit(ctx); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "提交事务失败: " + err.Error()})
+	deleted, err := gallery_repo.DeleteTag(id)
+	if err != nil {
+		respondRepoError(c, err)
 		return
 	}
+	c.JSON(http.StatusOK, model.TagDeleteResponse{DeletedIDs: deleted})
+}
 
-	c.JSON(http.StatusOK, model.PushResponse{
-		Success: true,
-		Message: "数据同步成功",
+// QueryMedia 处理 GET /api/gallery/media
+// @Summary 按标签/类型/删除状态查询媒体及其标签关联
+// @Tags gallery
+// @Produce json
+// @Security ApiKeyAuth
+// @Param tag_ids query string false "标签 ID, 逗号分隔（任一命中）"
+// @Param include_descendants query bool false "标签筛选是否包含子孙标签"
+// @Param untagged query bool false "仅未打标签的媒体"
+// @Param include_deleted query bool false "包含已软删除媒体"
+// @Param mime_type query string false "image / video / image/jpeg"
+// @Param ids query string false "指定媒体 ID, 逗号分隔"
+// @Param sort_by query string false "captured_at(默认)/sync_count/size_bytes/file_path"
+// @Param sort_order query string false "desc(默认)/asc"
+// @Param limit query int false "默认 60, 上限 1000"
+// @Param offset query int false "偏移量"
+// @Success 200 {object} model.MediaQueryResponse
+// @Failure 400 {object} map[string]string
+// @Router /api/gallery/media [get]
+func QueryMedia(c *gin.Context) {
+	var params model.MediaQueryParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "查询参数格式错误: " + err.Error()})
+		return
+	}
+	if err := validateUUIDList(params.TagIDs, "tag_ids"); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateUUIDList(params.IDs, "ids"); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if params.SortBy != "" && !isValidMediaSort(params.SortBy) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的 sort_by: " + params.SortBy})
+		return
+	}
+	if params.Limit <= 0 {
+		params.Limit = 60
+	}
+	if params.Limit > 1000 {
+		params.Limit = 1000
+	}
+	if params.Offset < 0 {
+		params.Offset = 0
+	}
+
+	assets, links, total, err := gallery_repo.FetchMediaAssetsByQuery(params)
+	if err != nil {
+		respondRepoError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, model.MediaQueryResponse{
+		MediaAssets:   assets,
+		MediaTagLinks: links,
+		Total:         total,
 	})
+}
+
+// SetMediaTags 处理 PUT /api/gallery/media/:id/tags
+// @Summary 全量替换单个媒体的标签集合（幂等）
+// @Tags gallery
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param id path string true "媒体 ID"
+// @Param body body model.MediaTagsRequest true "标签集合"
+// @Success 200 {object} model.MediaTagsResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /api/gallery/media/{id}/tags [put]
+func SetMediaTags(c *gin.Context) {
+	id, ok := parseUUIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var req model.MediaTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+		return
+	}
+
+	applied, err := gallery_repo.ReplaceMediaTags(id, req.TagIDs)
+	if err != nil {
+		respondRepoError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, model.MediaTagsResponse{MediaID: id, TagIDs: applied})
+}
+
+// BatchMediaTags 处理 POST /api/gallery/media/tags
+// @Summary 批量为多个媒体增删标签（幂等）
+// @Tags gallery
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param body body model.MediaTagsBatchRequest true "增删内容"
+// @Success 200 {object} map[string]int64
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /api/gallery/media/tags [post]
+func BatchMediaTags(c *gin.Context) {
+	var req model.MediaTagsBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+		return
+	}
+	if len(req.MediaIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "media_ids 不能为空"})
+		return
+	}
+	if len(req.AddTagIDs) == 0 && len(req.RemoveTagIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "add_tag_ids 与 remove_tag_ids 不能同时为空"})
+		return
+	}
+
+	affected, err := gallery_repo.AddRemoveMediaTags(req.MediaIDs, req.AddTagIDs, req.RemoveTagIDs)
+	if err != nil {
+		respondRepoError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"affected": affected})
+}
+
+// PatchMedia 处理 PATCH /api/gallery/media
+// @Summary 更新媒体标注（软删除/备注/捆绑/编辑参数/处理游标）
+// @Description 字段缺省表示不修改；message 空串表示清空；
+//
+//	group_id 传 null 表示解绑；edit_params 传 null 表示清除
+//
+// @Tags gallery
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param body body model.MediaPatchRequest true "更新内容"
+// @Success 200 {object} model.MediaPatchResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /api/gallery/media [patch]
+func PatchMedia(c *gin.Context) {
+	var req model.MediaPatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+		return
+	}
+	if len(req.MediaIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "media_ids 不能为空"})
+		return
+	}
+
+	patch := gallery_repo.MediaPatch{
+		MediaIDs:      req.MediaIDs,
+		IsDeleted:     req.IsDeleted,
+		Message:       req.Message,
+		MarkProcessed: req.MarkProcessed,
+	}
+
+	if len(req.GroupID) > 0 {
+		if strings.TrimSpace(string(req.GroupID)) == "null" {
+			patch.ClearGroup = true
+		} else {
+			var groupID uuid.UUID
+			if err := json.Unmarshal(req.GroupID, &groupID); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "group_id 格式错误"})
+				return
+			}
+			patch.GroupID = &groupID
+		}
+	}
+
+	if len(req.EditParams) > 0 {
+		raw := strings.TrimSpace(string(req.EditParams))
+		if raw == "null" {
+			patch.ClearEditParams = true
+		} else {
+			text, err := normalizeJSONText(raw)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "edit_params 格式错误: " + err.Error()})
+				return
+			}
+			if text == "" {
+				patch.ClearEditParams = true
+			} else {
+				patch.SetEditParams = &text
+			}
+		}
+	}
+
+	assets, err := gallery_repo.PatchMediaAssets(patch)
+	if err != nil {
+		respondRepoError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, model.MediaPatchResponse{MediaAssets: assets})
+}
+
+// normalizeJSONText 归一化 edit_params 取值：同时接受 JSON 字符串与 JSON 对象/数组文本
+func normalizeJSONText(raw string) (string, error) {
+	var asString string
+	if err := json.Unmarshal([]byte(raw), &asString); err == nil {
+		text := strings.TrimSpace(asString)
+		if text == "" {
+			return "", nil
+		}
+		if !json.Valid([]byte(text)) {
+			return "", fmt.Errorf("不是合法 JSON")
+		}
+		return text, nil
+	}
+	if !json.Valid([]byte(raw)) {
+		return "", fmt.Errorf("不是合法 JSON")
+	}
+	return raw, nil
+}
+
+// validateUUIDList 校验逗号分隔的 UUID 列表（空串合法）
+func validateUUIDList(raw, field string) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if _, err := uuid.Parse(part); err != nil {
+			return fmt.Errorf("%s 含非法 UUID: %s", field, part)
+		}
+	}
+	return nil
+}
+
+// isValidMediaSort 校验媒体列表排序字段
+func isValidMediaSort(field string) bool {
+	switch field {
+	case "captured_at", "sync_count", "size_bytes", "file_path":
+		return true
+	}
+	return false
 }

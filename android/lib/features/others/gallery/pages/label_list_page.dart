@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 
@@ -35,6 +34,17 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   bool get _selectMode => widget.mediaId != null;
 
   @override
+  void initState() {
+    super.initState();
+    // 服务端为标签权威: 进入页面时拉取一次并镜像到本地缓存（失败则继续用缓存）
+    Future.microtask(() async {
+      try {
+        await ref.read(tagTreeProvider.notifier).syncFromServer();
+      } catch (_) {}
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -47,7 +57,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         ? ref.watch(currentMediaTagsProvider).valueOrNull ?? const <Tag>[]
         : const <Tag>[];
     final appliedIds = appliedTags.map((t) => t.id).toSet();
-    final favoriteIds = ref.watch(galleryFavoriteTagIdsProvider).toSet();
+    final favoriteIds =
+        ref.watch(favoriteTagsProvider).map((t) => t.id).toSet();
 
     final allTags = tagsAsync.valueOrNull ?? const <Tag>[];
     final expandableIds = {
@@ -307,9 +318,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
                   : (hasChildren ? () => _toggleExpand(tag.id) : null),
               onToggleExpand:
                   hasChildren ? () => _toggleExpand(tag.id) : null,
-              onToggleFavorite: () => ref
-                  .read(galleryFavoriteTagIdsProvider.notifier)
-                  .toggle(tag.id),
+              onToggleFavorite: () =>
+                  _toggleFavorite(tag, !favoriteIds.contains(tag.id)),
               onMenuAction: (action) => _handleMenuAction(action, tag),
             );
 
@@ -455,30 +465,12 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     }
   }
 
-  /// 添加标签
+  /// 添加标签（服务端创建, 本地只做缓存）
   Future<void> _addTag(String name, String? parentId) async {
-    final allTags = ref.read(tagTreeProvider).valueOrNull ?? [];
-
-    String fullPath;
-    if (parentId == null) {
-      fullPath = name;
-    } else {
-      final parent = allTags.firstWhere((t) => t.id == parentId);
-      fullPath = '${parent.fullPath}/$name';
-    }
-
-    final now = DateTime.now();
-    final tag = Tag(
-      id: const Uuid().v4(),
-      createdAt: now,
-      updatedAt: now,
-      name: name,
-      parentId: parentId,
-      fullPath: fullPath,
-    );
-
     try {
-      await ref.read(tagTreeProvider.notifier).addTag(tag);
+      await ref
+          .read(tagTreeProvider.notifier)
+          .createTag(name: name, parentId: parentId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -501,27 +493,24 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     );
     if (name == null || name.isEmpty || name == tag.name) return;
 
-    final allTags = ref.read(tagTreeProvider).valueOrNull ?? [];
-    Tag? parent;
-    for (final t in allTags) {
-      if (t.id == tag.parentId) {
-        parent = t;
-        break;
-      }
-    }
-
-    final updatedTag = tag.copyWith(
-      name: name,
-      fullPath: parent == null ? name : '${parent.fullPath}/$name',
-      updatedAt: DateTime.now(),
-    );
-
     try {
-      await ref.read(tagTreeProvider.notifier).updateTag(updatedTag);
+      await ref.read(tagTreeProvider.notifier).renameTag(tag, name);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('重命名失败: $e')));
+      }
+    }
+  }
+
+  /// 切换快捷标签（服务端持久化）
+  Future<void> _toggleFavorite(Tag tag, bool value) async {
+    try {
+      await ref.read(tagTreeProvider.notifier).setFavorite(tag.id, value);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('快捷标签更新失败: $e')));
       }
     }
   }

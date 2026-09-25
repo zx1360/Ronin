@@ -4,12 +4,17 @@ import 'package:torrid/features/others/gallery/providers/media_providers.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
 import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
 import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
+import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
+import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
+import 'package:torrid/features/others/gallery/services/gallery_write_buffer.dart';
 
 part 'tag_providers.g.dart';
 
-// ============ 标签数据 Providers ============
+// ============ 标签数据 Providers（服务端权威 + 本地缓存） ============
 
 /// 标签树 Provider
+///
+/// 读取本地缓存（离线可浏览）; 所有写操作先落服务端, 再把服务端结果写入缓存。
 @riverpod
 class TagTree extends _$TagTree {
   @override
@@ -18,164 +23,211 @@ class TagTree extends _$TagTree {
     return await db.getAllTags();
   }
 
-  /// 刷新标签列表
+  /// 重新读取本地缓存（保留服务端同步得到的媒体计数）
   Future<void> refresh() async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final db = ref.read(galleryDatabaseProvider);
-      return await db.getAllTags();
-    });
-  }
-
-  /// 添加标签
-  Future<void> addTag(Tag tag) async {
     final db = ref.read(galleryDatabaseProvider);
-    await db.upsertTag(tag);
-    await refresh();
+    final cached = await db.getAllTags();
+    final counts = {
+      for (final tag in state.valueOrNull ?? const <Tag>[])
+        tag.id: tag.mediaCount,
+    };
+    state = AsyncData([
+      for (final tag in cached)
+        tag.copyWith(mediaCount: counts[tag.id] ?? 0),
+    ]);
   }
 
-  /// 更新标签
-  Future<void> updateTag(Tag tag) async {
+  /// 从服务端拉取标签并镜像到本地缓存（标签管理/immich 页进入时调用）
+  Future<void> syncFromServer() async {
+    final api = ref.read(galleryApiProvider);
     final db = ref.read(galleryDatabaseProvider);
-    await db.updateTagWithCascade(tag);
-    await refresh();
+    final tags = await retryServerWrite(api.fetchTags);
+    await db.syncTagsCache(tags);
+    state = AsyncData(tags);
+    ref.invalidate(mediaIdsWithTagsProvider);
   }
 
-  /// 删除标签
+  /// 新建标签
+  Future<Tag> createTag({required String name, String? parentId}) async {
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    final tag = await retryServerWrite(
+      () => api.createTag(name: name, parentId: parentId),
+    );
+    await db.upsertTagLocal(tag);
+    await refresh();
+    return tag;
+  }
+
+  /// 重命名标签（服务端会级联重算子孙 full_path, 因此整表回拉）
+  Future<Tag> renameTag(Tag tag, String name) async {
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    final updated = await retryServerWrite(
+      () => api.updateTag(tag.id, name: name),
+    );
+    final tags = await retryServerWrite(api.fetchTags);
+    await db.syncTagsCache(tags);
+    state = AsyncData(tags);
+    return updated;
+  }
+
+  /// 移动标签（[newParentId] 为 null 表示移到根级）
+  Future<Tag> moveTag(String tagId, String? newParentId) async {
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    final updated = await retryServerWrite(
+      () => api.updateTag(
+        tagId,
+        parentId: newParentId,
+        moveToRoot: newParentId == null,
+      ),
+    );
+    final tags = await retryServerWrite(api.fetchTags);
+    await db.syncTagsCache(tags);
+    state = AsyncData(tags);
+    return updated;
+  }
+
+  /// 删除标签（服务端级联删除子孙与关联, 本地按服务端返回清理）
   Future<void> deleteTag(String tagId) async {
+    final api = ref.read(galleryApiProvider);
     final db = ref.read(galleryDatabaseProvider);
-    // 级联清除了关联记录, 返回被删掉的标签 ID (含子孙)
-    final removedIds = await db.deleteTag(tagId);
-    // 快捷标签里若包含被删除的标签则一并清理
-    await ref.read(galleryFavoriteTagIdsProvider.notifier).removeMany(removedIds);
-    // 标签删除后级联清除了关联记录，刷新标签指示器与当前媒体标签
+    final removedIds = await retryServerWrite(() => api.deleteTag(tagId));
+    for (final id in removedIds) {
+      await db.deleteTagLocal(id);
+    }
     ref.invalidate(mediaIdsWithTagsProvider);
     ref.invalidate(currentMediaTagsProvider);
     await refresh();
   }
 
-  /// 移动标签到新父节点
-  Future<void> moveTag(String tagId, String? newParentId) async {
-    final allTags = state.valueOrNull ?? [];
-    final tag = allTags.firstWhere((t) => t.id == tagId);
-    
-    // 检查是否会形成循环
-    if (newParentId != null && _wouldCreateCycle(tagId, newParentId, allTags)) {
-      throw Exception('不能将标签移动到其子标签下');
-    }
-    
-    // 计算新的 full_path
-    String newFullPath;
-    if (newParentId == null) {
-      newFullPath = tag.name;
-    } else {
-      final parent = allTags.firstWhere((t) => t.id == newParentId);
-      newFullPath = '${parent.fullPath}/${tag.name}';
-    }
-    
-    final updatedTag = tag.copyWith(
-      parentId: newParentId,
-      fullPath: newFullPath,
-      clearParentId: newParentId == null,
-    );
-    
-    await updateTag(updatedTag);
-  }
+  /// 快捷标签开关（乐观更新, 失败回滚）
+  Future<void> setFavorite(String tagId, bool value) async {
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    final current = state.valueOrNull ?? const <Tag>[];
 
-  /// 检查是否会形成循环
-  bool _wouldCreateCycle(String tagId, String newParentId, List<Tag> allTags) {
-    String? currentId = newParentId;
-    while (currentId != null) {
-      if (currentId == tagId) return true;
-      final tag = allTags.firstWhere((t) => t.id == currentId, orElse: () => allTags.first);
-      currentId = tag.parentId;
+    Tag? target;
+    for (final tag in current) {
+      if (tag.id == tagId) {
+        target = tag;
+        break;
+      }
     }
-    return false;
+    if (target == null || target.isFavorite == value) return;
+
+    final updated = target.copyWith(isFavorite: value);
+    state = AsyncData([
+      for (final tag in current) tag.id == tagId ? updated : tag,
+    ]);
+    await db.upsertTagLocal(updated);
+
+    try {
+      await retryServerWrite(() => api.updateTag(tagId, isFavorite: value));
+    } catch (e) {
+      await db.upsertTagLocal(target);
+      state = AsyncData(current);
+      rethrow;
+    }
   }
 }
 
-/// 当前媒体文件的标签 Provider
+/// 快捷标签（收藏标签, 按路径排序）——浮层右栏 / 快捷选择使用
+@riverpod
+List<Tag> favoriteTags(FavoriteTagsRef ref) {
+  final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
+  final favorites = [
+    for (final tag in tags)
+      if (tag.isFavorite) tag,
+  ];
+  favorites.sort(
+    (a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name),
+  );
+  return favorites;
+}
+
+/// 当前媒体文件的标签 Provider（读本地缓存）
 @riverpod
 class CurrentMediaTags extends _$CurrentMediaTags {
   @override
   Future<List<Tag>> build() async {
     final currentMedia = ref.watch(currentMediaAssetProvider);
     if (currentMedia == null) return [];
-    
+
     final db = ref.watch(galleryDatabaseProvider);
     return await db.getTagsForMedia(currentMedia.id);
   }
 
   /// 设置标签（全量覆盖）
   ///
-  /// 先用标签树缓存做乐观更新，避免每次勾选都等待数据库往返（影响打标签手感）；
-  /// 写库失败则回滚到修改前的状态。
+  /// 本地缓存与 UI 立即生效, 服务端推送后台执行（合并 + 重试 + 失败回滚）。
   Future<void> setTags(List<String> tagIds) async {
     final currentMedia = ref.read(currentMediaAssetProvider);
     if (currentMedia == null) return;
 
     final db = ref.read(galleryDatabaseProvider);
-    final allTags = ref.read(tagTreeProvider).valueOrNull;
-    final previous = state;
+    final baseline = await db.getTagIdsForMedia(currentMedia.id);
+    await _applyLocal(currentMedia.id, tagIds);
 
-    // 标签树不可用时无法本地映射，退回"写完再重读"
-    final canOptimistic = allTags != null;
-    if (canOptimistic) {
-      final byId = {for (final t in allTags) t.id: t};
-      final mapped = [
-        for (final id in tagIds)
-          if (byId[id] != null) byId[id]!,
-      ]..sort((a, b) =>
-          (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name));
-      state = AsyncData(mapped);
-    }
-
-    try {
-      await db.setTagsForMedia(currentMedia.id, tagIds);
-    } catch (e) {
-      state = previous;
-      rethrow;
-    }
-
-    if (!canOptimistic) ref.invalidateSelf();
-
-    // 标签关联变化后刷新标签指示器数据
+    ref.read(galleryWriteBufferProvider).queueTags(
+          currentMedia.id,
+          tagIds,
+          baselineTagIds: baseline,
+        );
     ref.invalidate(mediaIdsWithTagsProvider);
-
-    // 更新 modified_count
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final index = assets.indexWhere((a) => a.id == currentMedia.id);
-    if (index >= 0) {
-      final currentModified = ref.read(galleryModifiedCountProvider);
-      if (index > currentModified) {
-        await ref.read(galleryModifiedCountProvider.notifier).update(index);
-      }
-    }
+    await _bumpModifiedCount(currentMedia.id);
   }
 
   /// 添加标签
   Future<void> addTag(String tagId) async {
-    await _mutate((ids) {
-      if (!ids.contains(tagId)) ids.add(tagId);
-    });
-  }
-
-  /// 移除标签
-  Future<void> removeTag(String tagId) async {
-    await _mutate((ids) => ids.remove(tagId));
-  }
-
-  /// 基于数据库现状做增量修改
-  ///
-  /// 不能以 [state] 作为增删依据: 切换媒体时 provider 会短暂处于加载态,
-  /// 其残留值属于上一张媒体, 据此写回会造成标签串档或丢失.
-  Future<void> _mutate(void Function(List<String> tagIds) change) async {
     final currentMedia = ref.read(currentMediaAssetProvider);
     if (currentMedia == null) return;
 
     final db = ref.read(galleryDatabaseProvider);
     final tagIds = await db.getTagIdsForMedia(currentMedia.id);
-    change(tagIds);
+    if (tagIds.contains(tagId)) return;
+    tagIds.add(tagId);
     await setTags(tagIds);
+  }
+
+  /// 移除标签
+  Future<void> removeTag(String tagId) async {
+    final currentMedia = ref.read(currentMediaAssetProvider);
+    if (currentMedia == null) return;
+
+    final db = ref.read(galleryDatabaseProvider);
+    final tagIds = await db.getTagIdsForMedia(currentMedia.id);
+    if (!tagIds.remove(tagId)) return;
+    await setTags(tagIds);
+  }
+
+  /// 写入本地缓存并同步内存状态（按标签树缓存映射为 Tag 对象）
+  Future<void> _applyLocal(String mediaId, List<String> tagIds) async {
+    final db = ref.read(galleryDatabaseProvider);
+    await db.setTagsForMedia(mediaId, tagIds);
+
+    final allTags = ref.read(tagTreeProvider).valueOrNull;
+    if (allTags == null) {
+      ref.invalidateSelf();
+      return;
+    }
+    final byId = {for (final tag in allTags) tag.id: tag};
+    final mapped = [
+      for (final id in tagIds)
+        if (byId[id] != null) byId[id]!,
+    ]..sort((a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name));
+    state = AsyncData(mapped);
+  }
+
+  /// 记录批次处理游标位置（modified_count）
+  Future<void> _bumpModifiedCount(String mediaId) async {
+    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+    final index = assets.indexWhere((a) => a.id == mediaId);
+    if (index < 0) return;
+    final currentModified = ref.read(galleryModifiedCountProvider);
+    if (index > currentModified) {
+      await ref.read(galleryModifiedCountProvider.notifier).update(index);
+    }
   }
 }

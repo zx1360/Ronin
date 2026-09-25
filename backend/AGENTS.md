@@ -32,9 +32,14 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 | `/API/user-data` | `GET /sync/:module`, `POST /backup/:module` | 用户数据同步/备份 |
 | `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download` | 漫画浏览与离线下载（Android 端主用） |
 | `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Desktop 端主用） |
-| `/API/gallery` | `/batch`, `/tags`, `/:id/:type`, `POST /push` | 媒体资产浏览、文件流、推送 |
+| `/API/gallery` | `GET /batch`, `GET /overview`, `GET /:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
+| `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
+| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换 |
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
 | `/api/*` | 所有方法 | Immich 反向代理 |
+
+> 数据权威划分：媒体本体与标签/标签关联均以服务端为准，客户端本地仅作缓存；
+> 客户端只能通过上表的操作接口写入（幂等 PUT/PATCH/批量），不存在全量 push。
 
 ### CLI 工具 (Gizmos)
 

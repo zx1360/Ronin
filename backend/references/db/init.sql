@@ -101,9 +101,13 @@ CREATE TABLE IF NOT EXISTS gallery.tags (
     name       TEXT NOT NULL,
     parent_id  UUID,
     full_path  TEXT,
+    is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT fk_parent_id FOREIGN KEY (parent_id) REFERENCES gallery.tags(id) ON DELETE CASCADE,
     CONSTRAINT uk_tag_name_parent UNIQUE (name, parent_id)
 );
+
+-- 迁移：为已存在的库补充标签收藏列（幂等）
+ALTER TABLE gallery.tags ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- tags 索引
 CREATE INDEX IF NOT EXISTS idx_tags_parent_id  ON gallery.tags (parent_id);

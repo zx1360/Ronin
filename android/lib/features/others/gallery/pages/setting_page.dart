@@ -167,10 +167,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
                   const Divider(height: AppSpacing.sm + 8),
 
-                  // 上传本地数据
+                  // 标记已处理并清理本地缓存
                   Row(
                     children: [
-                      const Icon(Icons.cloud_upload, size: 20),
+                      const Icon(Icons.cloud_done, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: uploadStatsAsync.when(
@@ -178,7 +178,8 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                           error: (e, _) => Text("错误: $e", style: const TextStyle(fontSize: 12)),
                           data: (stats) {
                             return Text(
-                              "media_assets: ${stats.mediaCount} 条 (已删除: ${stats.deletedCount} 条)",
+                              "待处理: ${stats.mediaCount} 条 (已删除: ${stats.deletedCount} 条)\n"
+                              "标记后从本地缓存移除, 服务端数据已同步",
                               style: const TextStyle(fontSize: 12),
                             );
                           },
@@ -189,13 +190,13 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                         onPressed: syncProgress.status != SyncStatus.downloading &&
                                 syncProgress.status != SyncStatus.uploading &&
                                 (uploadStatsAsync.valueOrNull?.hasData ?? false)
-                            ? _handleUpload
+                            ? _handleMarkProcessed
                             : null,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           minimumSize: Size.zero,
                         ),
-                        child: const Text("上传", style: TextStyle(fontSize: 13)),
+                        child: const Text("标记已处理", style: TextStyle(fontSize: 13)),
                       ),
                     ],
                   ),
@@ -724,16 +725,16 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     } catch (_) {}
   }
 
-  /// 处理上传
-  Future<void> _handleUpload() async {
+  /// 处理"标记已处理并清理本地缓存"
+  Future<void> _handleMarkProcessed() async {
     final confirmed = await _showConfirmDialog(
-      title: '确认上传',
-      content: '上传后将清空本地数据，确定继续？',
+      title: '标记已处理',
+      content: '将把这些媒体标记为已处理并从本地缓存删除（含缩略图/预览图），确定继续？',
     );
 
     if (confirmed) {
-      await ref.read(gallerySyncServiceProvider.notifier).uploadData();
-      
+      await ref.read(gallerySyncServiceProvider.notifier).markProcessedAndClean();
+
       // 刷新统计数据（异步，不阻塞 UI）
       ref.invalidate(galleryDbStatsProvider);
       ref.invalidate(galleryUploadStatsProvider);

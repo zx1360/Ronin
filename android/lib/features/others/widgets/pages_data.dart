@@ -3,6 +3,7 @@ import 'package:torrid/features/others/widgets/entry_button.dart';
 
 import 'package:torrid/features/others/comic/pages/comic_page.dart';
 import 'package:torrid/features/others/gallery/pages/gallery_page.dart';
+import 'package:torrid/features/others/immich/pages/immich_page.dart';
 
 class OtherPagesData {
   static List<PageItem> get pages => [
@@ -17,6 +18,12 @@ class OtherPagesData {
       label: "藏品",
       icon: Icons.assessment,
       builder: (context) => GalleryPage(),
+    ),
+    // 相册页 (immich, 始终在线).
+    PageItem(
+      label: "相册",
+      icon: Icons.photo_album,
+      builder: (context) => const ImmichPage(),
     ),
   ];
 }

@@ -157,6 +157,33 @@ class ApiClient {
     );
   }
 
+  /// PATCH请求，直接发送 JSON body（部分更新语义）
+  Future<Response> patchJson(
+    String path, {
+    required Map<String, dynamic> data,
+    CancelToken? cancelToken,
+  }) async {
+    return _dio.patch(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+      options: Options(contentType: 'application/json'),
+    );
+  }
+
+  /// DELETE请求
+  Future<Response> delete(
+    String path, {
+    Map<String, dynamic>? queryParams,
+    CancelToken? cancelToken,
+  }) async {
+    return _dio.delete(
+      path,
+      queryParameters: queryParams,
+      cancelToken: cancelToken,
+    );
+  }
+
   // POST请求, 可以上传json数据和文件.
   Future<Response> post(
     String path, {

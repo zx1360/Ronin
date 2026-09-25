@@ -13,6 +13,8 @@ Tag _$TagFromJson(Map<String, dynamic> json) => Tag(
       name: json['name'] as String,
       parentId: json['parent_id'] as String?,
       fullPath: json['full_path'] as String?,
+      isFavorite: json['is_favorite'] as bool? ?? false,
+      mediaCount: (json['media_count'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$TagToJson(Tag instance) => <String, dynamic>{
@@ -22,4 +24,6 @@ Map<String, dynamic> _$TagToJson(Tag instance) => <String, dynamic>{
       'name': instance.name,
       'parent_id': instance.parentId,
       'full_path': instance.fullPath,
+      'is_favorite': instance.isFavorite,
+      'media_count': instance.mediaCount,
     };
