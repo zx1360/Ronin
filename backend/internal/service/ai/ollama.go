@@ -36,11 +36,9 @@ type Ollama struct {
 
 	client *http.Client
 
-	mu        sync.Mutex
-	proc      *exec.Cmd // 仅当我们自己拉起了 ollama serve 时非空
-	startedAt time.Time
-	lastUsed  time.Time
-	closed    bool
+	mu       sync.Mutex
+	proc     *exec.Cmd // 仅当我们自己拉起了 ollama serve 时非空
+	lastUsed time.Time
 }
 
 // NewOllama 创建 Ollama 客户端。
@@ -144,10 +142,13 @@ func (o *Ollama) EnsureReady(ctx context.Context) error {
 			o.mu.Unlock()
 			return fmt.Errorf("启动 ollama serve 失败: %w", err)
 		}
+		// 降到前台之下（只降一档：推理本身延迟敏感，不能再低）
+		if err := yieldToInteractive(cmd.Process.Pid); err != nil {
+			log.Printf("[AI:ollama] 降低进程优先级失败（不影响推理）: %v", err)
+		}
 		o.proc = cmd
 		// 必须同时初始化 lastUsed：否则 supervise 会算出"自零时刻起已空闲"，
 		// 在新进程刚起来的第一个 tick 就把它回收掉。
-		o.startedAt = time.Now()
 		o.lastUsed = time.Now()
 		log.Printf("[AI:ollama] 已按需启动 ollama serve (pid=%d, OLLAMA_MODELS=%q)",
 			cmd.Process.Pid, os.Getenv("OLLAMA_MODELS"))
@@ -220,8 +221,8 @@ func (o *Ollama) Generate(ctx context.Context, imagePath string) (*vlmResult, er
 		"images": []string{base64.StdEncoding.EncodeToString(raw)},
 		"stream": false,
 		"format": "json",
-		// keep_alive=0：请求结束立即卸载模型，避免长期占用显存/内存
-		"keep_alive": 0,
+		// 不传 keep_alive，沿用 Ollama 自身的默认（5 分钟无请求再卸载）：
+		// 批量标注之外还要承接后续的交互式视觉问答，每次都卸载会让模型反复重载。
 		"options": map[string]any{
 			"temperature": 0.2,
 			"num_predict": 256,
@@ -346,32 +347,30 @@ func (o *Ollama) StopServer() {
 
 // Shutdown 关闭客户端（服务退出时调用）。
 func (o *Ollama) Shutdown() {
-	o.mu.Lock()
-	o.closed = true
-	o.mu.Unlock()
 	o.StopServer()
 }
 
 // OllamaState Ollama 运行状态快照。
 type OllamaState struct {
-	URL          string   `json:"url"`
-	Model        string   `json:"model"`
-	Reachable    bool     `json:"reachable"`
-	ModelReady   bool     `json:"model_ready"`
-	Error        string   `json:"error,omitempty"`
-	OwnedServer  bool     `json:"owned_server"` // true 表示进程由本服务按需拉起
-	PID          int      `json:"pid"`
-	IdleSeconds  int      `json:"idle_seconds"`
-	Models       []string `json:"models,omitempty"`
-	KeepAliveOff bool     `json:"keep_alive_unload"`
+	URL         string   `json:"url"`
+	Model       string   `json:"model"`
+	Reachable   bool     `json:"reachable"`
+	ModelReady  bool     `json:"model_ready"`
+	Error       string   `json:"error,omitempty"`
+	OwnedServer bool     `json:"owned_server"` // true 表示进程由本服务按需拉起
+	PID         int      `json:"pid"`
+	IdleSeconds int      `json:"idle_seconds"`
+	Models      []string `json:"models,omitempty"`
+	// KeepAlive 说明模型驻留策略（沿用 Ollama 默认，不再逐次卸载）
+	KeepAlive string `json:"keep_alive"`
 }
 
 // State 返回 Ollama 状态快照。
 func (o *Ollama) State(ctx context.Context) OllamaState {
 	state := OllamaState{
-		URL:          o.cfg.OllamaURL,
-		Model:        o.cfg.OllamaVLM,
-		KeepAliveOff: true,
+		URL:       o.cfg.OllamaURL,
+		Model:     o.cfg.OllamaVLM,
+		KeepAlive: "Ollama 默认（无请求 5 分钟后卸载模型）",
 	}
 
 	o.mu.Lock()

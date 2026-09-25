@@ -448,36 +448,6 @@ func bytesToInt8(raw []byte) []int8 {
 	return out
 }
 
-// QuantizeInt8 把 float32 向量量化为 int8 并返回 (量化结果, 反量化系数)。
-//
-// 量化前做 L2 归一化，使内积即余弦相似度，与 Python 侧编码结果口径一致。
-func QuantizeInt8(vec []float32) ([]byte, float32, []float32) {
-	normalized := normalize(vec)
-	var maxAbs float32
-	for _, v := range normalized {
-		if a := float32(math.Abs(float64(v))); a > maxAbs {
-			maxAbs = a
-		}
-	}
-	if maxAbs == 0 {
-		maxAbs = 1
-	}
-	scale := maxAbs / 127.0
-
-	out := make([]byte, len(normalized))
-	for i, v := range normalized {
-		q := int(math.Round(float64(v / scale)))
-		if q > 127 {
-			q = 127
-		}
-		if q < -127 {
-			q = -127
-		}
-		out[i] = byte(int8(q))
-	}
-	return out, scale, normalized
-}
-
 // normalize 返回 L2 归一化后的副本。
 func normalize(vec []float32) []float32 {
 	var sum float64

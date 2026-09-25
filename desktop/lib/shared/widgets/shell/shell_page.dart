@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +10,9 @@ import 'package:window_manager/window_manager.dart';
 import 'package:northstar/app/routes.dart';
 import 'package:northstar/core/providers/ai/ai_providers.dart';
 import 'package:northstar/core/providers/comix/comix_providers.dart';
+import 'package:northstar/core/providers/ops/core_services_provider.dart';
 import 'package:northstar/core/providers/ops/runtime_process_provider.dart';
+import 'package:northstar/domain/ops/models/window_geometry.dart';
 import 'package:northstar/shared/widgets/shell/side_navbar/side_navbar.dart';
 import 'package:northstar/shared/widgets/shell/titlebar/titlebar.dart';
 
@@ -32,6 +36,10 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
   final _systemTray = SystemTray();
   final _menu = Menu();
   bool _isTrayInitialized = false;
+  bool _isMaximized = false;
+
+  /// 缩放窗口时 onWindowResize 会连续触发，落盘必须防抖。
+  Timer? _geometrySaveTimer;
 
   @override
   void initState() {
@@ -41,6 +49,8 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
     windowManager.addListener(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // 建窗时的最大化可能早于监听注册，首帧后补一次同步。
+      _syncMaximizedState();
       _syncComixPageActive(widget.navigationShell.currentIndex);
     });
   }
@@ -67,11 +77,62 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
 
   @override
   void dispose() {
+    _geometrySaveTimer?.cancel();
     windowManager.removeListener(this);
     if (_isTrayInitialized) {
       _systemTray.destroy();
     }
     super.dispose();
+  }
+
+  /// 最大化/还原按钮的图标跟随窗口事件，用户从系统菜单或双击标题栏切换时也要跟上。
+  Future<void> _syncMaximizedState() async {
+    final maximized = await windowManager.isMaximized();
+    if (!mounted) return;
+    if (maximized != _isMaximized) {
+      setState(() => _isMaximized = maximized);
+    }
+  }
+
+  /// 更新最大化标记并排队落盘：事件随后的尺寸变化会被防抖合并掉。
+  void _setMaximized(bool maximized) {
+    if (!mounted) return;
+    if (maximized != _isMaximized) {
+      setState(() => _isMaximized = maximized);
+    }
+    _scheduleGeometrySave();
+  }
+
+  void _scheduleGeometrySave() {
+    _geometrySaveTimer?.cancel();
+    _geometrySaveTimer = Timer(
+      const Duration(milliseconds: 400),
+      _saveWindowGeometry,
+    );
+  }
+
+  /// 保存窗口几何。最大化时 getSize() 返回的是被拉满的屏幕尺寸，
+  /// 存下来会把还原尺寸撑到整屏，因此最大化状态下只更新标记、保留原尺寸。
+  Future<void> _saveWindowGeometry() async {
+    _geometrySaveTimer?.cancel();
+    _geometrySaveTimer = null;
+    if (!mounted) return;
+
+    final repository = ref.read(opsPersistenceRepositoryProvider);
+    final previous = repository.windowGeometry ?? WindowGeometry.defaults();
+    try {
+      final maximized = await windowManager.isMaximized();
+      final size = maximized ? null : await windowManager.getSize();
+      await repository.saveWindowGeometry(
+        previous.copyWith(
+          width: size?.width,
+          height: size?.height,
+          maximized: maximized,
+        ),
+      );
+    } catch (_) {
+      // 窗口已销毁时读不到尺寸：放弃本次落盘，不影响退出流程。
+    }
   }
 
   @override
@@ -85,7 +146,12 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
               fit: StackFit.expand,
               children: [
                 Positioned.fill(child: widget.navigationShell),
-                Positioned(top: 0, left: 0, right: 0, child: const TitleBar()),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: TitleBar(isMaximized: _isMaximized),
+                ),
               ],
             ),
           ),
@@ -137,7 +203,19 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
   }
 
   @override
+  void onWindowMaximize() => _setMaximized(true);
+
+  @override
+  void onWindowUnmaximize() => _setMaximized(false);
+
+  @override
+  void onWindowResize() => _scheduleGeometrySave();
+
+  @override
   Future<void> onWindowClose() async {
+    // 退出流程可能弹出确认框并被取消，但几何信息先落盘无害。
+    await _saveWindowGeometry();
+
     final runtimeController = ref.read(
       runtimeProcessControllerProvider.notifier,
     );

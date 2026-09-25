@@ -234,8 +234,9 @@ class _StorageGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: entries.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 4 : 3,
+      // 按可用宽度分列：沿用整窗宽度阈值会在宽屏上把每张卡片拉得过宽。
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
         crossAxisSpacing: AppDimens.spacingS,
         mainAxisSpacing: AppDimens.spacingS,
         childAspectRatio: 2.4,

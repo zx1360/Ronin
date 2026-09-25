@@ -44,7 +44,9 @@ class _AiSearchTabState extends ConsumerState<AiSearchTab> {
                   textInputAction: TextInputAction.search,
                   onSubmitted: (value) => notifier.search(value),
                   decoration: InputDecoration(
-                    hintText: '用自然语言描述想要的画面，例如：可爱的猫娘、夜景街道',
+                    hintText: state.mode == 'filename'
+                        ? '文件名或扩展名，例如：IMG_2024、.mp4'
+                        : '用自然语言描述想要的画面，例如：可爱的猫娘、夜景街道',
                     prefixIcon: const Icon(Icons.search, size: 18),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.clear, size: 16),
@@ -63,9 +65,9 @@ class _AiSearchTabState extends ConsumerState<AiSearchTab> {
                 isDense: true,
                 underline: const SizedBox.shrink(),
                 items: const [
-                  DropdownMenuItem(value: 'auto', child: Text('自动')),
-                  DropdownMenuItem(value: 'semantic', child: Text('语义')),
-                  DropdownMenuItem(value: 'keyword', child: Text('关键词')),
+                  DropdownMenuItem(value: 'auto', child: Text('智能')),
+                  DropdownMenuItem(value: 'keyword', child: Text('文字')),
+                  DropdownMenuItem(value: 'filename', child: Text('文件名')),
                 ],
                 onChanged: (value) {
                   if (value != null) notifier.setMode(value);
@@ -88,7 +90,8 @@ class _AiSearchTabState extends ConsumerState<AiSearchTab> {
           ),
           const SizedBox(height: 4),
           Text(
-            '自动模式：有文本就走语义检索（SigLIP 向量），并把 OCR/描述/关键词命中一并加权。'
+            '智能模式：有文本就走语义检索（SigLIP 向量），并把 OCR/描述/关键词命中一并加权；'
+            '文字模式只在 OCR/描述/AI 关键词里找；文件名模式只匹配文件路径，可用扩展名过滤。'
             '点击结果卡片上的"以图搜图"可找相似画面。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -184,6 +187,12 @@ class _HitCard extends StatelessWidget {
                     top: 4,
                     right: 4,
                     child: AiStatusPill(text: '文本', color: AppColors.warning),
+                  ),
+                if (hit.source.contains('filename'))
+                  const Positioned(
+                    top: 4,
+                    right: 4,
+                    child: AiStatusPill(text: '文件名', color: AppColors.outline),
                   ),
                 if (hit.isVideo)
                   const Positioned(

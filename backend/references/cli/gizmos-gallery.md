@@ -1,6 +1,6 @@
 ﻿# CLI Help Snapshot
 
-- GeneratedAt: 2026-09-25T22:28:57+08:00
+- GeneratedAt: 2026-09-26T07:01:56+08:00
 - WorkingDir: D:\products\Ronin\backend\gizmos
 - Command: go run ./cmd/gallery -h
 - ExitCode: 0

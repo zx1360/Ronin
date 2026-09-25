@@ -3,26 +3,28 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/gallery/models/ai_search_models.dart';
-import 'package:torrid/features/others/gallery/services/ai_api_service.dart';
+import 'package:torrid/features/others/ai/models/ai_search_models.dart';
+import 'package:torrid/features/others/ai/services/ai_api_service.dart';
+import 'package:torrid/features/others/widgets/media_viewer_page.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
-/// 智能相册页：文本搜图 / 以图搜图 / 人物分组。
+/// 智能相册页：文本搜图 / 以图搜图 / 人物分组 / AI 分析结果查看。
 ///
-/// 这是 Android 端消费服务端 AI 能力的最小入口：结果直接按需拉取，
-/// 不写入本地缓存，也不改动现有画廊的下载与标注链路。
-class SmartSearchPage extends ConsumerStatefulWidget {
-  const SmartSearchPage({super.key});
+/// 与画廊页同为一级入口（见 `pages_data.dart`），不再依赖画廊网格页跳转。
+/// 只消费服务端 AI 能力：结果按需拉取，不写入本地缓存，也不改动画廊的下载与标注链路；
+/// 页面内不出现人工标签——人工标签归相册(immich)页。
+class SmartAlbumPage extends ConsumerStatefulWidget {
+  const SmartAlbumPage({super.key});
 
   @override
-  ConsumerState<SmartSearchPage> createState() => _SmartSearchPageState();
+  ConsumerState<SmartAlbumPage> createState() => _SmartAlbumPageState();
 }
 
-class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
+class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage> {
   final _controller = TextEditingController();
 
-  /// semantic=语义检索（SigLIP），keyword=OCR/描述/标签关键词。
-  bool _semantic = true;
+  /// 默认使用智能检索。
+  AiSearchMode _mode = AiSearchMode.auto;
   bool _loading = false;
   String? _error;
   AiSearchResult _result = AiSearchResult.empty;
@@ -76,7 +78,9 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
             textInputAction: TextInputAction.search,
             onSubmitted: (_) => _search(),
             decoration: InputDecoration(
-              hintText: '描述想要的画面，如：可爱的猫娘 / 夜景街道',
+              hintText: _mode == AiSearchMode.filename
+                  ? '文件名或扩展名，如：IMG_2024 / .mp4'
+                  : '描述想要的画面，如：可爱的猫娘 / 夜景街道',
               hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
               prefixIcon: const Icon(Icons.search, color: Colors.grey),
               suffixIcon: IconButton(
@@ -100,26 +104,32 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             children: [
-              ChoiceChip(
-                label: const Text('语义'),
-                selected: _semantic,
-                onSelected: (_) => setState(() => _semantic = true),
-                labelStyle: TextStyle(
-                  color: _semantic ? Colors.black : Colors.white,
-                  fontSize: 12,
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final mode in AiSearchMode.values) ...[
+                        ChoiceChip(
+                          label: Text(mode.label),
+                          selected: _mode == mode,
+                          onSelected: (_) {
+                            setState(() => _mode = mode);
+                            // 切换检索方式后旧结果不再对应，清掉避免误读
+                            _result = AiSearchResult.empty;
+                            if (_controller.text.trim().isNotEmpty) _search();
+                          },
+                          labelStyle: TextStyle(
+                            color: _mode == mode ? Colors.black : Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('文字'),
-                selected: !_semantic,
-                onSelected: (_) => setState(() => _semantic = false),
-                labelStyle: TextStyle(
-                  color: _semantic ? Colors.white : Colors.black,
-                  fontSize: 12,
-                ),
-              ),
-              const Spacer(),
               TextButton.icon(
                 onPressed: _loading ? null : _search,
                 icon: const Icon(Icons.search, size: 16),
@@ -152,8 +162,7 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
       );
     }
 
-    final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
-    final headers = ref.read(apiClientManagerProvider).headers;
+    final api = ref.watch(apiClientManagerProvider);
 
     return Column(
       children: [
@@ -180,15 +189,54 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
               final hit = _result.hits[index];
               return _HitTile(
                 hit: hit,
-                url: hit.thumbUrl(baseUrl),
-                headers: headers,
-                onTap: () => _showActions(hit),
+                url: hit.thumbUrl(api.baseUrl),
+                headers: api.headers,
+                onTap: () => _openViewer(index),
               );
             },
           ),
         ),
       ],
     );
+  }
+
+  /// 打开全屏查看器：本页只注入"以图搜图"和"AI 分析"两个智能操作。
+  void _openViewer(int index) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MediaViewerPage(
+          assets: [for (final hit in _result.hits) hit.toAsset()],
+          initialIndex: index,
+          subtitleBuilder: (asset) {
+            final hit = _hitById(asset.id);
+            if (hit == null || hit.score <= 0) return null;
+            return '相关度 ${hit.score.toStringAsFixed(3)}';
+          },
+          actions: (context, asset) => [
+            IconButton(
+              icon: const Icon(Icons.image_search),
+              tooltip: '以图搜图',
+              onPressed: () {
+                Navigator.of(context).pop();
+                unawaited(_searchSimilar(asset.id));
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: 'AI 分析',
+              onPressed: () => _showAiDetail(asset.id),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  AiSearchHit? _hitById(String id) {
+    for (final hit in _result.hits) {
+      if (hit.id == id) return hit;
+    }
+    return null;
   }
 
   // ---------- 人物 ----------
@@ -210,8 +258,7 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
       );
     }
 
-    final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
-    final headers = ref.read(apiClientManagerProvider).headers;
+    final api = ref.watch(apiClientManagerProvider);
 
     return GridView.builder(
       padding: const EdgeInsets.all(8),
@@ -240,8 +287,8 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
                         )
                       : CachedNetworkImage(
                           imageUrl:
-                              '$baseUrl/API/gallery/${person.coverMediaId}/thumb',
-                          httpHeaders: headers,
+                              '${api.baseUrl}/API/gallery/${person.coverMediaId}/thumb',
+                          httpHeaders: api.headers,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => const ColoredBox(
                             color: Color(0xFF2B2B2B),
@@ -275,17 +322,15 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
 
   Future<void> _search() async {
     final query = _controller.text.trim();
-    if (query.isEmpty) return;
+    // 纯条件检索（文件名模式必须给词）没有查询词时不做请求
+    if (query.isEmpty && _mode == AiSearchMode.filename) return;
 
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final result = await ref.read(aiApiProvider).search(
-            query,
-            mode: _semantic ? 'auto' : 'keyword',
-          );
+      final result = await ref.read(aiApiProvider).search(query, mode: _mode);
       if (!mounted) return;
       setState(() => _result = result);
     } catch (e) {
@@ -296,13 +341,13 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
     }
   }
 
-  Future<void> _searchSimilar(AiSearchHit hit) async {
+  Future<void> _searchSimilar(String mediaId) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final result = await ref.read(aiApiProvider).similar(hit.id);
+      final result = await ref.read(aiApiProvider).similar(mediaId);
       if (!mounted) return;
       setState(() {
         _result = result;
@@ -354,57 +399,95 @@ class _SmartSearchPageState extends ConsumerState<SmartSearchPage> {
     }
   }
 
-  /// 命中结果的可用操作（当前只有以图搜图，保持入口最小）。
-  Future<void> _showActions(AiSearchHit hit) async {
+  /// 只读展示该媒体的 AI 分析结果（描述 / 关键词 / OCR）。
+  Future<void> _showAiDetail(String mediaId) async {
+    AiMediaDetail? detail;
+    String? error;
+    try {
+      detail = await ref.read(aiApiProvider).fetchMediaDetail(mediaId);
+    } catch (e) {
+      error = e.toString();
+    }
+    if (!mounted) return;
+
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF1C1C1C),
+      showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                hit.fileName,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.image_search, color: Colors.white),
-              title: const Text('以图搜图',
-                  style: TextStyle(color: Colors.white, fontSize: 14)),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                unawaited(_searchSimilar(hit));
-              },
-            ),
-            if (hit.score > 0)
-              ListTile(
-                leading: const Icon(Icons.insights, color: Colors.grey),
-                title: Text(
-                  '相关度 ${hit.score.toStringAsFixed(3)}'
-                  '${hit.source.isEmpty ? '' : ' · ${hit.source.join('/')}'}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ),
-          ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.6,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            child: error != null
+                ? Text(
+                    '读取 AI 结果失败: $error',
+                    style: const TextStyle(
+                        color: Colors.redAccent, fontSize: 13),
+                  )
+                : _buildAiDetailBody(detail!),
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildAiDetailBody(AiMediaDetail detail) {
+    const titleStyle =
+        TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600);
+    const bodyStyle = TextStyle(color: Colors.white70, fontSize: 13);
+    const emptyStyle = TextStyle(color: Colors.grey, fontSize: 12);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('AI 分析', style: titleStyle),
+        const SizedBox(height: 12),
+        const Text('画面描述', style: titleStyle),
+        const SizedBox(height: 4),
+        Text(detail.caption ?? '暂无（尚未做 VLM 处理）',
+            style: detail.caption == null ? emptyStyle : bodyStyle),
+        const SizedBox(height: 14),
+        const Text('AI 关键词', style: titleStyle),
+        const SizedBox(height: 6),
+        if (detail.vlmTags.isEmpty)
+          const Text('暂无', style: emptyStyle)
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final tag in detail.vlmTags)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2B2B2B),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(tag,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 12)),
+                ),
+            ],
+          ),
+        const SizedBox(height: 14),
+        const Text('识别文字', style: titleStyle),
+        const SizedBox(height: 4),
+        Text(detail.ocrText ?? '暂无', style: detail.ocrText == null ? emptyStyle : bodyStyle),
+      ],
+    );
+  }
+
   String _modeLabel(String mode) {
-    switch (mode) {
-      case 'semantic':
-        return '语义检索';
-      case 'keyword':
-        return '文字检索';
-      default:
-        return mode;
+    for (final item in AiSearchMode.values) {
+      if (item.value == mode) return '${item.label}检索';
     }
+    return mode;
   }
 }
 

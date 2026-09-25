@@ -21,6 +21,7 @@ const (
 	ModeAuto     = "auto"
 	ModeSemantic = "semantic"
 	ModeKeyword  = "keyword"
+	ModeFilename = "filename"
 )
 
 const (
@@ -42,6 +43,7 @@ type SearchRequest struct {
 	TagIDs             []string
 	IncludeDescendants bool
 	PersonIDs          []string
+	VLMTags            []string // 按 AI 标签筛选（与人工标签独立）
 	MimeType           string
 	From, To           *time.Time
 	SortBy             string
@@ -74,6 +76,7 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 		TagIDs:      tagIDs,
 		Descendants: req.IncludeDescendants,
 		PersonIDs:   personIDs,
+		VLMTags:     normalizeTags(req.VLMTags),
 		MimeType:    req.MimeType,
 		From:        req.From,
 		To:          req.To,
@@ -82,29 +85,33 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 	}
 
 	query := strings.TrimSpace(req.Query)
-	useSemantic := false
-	switch req.Mode {
+	mode := req.Mode
+	if mode == "" {
+		mode = ModeAuto
+	}
+	var useSemantic bool
+	switch mode {
 	case ModeSemantic:
 		useSemantic = true
-	case ModeKeyword:
+	case ModeKeyword, ModeFilename:
 		useSemantic = false
 	default:
 		// auto：有文本/图片查询就走语义，否则退化为纯结构化筛选
+		mode = ModeAuto
 		useSemantic = query != "" || req.MediaID != "" || req.ImagePath != ""
 	}
 
 	if !useSemantic {
-		return e.keywordSearch(filters, query, limit, req.Offset)
+		return e.plainSearch(filters, query, mode, limit, req.Offset)
 	}
 
 	vector, err := e.queryVector(ctx, query, req.MediaID, req.ImagePath)
 	if err != nil {
 		// 语义链路不可用时退化为关键词检索，保证搜索框始终有结果
-		fallback, fallbackErr := e.keywordSearch(filters, query, limit, req.Offset)
+		fallback, fallbackErr := e.plainSearch(filters, query, ModeKeyword, limit, req.Offset)
 		if fallbackErr != nil {
 			return nil, fallbackErr
 		}
-		fallback.Mode = ModeKeyword
 		return fallback, nil
 	}
 
@@ -185,9 +192,16 @@ func decodeQuantized(payload embedPayload) ([]float32, error) {
 	return out, nil
 }
 
-// keywordSearch 纯结构化 + 关键词检索（SQL 分页，结果稳定）。
-func (e *Engine) keywordSearch(filters ai_repo.SearchFilters, query string, limit, offset int) (*model.AiSearchResponse, error) {
-	filters.Keyword = query
+// plainSearch 不做向量打分的结构化检索（关键词/文件名），SQL 分页，结果稳定。
+func (e *Engine) plainSearch(filters ai_repo.SearchFilters, query, mode string, limit, offset int) (*model.AiSearchResponse, error) {
+	source := "keyword"
+	if mode == ModeFilename {
+		filters.Filename = query
+		source = "filename"
+	} else {
+		filters.Keyword = query
+		mode = ModeKeyword
+	}
 	filters.Limit = limit
 	filters.Offset = offset
 
@@ -195,11 +209,26 @@ func (e *Engine) keywordSearch(filters ai_repo.SearchFilters, query string, limi
 	if err != nil {
 		return nil, err
 	}
-	hits, err := buildHits(ids, nil, []string{"keyword"})
+	hits, err := buildHits(ids, nil, []string{source})
 	if err != nil {
 		return nil, err
 	}
-	return &model.AiSearchResponse{Hits: hits, Total: total, Mode: ModeKeyword}, nil
+	return &model.AiSearchResponse{Hits: hits, Total: total, Mode: mode}, nil
+}
+
+// normalizeTags 清理筛选用的标签名：去空白、去空项、去重。
+func normalizeTags(tags []string) []string {
+	out := make([]string, 0, len(tags))
+	seen := make(map[string]bool, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		out = append(out, tag)
+	}
+	return out
 }
 
 // semanticSearch 语义检索：结构化筛选出候选集，再用查询向量打分排序。

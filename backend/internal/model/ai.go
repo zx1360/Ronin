@@ -28,14 +28,6 @@ func IsValidCapability(capability string) bool {
 	return false
 }
 
-// 任务状态。
-const (
-	JobPending = "pending"
-	JobRunning = "running"
-	JobDone    = "done"
-	JobFailed  = "failed"
-)
-
 // AiJob 一条 AI 处理任务（能力 × 媒体）。
 type AiJob struct {
 	ID         int64      `json:"id"`

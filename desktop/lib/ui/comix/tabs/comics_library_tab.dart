@@ -258,10 +258,12 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
                   child: Text(list.isEmpty ? '暂无已登记漫画' : '没有匹配「$_keyword」的漫画'),
                 );
               }
+              // 列数由可用宽度决定：固定 4 列在宽屏上会把封面卡片拉到失真。
               return GridView.builder(
                 padding: const EdgeInsets.all(AppDimens.paddingL),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
+                gridDelegate:
+                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 220,
                   childAspectRatio: 0.62,
                   crossAxisSpacing: AppDimens.spacingM,
                   mainAxisSpacing: AppDimens.spacingM,

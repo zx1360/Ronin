@@ -18,13 +18,19 @@ import 'package:video_player/video_player.dart';
 class VideoPlayerWidget extends ConsumerStatefulWidget {
   final MediaAsset asset;
   final int rotationQuarterTurns;
-  final GalleryStorageService storage;
+
+  /// 本地缓存服务；仅用于加载占位预览图，服务端直连场景（如相册/智能相册）可不传。
+  final GalleryStorageService? storage;
+
+  /// 初始化完成后是否自动开始播放（全屏查看器用；画廊网格保持手动播放）。
+  final bool autoPlay;
 
   const VideoPlayerWidget({
     super.key,
     required this.asset,
-    required this.storage,
+    this.storage,
     this.rotationQuarterTurns = 0,
+    this.autoPlay = false,
   });
 
   @override
@@ -95,6 +101,11 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
       }
 
       _videoController = controller;
+
+      if (widget.autoPlay) {
+        // 自动播放失败（解码/权限等）不应让整页报错，静默降级为手动播放
+        await controller.play().catchError((_) {});
+      }
 
       if (mounted) {
         setState(() {
@@ -537,11 +548,11 @@ class _ControlButton extends StatelessWidget {
 /// 视频占位图组件
 class _VideoPlaceholder extends StatelessWidget {
   final MediaAsset asset;
-  final GalleryStorageService storage;
+  final GalleryStorageService? storage;
 
   const _VideoPlaceholder({
     required this.asset,
-    required this.storage,
+    this.storage,
   });
 
   @override
@@ -567,6 +578,8 @@ class _VideoPlaceholder extends StatelessWidget {
   }
 
   Future<File?> _getPreviewFile() async {
+    final storage = this.storage;
+    if (storage == null) return null;
     if (asset.previewPath != null) {
       final previewFile = await storage.getPreviewFile(asset.previewPath!);
       if (previewFile != null) return previewFile;

@@ -47,7 +47,6 @@ type sidecarResponse struct {
 	Error  string          `json:"error,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Ready  bool            `json:"ready,omitempty"`
-	Models []string        `json:"models,omitempty"`
 }
 
 // BatchResult 单条处理结果（ID 与请求条目一一对应）。
@@ -99,9 +98,6 @@ type Sidecar struct {
 func NewSidecar(capability string, cfg config.AiConfig) *Sidecar {
 	return &Sidecar{capability: capability, cfg: cfg}
 }
-
-// Capability 返回该侧车承载的能力名。
-func (s *Sidecar) Capability() string { return s.capability }
 
 // resolvePython 解析侧车解释器：优先显式配置，其次工作区内的独立 venv。
 func (s *Sidecar) resolvePython() string {
@@ -218,6 +214,10 @@ func (s *Sidecar) ensureRunning() error {
 	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动 %s 侧车失败: %w", s.capability, err)
+	}
+	// 侧车是长时间满载的批处理，降到前台之下，避免拖慢桌面端 UI
+	if err := yieldToInteractive(cmd.Process.Pid); err != nil {
+		log.Printf("[AI:%s] 降低进程优先级失败（不影响处理）: %v", s.capability, err)
 	}
 
 	s.proc = cmd

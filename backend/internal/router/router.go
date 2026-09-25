@@ -47,9 +47,6 @@ func SetupRouter() *gin.Engine {
 		})
 	})
 
-	// Immich 代理路由
-	registerImmichProxyRoutes(r)
-
 	// API路由, 数据/操作
 	api := r.Group("/API")
 	{
@@ -147,6 +144,7 @@ func SetupRouter() *gin.Engine {
 			aiGroup.GET("/similar/:id", ai_handler.Similar)
 			aiGroup.GET("/media/:id", ai_handler.MediaDetail)
 			aiGroup.GET("/duplicates", ai_handler.Duplicates)
+			aiGroup.GET("/tags", ai_handler.ListVLMTags)
 
 			// 组织：人物分组
 			aiGroup.GET("/persons", ai_handler.ListPersons)

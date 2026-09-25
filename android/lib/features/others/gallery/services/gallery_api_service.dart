@@ -97,11 +97,15 @@ class GalleryApiService {
   // 媒体查询与操作
 
   /// 按标签/类型/删除状态查询媒体及其标签关联
+  ///
+  /// [vlmTags] 为服务端 AI 标签（只读，与人工标签互不影响）；仅在需要时传入，
+  /// 不传时服务端不会触及 AI 层。
   Future<MediaQueryResult> queryMedia({
     List<String> tagIds = const [],
     bool includeDescendants = false,
     bool untagged = false,
     bool includeDeleted = false,
+    List<String> vlmTags = const [],
     List<String> ids = const [],
     String? mimeType,
     int limit = 60,
@@ -117,6 +121,7 @@ class GalleryApiService {
         if (includeDescendants) 'include_descendants': true,
         if (untagged) 'untagged': true,
         if (includeDeleted) 'include_deleted': true,
+        if (vlmTags.isNotEmpty) 'vlm_tags': vlmTags.join(','),
         if (ids.isNotEmpty) 'ids': ids.join(','),
         if (mimeType != null && mimeType.isNotEmpty) 'mime_type': mimeType,
         if (sortBy != null && sortBy.isNotEmpty) 'sort_by': sortBy,
