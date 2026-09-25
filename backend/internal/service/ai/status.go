@@ -90,20 +90,6 @@ func (e *Engine) sidecarFor(capability string) *Sidecar {
 	}
 }
 
-// logUnavailable 对"能力不可用"的日志做节流，避免 worker 空转刷屏。
-func (e *Engine) logUnavailable(capability, reason string) {
-	e.warnMu.Lock()
-	last, seen := e.warnAt[capability]
-	shouldLog := !seen || time.Since(last) > 10*time.Minute
-	if shouldLog {
-		e.warnAt[capability] = time.Now()
-	}
-	e.warnMu.Unlock()
-	if shouldLog {
-		log.Printf("[AI] 能力 %s 暂不可用: %s", capability, reason)
-	}
-}
-
 // CapabilityStatus 单个能力的就绪与运行状态。
 type CapabilityStatus struct {
 	Capability   string        `json:"capability"`

@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math"
 	"sort"
@@ -31,7 +30,6 @@ type centroid struct {
 
 // Clusterer 人脸聚类：以人物中心为锚做在线增量归并。
 type Clusterer struct {
-	model     string
 	threshold float32
 
 	mu        sync.Mutex
@@ -40,9 +38,8 @@ type Clusterer struct {
 }
 
 // NewClusterer 创建聚类器（懒加载人物中心）。
-func NewClusterer(model string) *Clusterer {
+func NewClusterer() *Clusterer {
 	return &Clusterer{
-		model:     model,
 		threshold: DefaultFaceThreshold,
 		centroids: map[uuid.UUID]*centroid{},
 	}
@@ -307,12 +304,7 @@ func (c *Clusterer) updateCentroidLocked(personID uuid.UUID, vec []float32) {
 		c.centroids[personID] = &centroid{vec: vec, count: 1}
 		return
 	}
-	merged := make([]float32, len(vec))
-	n := float32(cent.count)
-	for i := range vec {
-		merged[i] = (cent.vec[i]*n + vec[i]) / (n + 1)
-	}
-	cent.vec = normalize(merged)
+	cent.vec = mergeCentroid(cent.vec, cent.count, vec)
 	cent.count++
 }
 
@@ -367,17 +359,6 @@ func (c *Clusterer) State() ClusterState {
 		MinGroup:    MinPersonFaces,
 		CentroidsOK: c.loaded,
 	}
-}
-
-// SetThreshold 调整同人判定阈值（0.2 ~ 0.8）。
-func (c *Clusterer) SetThreshold(value float32) error {
-	if value < 0.2 || value > 0.8 {
-		return fmt.Errorf("阈值需在 0.2 ~ 0.8 之间")
-	}
-	c.mu.Lock()
-	c.threshold = value
-	c.mu.Unlock()
-	return nil
 }
 
 // faceQuality 由检测分与人脸面积估算质量（用于挑选人物封面与聚类顺序）。

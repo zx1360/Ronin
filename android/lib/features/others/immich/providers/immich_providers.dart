@@ -1,4 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:torrid/features/others/ai/models/ai_search_models.dart';
+import 'package:torrid/features/others/ai/services/ai_api_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
@@ -12,17 +14,22 @@ part 'immich_providers.g.dart';
 /// 使画廊页的离线缓存与服务端保持一致。写操作同样走服务端权威接口。
 
 /// 媒体筛选条件
+///
+/// [tagIds] 为人工标签（可写），[vlmTags] 为服务端 AI 标签（只读）。
+/// 两者物理隔离、互不覆盖，同时在筛选条件里出现时取交集。
 class ImmichFilter {
   final List<String> tagIds;
   final bool includeDescendants;
   final bool untagged;
   final bool includeDeleted;
+  final List<String> vlmTags;
 
   const ImmichFilter({
     this.tagIds = const [],
     this.includeDescendants = true,
     this.untagged = false,
     this.includeDeleted = false,
+    this.vlmTags = const [],
   });
 
   ImmichFilter copyWith({
@@ -30,12 +37,14 @@ class ImmichFilter {
     bool? includeDescendants,
     bool? untagged,
     bool? includeDeleted,
+    List<String>? vlmTags,
   }) {
     return ImmichFilter(
       tagIds: tagIds ?? this.tagIds,
       includeDescendants: includeDescendants ?? this.includeDescendants,
       untagged: untagged ?? this.untagged,
       includeDeleted: includeDeleted ?? this.includeDeleted,
+      vlmTags: vlmTags ?? this.vlmTags,
     );
   }
 
@@ -46,11 +55,18 @@ class ImmichFilter {
       other.includeDeleted == includeDeleted &&
       other.includeDescendants == includeDescendants &&
       other.tagIds.length == tagIds.length &&
-      other.tagIds.every(tagIds.contains);
+      other.tagIds.every(tagIds.contains) &&
+      other.vlmTags.length == vlmTags.length &&
+      other.vlmTags.every(vlmTags.contains);
 
   @override
-  int get hashCode =>
-      Object.hash(Object.hashAll(tagIds), includeDescendants, untagged, includeDeleted);
+  int get hashCode => Object.hash(
+        Object.hashAll(tagIds),
+        includeDescendants,
+        untagged,
+        includeDeleted,
+        Object.hashAll(vlmTags),
+      );
 }
 
 /// 筛选条件 Provider
@@ -78,6 +94,15 @@ class ImmichFilterNotifier extends _$ImmichFilterNotifier {
       state = state.copyWith(includeDeleted: value);
 
   void clearTags() => state = state.copyWith(tagIds: const []);
+
+  /// 选中/取消单个 AI 标签（只读数据，仅参与筛选）
+  void toggleVlmTag(String tag) {
+    final next = [...state.vlmTags];
+    if (!next.remove(tag)) next.add(tag);
+    state = state.copyWith(vlmTags: next);
+  }
+
+  void clearVlmTags() => state = state.copyWith(vlmTags: const []);
 
   void reset() => state = const ImmichFilter();
 }
@@ -116,6 +141,18 @@ class ImmichMediaPage {
 }
 
 const int _kPageSize = 60;
+
+/// AI 标签清单（只读，用于筛选）。
+///
+/// 依赖稳定，故用普通 Provider 而非代码生成。AI 层未初始化、未连接或尚未产出
+/// VLM 标签时返回空列表——页面据此隐藏 AI 标签入口，而不是抛错打断整个相册页。
+final immichAiTagsProvider = FutureProvider<List<AiTagCount>>((ref) async {
+  try {
+    return await ref.watch(aiApiProvider).fetchTags();
+  } catch (_) {
+    return const <AiTagCount>[];
+  }
+});
 
 /// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
 @riverpod
@@ -173,6 +210,7 @@ class ImmichMedia extends _$ImmichMedia {
       includeDescendants: filter.includeDescendants,
       untagged: filter.untagged,
       includeDeleted: filter.includeDeleted,
+      vlmTags: filter.vlmTags,
       limit: limit,
       offset: offset,
     );

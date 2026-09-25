@@ -10,7 +10,6 @@ package ai
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -21,20 +20,15 @@ import (
 
 	"monarch/internal/config"
 	"monarch/internal/repository/ai_repo"
-	"monarch/internal/service/db"
 )
-
-// ErrNotReady AI 层不可用（schema 未初始化或未启用）。
-var ErrNotReady = errors.New("AI 处理层未就绪")
 
 // Default 全局引擎实例（由 cmd 装配后赋值，供 handler 使用）。
 var Default *Engine
 
 // MediaItem 一个待处理的媒体文件。
 type MediaItem struct {
-	MediaID  string
-	Path     string // 用于 AI 推理的绝对路径（优先预览图）
-	MimeType string
+	MediaID string
+	Path    string // 用于 AI 推理的绝对路径（优先预览图）
 }
 
 // Engine AI 处理层门面：进程监管 + 任务队列 + 检索索引 + 分组。
@@ -51,7 +45,6 @@ type Engine struct {
 	index   *Index
 	cluster *Clusterer
 
-	mu       sync.Mutex
 	wake     chan struct{}
 	cancel   context.CancelFunc
 	stopOnce sync.Once
@@ -68,9 +61,6 @@ type Engine struct {
 	paused atomic.Bool
 	// clusterRun 串行化重新聚类操作
 	clusterRun sync.Mutex
-	// warnAt 对不可用能力的日志做节流
-	warnMu sync.Mutex
-	warnAt map[string]time.Time
 
 	// "尚无产物"统计的缓存（整表扫描，不能每次状态轮询都算；异步刷新）
 	missingMu          sync.Mutex
@@ -92,17 +82,16 @@ type RunInfo struct {
 // New 构建引擎（不启动任何外部进程）。
 func New(cfg config.AiConfig) *Engine {
 	e := &Engine{
-		cfg:    cfg,
-		wake:   make(chan struct{}, 1),
-		index:  NewIndex(cfg.EmbedModel),
-		warnAt: map[string]time.Time{},
+		cfg:   cfg,
+		wake:  make(chan struct{}, 1),
+		index: NewIndex(cfg.EmbedModel),
 	}
 	e.embed = NewSidecar("embed", cfg)
 	e.text = NewSidecar("embed_text", cfg)
 	e.face = NewSidecar("face", cfg)
 	e.ocr = NewSidecar("ocr", cfg)
 	e.ollama = NewOllama(cfg)
-	e.cluster = NewClusterer(cfg.EmbedModel)
+	e.cluster = NewClusterer()
 	return e
 }
 
@@ -133,10 +122,10 @@ func (e *Engine) Start() {
 	for _, s := range e.sidecars() {
 		go s.supervise(ctx, e.cfg.IdleTimeout)
 	}
-	go e.ollama.supervise(ctx, e.cfg.IdleTimeout)
+	go e.ollama.supervise(ctx, e.cfg.OllamaIdle)
 
-	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 空闲退出=%s）",
-		e.cfg.Workers, e.cfg.BatchSize, e.cfg.IdleTimeout)
+	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s）",
+		e.cfg.Workers, e.cfg.BatchSize, e.cfg.IdleTimeout, e.cfg.OllamaIdle)
 }
 
 // Stop 停止全部后台循环并回收外部进程（服务退出时调用）。
@@ -151,9 +140,6 @@ func (e *Engine) Stop() {
 		e.ollama.Shutdown()
 	})
 }
-
-// Enabled 报告 AI 层是否已启用并完成启动。
-func (e *Engine) Enabled() bool { return e.started }
 
 // Wake 唤醒 worker 立即检查队列（入队后调用，避免等待轮询间隔）。
 func (e *Engine) Wake() {
@@ -231,11 +217,7 @@ func (e *Engine) resolveItems(mediaIDs []string) ([]MediaItem, []string, error) 
 			missing = append(missing, asset.ID.String())
 			continue
 		}
-		mime := ""
-		if asset.MimeType != nil {
-			mime = *asset.MimeType
-		}
-		items = append(items, MediaItem{MediaID: asset.ID.String(), Path: path, MimeType: mime})
+		items = append(items, MediaItem{MediaID: asset.ID.String(), Path: path})
 	}
 	return items, missing, nil
 }
@@ -260,6 +242,3 @@ func (e *Engine) LastRun() *RunInfo {
 	copied := *e.lastRun
 	return &copied
 }
-
-// DBStats 返回数据库连接可用性（供 status 展示）。
-func (e *Engine) DBStats() bool { return db.GetPool() != nil }

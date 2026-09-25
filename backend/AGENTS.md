@@ -12,24 +12,22 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
   `comix` schema 的表由 comix 项目自行建表与维护，本项目只读写。
 - **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长，供画廊剪辑页使用。
 - **AI 媒体处理层**（`internal/service/ai/` + `internal/repository/ai_repo/` + `handler/ai_handler/`）：
-  按需拉起、空闲退出的本地 AI 能力，逐步平替 Immich。数据全部落在独立的 `ai` schema
+  按需拉起、空闲退出的本地 AI 能力。数据全部落在独立的 `ai` schema
   （`references/db/ai.sql`，回滚见 `ai_rollback.sql`），不修改其它 schema。
   - `phash`：纯 Go 感知哈希（对预览图算 DCT pHash），无外部进程。
   - `embed` / `face` / `ocr`：Python 侧车（`tools/ai/`）批量处理，一个能力一个进程，
-    空闲 `AI_IDLE_TIMEOUT` 秒后自动退出释放内存。
-  - `vlm`：调用本机 Ollama，请求带 `keep_alive=0`，出结果即卸载模型；用户已在运行的
-    Ollama 应用直接复用，只有服务未启动时才由本服务自拉 `ollama serve`（此时靠
-    `OLLAMA_MODELS` 指向同一个模型库，否则实例会去找空目录）。
+    空闲 `AI_IDLE_TIMEOUT` 秒后自动退出释放内存。侧车进程降为 **BelowNormal** 优先级
+    （`priority_windows.go`）：批处理与前台 UI 争抢 CPU 时让出调度优先权。
+  - `vlm`：调用本机 Ollama，**不传 `keep_alive`**（沿用 Ollama 默认：无请求 5 分钟后卸载模型）；用户已在运行的 Ollama 应用直接复用，只有服务未启动时才由本服务自拉 `ollama serve`（自拉的实例同样降到 BelowNormal，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收；此时靠 `OLLAMA_MODELS` 指向同一个模型库，
+    否则实例会去找空目录）。
   - 任务队列持久化在 `ai.jobs`，支持失败重试、批次超时、暂停/继续与进度查询；
     入库自动触发由 reconcile 循环（`EnqueueMissing`）实现，幂等自愈。
   - 检索不需要 pgvector：向量 int8 量化存 `ai.embeddings`，Go 侧内存精确扫描。
-  - 向量模型必须是**多语种分词器**版本（默认 SigLIP 2）；SigLIP 1 的 3.2 万词表不支持
-    中文，中文查询会整体退化成 `<unk>`，语义搜索静默失效。
+  - 向量模型必须是**多语种分词器**版本（默认 SigLIP 2）。
 
 ### 技术栈
 
-Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁）。
-Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
+Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
 
 ### 快速启动
 
@@ -41,10 +39,11 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 ### 环境变量 (.env)
 
 `LOCAL_PORT`, `LOCAL_DEBUG_PORT`, `STATIC_DIR`, `GALLERY_DIR`, `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`,
-`API_KEY_SERVER`, `API_KEY_IMMICH`；comix 集成可选 `COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`。
+`API_KEY_SERVER`；comix 集成可选 `COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`。
 AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR_DIR`, `AI_IDLE_TIMEOUT`,
 `AI_BATCH_SIZE`, `AI_JOB_TIMEOUT`, `AI_MAX_ATTEMPTS`, `AI_WORKERS`, `AI_EMBED_MODEL`, `AI_AUTO_CAPS`
-(`none`/`off` = 关闭入库自动处理), `OLLAMA_URL`, `OLLAMA_VLM_MODEL`, `OLLAMA_MODELS`, `OLLAMA_EXE`。
+(`none`/`off` = 关闭入库自动处理), `OLLAMA_URL`, `OLLAMA_VLM_MODEL`, `OLLAMA_MODELS`, `OLLAMA_EXE`,
+`OLLAMA_IDLE_TIMEOUT`（自拉 ollama serve 的空闲回收秒数，默认 360，需大于模型的 keep_alive）。
 
 ### API 概览
 
@@ -55,12 +54,16 @@ AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR
 | `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Desktop 端主用） |
 | `/API/gallery` | `GET /batch`, `GET /overview`, `GET /:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
 | `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
-| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换 |
+| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）——**不传该参数时完全不触及 `ai` schema**，未初始化 AI 层的部署不受影响 |
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
 | `/API/ai` | `GET /status`, `GET /jobs`, `POST /enqueue\|retry\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态、队列与进度、入队/重试、暂停与继续、模型进程启停、自动处理开关（`cancel` 会中断当前批次并暂停队列，`resume` 恢复） |
-| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates` | 检索：文本搜图、以图搜图、组合筛选、近重复分组 |
+| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `GET /tags` | 检索：文本搜图、以图搜图、组合筛选、近重复分组、AI 标签清单（含出现次数） |
 | `/API/ai` | `GET /persons`, `GET /persons/:id/faces`, `PATCH/DELETE /persons/:id`, `POST /persons/merge\|faces/assign\|recluster` | 人物分组：改名/删除/合并/人工纠正/重新聚类 |
-| `/api/*` | 所有方法 | Immich 反向代理 |
+
+`GET /API/ai/search` 的检索方式（`mode`）：`auto`（默认，有文本走语义并对关键词命中加权）、
+`semantic`、`keyword`（只匹配 OCR/描述/AI 关键词）、`filename`（只匹配文件路径，可用扩展名过滤）。
+结构筛选：`tag_ids`（人工标签）、`vlm_tags`（AI 标签，只读，与人工标签物理隔离）、
+`person_ids`、`mime_type`、`from`/`to`。非法的 `tag_ids`/`person_ids` 返回 400 而不是 500。
 
 ### 验收
 

@@ -1,7 +1,7 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-09-25T14:28:53Z
-- TotalRoutes: 77
+- GeneratedAt: 2026-09-25T23:01:51Z
+- TotalRoutes: 78
 
 | Method | Path |
 | --- | --- |
@@ -29,6 +29,7 @@
 | PUT | /API/ai/settings |
 | GET | /API/ai/similar/:id |
 | GET | /API/ai/status |
+| GET | /API/ai/tags |
 | GET | /API/comic/chapter-info/:chapter-id |
 | GET | /API/comic/comic-info |
 | DELETE | /API/comic/comic-info/:comic-id |

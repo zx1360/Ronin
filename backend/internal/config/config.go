@@ -53,9 +53,10 @@ type AiConfig struct {
 	Workers     int           // 并发批次上限
 	EmbedModel  string        // SigLIP 模型标识
 	OllamaURL   string
-	OllamaVLM   string   // VLM 模型名
-	OllamaExe   string   // 留空则从 PATH 探测；用于按需拉起 ollama serve
-	AutoCaps    []string // 入库后自动入队的能力（数据库 ai.settings 可覆盖）
+	OllamaVLM   string        // VLM 模型名
+	OllamaIdle  time.Duration // 自拉的 ollama serve 空闲多久后回收（应大于模型 keep_alive）
+	OllamaExe   string        // 留空则从 PATH 探测；用于按需拉起 ollama serve
+	AutoCaps    []string      // 入库后自动入队的能力（数据库 ai.settings 可覆盖）
 }
 
 // IsLocalMode 运行模式：true=本地开发(HTTP+免鉴权)
@@ -119,6 +120,9 @@ func loadAiConfig() {
 	AiConf.EmbedModel = envString("AI_EMBED_MODEL", "siglip2-base-patch16-224")
 	AiConf.OllamaURL = strings.TrimRight(envString("OLLAMA_URL", "http://127.0.0.1:11434"), "/")
 	AiConf.OllamaVLM = envString("OLLAMA_VLM_MODEL", "qwen2.5vl:7b")
+	// 默认 6 分钟：略大于 Ollama 自身的 5 分钟模型 keep_alive，
+	// 避免"模型还没卸载我们就先把服务杀了"导致反复重载。
+	AiConf.OllamaIdle = envSeconds("OLLAMA_IDLE_TIMEOUT", 360)
 	AiConf.OllamaExe = strings.TrimSpace(os.Getenv("OLLAMA_EXE"))
 	AiConf.AutoCaps = parseAutoCaps(envString("AI_AUTO_CAPS", "phash,embed,face,ocr"))
 }

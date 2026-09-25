@@ -347,6 +347,14 @@ func FetchMediaAssetsByQuery(params model.MediaQueryParams) ([]model.MediaAsset,
 		conditions = append(conditions,
 			"NOT EXISTS (SELECT 1 FROM gallery.media_tag_links l WHERE l.media_id = m.id)")
 	}
+	// AI 标签筛选为可选路径：不传 vlm_tags 时完全不触及 ai schema，
+	// 未初始化 AI 层的部署不会因此查询报错。
+	if tags := parseTextList(params.VLMTags); len(tags) > 0 {
+		conditions = append(conditions, fmt.Sprintf(
+			`EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id AND a.vlm_tags && $%d)`,
+			len(args)+1))
+		args = append(args, tags)
+	}
 
 	where := "TRUE"
 	if len(conditions) > 0 {
@@ -406,6 +414,21 @@ func parseUUIDList(raw string) []uuid.UUID {
 		if id, err := uuid.Parse(part); err == nil {
 			result = append(result, id)
 		}
+	}
+	return result
+}
+
+// parseTextList 解析逗号分隔的文本列表（去空白、去重、忽略空项）
+func parseTextList(raw string) []string {
+	result := []string{}
+	seen := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" || seen[part] {
+			continue
+		}
+		seen[part] = true
+		result = append(result, part)
 	}
 	return result
 }
