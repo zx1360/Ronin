@@ -15,7 +15,7 @@ class GalleryDatabaseService {
 
   static Database? _database;
   static const String _dbName = 'gallery.db';
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -60,6 +60,11 @@ class GalleryDatabaseService {
       await db.execute(
           'ALTER TABLE media_assets ADD COLUMN edit_params TEXT DEFAULT NULL');
     }
+    if (oldVersion < 3) {
+      // 标签收藏标记: 服务端权威, 本地仅为缓存
+      await db.execute(
+          'ALTER TABLE tags ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   /// 创建表结构 - 与服务端 PostgreSQL 保持一致
@@ -95,6 +100,7 @@ class GalleryDatabaseService {
         name TEXT NOT NULL,
         parent_id TEXT,
         full_path TEXT,
+        is_favorite INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (parent_id) REFERENCES tags(id) ON DELETE CASCADE,
         UNIQUE (name, parent_id)
       )
@@ -186,6 +192,38 @@ class GalleryDatabaseService {
     );
   }
 
+  /// 批量写入服务端返回的媒体行（仅更新已存在的缓存行）
+  Future<void> updateMediaAssetsLocal(List<MediaAsset> assets) async {
+    if (assets.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+    for (final asset in assets) {
+      batch.update(
+        'media_assets',
+        asset.toDbMap(),
+        where: 'id = ?',
+        whereArgs: [asset.id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// 只更新本地已缓存媒体的某个字段（用于批量标注写入后的缓存同步）
+  Future<void> updateMediaAssetsField(
+    List<String> ids,
+    Map<String, Object?> values,
+  ) async {
+    if (ids.isEmpty || values.isEmpty) return;
+    final db = await database;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    await db.update(
+      'media_assets',
+      values,
+      where: 'id IN ($placeholders)',
+      whereArgs: ids,
+    );
+  }
+
   /// 标记媒体文件为已删除 (软删除)
   Future<void> markMediaAssetDeleted(String id, {bool deleted = true}) async {
     final db = await database;
@@ -264,40 +302,37 @@ class GalleryDatabaseService {
 
   // ============ Tag CRUD ============
 
-  /// 合并式写入标签 (批量): 只新增/更新, 绝不删除本地已有标签
+  /// 用服务端标签表镜像本地缓存（服务端权威）
   ///
-  /// 下载同步必须走这里: 服务端标签是最新副本, 但本地可能存在尚未上传的新建标签,
-  /// 全量替换会连带级联删除这些标签及其全部媒体关联 (已打的标签白打).
-  /// 按父先子后的顺序写入以满足 parent_id 外键约束.
-  Future<void> mergeTags(List<Tag> tags) async {
-    if (tags.isEmpty) return;
+  /// 先按父先子顺序写入/更新服务端返回的标签, 再删除本地多出来的标签
+  /// （其标签关联随外键级联清除）. 标签表很小, 因此每次同步都做整表镜像.
+  /// 被删除的标签会记入日志, 便于需要时人工恢复.
+  Future<void> syncTagsCache(List<Tag> serverTags) async {
     final db = await database;
-    final ordered = sortTagsByHierarchy(tags);
+    final ordered = sortTagsByHierarchy(serverTags);
+    final serverIds = {for (final tag in serverTags) tag.id};
+
+    final localOnly = [
+      for (final tag in await getAllTags())
+        if (!serverIds.contains(tag.id)) tag,
+    ];
+    if (localOnly.isNotEmpty) {
+      AppLogger().info(
+        '标签镜像: 移除服务端不存在的本地标签 ${localOnly.map((t) => t.fullPath ?? t.name).join(', ')}',
+      );
+    }
 
     await db.transaction((txn) async {
       for (final tag in ordered) {
-        try {
-          // 先确保行存在, 再用 UPDATE 覆盖字段.
-          // 不能用 INSERT OR REPLACE: 它会先删除冲突行, 从而级联删除该标签的子标签.
-          await txn.insert(
-            'tags',
-            tag.toDbMap(),
-            conflictAlgorithm: ConflictAlgorithm.ignore,
-          );
-          final updated = await txn.update(
-            'tags',
-            tag.toDbMap(),
-            where: 'id = ?',
-            whereArgs: [tag.id],
-          );
-          if (updated == 0) {
-            AppLogger().error(
-                '标签未能写入(同级同名冲突): ${tag.fullPath ?? tag.name}');
-          }
-        } catch (e) {
-          AppLogger().error('合并标签失败 ${tag.fullPath ?? tag.name}: $e');
-        }
+        await _writeTag(txn, tag);
       }
+      if (localOnly.isEmpty) return;
+      final placeholders = List.filled(localOnly.length, '?').join(',');
+      final removedIds = [for (final tag in localOnly) tag.id];
+      await txn.delete('media_tag_links',
+          where: 'tag_id IN ($placeholders)', whereArgs: removedIds);
+      await txn.delete('tags',
+          where: 'id IN ($placeholders)', whereArgs: removedIds);
     });
   }
 
@@ -323,25 +358,54 @@ class GalleryDatabaseService {
     return result;
   }
 
-  /// 插入标签 (单个)
-  ///
-  /// 不使用 INSERT OR REPLACE: 它会在同名冲突时先删除旧行,
-  /// 进而级联删除该标签已有的子标签. 同级同名直接报错由调用方提示.
-  Future<void> upsertTag(Tag tag) async {
+  /// 写入单个标签（本地缓存更新, 已存在则覆盖字段）
+  Future<void> upsertTagLocal(Tag tag) async {
     final db = await database;
-    final existing = await db.query(
+    await db.transaction((txn) => _writeTag(txn, tag));
+  }
+
+  /// 批量写入标签（父先子后, 用于服务端返回的列表）
+  Future<void> upsertTagsLocal(List<Tag> tags) async {
+    if (tags.isEmpty) return;
+    final db = await database;
+    final ordered = sortTagsByHierarchy(tags);
+    await db.transaction((txn) async {
+      for (final tag in ordered) {
+        await _writeTag(txn, tag);
+      }
+    });
+  }
+
+  /// 写入标签行（INSERT OR IGNORE + UPDATE, 避免 REPLACE 级联删除子标签）
+  Future<void> _writeTag(DatabaseExecutor txn, Tag tag) async {
+    await txn.insert(
       'tags',
-      columns: ['id'],
-      where: tag.parentId == null
-          ? 'name = ? AND parent_id IS NULL'
-          : 'name = ? AND parent_id = ?',
-      whereArgs:
-          tag.parentId == null ? [tag.name] : [tag.name, tag.parentId],
+      tag.toDbMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
-    if (existing.isNotEmpty) {
-      throw StateError('同级已存在同名标签「${tag.name}」');
-    }
-    await db.insert('tags', tag.toDbMap());
+    await txn.update(
+      'tags',
+      tag.toDbMap(),
+      where: 'id = ?',
+      whereArgs: [tag.id],
+    );
+  }
+
+  /// 从本地缓存删除标签（含子孙与关联）
+  Future<List<String>> deleteTagLocal(String tagId) async {
+    final db = await database;
+    return await db.transaction((txn) async {
+      final allTagIds = await _collectDescendantTagIds(txn, tagId);
+      allTagIds.add(tagId);
+      for (final tid in allTagIds) {
+        await txn.delete('media_tag_links',
+            where: 'tag_id = ?', whereArgs: [tid]);
+      }
+      for (final tid in allTagIds) {
+        await txn.delete('tags', where: 'id = ?', whereArgs: [tid]);
+      }
+      return allTagIds;
+    });
   }
 
   /// 获取所有标签
@@ -386,32 +450,6 @@ class GalleryDatabaseService {
     final db = await database;
     final maps = await db.rawQuery('SELECT DISTINCT media_id FROM media_tag_links');
     return maps.map((m) => m['media_id'] as String).toSet();
-  }
-
-  /// 删除标签 (级联删除子标签和关联), 返回被删除的全部标签 ID (含子孙)
-  /// 
-  /// 通过事务显式处理：先收集所有受影响的标签 ID（含子孙），
-  /// 再删除关联的 media_tag_links，最后删除标签本身。
-  /// 不依赖 SQLite PRAGMA foreign_keys 的 CASCADE 行为。
-  Future<List<String>> deleteTag(String tagId) async {
-    final db = await database;
-    return await db.transaction((txn) async {
-      // 1. 递归收集所有子孙标签 ID
-      final allTagIds = await _collectDescendantTagIds(txn, tagId);
-      allTagIds.add(tagId);
-      
-      // 2. 删除所有关联的 media_tag_links
-      for (final tid in allTagIds) {
-        await txn.delete('media_tag_links', where: 'tag_id = ?', whereArgs: [tid]);
-      }
-      
-      // 3. 删除所有标签（从叶子到根，避免外键约束在事务中报错）
-      for (final tid in allTagIds) {
-        await txn.delete('tags', where: 'id = ?', whereArgs: [tid]);
-      }
-
-      return allTagIds;
-    });
   }
 
   /// 递归收集标签的所有子孙 ID（不包含自身）
@@ -526,11 +564,80 @@ class GalleryDatabaseService {
     });
   }
 
+  /// 批量增删媒体的标签关联（与服务端批量操作保持一致）
+  Future<void> addRemoveMediaTagLinks(    List<String> mediaIds, {
+    List<String> addTagIds = const [],
+    List<String> removeTagIds = const [],
+  }) async {
+    if (mediaIds.isEmpty) return;
+    // 未缓存的媒体写关联会触发外键约束
+    final cached = await getCachedMediaIds(mediaIds);
+    if (cached.isEmpty) return;
+
+    final db = await database;
+    final placeholders = List.filled(cached.length, '?').join(',');
+    await db.transaction((txn) async {
+      if (removeTagIds.isNotEmpty) {
+        final tagPlaceholders = List.filled(removeTagIds.length, '?').join(',');
+        await txn.rawDelete(
+          'DELETE FROM media_tag_links WHERE media_id IN ($placeholders) AND tag_id IN ($tagPlaceholders)',
+          [...cached, ...removeTagIds],
+        );
+      }
+      for (final mediaId in cached) {
+        for (final tagId in addTagIds) {
+          await txn.insert(
+            'media_tag_links',
+            {'media_id': mediaId, 'tag_id': tagId},
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+      }
+    });
+  }
+
   /// 获取所有媒体-标签关联
   Future<List<MediaTagLink>> getAllMediaTagLinks() async {
     final db = await database;
     final maps = await db.query('media_tag_links');
     return maps.map((m) => MediaTagLink.fromDbMap(m)).toList();
+  }
+
+  /// 用服务端结果整批覆盖若干媒体的标签关联（仅处理本地已缓存的媒体）
+  Future<void> replaceTagsForMediaBatch(
+    Map<String, List<String>> tagIdsByMedia,
+  ) async {
+    if (tagIdsByMedia.isEmpty) return;
+    final db = await database;
+    final mediaIds = tagIdsByMedia.keys.toList();
+    final cached = await getCachedMediaIds(mediaIds);
+    if (cached.isEmpty) return;
+
+    await db.transaction((txn) async {
+      for (final mediaId in cached) {
+        await txn.delete('media_tag_links',
+            where: 'media_id = ?', whereArgs: [mediaId]);
+        for (final tagId in tagIdsByMedia[mediaId] ?? const <String>[]) {
+          await txn.insert(
+            'media_tag_links',
+            {'media_id': mediaId, 'tag_id': tagId},
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+      }
+    });
+  }
+
+  /// 过滤出本地已缓存的媒体 ID（避免写关联时触发外键约束）
+  Future<List<String>> getCachedMediaIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final db = await database;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    final maps = await db.rawQuery(
+      'SELECT id FROM media_assets WHERE id IN ($placeholders)',
+      ids,
+    );
+    return [for (final m in maps) m['id'] as String];
   }
 
   /// 获取关联记录总数

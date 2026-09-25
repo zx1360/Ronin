@@ -102,16 +102,22 @@ func SetupRouter() *gin.Engine {
 		// 媒体浏览相关
 		galleryGroup := api.Group("/gallery")
 		{
-			// 获取一批次的媒体资产 + 全量标签 + 对应的标签关联
-			galleryGroup.GET("/batch", gallery_handler.FetchBatch)
-			// 获取完整标签树
+			// 标签树与标签写操作（服务端权威）
 			galleryGroup.GET("/tags", gallery_handler.FetchAllTags)
+			galleryGroup.POST("/tags", gallery_handler.CreateTag)
+			galleryGroup.PUT("/tags/:id", gallery_handler.UpdateTag)
+			galleryGroup.DELETE("/tags/:id", gallery_handler.DeleteTag)
+			// 媒体查询与媒体标注/标签关系操作
+			galleryGroup.GET("/media", gallery_handler.QueryMedia)
+			galleryGroup.PATCH("/media", gallery_handler.PatchMedia)
+			galleryGroup.POST("/media/tags", gallery_handler.BatchMediaTags)
+			galleryGroup.PUT("/media/:id/tags", gallery_handler.SetMediaTags)
+			// 获取一批次的媒体资产 + 全量标签 + 对应的标签关联（客户端本地缓存下载）
+			galleryGroup.GET("/batch", gallery_handler.FetchBatch)
 			// 获取服务端媒体库总览统计
 			galleryGroup.GET("/overview", gallery_handler.FetchOverview)
 			// 下载文件接口
 			galleryGroup.GET("/:id/:type", gallery_handler.FetchMediaAsset)
-			// 客户端推送数据
-			galleryGroup.POST("/push", gallery_handler.Push)
 		}
 
 		// 工具api

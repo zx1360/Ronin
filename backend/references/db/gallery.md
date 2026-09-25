@@ -36,16 +36,19 @@
 
 ## tags
 
-| 列         | 类型                                                      |
-| ---------- | --------------------------------------------------------- |
-| id         | UUID PRIMARY KEY                                          |
-| created_at | TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP            |
-| updated_at | TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP (自动更新) |
-| name       | TEXT NOT NULL                                             |
-| parent_id  | UUID DEFAULT NULL FK→tags                                 |
-| full_path  | TEXT (自动计算，格式：父路径/name)                        |
+| 列          | 类型                                                      |
+| ----------- | --------------------------------------------------------- |
+| id          | UUID PRIMARY KEY                                          |
+| created_at  | TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP            |
+| updated_at  | TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP (自动更新) |
+| name        | TEXT NOT NULL                                             |
+| parent_id   | UUID DEFAULT NULL FK→tags                                 |
+| full_path   | TEXT (自动计算，格式：父路径/name)                        |
+| is_favorite | BOOLEAN NOT NULL DEFAULT FALSE (快捷标签标记)             |
 
 - 唯一约束：(name, parent_id) 不允许同名同级标签
+- 删除标签级联删除子孙标签与媒体标签关联
+- 标签写操作一律走 `/API/gallery/tags`（服务端权威），客户端本地表仅作缓存
 
 ## media_tag_links
 

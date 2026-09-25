@@ -8,6 +8,7 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
@@ -152,8 +153,8 @@ class GallerySyncService extends _$GallerySyncService {
       state = state.copyWith(message: '正在保存数据...');
       
       await db.upsertMediaAssets(assets);
-      // 合并式写入: 本地未上传的新建标签不会被服务端数据覆盖删除
-      await db.mergeTags(tags);
+      // 标签以服务端为权威, 整表镜像到本地缓存
+      await db.syncTagsCache(tags);
       if (links.isNotEmpty) {
         await db.upsertMediaTagLinks(links);
       }
@@ -280,9 +281,13 @@ class GallerySyncService extends _$GallerySyncService {
     }
   }
 
-  /// 上传本地数据到服务端
-  /// 上传当前媒体及其前面的所有媒体数据，然后清理已上传的记录
-  Future<bool> uploadData() async {
+  /// 标记已处理并清理本地缓存
+  ///
+  /// 标签/标注都已通过操作接口写入服务端, 这里只:
+  /// 1. 把 `0..currentIndex` 的媒体标记为已处理（服务端 sync_count + 1, 作为批次游标,
+  ///    使已处理媒体排到队尾）;
+  /// 2. 删除这批媒体的本地记录与缩略图/预览图, 腾出空间下载下一批.
+  Future<bool> markProcessedAndClean() async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
       return false;
@@ -291,7 +296,7 @@ class GallerySyncService extends _$GallerySyncService {
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
-    final apiClient = ref.read(apiClientManagerProvider);
+    final api = ref.read(galleryApiProvider);
 
     try {
       state = const SyncProgress(
@@ -299,80 +304,66 @@ class GallerySyncService extends _$GallerySyncService {
         message: '正在准备数据...',
       );
 
-      // 1. 获取当前索引位置
       final currentIndex = ref.read(galleryCurrentIndexProvider);
-      
-      // 2. 获取部分本地数据 (0 到 currentIndex 位置的媒体及其组成员)
+
+      // 1. 取队列中 0..currentIndex 的媒体及其组成员
       final data = await db.getPartialDataForUpload(currentIndex);
-      
       if (data.assets.isEmpty) {
         state = const SyncProgress(
           status: SyncStatus.success,
-          message: '没有数据需要上传',
+          message: '没有需要标记的媒体',
         );
         return true;
       }
 
       state = state.copyWith(
-        message: '正在上传数据...',
+        message: '正在标记已处理...',
         total: data.assets.length,
       );
 
-      // 2. 构建上传数据 (直接使用 toJson)
-      final uploadPayload = BatchData(
-        medias: data.assets,
-        tags: data.tags,
-        links: data.links,
+      final mediaIds = data.assets.map((a) => a.id).toList();
+
+      // 2. 服务端标记已处理（游标推进）
+      await api.patchMedia(
+        mediaIds: mediaIds,
+        intent: const MediaPatchIntent(markProcessed: true),
       );
 
-      // 3. 发送到服务端 (使用 postJson 直接发送 JSON body)
-      final response = await apiClient.postJson(
-        "/API/gallery/push",
-        data: uploadPayload.toJson(),
-        cancelToken: _cancelToken,
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('服务器响应错误: ${response.statusCode}');
-      }
-
-      // 4. 服务端确认成功，先更新 UI 状态
       state = SyncProgress(
         status: SyncStatus.success,
-        message: '成功上传 ${data.assets.length} 条记录',
-        current: data.assets.length,
-        total: data.assets.length,
+        message: '已处理 ${mediaIds.length} 条记录',
+        current: mediaIds.length,
+        total: mediaIds.length,
       );
 
-      // 5. 删除已上传的数据库记录 (部分删除，非全量清空)
-      final uploadedMediaIds = data.assets.map((a) => a.id).toList();
-      await db.deleteUploadedData(uploadedMediaIds);
-
-      // 6. 重置状态到 0
+      // 3. 删除本地记录与文件
+      await db.deleteUploadedData(mediaIds);
       await ref.read(galleryModifiedCountProvider.notifier).reset();
       await ref.read(galleryCurrentIndexProvider.notifier).update(0);
-      
-      // 7. 刷新数据（先 invalidate，再 await 确保重新加载完成）
+
       ref.invalidate(mediaAssetListProvider);
       ref.invalidate(tagTreeProvider);
       ref.invalidate(mediaIdsWithTagsProvider);
       await ref.read(mediaAssetListProvider.future);
 
-      // 8. 后台静默删除本地缩略图和预览图文件 (不阻塞 UI)
       _deleteLocalFilesInBackground(data.assets, storage);
 
-      AppLogger().info('Gallery 上传完成: ${data.assets.length} 条记录');
+      AppLogger().info('Gallery 标记已处理: ${mediaIds.length} 条记录');
       return true;
+    } on ApiException catch (e) {
+      state = SyncProgress(status: SyncStatus.error, error: e.message);
+      AppLogger().error('Gallery 标记已处理失败: ${e.message}');
+      return false;
     } on DioException catch (e) {
       final errorMsg = e.type == DioExceptionType.cancel
-          ? '上传已取消'
+          ? '操作已取消'
           : '网络错误: ${e.message}';
       state = SyncProgress(status: SyncStatus.error, error: errorMsg);
-      AppLogger().error('Gallery 上传失败: $errorMsg');
+      AppLogger().error('Gallery 标记已处理失败: $errorMsg');
       return false;
     } catch (e) {
       state = SyncProgress(status: SyncStatus.error, error: e.toString());
-      AppLogger().error('Gallery 上传失败: $e');
+      AppLogger().error('Gallery 标记已处理失败: $e');
       return false;
     } finally {
       _cancelToken = null;

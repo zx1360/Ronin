@@ -24,10 +24,11 @@ final nextMediaAssetProvider = AutoDisposeProvider<MediaAsset?>.internal(
 );
 
 typedef NextMediaAssetRef = AutoDisposeProviderRef<MediaAsset?>;
-String _$mediaAssetListHash() => r'6ebe591e5df8e8f758e88121e36796517130f7a9';
+String _$mediaAssetListHash() => r'4c2cf29a3e8292d98d035506fba19fdd3662d6f7';
 
 /// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
-/// 统一使用这个列表，索引保持稳定
+///
+/// 本地缓存供离线浏览; 标注修改乐观作用于本地并后台推送服务端。
 ///
 /// Copied from [MediaAssetList].
 @ProviderFor(MediaAssetList)
@@ -43,7 +44,7 @@ final mediaAssetListProvider =
 );
 
 typedef _$MediaAssetList = AutoDisposeAsyncNotifier<List<MediaAsset>>;
-String _$currentMediaAssetHash() => r'2a16b351f4450c81be427cff277ca0862015e9be';
+String _$currentMediaAssetHash() => r'a3b72d2cec632333d298b5b528714e706e269c99';
 
 /// 当前媒体文件 Provider
 /// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）

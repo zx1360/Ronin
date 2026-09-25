@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -96,12 +97,15 @@ type MediaAsset struct {
 
 // Tag 对应数据库的 tags 表（树状结构）
 type Tag struct {
-	ID        uuid.UUID  `json:"id"`
-	CreatedAt FlexTime   `json:"created_at"`
-	UpdatedAt FlexTime   `json:"updated_at"`
-	Name      string     `json:"name"`
-	ParentID  *uuid.UUID `json:"parent_id"`
-	FullPath  string     `json:"full_path"`
+	ID         uuid.UUID  `json:"id"`
+	CreatedAt  FlexTime   `json:"created_at"`
+	UpdatedAt  FlexTime   `json:"updated_at"`
+	Name       string     `json:"name"`
+	ParentID   *uuid.UUID `json:"parent_id"`
+	FullPath   string     `json:"full_path"`
+	IsFavorite bool       `json:"is_favorite"`
+	// MediaCount 该标签直接关联的未删除媒体数；仅 GET /api/gallery/tags 统计填充
+	MediaCount int `json:"media_count"`
 }
 
 // MediaTagLink 对应数据库的 media_tag_links 表
@@ -122,10 +126,84 @@ type TagsResponse struct {
 	Tags []Tag `json:"tags"`
 }
 
-// PushResponse /api/gallery/push 响应结构
-type PushResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+// TagCreateRequest POST /api/gallery/tags 请求结构
+type TagCreateRequest struct {
+	Name     string     `json:"name"`
+	ParentID *uuid.UUID `json:"parent_id"`
+}
+
+// TagUpdateRequest PUT /api/gallery/tags/:id 请求结构
+//
+// 字段为"缺省即不修改"：ParentID 显式传 null 表示移动到根级。
+type TagUpdateRequest struct {
+	Name       *string         `json:"name"`
+	ParentID   json.RawMessage `json:"parent_id"`
+	IsFavorite *bool           `json:"is_favorite"`
+}
+
+// TagDeleteResponse DELETE /api/gallery/tags/:id 响应结构（含被级联删除的子孙）
+type TagDeleteResponse struct {
+	DeletedIDs []uuid.UUID `json:"deleted_ids"`
+}
+
+// MediaQueryParams GET /api/gallery/media 查询参数
+type MediaQueryParams struct {
+	TagIDs             string `form:"tag_ids"`             // 逗号分隔的标签 ID, 任一命中
+	IncludeDescendants bool   `form:"include_descendants"` // 标签筛选是否包含子孙标签
+	Untagged           bool   `form:"untagged"`            // 仅返回未打标签的媒体
+	IncludeDeleted     bool   `form:"include_deleted"`     // 是否包含已软删除的媒体
+	MimeType           string `form:"mime_type"`           // image / video / image/jpeg
+	IDs                string `form:"ids"`                 // 逗号分隔的媒体 ID, 指定则只查这些
+	SortBy             string `form:"sort_by"`             // captured_at(默认) / sync_count / size_bytes / file_path
+	SortOrder          string `form:"sort_order"`          // desc(默认) / asc
+	Limit              int    `form:"limit"`               // 默认 60, 上限 1000
+	Offset             int    `form:"offset"`
+}
+
+// MediaQueryResponse GET /api/gallery/media 响应结构
+type MediaQueryResponse struct {
+	MediaAssets   []MediaAsset   `json:"media_assets"`
+	MediaTagLinks []MediaTagLink `json:"media_tag_links"`
+	Total         int            `json:"total"`
+}
+
+// MediaTagsRequest PUT /api/gallery/media/:id/tags 请求结构（全量替换该媒体的标签集合）
+type MediaTagsRequest struct {
+	TagIDs []uuid.UUID `json:"tag_ids"`
+}
+
+// MediaTagsResponse PUT /api/gallery/media/:id/tags 响应结构
+type MediaTagsResponse struct {
+	MediaID uuid.UUID   `json:"media_id"`
+	TagIDs  []uuid.UUID `json:"tag_ids"`
+}
+
+// MediaTagsBatchRequest POST /api/gallery/media/tags 请求结构（多媒体的标签增删）
+type MediaTagsBatchRequest struct {
+	MediaIDs     []uuid.UUID `json:"media_ids"`
+	AddTagIDs    []uuid.UUID `json:"add_tag_ids"`
+	RemoveTagIDs []uuid.UUID `json:"remove_tag_ids"`
+}
+
+// MediaPatchRequest PATCH /api/gallery/media 请求结构
+//
+// 除 MediaIDs 外均为"缺省即不修改"：
+//   - Message 传空串表示清空（落库为 NULL）
+//   - GroupID 传 null 表示解绑，传 UUID 表示捆绑到该主文件
+//   - EditParams 传 null 表示清除，传 JSON 字符串/对象表示设置
+//   - MarkProcessed 为 true 时 sync_count + 1（批次处理游标）
+type MediaPatchRequest struct {
+	MediaIDs      []uuid.UUID     `json:"media_ids"`
+	IsDeleted     *bool           `json:"is_deleted"`
+	Message       *string         `json:"message"`
+	GroupID       json.RawMessage `json:"group_id"`
+	EditParams    json.RawMessage `json:"edit_params"`
+	MarkProcessed bool            `json:"mark_processed"`
+}
+
+// MediaPatchResponse PATCH /api/gallery/media 响应结构（返回更新后的行, 供客户端刷新缓存）
+type MediaPatchResponse struct {
+	MediaAssets []MediaAsset `json:"media_assets"`
 }
 
 // GalleryOverview  /api/gallery/overview 响应结构

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-19T01:28:13Z",
+  "generated_at": "2026-09-25T04:28:59Z",
   "routes": [
     {
       "method": "GET",
@@ -99,15 +99,39 @@
     },
     {
       "method": "GET",
-      "path": "/API/gallery/overview"
+      "path": "/API/gallery/media"
+    },
+    {
+      "method": "PATCH",
+      "path": "/API/gallery/media"
+    },
+    {
+      "method": "PUT",
+      "path": "/API/gallery/media/:id/tags"
     },
     {
       "method": "POST",
-      "path": "/API/gallery/push"
+      "path": "/API/gallery/media/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/API/gallery/overview"
     },
     {
       "method": "GET",
       "path": "/API/gallery/tags"
+    },
+    {
+      "method": "POST",
+      "path": "/API/gallery/tags"
+    },
+    {
+      "method": "DELETE",
+      "path": "/API/gallery/tags/:id"
+    },
+    {
+      "method": "PUT",
+      "path": "/API/gallery/tags/:id"
     },
     {
       "method": "GET",
