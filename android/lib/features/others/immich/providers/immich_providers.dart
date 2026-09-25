@@ -227,8 +227,10 @@ class ImmichActions extends _$ImmichActions {
       await ref.read(immichMediaProvider.notifier).reloadKeepingLength();
       ref.read(immichSelectionProvider.notifier).clear();
       ref.invalidate(mediaIdsWithTagsProvider);
-      // 标签计数需要服务端重算
-      await ref.read(tagTreeProvider.notifier).syncFromServer();
+      // 标签计数需要服务端重算（失败不影响已完成的写操作）
+      try {
+        await ref.read(tagTreeProvider.notifier).syncFromServer();
+      } catch (_) {}
       return result;
     } finally {
       state = false;

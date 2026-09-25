@@ -38,9 +38,6 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
 | `/api/*` | 所有方法 | Immich 反向代理 |
 
-> 数据权威划分：媒体本体与标签/标签关联均以服务端为准，客户端本地仅作缓存；
-> 客户端只能通过上表的操作接口写入（幂等 PUT/PATCH/批量），不存在全量 push。
-
 ### CLI 工具 (Gizmos)
 
 详见 `references/cli/`。主要命令: Comic Indexer（`refresh`/`full-reindex`）、Gallery（`ingest`/`execute`/`refresh`）。
