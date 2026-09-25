@@ -21,7 +21,6 @@ class GalleryPrefsKeys {
   static const String downloadDay = 'gallery_download_day';
   static const String downloadSecondarySort = 'gallery_download_secondary_sort';
   static const String tagAutoApply = 'gallery_tag_auto_apply';
-  static const String favoriteTagIds = 'gallery_favorite_tag_ids';
 }
 
 /// modified_count - 记录最后一次操作的媒体文件在队列中的位置
@@ -291,50 +290,5 @@ class GalleryTagAutoApplyEnabled extends _$GalleryTagAutoApplyEnabled {
     final prefs = PrefsService().prefs;
     await prefs.setBool(GalleryPrefsKeys.tagAutoApply, enabled);
     state = enabled;
-  }
-}
-
-/// 快捷标签 ID 列表（高频使用标签，列表顺序即展示顺序）
-///
-/// 仅存 ID，标签本体仍在 tags 表；标签被删除时同步清理失效 ID.
-@Riverpod(keepAlive: true)
-class GalleryFavoriteTagIds extends _$GalleryFavoriteTagIds {
-  @override
-  List<String> build() {
-    final prefs = PrefsService().prefs;
-    return prefs.getStringList(GalleryPrefsKeys.favoriteTagIds) ?? const [];
-  }
-
-  Future<void> _save(List<String> ids) async {
-    await PrefsService().prefs
-        .setStringList(GalleryPrefsKeys.favoriteTagIds, ids);
-    state = ids;
-  }
-
-  bool isFavorite(String tagId) => state.contains(tagId);
-
-  Future<void> toggle(String tagId) async {
-    final next = [...state];
-    if (!next.remove(tagId)) next.add(tagId);
-    await _save(next);
-  }
-
-  /// 移除若干 ID（标签被删除后清理）
-  Future<void> removeMany(Iterable<String> tagIds) async {
-    final removed = tagIds.toSet();
-    if (!state.any(removed.contains)) return;
-    await _save(state.where((id) => !removed.contains(id)).toList());
-  }
-
-  /// 调整顺序, [delta] 为 -1 上移 / +1 下移
-  Future<void> move(String tagId, int delta) async {
-    final next = [...state];
-    final from = next.indexOf(tagId);
-    if (from < 0) return;
-    final to = from + delta;
-    if (to < 0 || to >= next.length) return;
-    next.removeAt(from);
-    next.insert(to, tagId);
-    await _save(next);
   }
 }

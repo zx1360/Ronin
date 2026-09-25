@@ -1,7 +1,7 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-09-19T01:28:13Z
-- TotalRoutes: 48
+- GeneratedAt: 2026-09-25T04:28:59Z
+- TotalRoutes: 54
 
 | Method | Path |
 | --- | --- |
@@ -29,9 +29,15 @@
 | POST | /API/comix/update-check |
 | GET | /API/gallery/:id/:type |
 | GET | /API/gallery/batch |
+| GET | /API/gallery/media |
+| PATCH | /API/gallery/media |
+| PUT | /API/gallery/media/:id/tags |
+| POST | /API/gallery/media/tags |
 | GET | /API/gallery/overview |
-| POST | /API/gallery/push |
 | GET | /API/gallery/tags |
+| POST | /API/gallery/tags |
+| DELETE | /API/gallery/tags/:id |
+| PUT | /API/gallery/tags/:id |
 | GET | /API/ops/overview |
 | GET | /API/test |
 | POST | /API/user-data/backup/:module |
