@@ -11,6 +11,20 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
   提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
   `comix` schema 的表由 comix 项目自行建表与维护，本项目只读写。
 - **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长，供画廊剪辑页使用。
+- **AI 媒体处理层**（`internal/service/ai/` + `internal/repository/ai_repo/` + `handler/ai_handler/`）：
+  按需拉起、空闲退出的本地 AI 能力，逐步平替 Immich。数据全部落在独立的 `ai` schema
+  （`references/db/ai.sql`，回滚见 `ai_rollback.sql`），不修改其它 schema。
+  - `phash`：纯 Go 感知哈希（对预览图算 DCT pHash），无外部进程。
+  - `embed` / `face` / `ocr`：Python 侧车（`tools/ai/`）批量处理，一个能力一个进程，
+    空闲 `AI_IDLE_TIMEOUT` 秒后自动退出释放内存。
+  - `vlm`：调用本机 Ollama，请求带 `keep_alive=0`，出结果即卸载模型；用户已在运行的
+    Ollama 应用直接复用，只有服务未启动时才由本服务自拉 `ollama serve`（此时靠
+    `OLLAMA_MODELS` 指向同一个模型库，否则实例会去找空目录）。
+  - 任务队列持久化在 `ai.jobs`，支持失败重试、批次超时、暂停/继续与进度查询；
+    入库自动触发由 reconcile 循环（`EnqueueMissing`）实现，幂等自愈。
+  - 检索不需要 pgvector：向量 int8 量化存 `ai.embeddings`，Go 侧内存精确扫描。
+  - 向量模型必须是**多语种分词器**版本（默认 SigLIP 2）；SigLIP 1 的 3.2 万词表不支持
+    中文，中文查询会整体退化成 `<unk>`，语义搜索静默失效。
 
 ### 技术栈
 
@@ -28,6 +42,9 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 
 `LOCAL_PORT`, `LOCAL_DEBUG_PORT`, `STATIC_DIR`, `GALLERY_DIR`, `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`,
 `API_KEY_SERVER`, `API_KEY_IMMICH`；comix 集成可选 `COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`。
+AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR_DIR`, `AI_IDLE_TIMEOUT`,
+`AI_BATCH_SIZE`, `AI_JOB_TIMEOUT`, `AI_MAX_ATTEMPTS`, `AI_WORKERS`, `AI_EMBED_MODEL`, `AI_AUTO_CAPS`
+(`none`/`off` = 关闭入库自动处理), `OLLAMA_URL`, `OLLAMA_VLM_MODEL`, `OLLAMA_MODELS`, `OLLAMA_EXE`。
 
 ### API 概览
 
@@ -40,6 +57,9 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 | `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
 | `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换 |
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
+| `/API/ai` | `GET /status`, `GET /jobs`, `POST /enqueue\|retry\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态、队列与进度、入队/重试、暂停与继续、模型进程启停、自动处理开关（`cancel` 会中断当前批次并暂停队列，`resume` 恢复） |
+| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates` | 检索：文本搜图、以图搜图、组合筛选、近重复分组 |
+| `/API/ai` | `GET /persons`, `GET /persons/:id/faces`, `PATCH/DELETE /persons/:id`, `POST /persons/merge\|faces/assign\|recluster` | 人物分组：改名/删除/合并/人工纠正/重新聚类 |
 | `/api/*` | 所有方法 | Immich 反向代理 |
 
 ### 验收
@@ -59,6 +79,9 @@ powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
 
 表定义及触发器见 `references/db/init.sql`（gallery 与 user_data，幂等可重复执行）；
 索引见 `AGENTS_DB.md`，分模块明细见 `references/db/`。
+AI 层单独执行 `references/db/ai.sql`（只新增 `ai` schema，幂等）；
+整体回滚执行 `references/db/ai_rollback.sql`（`DROP SCHEMA ai CASCADE`，不动其它数据）。
+AI 侧车依赖安装：`powershell -File tools/ai/install.ps1`（详见 `tools/ai/README.md`）。
 
 ### 硬性要求
 

@@ -1,12 +1,12 @@
 ﻿# CLI Help Snapshot
 
-- GeneratedAt: 2026-09-25T18:48:44+08:00
+- GeneratedAt: 2026-09-25T22:28:57+08:00
 - WorkingDir: D:\products\Ronin\backend\gizmos
 - Command: go run ./cmd/gallery -h
 - ExitCode: 0
 
 ```text
-Usage of C:\Users\PUZZLE~1\AppData\Local\Temp\go-build907343600\b001\exe\gallery.exe:
+Usage of C:\Users\puzzledAx\AppData\Local\go-build\61\611b14b1d618d3911db4fa58b3bf9ddcc2b7402c05f9ba75a2029201a087fbcb-d\gallery.exe:
   -batch int
     	批量写入大小 (default 160)
   -concurrency int

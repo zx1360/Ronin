@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
+	"monarch/internal/handler/ai_handler"
 	"monarch/internal/handler/comic_handler"
 	"monarch/internal/handler/comix_handler"
 	"monarch/internal/handler/data_handler"
@@ -123,6 +124,39 @@ func SetupRouter() *gin.Engine {
 		// 工具api
 		api.GET("/test", util_handler.Test) // 免鉴权
 		api.GET("/ops/overview", util_handler.SystemOverview)
+
+		// AI 智能媒体处理层（运维 + 检索 + 组织）
+		aiGroup := api.Group("/ai")
+		{
+			// 运维：状态、队列、入队、重试、中断、模型进程、索引
+			aiGroup.GET("/status", ai_handler.Status)
+			aiGroup.GET("/jobs", ai_handler.ListJobs)
+			aiGroup.POST("/enqueue", ai_handler.Enqueue)
+			aiGroup.POST("/retry", ai_handler.Retry)
+			aiGroup.POST("/cancel", ai_handler.Cancel)
+			aiGroup.POST("/resume", ai_handler.Resume)
+			aiGroup.POST("/index/rebuild", ai_handler.RebuildIndex)
+			aiGroup.POST("/process/:capability/start", ai_handler.StartModel)
+			aiGroup.POST("/process/:capability/stop", ai_handler.StopModel)
+			aiGroup.GET("/settings", ai_handler.GetSettings)
+			aiGroup.PUT("/settings", ai_handler.UpdateSettings)
+
+			// 检索：文本搜图 / 以图搜图 / 组合筛选
+			aiGroup.GET("/search", ai_handler.Search)
+			aiGroup.POST("/search/image", ai_handler.SearchByImage)
+			aiGroup.GET("/similar/:id", ai_handler.Similar)
+			aiGroup.GET("/media/:id", ai_handler.MediaDetail)
+			aiGroup.GET("/duplicates", ai_handler.Duplicates)
+
+			// 组织：人物分组
+			aiGroup.GET("/persons", ai_handler.ListPersons)
+			aiGroup.GET("/persons/:id/faces", ai_handler.ListPersonFaces)
+			aiGroup.PATCH("/persons/:id", ai_handler.UpdatePerson)
+			aiGroup.DELETE("/persons/:id", ai_handler.DeletePerson)
+			aiGroup.POST("/persons/merge", ai_handler.MergePersons)
+			aiGroup.POST("/faces/assign", ai_handler.AssignFaces)
+			aiGroup.POST("/recluster", ai_handler.Recluster)
+		}
 	}
 
 	return r

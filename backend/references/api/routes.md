@@ -1,11 +1,34 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-09-25T10:48:38Z
-- TotalRoutes: 54
+- GeneratedAt: 2026-09-25T14:28:53Z
+- TotalRoutes: 77
 
 | Method | Path |
 | --- | --- |
 | GET | / |
+| POST | /API/ai/cancel |
+| GET | /API/ai/duplicates |
+| POST | /API/ai/enqueue |
+| POST | /API/ai/faces/assign |
+| POST | /API/ai/index/rebuild |
+| GET | /API/ai/jobs |
+| GET | /API/ai/media/:id |
+| GET | /API/ai/persons |
+| DELETE | /API/ai/persons/:id |
+| PATCH | /API/ai/persons/:id |
+| GET | /API/ai/persons/:id/faces |
+| POST | /API/ai/persons/merge |
+| POST | /API/ai/process/:capability/start |
+| POST | /API/ai/process/:capability/stop |
+| POST | /API/ai/recluster |
+| POST | /API/ai/resume |
+| POST | /API/ai/retry |
+| GET | /API/ai/search |
+| POST | /API/ai/search/image |
+| GET | /API/ai/settings |
+| PUT | /API/ai/settings |
+| GET | /API/ai/similar/:id |
+| GET | /API/ai/status |
 | GET | /API/comic/chapter-info/:chapter-id |
 | GET | /API/comic/comic-info |
 | DELETE | /API/comic/comic-info/:comic-id |

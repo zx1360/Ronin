@@ -9,6 +9,7 @@ import (
 	"log"
 
 	"monarch/internal/config"
+	"monarch/internal/service/ai"
 	"monarch/internal/service/db"
 	"monarch/internal/service/server"
 )
@@ -26,6 +27,11 @@ func main() {
 
 	db.Init(config.DbConf)
 	defer db.Close()
+
+	// AI 处理层：未启用或 ai schema 缺失时自行降级，不影响主服务启动
+	ai.Default = ai.New(config.AiConf)
+	ai.Default.Start()
+	defer ai.Default.Stop()
 
 	server.StartServer()
 }

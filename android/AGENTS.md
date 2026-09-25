@@ -14,6 +14,7 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 | 阅读(RSS) | `/news` | 独立第三方接口 |
 | 漫画 | 由 `/others` 页 `Navigator.push` 打开 | `/API/comic/*` |
 | 画廊 / 相册(immich) | 由 `/others` 页 `Navigator.push` 打开 | `/API/gallery/*` |
+| 智能相册 | 由画廊网格页 AppBar 的 ✨ 图标 `Navigator.push` 打开 | `/API/ai/*`（只读检索与人物分组） |
 | 个人 | `/profile` | 本地存储 |
 
 > 只有上表列出的顶层路由是 GoRouter 路由；`/others` 下的三个二级页用 `Navigator.push` 进入，不是 GoRoute。
@@ -40,6 +41,9 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
   - 交互流畅性：`services/gallery_write_buffer.dart` + `providers/write_buffer_provider.dart` 提供「本地立即生效 → 后台合并推送 → 退避重试 → 最终失败回滚」，批量/低频操作走 `retryServerWrite`。
   - 批次处理游标：设置页「标记已处理」= 服务端 `sync_count + 1`（PATCH `/media` 的 `mark_processed`）+ 清理本地已处理记录与文件。
 - mDNS 自动发现：`/profile` → 网络设置页点击“发现”可扫描局域网内的 Monarch 服务，发现的新地址会自动添加到配置列表。
+- **智能相册**：`features/others/gallery/pages/smart_search_page.dart` + `services/ai_api_service.dart`，
+  只读消费 `/API/ai/*`（文本搜图 / 以图搜图 / 人物分组）。结果按需从服务端拉取缩略图，**不写入本地
+  `gallery.db`**，也不改动现有下载与标注链路；AI 任务的入队/重试等写操作只在桌面端提供，避免误触大批量处理。
 
 ### 数据安全约定
 
