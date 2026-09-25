@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -280,9 +279,7 @@ type embedPayload struct {
 func (e *Engine) runEmbed(ctx context.Context, items []MediaItem, failed map[string]string) {
 	results, err := e.embed.RunBatch(ctx, map[string]any{"model": e.cfg.EmbedModel}, toSidecarItems(items))
 	if err != nil {
-		for _, item := range items {
-			failed[item.MediaID] = err.Error()
-		}
+		failAllItems(items, failed, err)
 		return
 	}
 
@@ -341,9 +338,7 @@ type facePayload struct {
 func (e *Engine) runFace(ctx context.Context, items []MediaItem, failed map[string]string) {
 	results, err := e.face.RunBatch(ctx, nil, toSidecarItems(items))
 	if err != nil {
-		for _, item := range items {
-			failed[item.MediaID] = err.Error()
-		}
+		failAllItems(items, failed, err)
 		return
 	}
 
@@ -388,7 +383,7 @@ func (e *Engine) runFace(ctx context.Context, items []MediaItem, failed map[stri
 				FaceID:  faceID,
 				MediaID: mediaID,
 				Quality: quality,
-				Vector:  decodeFloat32Bytes(raw),
+				Vector:  ai_repo.DecodeFloat32(raw),
 			})
 		}
 
@@ -409,23 +404,16 @@ func (e *Engine) runFace(ctx context.Context, items []MediaItem, failed map[stri
 	}
 }
 
-// ocrPayload 侧车返回的 OCR 结果。
+// ocrPayload 侧车返回的 OCR 结果（只取需要的合并文本）。
 type ocrPayload struct {
-	Text  string `json:"text"`
-	Lines []struct {
-		Text  string  `json:"text"`
-		Score float64 `json:"score"`
-		Box   [][]int `json:"box"`
-	} `json:"lines"`
+	Text string `json:"text"`
 }
 
 // runOCR 通过侧车做文字识别。
 func (e *Engine) runOCR(ctx context.Context, items []MediaItem, failed map[string]string) {
 	results, err := e.ocr.RunBatch(ctx, nil, toSidecarItems(items))
 	if err != nil {
-		for _, item := range items {
-			failed[item.MediaID] = err.Error()
-		}
+		failAllItems(items, failed, err)
 		return
 	}
 
@@ -488,18 +476,11 @@ func toSidecarItems(items []MediaItem) []SidecarItem {
 	return out
 }
 
-// decodeFloat32Bytes 把侧车返回的小端 float32 字节流还原为切片。
-func decodeFloat32Bytes(raw []byte) []float32 {
-	if len(raw)%4 != 0 {
-		return nil
+// failAllItems 整个批次失败时，把失败原因落到该批每一条媒体上。
+func failAllItems(items []MediaItem, failed map[string]string, err error) {
+	for _, item := range items {
+		failed[item.MediaID] = err.Error()
 	}
-	out := make([]float32, len(raw)/4)
-	for i := range out {
-		bits := uint32(raw[i*4]) | uint32(raw[i*4+1])<<8 |
-			uint32(raw[i*4+2])<<16 | uint32(raw[i*4+3])<<24
-		out[i] = math.Float32frombits(bits)
-	}
-	return out
 }
 
 func firstNonEmpty(values ...string) string {
@@ -543,9 +524,6 @@ func (e *Engine) ResumeRun() {
 	e.paused.Store(false)
 	e.Wake()
 }
-
-// Paused 报告队列是否处于暂停状态。
-func (e *Engine) Paused() bool { return e.paused.Load() }
 
 func (e *Engine) setRunCancel(cancel context.CancelFunc) {
 	e.runCancelMu.Lock()

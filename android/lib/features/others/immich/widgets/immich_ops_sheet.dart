@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:torrid/features/others/ai/models/ai_search_models.dart';
+import 'package:torrid/features/others/ai/services/ai_api_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
-import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_tag_tree.dart';
 
 // 底部批量操作栏
@@ -496,10 +497,16 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
   /// 列表未覆盖该媒体时兜底拉取一次标签（多页刷新后仍能正确显示）
   List<String>? _fetchedTagIds;
 
+  /// 该媒体的 AI 分析结果（只读展示，不参与编辑）
+  AiMediaDetail? _aiDetail;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureTagsLoaded());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureTagsLoaded();
+      _loadAiDetail();
+    });
   }
 
   Future<void> _ensureTagsLoaded() async {
@@ -519,6 +526,14 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
     } catch (_) {
       // 拉取失败时保持空标签展示, 不做额外提示
     }
+  }
+
+  /// AI 结果读取失败（未初始化 AI 层 / 离线）时整块不展示。
+  Future<void> _loadAiDetail() async {
+    try {
+      final detail = await ref.read(aiApiProvider).fetchMediaDetail(widget.mediaId);
+      if (mounted) setState(() => _aiDetail = detail);
+    } catch (_) {}
   }
 
   @override
@@ -548,16 +563,6 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (_busy) const LinearProgressIndicator(minHeight: 2),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 200,
-                width: double.infinity,
-                color: Colors.black,
-                child: ImmichThumb(asset: asset, fit: BoxFit.contain),
-              ),
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
                 Icon(
@@ -652,6 +657,50 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
                     ),
                 ],
               ),
+            if (_aiDetail != null && !_aiDetail!.isEmpty) ...[
+              const Divider(height: 24),
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome, size: 16, color: Colors.teal),
+                  const SizedBox(width: 6),
+                  const Text('AI 标签',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 6),
+                  Text('只读',
+                      style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (_aiDetail!.vlmTags.isEmpty)
+                const Text('暂无 AI 标签',
+                    style: TextStyle(fontSize: 12, color: Colors.grey))
+              else
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final tag in _aiDetail!.vlmTags)
+                      Chip(
+                        label: Text(tag, style: const TextStyle(fontSize: 12)),
+                        avatar: const Icon(Icons.auto_awesome,
+                            size: 14, color: Colors.teal),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        side: BorderSide(
+                          color: Colors.teal.withValues(alpha: 0.35),
+                        ),
+                      ),
+                  ],
+                ),
+              if (_aiDetail!.caption != null) ...[
+                const SizedBox(height: 10),
+                Text('AI 描述',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                const SizedBox(height: 2),
+                Text(_aiDetail!.caption!, style: const TextStyle(fontSize: 13)),
+              ],
+            ],
             const Divider(height: 24),
             Row(
               children: [

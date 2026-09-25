@@ -7,7 +7,7 @@ Flutter Windows 桌面运维应用，Monarch 服务器的图形化管理面板�
 | 页面 | 路由 | 功能 |
 |------|------|------|
 | 仪表盘 | `/dashboard` | 调用 `/API/ops/overview` 展示运行状态；服务启停后自动重取 |
-| AI 媒体处理 | `/ai` | 调用 `/API/ai/*`：能力就绪状态与进度、模型/侧车进程启停、失败重试、暂停/继续处理、人物分组（改名/合并/删除/重聚类）、文本搜图与以图搜图、pHash 近重复分组 |
+| AI 媒体处理 | `/ai` | 调用 `/API/ai/*`：能力就绪状态与进度、模型/侧车进程启停、失败重试、暂停/继续处理、人物分组（改名/合并/删除/重聚类）、文本搜图（智能/文字/文件名）与以图搜图、pHash 近重复分组 |
 | 漫画资源 | `/comix` | 网址下载（URL 直连）、漫画库（下载进度 + 公开/已读/封面/删除）、任务面板（生命周期/日志/中断）。 |
 | 日志 | `/logs` | 查看任务实时输出 |
 | 任务管理 | `/tasks` | 启停 Monarch、执行 Gallery CLI 任务 |
@@ -51,6 +51,13 @@ Riverpod + GoRouter + SharedPreferences + `dart:io` HttpClient（自签证书信
 ### 数据持久化
 
 JSON 文件存放在程序所在目录的 `northstar_data/ops/`（非系统盘），便于迁移和备份；早期版本的 SharedPreferences 数据会在首次启动时自动迁移。写入失败会如实反馈到设置页，不再静默显示"已保存"。
+
+### 界面响应性
+
+Northstar 的 UI isolate 不做任何计算密集工作（无 `compute`/`Isolate`、无同步文件 IO），
+AI 推理全部在 Monarch 及其子进程里。因此"跑 AI 任务时界面发卡"的成因是**跨进程 CPU 争抢**，
+对策在服务端：Monarch 把 Python 侧车与自拉的 Ollama 降到 BelowNormal 优先级
+（`backend/internal/service/ai/priority_windows.go`），前台交互始终优先拿到 CPU。
 
 ### 硬性要求
 

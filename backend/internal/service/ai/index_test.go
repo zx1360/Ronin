@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"encoding/base64"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -87,16 +88,29 @@ func TestSplitByRepresentativeKeepsTightGroup(t *testing.T) {
 	}
 }
 
-// 量化 → 反量化后应保持向量方向（余弦接近 1）。
-func TestQuantizeInt8PreservesDirection(t *testing.T) {
-	original := []float32{0.1, -0.4, 0.9, 0.2, -0.05, 0.33}
-	raw, scale, _ := QuantizeInt8(original)
-
-	restored := make([]float32, len(raw))
-	for i, b := range raw {
-		restored[i] = float32(int8(b)) * scale
+// int8 量化往返后应保持向量方向（余弦接近 1）——侧车编码、Go 侧解码共用此口径。
+func TestDecodeQuantizedPreservesDirection(t *testing.T) {
+	original := normalize([]float32{0.1, -0.4, 0.9, 0.2, -0.05, 0.33})
+	var maxAbs float32
+	for _, v := range original {
+		maxAbs = max(maxAbs, float32(math.Abs(float64(v))))
 	}
-	if score := cosine(restoreNormalize(original), restoreNormalize(restored)); score < 0.99 {
+	scale := maxAbs / 127.0
+
+	raw := make([]byte, len(original))
+	for i, v := range original {
+		raw[i] = byte(int8(math.Round(float64(v / scale))))
+	}
+
+	restored, err := decodeQuantized(embedPayload{
+		Dim:   len(raw),
+		Scale: scale,
+		Vec:   base64.StdEncoding.EncodeToString(raw),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if score := cosine(original, normalize(restored)); score < 0.99 {
 		t.Fatalf("量化后余弦相似度 %.4f，过低", score)
 	}
 }
@@ -192,8 +206,4 @@ func writeTestEncoded(t *testing.T, path string, width, height int, at func(x, y
 	if err := png.Encode(file, img); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func restoreNormalize(vec []float32) []float32 {
-	return normalize(vec)
 }

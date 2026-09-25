@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/pages/smart_search_page.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 
 part '../widgets/browser/scroll_wrapper.dart';
@@ -259,17 +258,6 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
             ? '已选择 ${_selectedIds.length} 项' 
             : _buildTitle(columns)),
         actions: [
-          // 智能相册入口：文本搜图 / 以图搜图 / 人物分组
-          if (!_isSelectionMode)
-            IconButton(
-              icon: const Icon(Icons.auto_awesome, size: 20),
-              tooltip: '智能相册',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SmartSearchPage(),
-                ),
-              ),
-            ),
           // 预览模式切换
           PopupMenuButton<GalleryGridPreviewMode>(
             icon: const Icon(Icons.grid_view, size: 20),

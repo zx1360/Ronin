@@ -50,9 +50,6 @@ func SchemaReady(ctx context.Context) bool {
 	return true
 }
 
-// ResetSchemaProbe 在重新执行 ai.sql 后允许再次探测（供运维接口调用）。
-func ResetSchemaProbe() { schemaKnownMissing = false }
-
 // ensureSchema 在每个写入口做一次轻量校验，给出明确错误而不是裸 SQL 报错。
 func ensureSchema(ctx context.Context) error {
 	if !SchemaReady(ctx) {
@@ -61,8 +58,8 @@ func ensureSchema(ctx context.Context) error {
 	return nil
 }
 
-// splitAndTrim 按逗号切分并去除空白项。
-func splitAndTrim(raw string) []string {
+// SplitAndTrim 按逗号切分并去除空白项。
+func SplitAndTrim(raw string) []string {
 	var out []string
 	for _, part := range strings.Split(raw, ",") {
 		if part = strings.TrimSpace(part); part != "" {
@@ -93,8 +90,8 @@ func withTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 	return nil
 }
 
-// decodeFloat32 把 bytea 还原为 float32 切片（小端，与 Python 侧约定一致）。
-func decodeFloat32(raw []byte) []float32 {
+// DecodeFloat32 把 bytea 还原为 float32 切片（小端，与 Python 侧约定一致）。
+func DecodeFloat32(raw []byte) []float32 {
 	if len(raw)%4 != 0 {
 		return nil
 	}
@@ -103,19 +100,6 @@ func decodeFloat32(raw []byte) []float32 {
 		bits := uint32(raw[i*4]) | uint32(raw[i*4+1])<<8 |
 			uint32(raw[i*4+2])<<16 | uint32(raw[i*4+3])<<24
 		out[i] = math.Float32frombits(bits)
-	}
-	return out
-}
-
-// EncodeFloat32 把 float32 切片编码为 bytea（小端）。
-func EncodeFloat32(vec []float32) []byte {
-	out := make([]byte, len(vec)*4)
-	for i, v := range vec {
-		bits := math.Float32bits(v)
-		out[i*4] = byte(bits)
-		out[i*4+1] = byte(bits >> 8)
-		out[i*4+2] = byte(bits >> 16)
-		out[i*4+3] = byte(bits >> 24)
 	}
 	return out
 }

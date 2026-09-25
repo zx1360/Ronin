@@ -67,7 +67,7 @@ func ListJobs(c *gin.Context) {
 
 	jobs, total, err := ai_repo.ListJobs(capability, strings.TrimSpace(c.Query("status")), limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"jobs": jobs, "total": total, "limit": limit, "offset": offset})
@@ -140,7 +140,7 @@ func Enqueue(c *gin.Context) {
 		for _, capability := range req.Capabilities {
 			n, err := ai_repo.Enqueue(capability, ids)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				fail(c, err)
 				return
 			}
 			affected[capability] = n
@@ -149,7 +149,7 @@ func Enqueue(c *gin.Context) {
 		for _, capability := range req.Capabilities {
 			n, err := ai_repo.EnqueueMissing(capability, limit, 50)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				fail(c, err)
 				return
 			}
 			affected[capability] = n
@@ -192,7 +192,7 @@ func Retry(c *gin.Context) {
 
 	n, err := ai_repo.RetryFailed(capability, ids)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	e.Wake()
@@ -240,7 +240,7 @@ func StartModel(c *gin.Context) {
 	switch capability {
 	case model.CapVLM:
 		if err := e.OllamaProvider().EnsureReady(ctx); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			fail(c, err)
 			return
 		}
 	case model.CapPHash:
@@ -253,7 +253,7 @@ func StartModel(c *gin.Context) {
 			return
 		}
 		if err := sidecar.Warm(ctx); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			fail(c, err)
 			return
 		}
 	}
@@ -293,7 +293,7 @@ func RebuildIndex(c *gin.Context) {
 	}
 	e.Index().Invalidate()
 	if err := e.Index().Reload(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"vectors": e.Index().VectorCount()})
@@ -301,8 +301,8 @@ func RebuildIndex(c *gin.Context) {
 
 // Search 处理 GET /API/ai/search
 //
-// 参数：q 文本查询；mode=auto|semantic|keyword；tag_ids / include_descendants /
-// person_ids / mime_type / from / to 结构化筛选；limit / offset 分页。
+// 参数：q 文本查询；mode=auto|semantic|keyword|filename；tag_ids / include_descendants /
+// person_ids / vlm_tags / mime_type / from / to 结构化筛选；limit / offset 分页。
 func Search(c *gin.Context) {
 	e := engine(c)
 	if e == nil || !schemaGuard(c) {
@@ -320,7 +320,7 @@ func Search(c *gin.Context) {
 
 	result, err := e.Search(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -364,7 +364,7 @@ func SearchByImage(c *gin.Context) {
 
 	result, err := e.SearchByImageBytes(ctx, tempPath, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -376,14 +376,13 @@ func Similar(c *gin.Context) {
 	if e == nil || !schemaGuard(c) {
 		return
 	}
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "媒体 ID 非法"})
+	id, ok := pathUUID(c, "id", "媒体 ID ")
+	if !ok {
 		return
 	}
 	result, err := e.SimilarMedia(id, queryInt(c, "limit", 40, 1, 200))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -394,14 +393,13 @@ func MediaDetail(c *gin.Context) {
 	if !schemaGuard(c) {
 		return
 	}
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "媒体 ID 非法"})
+	id, ok := pathUUID(c, "id", "媒体 ID ")
+	if !ok {
 		return
 	}
 	detail, err := ai_repo.GetMediaDetail(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, detail)
@@ -416,10 +414,23 @@ func Duplicates(c *gin.Context) {
 	groups, err := e.Index().DuplicateGroups(queryInt(c, "max_distance", 4, 1, 4),
 		queryInt(c, "min_group", 2, 2, 100))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"groups": groups, "total": len(groups)})
+}
+
+// ListVLMTags 处理 GET /API/ai/tags：AI 标签清单（只读，与人工标签无关）。
+func ListVLMTags(c *gin.Context) {
+	if !schemaGuard(c) {
+		return
+	}
+	tags, err := ai_repo.ListVLMTags(queryInt(c, "limit", 500, 1, 2000))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tags": tags, "total": len(tags)})
 }
 
 // ListPersons 处理 GET /API/ai/persons
@@ -429,7 +440,7 @@ func ListPersons(c *gin.Context) {
 	}
 	persons, err := ai_repo.ListPersons()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"persons": persons, "total": len(persons)})
@@ -440,14 +451,13 @@ func ListPersonFaces(c *gin.Context) {
 	if !schemaGuard(c) {
 		return
 	}
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "人物 ID 非法"})
+	id, ok := pathUUID(c, "id", "人物 ID ")
+	if !ok {
 		return
 	}
 	faces, total, err := ai_repo.ListPersonFaces(id, queryInt(c, "limit", 100, 1, 500), queryInt(c, "offset", 0, 0, 1<<30))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"faces": faces, "total": total})
@@ -458,9 +468,8 @@ func UpdatePerson(c *gin.Context) {
 	if !schemaGuard(c) {
 		return
 	}
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "人物 ID 非法"})
+	id, ok := pathUUID(c, "id", "人物 ID ")
+	if !ok {
 		return
 	}
 	var req struct {
@@ -490,9 +499,8 @@ func DeletePerson(c *gin.Context) {
 	if !schemaGuard(c) {
 		return
 	}
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "人物 ID 非法"})
+	id, ok := pathUUID(c, "id", "人物 ID ")
+	if !ok {
 		return
 	}
 	if err := ai_repo.DeletePerson(id); err != nil {
@@ -539,7 +547,7 @@ func MergePersons(c *gin.Context) {
 
 	moved, err := ai_repo.MergePersons(sources, target)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	e.Cluster().Invalidate()
@@ -585,17 +593,17 @@ func AssignFaces(c *gin.Context) {
 	}
 
 	if err := ai_repo.AssignFaces(faces, personID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	if personID != nil {
 		if err := ai_repo.RefreshPersonStats([]uuid.UUID{*personID}); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			fail(c, err)
 			return
 		}
 	}
 	if _, err := ai_repo.DropEmptyPersons(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	e.Cluster().Invalidate()
@@ -624,7 +632,7 @@ func Recluster(c *gin.Context) {
 
 	result, err := e.Cluster().Recluster(ctx, ai.ReclusterOptions{Reset: req.Reset})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -666,7 +674,7 @@ func UpdateSettings(c *gin.Context) {
 		}
 	}
 	if err := ai_repo.SetAutoCapabilities(req.AutoCapabilities); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fail(c, err)
 		return
 	}
 	e.Wake()
@@ -674,6 +682,21 @@ func UpdateSettings(c *gin.Context) {
 }
 
 // ---------- 辅助 ----------
+
+// fail 以 500 回写内部错误。
+func fail(c *gin.Context, err error) {
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
+
+// pathUUID 解析路径参数中的 UUID（label 为中文主体名，如"媒体 ID"）；失败时已写回响应。
+func pathUUID(c *gin.Context, param, label string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(c.Param(param))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": label + "非法"})
+		return uuid.Nil, false
+	}
+	return id, true
+}
 
 func buildSearchRequest(c *gin.Context) (ai.SearchRequest, error) {
 	req := ai.SearchRequest{
@@ -694,38 +717,32 @@ func buildSearchRequest(c *gin.Context) (ai.SearchRequest, error) {
 		}
 		req.MinScore = float32(value)
 	}
-	for _, raw := range splitList(c.Query("tag_ids")) {
-		req.TagIDs = append(req.TagIDs, raw)
+	// ID 列表在这里就校验：非法输入属于客户端错误（400），
+	// 交给服务层报错会被统一映射成 500，掩盖真正的原因。
+	tagIDs, err := parseUUIDParams(c, "tag_ids")
+	if err != nil {
+		return req, err
 	}
-	for _, raw := range splitList(c.Query("person_ids")) {
-		req.PersonIDs = append(req.PersonIDs, raw)
+	req.TagIDs = tagIDs
+	personIDs, err := parseUUIDParams(c, "person_ids")
+	if err != nil {
+		return req, err
 	}
-	if raw := strings.TrimSpace(c.Query("from")); raw != "" {
-		parsed, err := parseTime(raw)
-		if err != nil {
-			return req, errors.New("from 时间格式非法")
-		}
-		req.From = &parsed
+	req.PersonIDs = personIDs
+	for _, raw := range ai_repo.SplitAndTrim(c.Query("vlm_tags")) {
+		req.VLMTags = append(req.VLMTags, raw)
 	}
-	if raw := strings.TrimSpace(c.Query("to")); raw != "" {
-		parsed, err := parseTime(raw)
-		if err != nil {
-			return req, errors.New("to 时间格式非法")
-		}
-		req.To = &parsed
+	from, err := parseOptionalTime(c, "from")
+	if err != nil {
+		return req, err
 	}
+	req.From = from
+	to, err := parseOptionalTime(c, "to")
+	if err != nil {
+		return req, err
+	}
+	req.To = to
 	return req, nil
-}
-
-// splitList 切分逗号分隔参数（同时兼容表单重复字段里的逗号串）。
-func splitList(raw string) []string {
-	var out []string
-	for _, part := range strings.Split(raw, ",") {
-		if part = strings.TrimSpace(part); part != "" {
-			out = append(out, part)
-		}
-	}
-	return out
 }
 
 func parseTime(raw string) (time.Time, error) {
@@ -735,6 +752,30 @@ func parseTime(raw string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, errors.New("无法解析时间")
+}
+
+// parseUUIDParams 解析逗号分隔的 UUID 查询参数；任一非法即报错（供 400 回写）。
+func parseUUIDParams(c *gin.Context, key string) ([]string, error) {
+	values := ai_repo.SplitAndTrim(c.Query(key))
+	for _, raw := range values {
+		if _, err := uuid.Parse(raw); err != nil {
+			return nil, errors.New(key + " 含非法 ID: " + raw)
+		}
+	}
+	return values, nil
+}
+
+// parseOptionalTime 解析可选的 from/to 时间参数；未提供时返回 nil。
+func parseOptionalTime(c *gin.Context, key string) (*time.Time, error) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil, nil
+	}
+	parsed, err := parseTime(raw)
+	if err != nil {
+		return nil, errors.New(key + " 时间格式非法")
+	}
+	return &parsed, nil
 }
 
 func queryInt(c *gin.Context, key string, def, min, max int) int {
@@ -757,5 +798,5 @@ func writePersonError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	fail(c, err)
 }

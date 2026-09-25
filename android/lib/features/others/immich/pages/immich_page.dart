@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
@@ -8,13 +9,15 @@ import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_ops_sheet.dart';
 import 'package:torrid/features/others/immich/widgets/immich_tag_tree.dart';
+import 'package:torrid/features/others/widgets/media_viewer_page.dart';
 
 /// 相册页 (immich)
 ///
 /// 始终在线的媒体/标签管理页: 数据直连局域网后端, 同时把结果镜像回本地缓存。
 /// - 标签树 (Drawer): 浏览/筛选/新建/重命名/移动/删除/快捷标签
+/// - AI 标签 (只读): 由服务端 VLM 自动生成, 仅用于筛选与查看, 不与人工标签混淆
 /// - 媒体网格: 分页浏览, 多选批量加标签/移除标签/删除/恢复/备注/捆绑/解绑
-/// - 单张媒体: 详情弹窗, 编辑备注与标签
+/// - 单张媒体: 全屏查看 (缩放/播放) + 详情面板编辑备注与标签
 class ImmichPage extends ConsumerStatefulWidget {
   const ImmichPage({super.key});
 
@@ -121,6 +124,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     final active = filter.tagIds.isNotEmpty ||
         filter.untagged ||
         filter.includeDeleted ||
+        filter.vlmTags.isNotEmpty ||
         !filter.includeDescendants;
 
     return Column(
@@ -225,6 +229,78 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
                   ),
                   const SizedBox(width: 6),
                 ],
+              ],
+            ),
+          ),
+
+        // 第四行: AI 标签 (只读, 服务端 VLM 自动生成, 与人工标签分开呈现)
+        _buildAiTagRow(filter, notifier),
+      ],
+    );
+  }
+
+  /// AI 标签筛选行；没有可用 AI 标签时整行不出现。
+  Widget _buildAiTagRow(ImmichFilter filter, ImmichFilterNotifier notifier) {
+    final aiTags = ref.watch(immichAiTagsProvider).valueOrNull;
+    if (aiTags == null || aiTags.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+          child: Row(
+            children: [
+              const Icon(Icons.auto_awesome, size: 14, color: Colors.teal),
+              const SizedBox(width: 4),
+              Text(
+                'AI 标签',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              const SizedBox(width: 2),
+              Text(
+                '只读',
+                style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+              ),
+              const SizedBox(width: 8),
+              for (final item in aiTags) ...[
+                _AiTagChip(
+                  item: item,
+                  selected: filter.vlmTags.contains(item.tag),
+                  onSelected: () => notifier.toggleVlmTag(item.tag),
+                ),
+                const SizedBox(width: 6),
+              ],
+              if (filter.vlmTags.isNotEmpty)
+                TextButton(
+                  onPressed: notifier.clearVlmTags,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('清空 AI 标签', style: TextStyle(fontSize: 12)),
+                ),
+            ],
+          ),
+        ),
+        // 已选 AI 标签单独一行，明确它们与人工标签筛选互不影响
+        if (filter.vlmTags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final tag in filter.vlmTags)
+                  InputChip(
+                    label: Text(tag, style: const TextStyle(fontSize: 12)),
+                    avatar: const Icon(Icons.auto_awesome, size: 14),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onDeleted: () => notifier.toggleVlmTag(tag),
+                  ),
               ],
             ),
           ),
@@ -354,7 +430,34 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
       ref.read(immichSelectionProvider.notifier).toggle(asset.id);
       return;
     }
-    showImmichMediaDetail(context, mediaId: asset.id, fallback: asset);
+    _openViewer(asset.id);
+  }
+
+  /// 打开全屏查看器；管理入口（备注/人工标签/删除）作为右上角操作注入。
+  void _openViewer(String mediaId) {
+    final assets = ref.read(immichMediaProvider).valueOrNull?.assets ?? const [];
+    final index = assets.indexWhere((item) => item.id == mediaId);
+    if (index < 0) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MediaViewerPage(
+          assets: assets,
+          initialIndex: index,
+          actions: (viewerContext, asset) => [
+            IconButton(
+              icon: const Icon(Icons.tune),
+              tooltip: '详情与标签',
+              onPressed: () => showImmichMediaDetail(
+                viewerContext,
+                mediaId: asset.id,
+                fallback: asset,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _onLongPressAsset(MediaAsset asset) {
@@ -530,6 +633,43 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
+  }
+}
+
+/// AI 标签筛选块：用独立配色与"只读"标注，避免与人工标签混淆。
+class _AiTagChip extends StatelessWidget {
+  final AiTagCount item;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _AiTagChip({
+    required this.item,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Colors.teal;
+    return FilterChip(
+      label: Text(
+        '${item.tag} ${item.count}',
+        style: TextStyle(fontSize: 12, color: selected ? accent : null),
+      ),
+      selected: selected,
+      showCheckmark: false,
+      avatar: Icon(
+        Icons.auto_awesome,
+        size: 14,
+        color: selected ? accent : Colors.grey,
+      ),
+      side: BorderSide(
+        color: selected ? accent : Colors.grey.withValues(alpha: 0.4),
+      ),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onSelected: (_) => onSelected(),
     );
   }
 }

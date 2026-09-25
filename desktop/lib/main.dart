@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:northstar/app/app.dart';
 import 'package:northstar/app/bootstrap.dart';
+import 'package:northstar/core/providers/ops/core_services_provider.dart';
 import 'package:northstar/services/app_service/window_service.dart';
 import 'package:northstar/services/cert_trust.dart';
 
@@ -16,6 +17,9 @@ void main(List<String> args) async {
   // 预载持久化配置：必须在 runApp 之前完成，否则首个接口请求会带着
   // 默认配置发出（连错端口），启动后必须手动刷新才能拿到数据。
   final container = await bootstrap();
-  await initWindow();
+  // 窗口几何同样来自 bootstrap 的预载结果，必须在建窗时就能同步取到。
+  await initWindow(
+    geometry: container.read(opsPersistenceRepositoryProvider).windowGeometry,
+  );
   runApp(UncontrolledProviderScope(container: container, child: const MyApp()));
 }

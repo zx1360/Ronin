@@ -266,25 +266,33 @@ func ListFacesByMedia(mediaIDs []uuid.UUID) (map[uuid.UUID][]model.AiFace, error
 
 	result := map[uuid.UUID][]model.AiFace{}
 	for rows.Next() {
-		var face model.AiFace
-		var box []float32
-		if err := rows.Scan(&face.ID, &face.MediaID, &face.PersonID, &box,
-			&face.DetScore, &face.Quality, &face.CreatedAt); err != nil {
+		face, err := scanFaceRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		face.Box = make([]float64, len(box))
-		for i, v := range box {
-			face.Box[i] = float64(v)
 		}
 		result[face.MediaID] = append(result[face.MediaID], face)
 	}
 	return result, rows.Err()
 }
 
+// scanFaceRow 读取一行人脸记录（bbox 由数据库的 float4[] 加宽为 float64）。
+func scanFaceRow(rows pgx.Rows) (model.AiFace, error) {
+	var face model.AiFace
+	var box []float32
+	if err := rows.Scan(&face.ID, &face.MediaID, &face.PersonID, &box,
+		&face.DetScore, &face.Quality, &face.CreatedAt); err != nil {
+		return face, err
+	}
+	face.Box = make([]float64, len(box))
+	for i, v := range box {
+		face.Box[i] = float64(v)
+	}
+	return face, nil
+}
+
 // FaceEmbedding 聚类所需的单张人脸特征。
 type FaceEmbedding struct {
 	ID       uuid.UUID
-	MediaID  uuid.UUID
 	PersonID *uuid.UUID
 	Quality  float64
 	Vector   []float32
@@ -295,7 +303,7 @@ func LoadFaceEmbeddings(unassignedOnly bool) ([]FaceEmbedding, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
-	sql := `SELECT id, media_id, person_id, quality, embedding FROM ai.faces`
+	sql := `SELECT id, person_id, quality, embedding FROM ai.faces`
 	if unassignedOnly {
 		sql += ` WHERE person_id IS NULL`
 	}
@@ -309,10 +317,10 @@ func LoadFaceEmbeddings(unassignedOnly bool) ([]FaceEmbedding, error) {
 	for rows.Next() {
 		var item FaceEmbedding
 		var raw []byte
-		if err := rows.Scan(&item.ID, &item.MediaID, &item.PersonID, &item.Quality, &raw); err != nil {
+		if err := rows.Scan(&item.ID, &item.PersonID, &item.Quality, &raw); err != nil {
 			return nil, err
 		}
-		item.Vector = decodeFloat32(raw)
+		item.Vector = DecodeFloat32(raw)
 		if len(item.Vector) == 0 {
 			continue
 		}
@@ -380,15 +388,9 @@ func ListPersonFaces(personID uuid.UUID, limit, offset int) ([]model.AiFace, int
 
 	faces := []model.AiFace{}
 	for rows.Next() {
-		var face model.AiFace
-		var box []float32
-		if err := rows.Scan(&face.ID, &face.MediaID, &face.PersonID, &box,
-			&face.DetScore, &face.Quality, &face.CreatedAt); err != nil {
+		face, err := scanFaceRow(rows)
+		if err != nil {
 			return nil, 0, err
-		}
-		face.Box = make([]float64, len(box))
-		for i, v := range box {
-			face.Box[i] = float64(v)
 		}
 		faces = append(faces, face)
 	}
@@ -559,6 +561,8 @@ func refreshPersonStats(ctx context.Context, q querier, personIDs []uuid.UUID) e
 // SearchFilters 结构化筛选条件（语义相关度在 Go 侧计算，不在此处）。
 type SearchFilters struct {
 	Keyword        string      // 命中 OCR 文本 / VLM 描述 / VLM 关键词
+	Filename       string      // 命中文件路径（文件名或扩展名，忽略大小写）
+	VLMTags        []string    // AI 标签（任一命中；只读，与人工标签分开）
 	TagIDs         []uuid.UUID // 人工标签（任一命中）
 	Descendants    bool        // 标签是否含子孙
 	PersonIDs      []uuid.UUID // 人物分组（任一命中）
@@ -588,6 +592,15 @@ func BuildSearchWhere(f SearchFilters) (string, []any) {
 			OR EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id
 			           AND EXISTS (SELECT 1 FROM unnest(a.vlm_tags) t WHERE t ILIKE $%d))
 		)`, idx, idx, idx))
+	}
+	if len(f.VLMTags) > 0 {
+		args = append(args, f.VLMTags)
+		conditions = append(conditions, fmt.Sprintf(
+			`EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id AND a.vlm_tags && $%d)`, len(args)))
+	}
+	if strings.TrimSpace(f.Filename) != "" {
+		args = append(args, "%"+strings.TrimSpace(f.Filename)+"%")
+		conditions = append(conditions, fmt.Sprintf("m.file_path ILIKE $%d", len(args)))
 	}
 	if len(f.TagIDs) > 0 {
 		args = append(args, f.TagIDs)
@@ -684,6 +697,48 @@ func SearchMediaIDs(f SearchFilters) ([]uuid.UUID, int, error) {
 	return ids, total, rows.Err()
 }
 
+// VLMTagCount AI 标签及其出现次数（供客户端展示只读的 AI 标签筛选）。
+type VLMTagCount struct {
+	Tag   string `json:"tag"`
+	Count int    `json:"count"`
+}
+
+// ListVLMTags 聚合未删除媒体的全部 AI 标签。
+//
+// 一次全表 unnest 聚合；VLM 产物规模远小于媒体总数，代价可接受。
+func ListVLMTags(limit int) ([]VLMTagCount, error) {
+	ctx, cancel := db.GetLongCtx()
+	defer cancel()
+
+	if limit <= 0 || limit > 2000 {
+		limit = 500
+	}
+
+	rows, err := db.GetPool().Query(ctx, `
+		SELECT t.tag, COUNT(*)::int AS n
+		FROM ai.media_ai a
+		JOIN gallery.media_assets m ON m.id = a.media_id
+		CROSS JOIN LATERAL unnest(a.vlm_tags) AS t(tag)
+		WHERE m.is_deleted = false AND t.tag <> ''
+		GROUP BY t.tag
+		ORDER BY n DESC, t.tag ASC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("聚合 AI 标签失败: %w", err)
+	}
+	defer rows.Close()
+
+	out := []VLMTagCount{}
+	for rows.Next() {
+		var item VLMTagCount
+		if err := rows.Scan(&item.Tag, &item.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
 // CountMediaMissingAll 一次扫描算出各能力"尚无产物"的未删除媒体数。
 //
 // 用 LEFT JOIN 而非 5 个相关 EXISTS：三次哈希连接远快于五个逐行子计划。
@@ -716,33 +771,4 @@ func CountMediaMissingAll() (map[string]int, error) {
 	counts[model.CapOCR] = ocr
 	counts[model.CapVLM] = vlm
 	return counts, nil
-}
-
-// CountMediaMissing 统计尚无某个 AI 产物的未删除媒体数（供运维展示待处理规模）。
-func CountMediaMissing(capability string) (int, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	var condition string
-	switch capability {
-	case model.CapPHash:
-		condition = `NOT EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id AND a.phash IS NOT NULL)`
-	case model.CapOCR:
-		condition = `NOT EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id AND a.ocr_text IS NOT NULL)`
-	case model.CapVLM:
-		condition = `NOT EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id AND a.caption IS NOT NULL)`
-	case model.CapEmbed:
-		condition = `NOT EXISTS (SELECT 1 FROM ai.embeddings e WHERE e.media_id = m.id)`
-	case model.CapFace:
-		condition = `NOT EXISTS (SELECT 1 FROM ai.faces f WHERE f.media_id = m.id)`
-	default:
-		return 0, fmt.Errorf("未知能力: %s", capability)
-	}
-
-	var n int
-	if err := db.GetPool().QueryRow(ctx, fmt.Sprintf(
-		`SELECT COUNT(*) FROM gallery.media_assets m WHERE m.is_deleted = false AND %s`, condition)).Scan(&n); err != nil {
-		return 0, fmt.Errorf("统计待处理媒体失败: %w", err)
-	}
-	return n, nil
 }

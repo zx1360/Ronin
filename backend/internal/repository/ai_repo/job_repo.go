@@ -297,30 +297,6 @@ func ListJobs(capability, status string, limit, offset int) ([]model.AiJob, int,
 	return jobs, total, rows.Err()
 }
 
-// MediaIDsForCapability 返回某能力下指定状态的媒体 ID（供批处理与重试定位）。
-func MediaIDsForCapability(capability, status string, limit int) ([]uuid.UUID, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	rows, err := db.GetPool().Query(ctx, `
-		SELECT media_id FROM ai.jobs
-		WHERE capability = $1 AND status = $2
-		ORDER BY id LIMIT $3`, capability, status, limit)
-	if err != nil {
-		return nil, fmt.Errorf("查询任务媒体失败: %w", err)
-	}
-	defer rows.Close()
-
-	ids := []uuid.UUID{}
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
-}
-
 // PendingCount 返回能力维度待处理任务数（0 表示已排空）。
 func PendingCount(capability string) (int, error) {
 	ctx, cancel := db.GetDefaultCtx()
@@ -348,7 +324,7 @@ func AutoCapabilities(fallback []string) []string {
 		return fallback
 	}
 	var caps []string
-	for _, part := range splitAndTrim(raw) {
+	for _, part := range SplitAndTrim(raw) {
 		if model.IsValidCapability(part) {
 			caps = append(caps, part)
 		}

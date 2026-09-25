@@ -141,6 +141,7 @@ type MediaQueryParams struct {
 	TagIDs             string `form:"tag_ids"`             // 逗号分隔的标签 ID, 任一命中
 	IncludeDescendants bool   `form:"include_descendants"` // 标签筛选是否包含子孙标签
 	Untagged           bool   `form:"untagged"`            // 仅返回未打标签的媒体
+	VLMTags            string `form:"vlm_tags"`            // 逗号分隔的 AI 标签, 任一命中（只读, 与人工标签无关）
 	IncludeDeleted     bool   `form:"include_deleted"`     // 是否包含已软删除的媒体
 	MimeType           string `form:"mime_type"`           // image / video / image/jpeg
 	IDs                string `form:"ids"`                 // 逗号分隔的媒体 ID, 指定则只查这些

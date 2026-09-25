@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:northstar/domain/ops/models/ops_settings.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';
+import 'package:northstar/domain/ops/models/window_geometry.dart';
 import 'package:northstar/services/storage/prefs_service.dart';
 import 'package:path/path.dart' as path;
 
@@ -13,6 +14,7 @@ class OpsPersistenceRepository {
   static const _opsSubFolder = 'ops';
   static const _settingsFileName = 'ops.settings.v1.json';
   static const _tasksFileName = 'ops.tasks.v1.json';
+  static const _windowFileName = 'ops.window.v1.json';
 
   // 启动预载结果：首次读取时才真正开始，因此 bootstrap() 必须先 await
   // ensureLoaded()，provider 才能在 build 里同步拿到持久化配置——否则首个请求
@@ -20,6 +22,7 @@ class OpsPersistenceRepository {
   late final Future<void> _preload = _preloadAll();
   OpsSettings? _settingsCache;
   List<TaskProfile>? _tasksCache;
+  WindowGeometry? _windowGeometryCache;
 
   /// 等待预载完成（供启动流程使用；provider 侧直接读取同步快照）。
   Future<void> ensureLoaded() => _preload;
@@ -30,10 +33,14 @@ class OpsPersistenceRepository {
   /// 已持久化的任务档案；未预载/无缓存时返回 null。
   List<TaskProfile>? get taskProfiles => _tasksCache;
 
+  /// 已持久化的窗口尺寸/最大化状态；首次启动（或文件损坏）时为 null。
+  WindowGeometry? get windowGeometry => _windowGeometryCache;
+
   Future<void> _preloadAll() async {
     try {
       _settingsCache = await _loadSettingsFromDisk();
       _tasksCache = await _loadTaskProfilesFromDisk();
+      _windowGeometryCache = await _loadWindowGeometryFromDisk();
     } catch (_) {
       // 预载失败时保持 null，由调用方回退到默认值。
     }
@@ -94,6 +101,23 @@ class OpsPersistenceRepository {
       return true;
     }
     return _writeLegacyValue(_legacyTasksKey, encoded);
+  }
+
+  Future<WindowGeometry?> _loadWindowGeometryFromDisk() async {
+    final localRaw = await _readPrimaryFile(_windowFileName);
+    final localJson = _decodeJsonMap(localRaw);
+    if (localJson == null) {
+      return null;
+    }
+
+    return WindowGeometry.fromJson(localJson);
+  }
+
+  /// 保存窗口几何（尺寸与最大化状态），不写旧版 SharedPreferences：
+  /// 该数据是本次新增的，历史版本里不存在对应键。
+  Future<bool> saveWindowGeometry(WindowGeometry geometry) async {
+    _windowGeometryCache = geometry;
+    return _writePrimaryFile(_windowFileName, jsonEncode(geometry.toJson()));
   }
 
   List<TaskProfile> _decodeTasks(List<dynamic> entries) {
