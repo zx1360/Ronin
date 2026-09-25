@@ -93,30 +93,64 @@ class _TaskManagerPageState extends ConsumerState<TaskManagerPage> {
   }
 }
 
-class _TaskCard extends ConsumerWidget {
+class _TaskCard extends ConsumerStatefulWidget {
   final TaskProfile task;
 
   const _TaskCard({required this.task});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final runtimeBoard = ref.watch(runtimeProcessControllerProvider);
+  ConsumerState<_TaskCard> createState() => _TaskCardState();
+}
+
+class _TaskCardState extends ConsumerState<_TaskCard> {
+  late Future<bool> _exeExistsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _exeExistsFuture = _checkExecutable();
+  }
+
+  @override
+  void didUpdateWidget(_TaskCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.task.executablePath != widget.task.executablePath) {
+      _exeExistsFuture = _checkExecutable();
+    }
+  }
+
+  /// 存在性检查涉及磁盘 I/O：缓存成 Future，避免在 build 里同步阻塞。
+  Future<bool> _checkExecutable() async {
+    final path = widget.task.executablePath;
+    if (path.isEmpty) {
+      return false;
+    }
+    return File(path).exists();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final task = widget.task;
+    // 只订阅本任务的运行时状态：否则每个任务的日志/状态变化都会重建整张卡片。
+    final runtime = ref.watch(
+      runtimeProcessControllerProvider.select(
+        (board) => board.runtimes[task.id],
+      ),
+    );
     final runtimeController = ref.read(
       runtimeProcessControllerProvider.notifier,
     );
     final taskController = ref.read(taskProfilesControllerProvider.notifier);
 
-    final runtime =
-        runtimeBoard.runtimes[task.id] ?? RuntimeProcessState.idle(task.id);
     final preset = task.selectedPreset;
-    final exeExists =
-        task.executablePath.isNotEmpty &&
-        File(task.executablePath).existsSync();
+    final status = runtime?.status ?? RuntimeStatus.idle;
+    final pid = runtime?.pid;
+    final message = runtime?.message ?? '';
 
     final isRunning =
-        runtime.status == RuntimeStatus.running ||
-        runtime.status == RuntimeStatus.starting ||
-        runtime.status == RuntimeStatus.stopping;
+        status == RuntimeStatus.running ||
+        status == RuntimeStatus.starting ||
+        status == RuntimeStatus.stopping;
 
     return Card(
       child: Padding(
@@ -132,9 +166,9 @@ class _TaskCard extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                RuntimeStatusBadge(status: runtime.status),
+                RuntimeStatusBadge(status: status),
                 const SizedBox(width: 8),
-                Text('PID: ${runtime.pid?.toString() ?? '-'}'),
+                Text('PID: ${pid?.toString() ?? '-'}'),
               ],
             ),
             const SizedBox(height: 8),
@@ -142,9 +176,15 @@ class _TaskCard extends ConsumerWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _PathChip(
-                  ok: exeExists,
-                  label: exeExists ? 'exe路径有效' : 'exe路径无效',
+                FutureBuilder<bool>(
+                  future: _exeExistsFuture,
+                  builder: (context, snapshot) {
+                    final exeExists = snapshot.data ?? false;
+                    return _PathChip(
+                      ok: exeExists,
+                      label: exeExists ? 'exe路径有效' : 'exe路径无效',
+                    );
+                  },
                 ),
                 if (task.dangerousOperation)
                   const _PathChip(ok: false, label: '危险任务'),
@@ -269,17 +309,16 @@ class _TaskCard extends ConsumerWidget {
                 ),
               ],
             ),
-            if ((runtime.message ?? '').isNotEmpty)
+            if (message.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(runtime.message ?? ''),
+                child: Text(message),
               ),
           ],
         ),
       ),
     );
   }
-
 }
 
 class _PathChip extends StatelessWidget {

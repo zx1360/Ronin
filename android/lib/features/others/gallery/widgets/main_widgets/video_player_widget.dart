@@ -212,7 +212,7 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
     if (mounted) setState(() {});
   }
 
-  // ============ 显示/隐藏 ============
+  // 显示/隐藏
 
   void _restartHideTimer() {
     _hideTimer?.cancel();
@@ -233,7 +233,7 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
     if (!_controlsVisible) setState(() => _controlsVisible = true);
   }
 
-  // ============ 播放控制 ============
+  // 播放控制
 
   Future<void> _togglePlay() async {
     if (!_vc.value.isInitialized) return;
@@ -256,7 +256,7 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
     _vc.seekTo(target);
   }
 
-  // ============ 进度条 ============
+  // 进度条
 
   /// 按 0~1 比例 seek，边界收敛后交给播放器（其内部再 clamp 到 duration）
   void _seekToFraction(double fraction) {
@@ -356,8 +356,11 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
     const trackH = 3.0;
     const handleR = 7.0;
     final barW = width * played;
-    // 手柄中心保持在轨道范围内，避免被裁剪（已播条宽度仍用真实比例）
-    final cx = barW.clamp(handleR, width - handleR);
+    // 手柄中心保持在轨道范围内，避免被裁剪（已播条宽度仍用真实比例）；
+    // 轨道比手柄还窄时不做约束，否则 clamp 的下界会大于上界
+    final cx = width <= handleR * 2
+        ? width / 2
+        : barW.clamp(handleR, width - handleR);
 
     return Stack(
       alignment: Alignment.center,
@@ -415,7 +418,7 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
     );
   }
 
-  // ============ 整体布局 ============
+  // 整体布局
 
   @override
   Widget build(BuildContext context) {

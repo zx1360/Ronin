@@ -38,7 +38,8 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
   final Ref _ref;
 
-  bool _initialized = false;
+  /// 初始化只执行一次；并发调用者共享同一个 Future
+  Future<void>? _initFuture;
   bool _isScheduling = false;
 
   final Set<String> _runningTaskIds = <String>{};
@@ -47,10 +48,10 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   Timer? _retryTimer;
   Timer? _persistTimer;
 
-  Future<void> initialize() async {
-    if (_initialized) return;
-    _initialized = true;
+  /// 预载任务缓存；并发调用共享同一次初始化，避免第二个调用者拿到空状态
+  Future<void> initialize() => _initFuture ??= _loadPersistedTasks();
 
+  Future<void> _loadPersistedTasks() async {
     final raw = PrefsService().prefs.getString(_prefsKey);
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -194,7 +195,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   }
 
   void _schedule() {
-    if (!_initialized || _isScheduling) return;
+    if (_initFuture == null || _isScheduling) return;
 
     _isScheduling = true;
     Future<void>(() async {

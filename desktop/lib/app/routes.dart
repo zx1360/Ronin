@@ -8,7 +8,6 @@ import 'package:northstar/ui/ops/pages/settings_page.dart';
 import 'package:northstar/features/help/pages/help_page.dart';
 import 'package:northstar/ui/comix/pages/comix_page.dart';
 
-
 // 定义路由数据模型
 class AppRoute {
   final String path;
@@ -24,9 +23,7 @@ class AppRoute {
   });
 }
 
-// 所有路由定义: 1仪表盘, 2漫画资源, 3日志, 4任务, 5设置, 6帮助
 final List<AppRoute> routes = [
-  // Dashboard
   AppRoute(
     path: '/dashboard',
     name: 'dashboard',
@@ -34,7 +31,6 @@ final List<AppRoute> routes = [
     builder: (context, state) => const DashboardPage(),
   ),
 
-  // 漫画资源：爬虫操作 + 书库管理（原 /comics 已合并至此）
   AppRoute(
     path: '/comix',
     name: 'comix',
@@ -42,7 +38,6 @@ final List<AppRoute> routes = [
     builder: (context, state) => const ComixPage(),
   ),
 
-  // 日志
   AppRoute(
     path: '/logs',
     name: 'logs',
@@ -50,7 +45,6 @@ final List<AppRoute> routes = [
     builder: (context, state) => const LogsPage(),
   ),
 
-  // 任务管理
   AppRoute(
     path: '/tasks',
     name: 'tasks',
@@ -58,15 +52,13 @@ final List<AppRoute> routes = [
     builder: (context, state) => const TaskManagerPage(),
   ),
 
-  // 设置
   AppRoute(
     path: '/settings',
     name: 'settings',
     icon: Icons.settings,
     builder: (context, state) => const SettingsPage(),
   ),
-  
-  // 帮助页
+
   AppRoute(
     path: '/help',
     name: 'help',

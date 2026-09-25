@@ -13,10 +13,6 @@ import 'package:torrid/features/essay/models/year_summary.dart';
 
 part 'box_provider.g.dart';
 
-// ============================================================================
-// YearSummary Box & Stream
-// ============================================================================
-
 /// 年度统计信息的 Hive Box
 @riverpod
 Box<YearSummary> summaryBox(SummaryBoxRef ref) {
@@ -37,10 +33,6 @@ Stream<List<YearSummary>> summaryStream(SummaryStreamRef ref) async* {
   }
 }
 
-// ============================================================================
-// Essay Box & Stream
-// ============================================================================
-
 /// 随笔数据的 Hive Box
 @riverpod
 Box<Essay> essayBox(EssayBoxRef ref) {
@@ -58,10 +50,6 @@ Stream<List<Essay>> essayStream(EssayStreamRef ref) async* {
     }
   }
 }
-
-// ============================================================================
-// Label Box & Stream
-// ============================================================================
 
 /// 标签数据的 Hive Box
 @riverpod

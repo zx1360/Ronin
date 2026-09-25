@@ -8,18 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"gizmos/internal/gallery/pipeline"
 	"gizmos/internal/gallery/refresh"
 	"gizmos/internal/service/config"
 	"gizmos/internal/service/db"
-)
-
-// TODO: 修改, 此处不要用默认路径+启动参数变更.
-// 在桌面ui初次使用时从用户获取, 否则当前目录下的下一级目录. (持久化保存.)
-const (
-	defaultGalleryDir = "D:\\Assests\\Gallery"
 )
 
 type galleryPaths struct {
@@ -43,13 +38,18 @@ func buildGalleryPaths(root string) galleryPaths {
 func main() {
 	// 解析命令行参数
 	mode := flag.String("mode", "ingest", "运行模式: ingest(摄入) | execute(执行删除) | refresh(刷新修复)")
-	galleryDir := flag.String("gallery-root", defaultGalleryDir, "Gallery 根目录")
+	galleryDir := flag.String("gallery-root", "", "Gallery 根目录（必填）")
 	concurrency := flag.Int("concurrency", 10, "并发处理数")
 	batchSize := flag.Int("batch", 160, "批量写入大小")
 	resize := flag.Int("resize", 0, "refresh 模式: 同时设置预览图最大边和缩略图边长（像素，>0 生效）")
 	resizePreview := flag.Int("resizePreview", 0, "refresh 模式: 单独设置预览图最大边（像素，>0 生效）")
 	resizeThumb := flag.Int("resizeThumb", 0, "refresh 模式: 单独设置缩略图边长（像素，>0 生效）")
 	flag.Parse()
+
+	if strings.TrimSpace(*galleryDir) == "" {
+		flag.Usage()
+		log.Fatal("必须通过 -gallery-root 指定 Gallery 根目录")
+	}
 
 	paths := buildGalleryPaths(*galleryDir)
 

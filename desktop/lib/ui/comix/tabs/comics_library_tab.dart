@@ -10,6 +10,7 @@ import 'package:northstar/core/providers/comix/comix_providers.dart';
 import 'package:northstar/core/providers/ops/ops_overview_provider.dart';
 import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/domain/comix/models/comix_models.dart';
+import 'package:northstar/infrastructure/api_http_helper.dart';
 import 'package:northstar/ui/comix/widgets/comix_dialogs.dart';
 
 /// 漫画库 Tab：书库管理与爬虫操作的一体化视图。
@@ -49,14 +50,24 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
     }
   }
 
-  Future<void> _updateCheck({int? comicId, String? title, bool all = false}) async {
-    final options =
-        await showUpdateCheckDialog(context, comicTitle: title, all: all);
+  Future<void> _updateCheck({
+    int? comicId,
+    String? title,
+    bool all = false,
+  }) async {
+    final options = await showUpdateCheckDialog(
+      context,
+      comicTitle: title,
+      all: all,
+    );
     if (options == null) return;
     try {
       await ref
           .read(comixBoardProvider.notifier)
-          .startTask('update-check', options.toBody(comicId: comicId, all: all));
+          .startTask(
+            'update-check',
+            options.toBody(comicId: comicId, all: all),
+          );
       _snack(all ? '已提交全站追更检查' : '已提交追更检查：$title');
     } catch (e) {
       _snack('提交追更检查失败: $e');
@@ -94,9 +105,11 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
     final next = !comic.isPublic;
     try {
       final settings = ref.read(opsSettingsControllerProvider);
-      await ref
-          .read(comixApiClientProvider)
-          .updateComicMeta(settings, comic.comicId, {'is_public': next});
+      await ref.read(comixApiClientProvider).updateComicMeta(
+        settings,
+        comic.comicId,
+        {'is_public': next},
+      );
       _refreshComics();
       _snack(next ? '「${comic.title}」已设为公开' : '「${comic.title}」已设为隐藏');
     } catch (e) {
@@ -108,9 +121,11 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
     final next = !comic.readed;
     try {
       final settings = ref.read(opsSettingsControllerProvider);
-      await ref
-          .read(comixApiClientProvider)
-          .updateComicMeta(settings, comic.comicId, {'readed': next});
+      await ref.read(comixApiClientProvider).updateComicMeta(
+        settings,
+        comic.comicId,
+        {'readed': next},
+      );
       _refreshComics();
     } catch (e) {
       _snack('更新失败: $e');
@@ -133,19 +148,25 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
     }
 
     final comicDir = p.join(staticDir, 'comics', '${comic.comicId}');
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-      initialDirectory: Directory(comicDir).existsSync() ? comicDir : null,
-    );
-    final pickedPath = result?.files.firstOrNull?.path;
+    final String? pickedPath;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        initialDirectory: Directory(comicDir).existsSync() ? comicDir : null,
+      );
+      pickedPath = result?.files.firstOrNull?.path;
+    } catch (e) {
+      _snack('选择封面图片失败: $e');
+      return;
+    }
     if (pickedPath == null) return;
 
     final coverFileName = 'cover${p.extension(pickedPath)}';
     final targetDir = p.join(comicDir, 'cover');
-    final relativePath =
-        p.join('comics', '${comic.comicId}', 'cover', coverFileName)
-            .replaceAll('\\', '/');
+    final relativePath = p
+        .join('comics', '${comic.comicId}', 'cover', coverFileName)
+        .replaceAll('\\', '/');
 
     try {
       final dir = Directory(targetDir);
@@ -214,8 +235,9 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -238,8 +260,7 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
               }
               return GridView.builder(
                 padding: const EdgeInsets.all(AppDimens.paddingL),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
                   childAspectRatio: 0.62,
                   crossAxisSpacing: AppDimens.spacingM,
@@ -290,10 +311,12 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
     if (_keyword.isEmpty) return list;
     final keyword = _keyword.toLowerCase();
     return list
-        .where((c) =>
-            c.title.toLowerCase().contains(keyword) ||
-            c.siteName.toLowerCase().contains(keyword) ||
-            '${c.comicId}' == keyword)
+        .where(
+          (c) =>
+              c.title.toLowerCase().contains(keyword) ||
+              c.siteName.toLowerCase().contains(keyword) ||
+              '${c.comicId}' == keyword,
+        )
         .toList(growable: false);
   }
 
@@ -332,8 +355,7 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
                             },
                           ),
                   ),
-                  onChanged: (value) =>
-                      setState(() => _keyword = value.trim()),
+                  onChanged: (value) => setState(() => _keyword = value.trim()),
                 ),
               ),
               ElevatedButton.icon(
@@ -388,14 +410,14 @@ class _ComicCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: _buildCover(context)),          Padding(
+          Expanded(child: _buildCover(context)),
+          Padding(
             padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
             child: Text(
               comic.title,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -415,7 +437,10 @@ class _ComicCard extends StatelessWidget {
                       : Colors.greenAccent.shade400,
                 ),
                 if (comic.failed > 0)
-                  _CompactChip(label: '失败${comic.failed}', color: Colors.redAccent),
+                  _CompactChip(
+                    label: '失败${comic.failed}',
+                    color: Colors.redAccent,
+                  ),
                 _CompactChip(
                   label: comic.isPublic ? '公开' : '隐藏',
                   color: comic.isPublic ? Colors.green : Colors.orange,
@@ -497,11 +522,11 @@ class _ComicCard extends StatelessWidget {
   }
 
   String _staticBase(BuildContext context) {
-    final base = ProviderScope.containerOf(context)
-        .read(opsSettingsControllerProvider)
-        .apiBaseUrl
-        .trim()
-        .replaceAll(RegExp(r'/+$'), '');
+    final base = normalizeBaseUrl(
+      ProviderScope.containerOf(
+        context,
+      ).read(opsSettingsControllerProvider).apiBaseUrl,
+    );
     return '$base/static/';
   }
 

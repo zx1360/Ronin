@@ -67,7 +67,12 @@ func GetPool() *pgxpool.Pool {
 	return Pool
 }
 
-// 获得默认超时的上下文
+// GetDefaultCtx 返回默认超时（5s）的上下文，适用于单条/少量语句的查询。
 func GetDefaultCtx() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 5*time.Second)
+}
+
+// GetLongCtx 返回长超时（5min）的上下文，适用于批量写入与全量替换类操作。
+func GetLongCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 5*time.Minute)
 }

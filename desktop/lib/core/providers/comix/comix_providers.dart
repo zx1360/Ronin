@@ -31,8 +31,6 @@ class ComixBoardState {
     this.error,
   });
 
-  bool get hasRunningTasks => tasks.any((t) => t.isRunning);
-
   ComixBoardState copyWith({
     List<ComixTask>? tasks,
     bool? refreshing,
@@ -54,7 +52,6 @@ class ComixBoardState {
 ///
 /// 轮询由本控制器自管，且**按需启停**：只有在"有运行中任务"或"刚提交、尚未在
 /// 列表中出现"时才定时刷新，全部落定后立即停表；页面不在前台时同样停表。
-/// 旧实现由页面无条件起一个 2s 定时器，空闲时也在持续请求 `/API/comix/tasks`。
 class ComixBoardNotifier extends Notifier<ComixBoardState> {
   /// 轮询间隔（测试可调小，正式运行固定 2s）。
   static Duration pollInterval = const Duration(seconds: 2);
@@ -107,7 +104,8 @@ class ComixBoardNotifier extends Notifier<ComixBoardState> {
         final cached = _details[task.id];
         // 运行中：必须拉最新详情（实时日志）；
         // 首次见到且已结束的非运行任务：也拉一次详情，补齐 result 与日志。
-        final needDetail = task.isRunning ||
+        final needDetail =
+            task.isRunning ||
             (cached == null && !task.isRunning) ||
             (cached != null && cached.isRunning && !task.isRunning);
         if (!needDetail) {
@@ -199,7 +197,8 @@ class ComixBoardNotifier extends Notifier<ComixBoardState> {
     // 连续多轮都没看到已提交的任务（后端已裁剪/被吞）就不再等待。
     final pendingTooLong = _pendingGraceRounds > 15;
 
-    final needPoll = _pageActive &&
+    final needPoll =
+        _pageActive &&
         !pendingTooLong &&
         (state.tasks.any((t) => t.isRunning) || _hasPendingSubmission());
     if (needPoll) {
@@ -215,6 +214,7 @@ class ComixBoardNotifier extends Notifier<ComixBoardState> {
       _details.keys.any((id) => !_seenIds.contains(id));
 }
 
-final comixBoardProvider = NotifierProvider<ComixBoardNotifier, ComixBoardState>(
-  ComixBoardNotifier.new,
-);
+final comixBoardProvider =
+    NotifierProvider<ComixBoardNotifier, ComixBoardState>(
+      ComixBoardNotifier.new,
+    );

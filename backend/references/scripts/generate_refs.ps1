@@ -96,7 +96,6 @@ try {
 
     $gizmosRoot = Join-Path $Root "gizmos"
     Capture-HelpSnapshot -WorkingDir $gizmosRoot -OutPath (Join-Path $cliDir "gizmos-gallery.md") -Command "go" -Args @("run", "./cmd/gallery", "-h")
-    Capture-HelpSnapshot -WorkingDir $gizmosRoot -OutPath (Join-Path $cliDir "gizmos-comic-indexer.md") -Command "go" -Args @("run", "./cmd/comic_indexer", "-h")
 
     Write-Host "[refs] done"
 }

@@ -86,15 +86,14 @@ func (s *Scanner) ExtractFileInfo(filePath string) (*model.FileInfo, error) {
 	mimeType := model.GetMimeType(ext)
 
 	return &model.FileInfo{
-		OriginalPath: filePath,
-		FileName:     fileName,
-		Extension:    ext,
-		SizeBytes:    stat.Size(),
-		Hash:         hash,
-		MimeType:     mimeType,
-		CapturedAt:   capturedAt,
-		IsVideo:      isVideo,
-		IsAnimated:   isAnimated,
+		FileName:   fileName,
+		Extension:  ext,
+		SizeBytes:  stat.Size(),
+		Hash:       hash,
+		MimeType:   mimeType,
+		CapturedAt: capturedAt,
+		IsVideo:    isVideo,
+		IsAnimated: isAnimated,
 	}, nil
 }
 

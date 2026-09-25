@@ -1,13 +1,14 @@
 -- =====================================================
--- 一键初始化脚本
+-- 一键初始化脚本（幂等，可重复执行）
 -- 包含 schema、表、索引、函数、触发器
 -- 适用 PostgreSQL 12+
+--
+-- 注意：comix schema 由 comix 爬虫项目自行建表与维护，此处不涉及。
 -- =====================================================
 
 \set ON_ERROR_STOP on
 
 -- 创建 schema（如果不存在）
--- CREATE SCHEMA IF NOT EXISTS comics;
 CREATE SCHEMA IF NOT EXISTS gallery;
 CREATE SCHEMA IF NOT EXISTS user_data;
 
@@ -25,43 +26,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-
--- =====================================================
--- 原comics schema, 现comix. 且通过视图而非表访问. 以下为原表定义, 现在使用的是同结构的视图.
--- =====================================================
-
--- 漫画主表
-CREATE TABLE IF NOT EXISTS comics.comic_books (
-    id          UUID PRIMARY KEY,
-    title       VARCHAR(255) NOT NULL,
-    cover_image TEXT,
-    is_public   BOOLEAN NOT NULL DEFAULT TRUE,
-    readed      BOOLEAN NOT NULL DEFAULT FALSE
-);
-
--- 漫画章节表
-CREATE TABLE IF NOT EXISTS comics.comic_chapters (
-    id            UUID PRIMARY KEY,
-    comic_id      UUID NOT NULL,
-    dir_name      VARCHAR(255) NOT NULL,   -- 格式：001_章节名
-    chapter_index INTEGER NOT NULL,
-    FOREIGN KEY (comic_id) REFERENCES comics.comic_books(id) ON DELETE CASCADE
-);
-
--- 漫画图片表
-CREATE TABLE IF NOT EXISTS comics.comic_images (
-    id          UUID PRIMARY KEY,
-    chapter_id  UUID NOT NULL,
-    image_path  TEXT NOT NULL,
-    sort_num    INTEGER NOT NULL,
-    width       INTEGER NOT NULL,
-    height      INTEGER NOT NULL,
-    FOREIGN KEY (chapter_id) REFERENCES comics.comic_chapters(id) ON DELETE CASCADE
-);
-
--- 索引
-CREATE INDEX IF NOT EXISTS idx_comic_chapters_comic_id ON comics.comic_chapters (comic_id, chapter_index);
-CREATE INDEX IF NOT EXISTS idx_comic_images_chapter_id ON comics.comic_images (chapter_id, sort_num);
 
 -- =====================================================
 -- gallery schema
@@ -204,9 +168,11 @@ BEGIN
 END;
 $$;
 
--- 绑定触发器（先删除可能残留的旧触发器）
+-- 绑定触发器（先删除可能残留的旧触发器，保证脚本可重复执行）
 DROP TRIGGER IF EXISTS trg_tags_before_ins_upd ON gallery.tags;
 DROP TRIGGER IF EXISTS trg_tags_after_upd ON gallery.tags;
+DROP TRIGGER IF EXISTS trigger_media_assets_updated_at ON gallery.media_assets;
+DROP TRIGGER IF EXISTS trigger_tags_updated_at ON gallery.tags;
 
 CREATE TRIGGER trg_tags_before_ins_upd
     BEFORE INSERT OR UPDATE OF name, parent_id
@@ -249,10 +215,10 @@ CREATE TABLE IF NOT EXISTS user_data.essay_articles (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_essay_articles_date   ON user_data.essay_articles (date);
-CREATE INDEX idx_essay_articles_labels ON user_data.essay_articles USING GIN (labels);
-CREATE INDEX idx_essay_articles_mood   ON user_data.essay_articles (mood);
-CREATE INDEX idx_essay_articles_updated ON user_data.essay_articles (updated_at);
+CREATE INDEX IF NOT EXISTS idx_essay_articles_date    ON user_data.essay_articles (date);
+CREATE INDEX IF NOT EXISTS idx_essay_articles_labels  ON user_data.essay_articles USING GIN (labels);
+CREATE INDEX IF NOT EXISTS idx_essay_articles_mood    ON user_data.essay_articles (mood);
+CREATE INDEX IF NOT EXISTS idx_essay_articles_updated ON user_data.essay_articles (updated_at);
 
 -- 随笔标签表
 CREATE TABLE IF NOT EXISTS user_data.essay_labels (
@@ -263,7 +229,7 @@ CREATE TABLE IF NOT EXISTS user_data.essay_labels (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_essay_labels_name ON user_data.essay_labels (name);
+CREATE INDEX IF NOT EXISTS idx_essay_labels_name ON user_data.essay_labels (name);
 
 -- 年度汇总表
 CREATE TABLE IF NOT EXISTS user_data.essay_year_summaries (
@@ -287,7 +253,7 @@ CREATE TABLE IF NOT EXISTS user_data.booklet_styles (
     updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_booklet_styles_start ON user_data.booklet_styles (start_date);
+CREATE INDEX IF NOT EXISTS idx_booklet_styles_start ON user_data.booklet_styles (start_date);
 
 -- 每日打卡记录表
 CREATE TABLE IF NOT EXISTS user_data.booklet_records (
@@ -303,11 +269,17 @@ CREATE TABLE IF NOT EXISTS user_data.booklet_records (
     CONSTRAINT fk_booklet_records_style FOREIGN KEY (style_id) REFERENCES user_data.booklet_styles(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_booklet_records_date   ON user_data.booklet_records (date);
-CREATE INDEX idx_booklet_records_style  ON user_data.booklet_records (style_id);
-CREATE INDEX idx_booklet_records_updated ON user_data.booklet_records (updated_at);
+CREATE INDEX IF NOT EXISTS idx_booklet_records_date    ON user_data.booklet_records (date);
+CREATE INDEX IF NOT EXISTS idx_booklet_records_style   ON user_data.booklet_records (style_id);
+CREATE INDEX IF NOT EXISTS idx_booklet_records_updated ON user_data.booklet_records (updated_at);
 
 -- user_data 各表的 updated_at 自动更新触发器
+DROP TRIGGER IF EXISTS trigger_essay_articles_updated_at ON user_data.essay_articles;
+DROP TRIGGER IF EXISTS trigger_essay_labels_updated_at ON user_data.essay_labels;
+DROP TRIGGER IF EXISTS trigger_essay_year_summaries_updated_at ON user_data.essay_year_summaries;
+DROP TRIGGER IF EXISTS trigger_booklet_styles_updated_at ON user_data.booklet_styles;
+DROP TRIGGER IF EXISTS trigger_booklet_records_updated_at ON user_data.booklet_records;
+
 CREATE TRIGGER trigger_essay_articles_updated_at
     BEFORE UPDATE ON user_data.essay_articles
     FOR EACH ROW
@@ -332,7 +304,3 @@ CREATE TRIGGER trigger_booklet_records_updated_at
     BEFORE UPDATE ON user_data.booklet_records
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at_column();
-
--- =====================================================
--- 初始化完成
--- =====================================================

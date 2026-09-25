@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strings"
 
 	"github.com/hashicorp/mdns"
@@ -18,15 +17,6 @@ type ServiceInfo struct {
 	Port     int    // 服务端口
 	IsHTTPS  bool   // 是否 HTTPS 模式
 	HasAuth  bool   // 是否需要 API Key 鉴权
-}
-
-// getHostname 获取本机主机名
-func getHostname() string {
-	name, err := os.Hostname()
-	if err != nil {
-		return "Unknown"
-	}
-	return name
 }
 
 // buildTxtRecords 构建 TXT 记录，携带服务元信息
@@ -57,8 +47,7 @@ func buildTxtRecords(info ServiceInfo) []string {
 	return records
 }
 
-// Register 注册 mDNS 服务，阻塞直到注册成功或失败
-// 返回一个 channel，发送 nil 时停止服务广播
+// Register 注册 mDNS 服务并返回运行中的 server（由调用方持有以维持广播）。
 func Register(info ServiceInfo) (*mdns.Server, error) {
 	// 获取本机 IP
 	hostIP, err := getLocalIP()

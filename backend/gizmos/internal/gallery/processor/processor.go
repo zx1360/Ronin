@@ -1,19 +1,22 @@
-// Package processor 负责图片/视频处理，包括缩略图和预览图生成
+// Package processor 负责图片/视频的缩略图与预览图生成。
+//
+// 所有派生图都写到调用方给定的绝对路径；源文件只读。视频取帧依赖 PATH 中的
+// ffmpeg/ffprobe，原生解码失败时也会退回 ffmpeg 转换。
 package processor
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/gif"
-	"image/jpeg"
-	"image/png"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/disintegration/imaging"
 	_ "golang.org/x/image/webp" // WebP 解码支持
@@ -22,266 +25,229 @@ import (
 )
 
 const (
-	ThumbSize   = 256 // 缩略图尺寸 256x256
-	PreviewSize = 256 // 预览图最大边
+	ThumbSize   = 256 // 缩略图边长（中心裁剪为正方形）
+	PreviewSize = 256 // 预览图最大边（保持比例）
 	JpegQuality = 85  // JPEG 压缩质量
+
+	ffmpegTimeout = 5 * time.Minute
 )
 
 // ErrNoOp 表示编辑参数实际为无操作（无需处理），
 // 调用方应跳过文件搬移并仅清除数据库中的 edit_params。
 var ErrNoOp = fmt.Errorf("编辑参数为无操作")
 
+// GenerateRequest 描述一次派生图生成请求。
+type GenerateRequest struct {
+	NeedThumb   bool
+	NeedPreview bool
+	ThumbSize   int
+	PreviewSize int
+}
+
 // Processor 媒体处理器
 type Processor struct {
-	thumbsDir  string // 缩略图目录
-	previewDir string // 预览图目录
-	ffmpegPath string // ffmpeg 路径
+	thumbsDir  string
+	previewDir string
 }
 
 // NewProcessor 创建新的处理器
 func NewProcessor(thumbsDir, previewDir string) *Processor {
-	return &Processor{
-		thumbsDir:  thumbsDir,
-		previewDir: previewDir,
-		ffmpegPath: "ffmpeg", // 假设已在 PATH 中
-	}
+	return &Processor{thumbsDir: thumbsDir, previewDir: previewDir}
 }
 
-// ProcessResult 处理结果
+// ProcessResult 处理结果（相对路径）
 type ProcessResult struct {
-	ThumbPath   string // 缩略图相对路径
-	PreviewPath string // 预览图相对路径
+	ThumbPath   string
+	PreviewPath string
 }
 
-// Process 处理媒体文件，生成缩略图和预览图
-func (p *Processor) Process(fileInfo *model.FileInfo, mediaPath string, yearMonth string) (*ProcessResult, error) {
-	// 构建输出路径
+// Process 为媒体文件生成缩略图与预览图，返回相对 thumbsDir/previewDir 的路径。
+func (p *Processor) Process(fileInfo *model.FileInfo, mediaPath, yearMonth string) (*ProcessResult, error) {
 	baseName := strings.TrimSuffix(filepath.Base(fileInfo.FileName), fileInfo.Extension)
 
-	// 缩略图和预览图统一使用 jpg 格式（除了 GIF 保持动态）
-	thumbExt := ".jpg"
-	previewExt := ".jpg"
+	// 统一输出 jpg；动态 GIF 保持 gif 以保留动画
+	ext := ".jpg"
 	if fileInfo.IsAnimated && fileInfo.Extension == ".gif" {
-		thumbExt = ".gif"
-		previewExt = ".gif"
+		ext = ".gif"
+	}
+	thumbFileName := baseName + "_thumb" + ext
+	previewFileName := baseName + "_preview" + ext
+
+	thumbFullPath := filepath.Join(p.thumbsDir, yearMonth, thumbFileName)
+	previewFullPath := filepath.Join(p.previewDir, yearMonth, previewFileName)
+	for _, dir := range []string{filepath.Dir(thumbFullPath), filepath.Dir(previewFullPath)} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("创建派生图目录失败: %w", err)
+		}
 	}
 
-	thumbFileName := baseName + "_thumb" + thumbExt
-	previewFileName := baseName + "_preview" + previewExt
-
-	// 确保目录存在
-	thumbSubDir := filepath.Join(p.thumbsDir, yearMonth)
-	previewSubDir := filepath.Join(p.previewDir, yearMonth)
-
-	if err := os.MkdirAll(thumbSubDir, 0755); err != nil {
-		return nil, fmt.Errorf("创建缩略图目录失败: %w", err)
-	}
-	if err := os.MkdirAll(previewSubDir, 0755); err != nil {
-		return nil, fmt.Errorf("创建预览图目录失败: %w", err)
-	}
-
-	thumbFullPath := filepath.Join(thumbSubDir, thumbFileName)
-	previewFullPath := filepath.Join(previewSubDir, previewFileName)
-
-	var err error
-	if fileInfo.IsVideo {
-		err = p.processVideo(mediaPath, thumbFullPath, previewFullPath)
-	} else if fileInfo.IsAnimated && fileInfo.Extension == ".gif" {
-		err = p.processAnimatedGif(mediaPath, thumbFullPath, previewFullPath)
-	} else {
-		err = p.processImage(mediaPath, thumbFullPath, previewFullPath)
-	}
-
+	err := Generate(mediaPath, thumbFullPath, previewFullPath, GenerateRequest{
+		NeedThumb:   true,
+		NeedPreview: true,
+		ThumbSize:   ThumbSize,
+		PreviewSize: PreviewSize,
+	}, fileInfo.IsVideo, fileInfo.IsAnimated && fileInfo.Extension == ".gif")
 	if err != nil {
 		return nil, err
 	}
 
-	// 返回相对路径
 	return &ProcessResult{
 		ThumbPath:   filepath.Join(yearMonth, thumbFileName),
 		PreviewPath: filepath.Join(yearMonth, previewFileName),
 	}, nil
 }
 
-// openImageWithFallback 打开图片，原生解码失败时用 ffmpeg 转为标准 JPEG 再解码
-func (p *Processor) openImageWithFallback(srcPath string) (image.Image, error) {
-	src, err := imaging.Open(srcPath, imaging.AutoOrientation(true))
-	if err == nil {
-		return src, nil
+// Generate 从 srcPath 生成缩略图/预览图到给定绝对路径。
+//
+// 目录必须由调用方预先创建；isVideo/isGIF 决定走哪条处理管线，
+// 二者都为 false 时按静态图片处理（原生解码失败会自动用 ffmpeg 兜底）。
+func Generate(srcPath, thumbPath, previewPath string, req GenerateRequest, isVideo, isGIF bool) error {
+	if !req.NeedThumb && !req.NeedPreview {
+		return nil
+	}
+	if req.ThumbSize <= 0 {
+		req.ThumbSize = ThumbSize
+	}
+	if req.PreviewSize <= 0 {
+		req.PreviewSize = PreviewSize
 	}
 
-	// 原生解码失败，使用 ffmpeg 后备
-	log.Printf("原生解码失败 (%v)，使用 ffmpeg 后备: %s", err, filepath.Base(srcPath))
-
-	tempJPEG := filepath.Join(os.TempDir(), fmt.Sprintf("gallery_conv_%d_%s.jpg",
-		os.Getpid(), strings.TrimSuffix(filepath.Base(srcPath), filepath.Ext(srcPath))))
-	defer os.Remove(tempJPEG)
-
-	cmd := exec.Command(p.ffmpegPath,
-		"-i", srcPath,
-		"-qmin", "1",
-		"-q:v", "2",
-		"-y",
-		tempJPEG,
-	)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("ffmpeg 转换图片失败: %w, 输出: %s", err, string(output))
+	if isVideo {
+		return processVideo(srcPath, thumbPath, previewPath, req)
 	}
-
-	src, err = imaging.Open(tempJPEG, imaging.AutoOrientation(true))
-	if err != nil {
-		return nil, fmt.Errorf("打开 ffmpeg 转换后的图片失败: %w", err)
+	if isGIF {
+		return processAnimatedGif(srcPath, thumbPath, previewPath, req)
 	}
-	return src, nil
+	return processImage(srcPath, thumbPath, previewPath, req)
 }
 
 // processImage 处理静态图片
-func (p *Processor) processImage(srcPath, thumbPath, previewPath string) error {
-	// 打开源图片（原生解码失败时自动 ffmpeg 后备）
-	src, err := p.openImageWithFallback(srcPath)
+func processImage(srcPath, thumbPath, previewPath string, req GenerateRequest) error {
+	src, err := openImageWithFallback(srcPath)
 	if err != nil {
 		return fmt.Errorf("打开图片失败: %w", err)
 	}
 
-	// 生成缩略图 (256x256，中心裁剪)
-	thumb := imaging.Fill(src, ThumbSize, ThumbSize, imaging.Center, imaging.Lanczos)
-	if err := imaging.Save(thumb, thumbPath, imaging.JPEGQuality(JpegQuality)); err != nil {
-		return fmt.Errorf("保存缩略图失败: %w", err)
+	if req.NeedThumb {
+		thumb := imaging.Fill(src, req.ThumbSize, req.ThumbSize, imaging.Center, imaging.Lanczos)
+		if err := imaging.Save(thumb, thumbPath, imaging.JPEGQuality(JpegQuality)); err != nil {
+			return fmt.Errorf("保存缩略图失败: %w", err)
+		}
 	}
-
-	// 生成预览图 (最大边 512px，保持比例)
-	preview := imaging.Fit(src, PreviewSize, PreviewSize, imaging.Lanczos)
-	if err := imaging.Save(preview, previewPath, imaging.JPEGQuality(JpegQuality)); err != nil {
-		return fmt.Errorf("保存预览图失败: %w", err)
+	if req.NeedPreview {
+		preview := imaging.Fit(src, req.PreviewSize, req.PreviewSize, imaging.Lanczos)
+		if err := imaging.Save(preview, previewPath, imaging.JPEGQuality(JpegQuality)); err != nil {
+			return fmt.Errorf("保存预览图失败: %w", err)
+		}
 	}
-
 	return nil
 }
 
-// processVideo 处理视频文件
-func (p *Processor) processVideo(srcPath, thumbPath, previewPath string) error {
-	// 获取视频时长
-	duration, err := p.getVideoDuration(srcPath)
+// processVideo 取视频 10% 位置的一帧作为源图，再走图片处理管线
+func processVideo(srcPath, thumbPath, previewPath string, req GenerateRequest) error {
+	duration, err := getVideoDuration(srcPath)
 	if err != nil {
-		// 如果获取时长失败，默认取第 1 秒
-		duration = 10.0
+		duration = 10.0 // 探测失败时退化为固定 1s 位置
 	}
-
-	// 计算 10% 位置的时间点
 	seekTime := duration * 0.1
 	if seekTime < 0.1 {
 		seekTime = 0.1
 	}
 
-	// 提取帧到临时文件 - 使用唯一文件名避免并发冲突
-	tempFrame := filepath.Join(os.TempDir(), fmt.Sprintf("gallery_frame_%d_%s.jpg",
-		os.Getpid(), filepath.Base(srcPath)))
+	tempFrame, err := tempFilePath("gallery_frame_", ".jpg")
+	if err != nil {
+		return err
+	}
 	defer os.Remove(tempFrame)
 
-	// 使用 ffmpeg 提取帧
-	cmd := exec.Command(p.ffmpegPath,
-		"-ss", fmt.Sprintf("%.2f", seekTime),
+	if output, err := runFFmpeg(
+		"-ss", strconv.FormatFloat(seekTime, 'f', 2, 64),
 		"-i", srcPath,
 		"-vframes", "1",
 		"-q:v", "2",
-		"-y",
-		tempFrame,
-	)
-
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("ffmpeg 提取帧失败: %w, 输出: %s", err, string(output))
+		"-y", tempFrame,
+	); err != nil {
+		return fmt.Errorf("ffmpeg 提取帧失败: %w, 输出: %s", err, output)
 	}
-
-	// 检查临时文件是否成功生成
-	if _, err := os.Stat(tempFrame); os.IsNotExist(err) {
+	if _, err := os.Stat(tempFrame); err != nil {
 		return fmt.Errorf("ffmpeg 未能生成帧图片")
 	}
 
-	// 使用图片处理方法处理提取的帧
-	return p.processImage(tempFrame, thumbPath, previewPath)
+	return processImage(tempFrame, thumbPath, previewPath, req)
 }
 
-// processAnimatedGif 处理动态 GIF
-func (p *Processor) processAnimatedGif(srcPath, thumbPath, previewPath string) error {
-	// 打开 GIF 文件
-	file, err := os.Open(srcPath)
-	if err != nil {
-		return fmt.Errorf("打开 GIF 失败: %w", err)
-	}
-	defer file.Close()
+// processAnimatedGif 处理动态 GIF（缩略图与预览图都保留动画）
+func processAnimatedGif(srcPath, thumbPath, previewPath string, req GenerateRequest) error {
+	// 每次重新打开文件解码，避免依赖句柄的 Seek 复位
+	decode := func() (*gif.GIF, error) {
+		file, err := os.Open(srcPath)
+		if err != nil {
+			return nil, fmt.Errorf("打开 GIF 失败: %w", err)
+		}
+		defer file.Close()
 
-	// 解码 GIF
-	gifImg, err := gif.DecodeAll(file)
-	if err != nil {
-		return fmt.Errorf("解码 GIF 失败: %w", err)
-	}
-
-	// 处理每一帧生成缩略图
-	thumbGif, err := p.resizeGif(gifImg, ThumbSize, ThumbSize, true)
-	if err != nil {
-		return fmt.Errorf("生成 GIF 缩略图失败: %w", err)
+		gifImg, err := gif.DecodeAll(file)
+		if err != nil {
+			return nil, fmt.Errorf("解码 GIF 失败: %w", err)
+		}
+		return gifImg, nil
 	}
 
-	// 保存缩略图
-	thumbFile, err := os.Create(thumbPath)
-	if err != nil {
-		return fmt.Errorf("创建缩略图文件失败: %w", err)
-	}
-	defer thumbFile.Close()
-
-	if err := gif.EncodeAll(thumbFile, thumbGif); err != nil {
-		return fmt.Errorf("编码 GIF 缩略图失败: %w", err)
-	}
-
-	// 重新读取原文件用于预览图
-	file.Seek(0, 0)
-	gifImg2, err := gif.DecodeAll(file)
-	if err != nil {
-		return fmt.Errorf("重新解码 GIF 失败: %w", err)
+	if req.NeedThumb {
+		gifImg, err := decode()
+		if err != nil {
+			return err
+		}
+		thumbGif, err := resizeGif(gifImg, req.ThumbSize, req.ThumbSize, true)
+		if err != nil {
+			return fmt.Errorf("生成 GIF 缩略图失败: %w", err)
+		}
+		if err := writeGif(thumbPath, thumbGif); err != nil {
+			return fmt.Errorf("保存 GIF 缩略图失败: %w", err)
+		}
 	}
 
-	// 处理预览图
-	previewGif, err := p.resizeGif(gifImg2, PreviewSize, PreviewSize, false)
-	if err != nil {
-		return fmt.Errorf("生成 GIF 预览图失败: %w", err)
+	if req.NeedPreview {
+		gifImg, err := decode()
+		if err != nil {
+			return err
+		}
+		previewGif, err := resizeGif(gifImg, req.PreviewSize, req.PreviewSize, false)
+		if err != nil {
+			return fmt.Errorf("生成 GIF 预览图失败: %w", err)
+		}
+		if err := writeGif(previewPath, previewGif); err != nil {
+			return fmt.Errorf("保存 GIF 预览图失败: %w", err)
+		}
 	}
-
-	// 保存预览图
-	previewFile, err := os.Create(previewPath)
-	if err != nil {
-		return fmt.Errorf("创建预览图文件失败: %w", err)
-	}
-	defer previewFile.Close()
-
-	if err := gif.EncodeAll(previewFile, previewGif); err != nil {
-		return fmt.Errorf("编码 GIF 预览图失败: %w", err)
-	}
-
 	return nil
 }
 
-// resizeGif 调整 GIF 大小
-func (p *Processor) resizeGif(g *gif.GIF, width, height int, crop bool) (*gif.GIF, error) {
+func writeGif(path string, g *gif.GIF) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := gif.EncodeAll(file, g); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
+}
+
+// resizeGif 缩放 GIF 所有帧；crop=true 时中心裁剪为正方形。
+func resizeGif(g *gif.GIF, width, height int, crop bool) (*gif.GIF, error) {
 	if len(g.Image) == 0 {
 		return nil, fmt.Errorf("GIF 没有帧")
 	}
 
-	// 获取原始尺寸
-	firstFrame := g.Image[0]
-	bounds := firstFrame.Bounds()
-
-	// 计算新尺寸
-	var newWidth, newHeight int
-	if crop {
-		newWidth, newHeight = width, height
-	} else {
-		// 保持比例缩放
+	bounds := g.Image[0].Bounds()
+	newWidth, newHeight := width, height
+	if !crop {
 		ratio := float64(bounds.Dx()) / float64(bounds.Dy())
 		if ratio > 1 {
-			newWidth = width
 			newHeight = int(float64(width) / ratio)
 		} else {
-			newHeight = height
 			newWidth = int(float64(height) * ratio)
 		}
 	}
@@ -295,9 +261,7 @@ func (p *Processor) resizeGif(g *gif.GIF, width, height int, crop bool) (*gif.GI
 	}
 
 	for i, frame := range g.Image {
-		// 转换为 NRGBA 以便处理
 		img := imaging.Clone(frame)
-
 		var resized image.Image
 		if crop {
 			resized = imaging.Fill(img, newWidth, newHeight, imaging.Center, imaging.Lanczos)
@@ -305,7 +269,6 @@ func (p *Processor) resizeGif(g *gif.GIF, width, height int, crop bool) (*gif.GI
 			resized = imaging.Fit(img, newWidth, newHeight, imaging.Lanczos)
 		}
 
-		// 转换回 Paletted
 		palettedImg := image.NewPaletted(resized.Bounds(), frame.Palette)
 		for y := resized.Bounds().Min.Y; y < resized.Bounds().Max.Y; y++ {
 			for x := resized.Bounds().Min.X; x < resized.Bounds().Max.X; x++ {
@@ -315,71 +278,79 @@ func (p *Processor) resizeGif(g *gif.GIF, width, height int, crop bool) (*gif.GI
 		newGif.Image[i] = palettedImg
 	}
 
-	// 更新配置尺寸
 	newGif.Config.Width = newWidth
 	newGif.Config.Height = newHeight
 	newGif.Config.ColorModel = g.Config.ColorModel
-
 	return newGif, nil
 }
 
+// openImageWithFallback 打开图片，原生解码失败时用 ffmpeg 转为标准 JPEG 再解码
+func openImageWithFallback(srcPath string) (image.Image, error) {
+	src, err := imaging.Open(srcPath, imaging.AutoOrientation(true))
+	if err == nil {
+		return src, nil
+	}
+	log.Printf("原生解码失败 (%v)，使用 ffmpeg 后备: %s", err, filepath.Base(srcPath))
+
+	tempJPEG, err := tempFilePath("gallery_conv_", ".jpg")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tempJPEG)
+
+	if output, err := runFFmpeg(
+		"-i", srcPath,
+		"-qmin", "1",
+		"-q:v", "2",
+		"-y", tempJPEG,
+	); err != nil {
+		return nil, fmt.Errorf("ffmpeg 转换图片失败: %w, 输出: %s", err, output)
+	}
+
+	src, err = imaging.Open(tempJPEG, imaging.AutoOrientation(true))
+	if err != nil {
+		return nil, fmt.Errorf("打开 ffmpeg 转换后的图片失败: %w", err)
+	}
+	return src, nil
+}
+
 // getVideoDuration 获取视频时长（秒）
-func (p *Processor) getVideoDuration(videoPath string) (float64, error) {
-	cmd := exec.Command("ffprobe",
+func getVideoDuration(videoPath string) (float64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
+	defer cancel()
+
+	var out bytes.Buffer
+	cmd := exec.CommandContext(ctx, "ffprobe",
 		"-v", "error",
 		"-show_entries", "format=duration",
 		"-of", "default=noprint_wrappers=1:nokey=1",
 		videoPath,
 	)
-
-	var out bytes.Buffer
 	cmd.Stdout = &out
-
 	if err := cmd.Run(); err != nil {
 		return 0, err
 	}
-
-	duration, err := strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return duration, nil
+	return strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
 }
 
-// DecodeImage 解码图片（支持多种格式）
-func DecodeImage(filePath string) (image.Image, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+// runFFmpeg 执行一次 ffmpeg 调用（带超时），返回合并输出用于错误上报。
+func runFFmpeg(args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
+	defer cancel()
 
-	img, _, err := image.Decode(file)
-	if err != nil {
-		return nil, err
-	}
-	return img, nil
+	output, err := exec.CommandContext(ctx, "ffmpeg", args...).CombinedOutput()
+	return string(output), err
 }
 
-// EncodeJPEG 编码为 JPEG
-func EncodeJPEG(img image.Image, filePath string, quality int) error {
-	file, err := os.Create(filePath)
+// tempFilePath 在系统临时目录创建一个空文件并返回其路径（供 ffmpeg 覆写）。
+func tempFilePath(prefix, ext string) (string, error) {
+	file, err := os.CreateTemp("", prefix+"*"+ext)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
 	}
-	defer file.Close()
-
-	return jpeg.Encode(file, img, &jpeg.Options{Quality: quality})
-}
-
-// EncodePNG 编码为 PNG
-func EncodePNG(img image.Image, filePath string) error {
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
+	name := file.Name()
+	if err := file.Close(); err != nil {
+		return "", fmt.Errorf("关闭临时文件失败: %w", err)
 	}
-	defer file.Close()
-
-	return png.Encode(file, img)
+	return name, nil
 }

@@ -4,7 +4,7 @@ import 'package:torrid/features/essay/models/essay.dart';
 
 part 'year_summary.g.dart';
 
-// ----随笔年度信息类
+// 随笔年度信息类
 @HiveType(typeId: 0)
 @JsonSerializable(fieldRename: FieldRename.snake)
 class YearSummary {
@@ -93,7 +93,7 @@ class YearSummary {
   Map<String, dynamic> toJson() => _$YearSummaryToJson(this);
 }
 
-// ----随笔月度信息类
+// 随笔月度信息类
 @HiveType(typeId: 3)
 @JsonSerializable(fieldRename: FieldRename.snake)
 class MonthSummary {

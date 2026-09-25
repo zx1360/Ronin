@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 part 'sixty_news_providers.g.dart';
 
-// ---------------- 周期资讯 ----------------
+// 周期资讯
 @riverpod
 Future<Json> sixtySeconds(SixtySecondsRef ref, String? date) async {
   final client = ref.read(sixtyApiClientProvider);

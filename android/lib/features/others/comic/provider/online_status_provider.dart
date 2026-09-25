@@ -10,10 +10,6 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'online_status_provider.g.dart';
 
-// ============================================================================
-// 在线漫画数据
-// ============================================================================
-
 /// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
 @riverpod
 Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
@@ -64,10 +60,6 @@ Future<List<Map<String, dynamic>>> onlineImagesWithChapterId(
       .map((row) => row as Map<String, dynamic>)
       .toList();
 }
-
-// ============================================================================
-// 同步操作
-// ============================================================================
 
 /// 同步操作：检查更新并同步后端字段到本地
 @riverpod

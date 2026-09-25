@@ -1,51 +1,50 @@
-// data/config.go
 package data_handler
 
 import (
 	"path/filepath"
+
+	"monarch/internal/config"
 )
 
+// ModuleConfig 单个用户数据模块的存储方式。
 type ModuleConfig struct {
 	Name      string   // 模块名称，用于路由，如 "booklet", "essay"
-	JSONFiles []string // 需要同步或备份的JSON数据文件路径列表（DB 模块此字段为空）
-	ImageDir  string   // 图片文件存储目录路径
-	IsDB      bool     // 是否使用数据库存储（true=DB表，false=JSON文件）
+	JSONFiles []string // JSON 文件模式下的数据文件路径（DB 模块为空）
+	ImageDir  string   // 图片文件存储目录
+	IsDB      bool     // true=读写数据库表，false=读写 JSON 文件
 }
 
-// AppDir 是你的应用根目录。在Go中，我们通常使用工作目录。
-// 为了方便，你可以直接在 handlers 中使用相对路径 "static"。
-// 这里定义它是为了保持与你Dart思路的一致性。
-const AppDir = "."
-
-// Modules 是所有模块的配置列表
-var Modules = []ModuleConfig{
-	{
-		Name:      "booklet",
-		JSONFiles: nil, // 已迁移至数据库 user_data.booklet_styles / booklet_records
-		ImageDir:  filepath.Join(AppDir, "static", "img_storage", "booklet"),
-		IsDB:      true,
-	},
-	{
-		Name:      "essay",
-		JSONFiles: nil, // 已迁移至数据库 user_data.essay_articles / essay_labels / essay_year_summaries
-		ImageDir:  filepath.Join(AppDir, "static", "img_storage", "essay"),
-		IsDB:      true,
-	},
-	{
-		Name: "preferences",
-		JSONFiles: []string{
-			filepath.Join(AppDir, "static", "preferences", "preferences.json"),
+// modules 模块注册表。
+//
+// staticDir 由调用方传入而非常量：STATIC_DIR 可配置，且包级变量初始化早于
+// config.Load()，因此不能在包初始化时读取配置。
+func modules(staticDir string) []ModuleConfig {
+	return []ModuleConfig{
+		{
+			Name:     "booklet",
+			ImageDir: filepath.Join(staticDir, "img_storage", "booklet"),
+			IsDB:     true,
 		},
-		ImageDir: filepath.Join(AppDir, "static", "img_storage", "preferences"),
-		IsDB:     false,
-	},
+		{
+			Name:     "essay",
+			ImageDir: filepath.Join(staticDir, "img_storage", "essay"),
+			IsDB:     true,
+		},
+		{
+			Name:      "preferences",
+			JSONFiles: []string{filepath.Join(staticDir, "preferences", "preferences.json")},
+			ImageDir:  filepath.Join(staticDir, "img_storage", "preferences"),
+			IsDB:      false,
+		},
+	}
 }
 
-// FindModuleConfigByName 根据模块名称查找其配置
+// FindModuleConfigByName 根据模块名称查找其配置（未找到返回 nil）。
 func FindModuleConfigByName(name string) *ModuleConfig {
-	for i := range Modules {
-		if Modules[i].Name == name {
-			return &Modules[i]
+	all := modules(config.AppConf.StaticDir)
+	for i := range all {
+		if all[i].Name == name {
+			return &all[i]
 		}
 	}
 	return nil

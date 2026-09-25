@@ -66,39 +66,38 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
   }
 
   /// 用任务面板的最新快照刷新本页提交结果。
-  ///
-  /// 轮询完全由 [comixBoardProvider] 负责（按需启停），本页只做映射，
-  /// 避免再起一个独立定时器重复请求 `/API/comix/tasks`。
   void _syncResults(List<ComixTask> tasks) {
     if (_results.isEmpty) return;
     final byId = <String, ComixTask>{for (final t in tasks) t.id: t};
     var changed = false;
-    final next = _results.map((item) {
-      final id = item.taskId;
-      if (id == null) return item;
-      final task = byId[id];
-      if (task == null) return item;
+    final next = _results
+        .map((item) {
+          final id = item.taskId;
+          if (id == null) return item;
+          final task = byId[id];
+          if (task == null) return item;
 
-      final error = task.isFailure && task.failureReason.isNotEmpty
-          ? task.failureReason
-          : null;
-      final summary = comixTaskSummary(task);
-      final newSummary = summary.isEmpty ? null : summary;
-      if (item.status == task.status &&
-          item.error == error &&
-          item.summary == newSummary) {
-        return item;
-      }
-      changed = true;
-      return UrlTaskResult(
-        url: item.url,
-        site: item.site,
-        taskId: item.taskId,
-        status: task.status,
-        error: error,
-        summary: newSummary,
-      );
-    }).toList(growable: false);
+          final error = task.isFailure && task.failureReason.isNotEmpty
+              ? task.failureReason
+              : null;
+          final summary = comixTaskSummary(task);
+          final newSummary = summary.isEmpty ? null : summary;
+          if (item.status == task.status &&
+              item.error == error &&
+              item.summary == newSummary) {
+            return item;
+          }
+          changed = true;
+          return UrlTaskResult(
+            url: item.url,
+            site: item.site,
+            taskId: item.taskId,
+            status: task.status,
+            error: error,
+            summary: newSummary,
+          );
+        })
+        .toList(growable: false);
 
     if (changed) {
       setState(() => _results = next);
@@ -171,8 +170,9 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -200,7 +200,8 @@ class _UrlDownloadTabState extends ConsumerState<UrlDownloadTab>
                 minLines: 4,
                 decoration: const InputDecoration(
                   labelText: '漫画详情页网址（每行一个）',
-                  hintText: 'https://www.xmanhua.net/m27836/\nhttps://www.morui.com/comic/1165/',
+                  hintText:
+                      'https://www.xmanhua.net/m27836/\nhttps://www.morui.com/comic/1165/',
                   alignLabelWithHint: true,
                 ),
               ),
@@ -262,37 +263,28 @@ class _ResultTile extends StatelessWidget {
     final ok = item.taskId != null;
     // 进程结束但业务 ok=false（后端记为 finished）也算失败，
     // 不能画成绿色"完成"。
-    final businessError = item.status == ComixTaskStatus.finished &&
+    final businessError =
+        item.status == ComixTaskStatus.finished &&
         item.error != null &&
         item.error!.isNotEmpty;
-    final failed = !ok ||
+    final failed =
+        !ok ||
         businessError ||
         item.status == ComixTaskStatus.failed ||
         item.status == ComixTaskStatus.killed;
-    final color = switch (item.status) {
-      ComixTaskStatus.running => Colors.blueAccent,
-      ComixTaskStatus.finished => businessError
-          ? Colors.redAccent
-          : Colors.greenAccent.shade400,
-      ComixTaskStatus.failed => Colors.redAccent,
-      ComixTaskStatus.killed => Colors.orange,
-      ComixTaskStatus.unknown => ok
-          ? Colors.blueGrey
-          : Theme.of(context).colorScheme.error,
-    };
-    final statusLabel = switch (item.status) {
-      ComixTaskStatus.running => '运行中',
-      ComixTaskStatus.finished => businessError ? '业务错误' : '完成',
-      ComixTaskStatus.failed => '失败',
-      ComixTaskStatus.killed => '已中断',
-      ComixTaskStatus.unknown => ok ? '等待中' : '提交失败',
-    };
+    final (color, statusLabel) = comixTaskStatusStyle(
+      item.status,
+      businessFailure: businessError,
+      unknownStyle: ok
+          ? (Colors.blueGrey, '等待中')
+          : (Theme.of(context).colorScheme.error, '提交失败'),
+    );
 
     final subtitle = item.taskId == null
         ? (item.error ?? '未知错误（可能是站点不支持或 comix 集成不可用）')
         : '站点: ${item.site} · 任务: ${item.taskId} · $statusLabel'
-            '${item.error != null && item.error!.isNotEmpty ? ' · ${item.error}' : ''}'
-            '${item.summary != null && item.summary!.isNotEmpty ? '\n${item.summary}' : ''}';
+              '${item.error != null && item.error!.isNotEmpty ? ' · ${item.error}' : ''}'
+              '${item.summary != null && item.summary!.isNotEmpty ? '\n${item.summary}' : ''}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 6),

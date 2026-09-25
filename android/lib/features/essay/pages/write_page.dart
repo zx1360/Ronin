@@ -112,7 +112,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
       );
 
       imgs.add("img_storage/essay/$newFileName");
-      File(targetPath).writeAsBytes(await _selectedImages[i].readAsBytes());
+      await File(targetPath).writeAsBytes(await _selectedImages[i].readAsBytes());
     }
     final essay = Essay(
       id: generateId(),
@@ -124,8 +124,10 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
       messages: [],
       mood: _selectedMood,
     );
-    ref.watch(essayServiceProvider.notifier).writeEssay(essay: essay);
+    // 必须 await：否则可能在落库完成前就退出页面并提示成功
+    await ref.read(essayServiceProvider.notifier).writeEssay(essay: essay);
 
+    if (!mounted) return;
     // 返回上一页
     Navigator.pop(context);
 

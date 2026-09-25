@@ -1,5 +1,9 @@
 # 漫画数据表 (comix schema)
 
+> 由外部 comix 爬虫项目建表与维护，Monarch 只读写，不在 `init.sql` 中定义。
+> `comic_books` / `comic_chapters` / `comic_images` 是同结构的**视图**（对应爬虫的
+> `comic` / `chapter` 等表），`/API/comic/*` 走视图，`/API/comix/*` 走底层表。
+
 ## comic_books
 | 列          | 类型                  |
 | ----------- | --------------------- |

@@ -1,39 +1,17 @@
+import 'package:northstar/domain/ops/utils/arg_parser.dart';
+
 class ArgPreset {
   final String id;
   final String name;
   final List<String> args;
 
-  const ArgPreset({
-    required this.id,
-    required this.name,
-    required this.args,
-  });
-
-  ArgPreset copyWith({
-    String? id,
-    String? name,
-    List<String>? args,
-  }) {
-    return ArgPreset(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      args: args ?? this.args,
-    );
-  }
+  const ArgPreset({required this.id, required this.name, required this.args});
 
   String get argsText {
     if (args.isEmpty) {
       return '(无参数)';
     }
-    return args
-        .map((value) {
-          final trimmed = value.trim();
-          if (trimmed.contains(' ')) {
-            return '"$trimmed"';
-          }
-          return trimmed;
-        })
-        .join(' ');
+    return toArgumentLine(args);
   }
 
   factory ArgPreset.fromJson(Map<String, dynamic> json) {
@@ -47,10 +25,6 @@ class ArgPreset {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'args': args,
-    };
+    return {'id': id, 'name': name, 'args': args};
   }
 }
