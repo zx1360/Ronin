@@ -14,7 +14,7 @@ part 'record_provider.g.dart';
 /// 提供 Record 数据的查询和派生数据
 /// ============================================================================
 
-// ==================== Record 查询 Providers ====================
+// Record 查询 Providers
 
 /// 根据 styleId 返回关联的倒序排列的所有 Records
 @riverpod
@@ -61,7 +61,7 @@ Record? recordByDate(RecordByDateRef ref, {required DateTime targetDate}) {
   return targetRecords.isNotEmpty ? targetRecords.first : null;
 }
 
-// ==================== 统计相关 Providers ====================
+// 统计相关 Providers
 
 /// 获取某个 Style 下某个任务的完成次数
 /// [styleId]: Style ID
@@ -143,7 +143,7 @@ int currentStreak(CurrentStreakRef ref, String styleId) {
   return streak;
 }
 
-// ==================== Style 派生数据 Providers ====================
+// Style 派生数据 Providers
 
 /// 根据 Style 获取该 Style 的日期范围
 @riverpod

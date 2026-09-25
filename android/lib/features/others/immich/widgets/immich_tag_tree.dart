@@ -5,7 +5,7 @@ import 'package:torrid/features/others/gallery/providers/gallery_providers.dart'
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 
-// ============ 标签树通用工具 ============
+// 标签树通用工具
 
 /// 扁平化后的树节点
 class ImmichTagNode {
@@ -386,7 +386,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
     );
   }
 
-  // ============ 状态与操作 ============
+  // 状态与操作
 
   /// 默认展开根节点与已选标签所在路径
   void _initExpanded(List<Tag> tags, List<String> selectedIds) {

@@ -9,7 +9,7 @@ import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_tag_tree.dart';
 
-// ============ 底部批量操作栏 ============
+// 底部批量操作栏
 
 /// 多选状态下的底部操作栏
 class ImmichSelectionBar extends StatelessWidget {
@@ -147,7 +147,7 @@ class _BarAction extends StatelessWidget {
   }
 }
 
-// ============ 标签选择弹窗 ============
+// 标签选择弹窗
 
 /// 标签选择弹窗 (树状, 支持搜索); 返回勾选的标签 id 集合, null 表示取消
 ///
@@ -377,7 +377,7 @@ class _TagPickerSheetState extends ConsumerState<_TagPickerSheet> {
   }
 }
 
-// ============ 捆绑主文件选择 ============
+// 捆绑主文件选择
 
 /// 选择捆绑主文件; 返回选中的媒体 id, null 表示取消
 Future<String?> showImmichLeadPicker(
@@ -464,7 +464,7 @@ class _LeadPickerDialogState extends State<_LeadPickerDialog> {
   }
 }
 
-// ============ 单张媒体详情 ============
+// 单张媒体详情
 
 /// 单张媒体详情底部弹窗
 Future<void> showImmichMediaDetail(
@@ -677,7 +677,7 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
     );
   }
 
-  // ============ 操作 ============
+  // 操作
 
   Future<void> _run(Future<void> Function() action, {String? ok}) async {
     setState(() => _busy = true);
@@ -789,7 +789,7 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-// ============ 工具 ============
+// 工具
 
 MediaAsset? _findAsset(ImmichMediaPage? page, String mediaId) {
   for (final asset in page?.assets ?? const <MediaAsset>[]) {

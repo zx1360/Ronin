@@ -17,7 +17,7 @@ import 'package:torrid/features/others/comic/models/comic_preference.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {
-  // ----常用Box名
+  // 常用Box名
   // booklet打卡
   static const String styleBoxName = 'styles';
   static const String recordBoxName = 'records';
@@ -25,15 +25,15 @@ class HiveService {
   static const String yearSummaryBoxName = 'yearSummaries';
   static const String labelBoxName = 'labels';
   static const String essayBoxName = 'essays';
-  // ----非常用
+  // 非常用
   // comic漫画
   static const String comicPrefBoxName = "comicPreference";
   static const String comicBoxName = "comicInfo";
   static const String chapterBoxName = "chapterInfo";
 
-  // ----常用Box----
+  // 常用Box
   static Future<void> init() async {
-    // ----注册适配器
+    // 注册适配器
     // 通用
     Hive.registerAdapter(MoodTypeAdapter());
     // booklet打卡
@@ -61,7 +61,7 @@ class HiveService {
     await Hive.openBox<Essay>(essayBoxName);
   }
 
-  // ----非常用Box----
+  // 非常用Box
   static Future<void> initComic() async {
     if (!Hive.isBoxOpen(comicPrefBoxName)) {
       await Hive.openBox<ComicPreference>(comicPrefBoxName);

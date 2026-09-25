@@ -12,7 +12,7 @@ class IoService {
     return _externalStorageDir!;
   }
 
-  // --------系统目录相关--------
+  // 系统目录相关
   // 创建应用需要用到的所有目录.
   static Future<void> initDirs() async {
     final directory = await externalStorageDir;
@@ -99,7 +99,7 @@ class IoService {
     }
   }
 
-  // --------文件内容相关--------
+  // 文件内容相关
   // 读取外部私有空间的图片文件
   static Future<File?> getImageFile(String imgUrl) async {
     try {

@@ -1,20 +1,19 @@
+// Package gallery_handler 提供画廊(媒体资产/标签)的 HTTP 接口。
+//
+// 服务端是标签与媒体标注的唯一权威：客户端以"操作式写入"提交意图，
+// 服务端在同一事务内完成校验与落库，并把更新后的行回传供客户端刷新缓存。
 package gallery_handler
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -22,186 +21,18 @@ import (
 	"monarch/internal/config"
 	"monarch/internal/model"
 	"monarch/internal/repository/gallery_repo"
-)
-// ============ 视频取帧（供 Android 剪辑页拖动滑块时实时预览帧画面） ============
-
-// frameCacheKey 取帧缓存键：assetID|取整到 0.05s 的秒数
-type frameCacheKey struct {
-	assetID uuid.UUID
-	sec     int64
-}
-
-// frameCache 简单的 LRU 取帧缓存（FIFO 淘汰），避免拖动滑块时重复调用 ffmpeg
-var (
-	frameCacheMu    sync.Mutex
-	frameCache      = make(map[frameCacheKey][]byte)
-	frameCacheOrder []frameCacheKey
+	"monarch/internal/service/media_probe"
 )
 
-const (
-	frameCacheMax = 64 // 缓存帧数上限（约几十 MB 级别，自用足够）
-	frameSecStep  = 50 // 缓存键按 50ms 取整，拖动抖动不击穿缓存
-)
-
-// VideoInfo 视频信息响应（/API/gallery/:id/video-info）
-type VideoInfo struct {
-	DurationMs int64 `json:"duration_ms"`
-	Width      int   `json:"width"`
-	Height     int   `json:"height"`
-}
-
-// videoInfoCache 视频信息缓存（键: assetID）
-var (
-	videoInfoCacheMu sync.Mutex
-	videoInfoCache   = make(map[uuid.UUID]VideoInfo)
-)
-
-// probeVideoInfo 用 ffprobe 探测视频时长与分辨率（带缓存）
-func probeVideoInfo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
-	videoInfoCacheMu.Lock()
-	if info, ok := videoInfoCache[assetID]; ok {
-		videoInfoCacheMu.Unlock()
-		return info, nil
-	}
-	videoInfoCacheMu.Unlock()
-
-	ffprobePath := "ffprobe"
-	if _, err := exec.LookPath(ffprobePath); err != nil {
-		return VideoInfo{}, fmt.Errorf("ffprobe 不可用: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, ffprobePath,
-		"-v", "error",
-		"-show_entries", "format=duration:stream=width,height",
-		"-of", "json",
-		srcPath,
-	)
-	out, err := cmd.Output()
-	if err != nil {
-		return VideoInfo{}, fmt.Errorf("ffprobe 失败: %w", err)
-	}
-
-	var parsed struct {
-		Format struct {
-			Duration string `json:"duration"`
-		} `json:"format"`
-		Streams []struct {
-			Width  int    `json:"width"`
-			Height int    `json:"height"`
-			Codec  string `json:"codec_type"`
-		} `json:"streams"`
-	}
-	if err := json.Unmarshal(out, &parsed); err != nil {
-		return VideoInfo{}, fmt.Errorf("解析 ffprobe 输出失败: %w", err)
-	}
-
-	durSec, _ := strconv.ParseFloat(parsed.Format.Duration, 64)
-	info := VideoInfo{DurationMs: int64(durSec * 1000)}
-	for _, s := range parsed.Streams {
-		if s.Codec == "video" {
-			info.Width = s.Width
-			info.Height = s.Height
-			break
-		}
-	}
-
-	videoInfoCacheMu.Lock()
-	videoInfoCache[assetID] = info
-	videoInfoCacheMu.Unlock()
-
-	return info, nil
-}
-
-// extractVideoFrame 用 ffmpeg 提取视频指定秒数的帧（JPEG），带 LRU 缓存。
-// `-ss` 置于 `-i` 前做输入侧快进，再解码到目标位置输出单帧：又快又准。
-func extractVideoFrame(assetID uuid.UUID, srcPath string, sec float64) ([]byte, error) {
-	if sec < 0 {
-		sec = 0
-	}
-	key := frameCacheKey{assetID: assetID, sec: int64(sec * 1000 / frameSecStep)}
-
-	frameCacheMu.Lock()
-	if data, ok := frameCache[key]; ok {
-		frameCacheMu.Unlock()
-		return data, nil
-	}
-	frameCacheMu.Unlock()
-
-	// 检查 ffmpeg 可用性
-	ffmpegPath := "ffmpeg"
-	if _, err := exec.LookPath(ffmpegPath); err != nil {
-		return nil, fmt.Errorf("ffmpeg 不可用: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, ffmpegPath,
-		"-ss", strconv.FormatFloat(sec, 'f', 2, 64),
-		"-i", srcPath,
-		"-frames:v", "1",
-		"-q:v", "3",
-		"-f", "image2pipe",
-		"-vcodec", "mjpeg",
-		"-",
-	)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("ffmpeg 提取帧失败: %w", err)
-	}
-	if out.Len() == 0 {
-		return nil, fmt.Errorf("ffmpeg 未生成帧数据")
-	}
-
-	data := out.Bytes()
-
-	// 写入缓存（FIFO 淘汰）
-	frameCacheMu.Lock()
-	if len(frameCache) >= frameCacheMax {
-		if len(frameCacheOrder) > 0 {
-			delete(frameCache, frameCacheOrder[0])
-			frameCacheOrder = frameCacheOrder[1:]
-		}
-	}
-	frameCache[key] = data
-	frameCacheOrder = append(frameCacheOrder, key)
-	frameCacheMu.Unlock()
-
-	return data, nil
-}
-
-// FetchBatch 处理 GET /api/gallery/batch 请求
-// 响应指定数量的媒体资产 + 全量标签 + 对应的标签关联关系
-// 支持筛选: mime_type, year, month, day
-// 支持排序: sort_by, sort_order, secondary_sort
-// @Summary 分页获取媒体批次数据
-// @Description 返回媒体资产、全量标签及媒体标签关联
-// @Tags gallery
-// @Produce json
-// @Security ApiKeyAuth
-// @Param limit query int false "返回条数（默认 200，最大 10000）"
-// @Param offset query int false "偏移量（默认 0）"
-// @Param mime_type query string false "MIME类型筛选: image, video, image/jpeg 等"
-// @Param sort_by query string false "排序字段: sync_count, captured_at, size_bytes, file_path"
-// @Param sort_order query string false "排序方向: asc, desc"
-// @Param year query int false "筛选年份"
-// @Param month query int false "筛选月份 (需同时指定year)"
-// @Param day query int false "筛选日期 (需同时指定year, month)"
-// @Success 200 {object} model.BatchData
-// @Failure 500 {object} map[string]string
-// @Router /api/gallery/batch [get]
+// FetchBatch 处理 GET /API/gallery/batch
+//
+// 返回指定数量的媒体资产 + 全量标签 + 对应的标签关联关系，
+// 供 Android 端下载到本地缓存后离线浏览。
 func FetchBatch(c *gin.Context) {
 	var params model.BatchQueryParams
 	if err := c.ShouldBindQuery(&params); err != nil {
-		// 解析失败则使用默认值
-		params = model.BatchQueryParams{Limit: 200, Offset: 0}
+		params = model.BatchQueryParams{}
 	}
-
-	// 设置默认值
 	if params.Limit <= 0 {
 		params.Limit = 200
 	}
@@ -212,51 +43,37 @@ func FetchBatch(c *gin.Context) {
 		params.Offset = 0
 	}
 
-	// 查询媒体资产
 	mediaAssets, err := gallery_repo.FetchMediaAssetsWithParams(params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询媒体资产失败: " + err.Error()})
 		return
 	}
 
-	// 查询全量标签
 	tags, err := gallery_repo.FetchAllTags()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询标签失败: " + err.Error()})
 		return
 	}
 
-	// 获取媒体 ID 列表
 	mediaIDs := make([]uuid.UUID, len(mediaAssets))
 	for i, asset := range mediaAssets {
 		mediaIDs[i] = asset.ID
 	}
 
-	// 查询对应的标签关联
 	mediaTagLinks, err := gallery_repo.FetchMediaTagLinks(mediaIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询标签关联失败: " + err.Error()})
 		return
 	}
 
-	response := model.BatchData{
+	c.JSON(http.StatusOK, model.BatchData{
 		MediaAssets:   mediaAssets,
 		Tags:          tags,
 		MediaTagLinks: mediaTagLinks,
-	}
-
-	c.JSON(http.StatusOK, response)
+	})
 }
 
-// FetchAllTags 处理 GET /api/gallery/tags 请求
-// 响应完整的标签树
-// @Summary 获取完整标签树
-// @Tags gallery
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} model.TagsResponse
-// @Failure 500 {object} map[string]string
-// @Router /api/gallery/tags [get]
+// FetchAllTags 处理 GET /API/gallery/tags，返回完整标签树。
 func FetchAllTags(c *gin.Context) {
 	tags, err := gallery_repo.FetchAllTags()
 	if err != nil {
@@ -266,16 +83,7 @@ func FetchAllTags(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"tags": tags})
 }
 
-// FetchOverview 处理 GET /api/gallery/overview 请求
-// 返回服务端媒体库总览统计数据
-// @Summary 获取画廊总览统计
-// @Description 返回媒体类型分布、标签统计、同步统计、年份分布等
-// @Tags gallery
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} model.GalleryOverview
-// @Failure 500 {object} map[string]string
-// @Router /api/gallery/overview [get]
+// FetchOverview 处理 GET /API/gallery/overview，返回媒体库总览统计。
 func FetchOverview(c *gin.Context) {
 	overview, err := gallery_repo.FetchGalleryOverview()
 	if err != nil {
@@ -285,80 +93,49 @@ func FetchOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, overview)
 }
 
-// DownloadFile 处理文件下载请求（通用）
-func downloadFile(c *gin.Context, filePath string) {
-	// 检查文件是否存在
-	if _, err := os.Stat(filePath); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "文件不存在"})
-		return
-	}
-
-	// 使用 c.File 下载文件
-	c.File(filePath)
-}
-
-// @Summary 下载媒体原图/缩略图/预览图
-// @Tags gallery
-// @Produce application/octet-stream
-// @Security ApiKeyAuth
-// @Param id path string true "媒体ID (UUID)"
-// @Param type path string true "文件类型: file | thumb | preview"
-// @Success 200 {file} file
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /api/gallery/{id}/{type} [get]
+// FetchMediaAsset 处理 GET /API/gallery/:id/:type
+//
+// type 取值：file(原文件) / thumb(缩略图) / preview(预览图) /
+// frame(视频取帧，配合 ?sec= 秒数) / video-info(视频时长与分辨率)。
 func FetchMediaAsset(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 ID 格式"})
+	id, ok := parseUUIDParam(c, "id")
+	if !ok {
 		return
 	}
-	typeStr := c.Param("type")
 
 	asset, err := gallery_repo.FetchMediaAssetByID(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询媒体资产失败: " + err.Error()})
 		return
 	}
-
 	if asset == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "媒体资产不存在"})
 		return
 	}
 
-	// 构造完整文件路径
-	var filePath string
-	switch typeStr {
+	switch typeStr := c.Param("type"); typeStr {
 	case "file":
-		filePath = filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
+		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath))
 	case "thumb":
 		if asset.ThumbPath == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "缩略图不存在"})
 			return
 		}
-		filePath = filepath.Join(config.AppConf.GalleryDir, "Thumbs", *asset.ThumbPath)
+		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, "Thumbs", *asset.ThumbPath))
 	case "preview":
 		if asset.PreviewPath == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "预览图不存在"})
 			return
 		}
-		filePath = filepath.Join(config.AppConf.GalleryDir, "Preview", *asset.PreviewPath)
+		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, "Preview", *asset.PreviewPath))
 	case "frame":
-		// 视频取帧：?sec=秒数，返回该位置一帧 JPEG（Android 剪辑页拖动预览用）
 		if !isVideoAsset(asset) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "非视频资产"})
 			return
 		}
-		sec := 0.0
-		if raw := c.Query("sec"); raw != "" {
-			if v, err := strconv.ParseFloat(raw, 64); err == nil {
-				sec = v
-			}
-		}
+		sec, _ := strconv.ParseFloat(c.Query("sec"), 64)
 		srcPath := filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
-		data, err := extractVideoFrame(id, srcPath, sec)
+		data, err := media_probe.ExtractFrame(id, srcPath, sec)
 		if err != nil {
 			log.Printf("gallery 取帧失败 [%s @%.1fs]: %v", asset.FilePath, sec, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "提取视频帧失败: " + err.Error()})
@@ -366,45 +143,46 @@ func FetchMediaAsset(c *gin.Context) {
 		}
 		c.Header("Cache-Control", "no-store")
 		c.Data(http.StatusOK, "image/jpeg", data)
-		return
 	case "video-info":
-		// 视频信息：时长/宽高（Android 剪辑页初始化用，避免引入视频播放器）
 		if !isVideoAsset(asset) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "非视频资产"})
 			return
 		}
 		srcPath := filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
-		info, err := probeVideoInfo(id, srcPath)
+		info, err := media_probe.ProbeVideo(id, srcPath)
 		if err != nil {
 			log.Printf("gallery 探测视频信息失败 [%s]: %v", asset.FilePath, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "探测视频信息失败: " + err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, info)
-		return
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的类型参数"})
+	}
+}
+
+// downloadFile 校验文件存在后交给 gin 做流式响应。
+func downloadFile(c *gin.Context, filePath string) {
+	if _, err := os.Stat(filePath); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "文件不存在"})
 		return
 	}
-	downloadFile(c, filePath)
+	c.File(filePath)
 }
 
 // isVideoAsset 根据 MIME 或扩展名判断是否为视频资产
 func isVideoAsset(asset *model.MediaAsset) bool {
-	if asset.MimeType != nil {
-		if len(*asset.MimeType) >= 6 && (*asset.MimeType)[:6] == "video/" {
-			return true
-		}
+	if asset.MimeType != nil && strings.HasPrefix(*asset.MimeType, "video/") {
+		return true
 	}
-	ext := strings.ToLower(filepath.Ext(asset.FilePath))
-	switch ext {
+	switch strings.ToLower(filepath.Ext(asset.FilePath)) {
 	case ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm", ".m4v", ".3gp", ".ts":
 		return true
 	}
 	return false
 }
 
-// ============ 标签与媒体标注操作（服务端权威，客户端"操作式写入"） ============
+// ============ 标签与媒体标注操作 ============
 
 // respondRepoError 将仓库层业务错误映射为对应 HTTP 状态码
 func respondRepoError(c *gin.Context, err error) {
@@ -434,21 +212,19 @@ func parseUUIDParam(c *gin.Context, name string) (uuid.UUID, bool) {
 	return id, true
 }
 
-// CreateTag 处理 POST /api/gallery/tags
-// @Summary 新建标签
-// @Tags gallery
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param body body model.TagCreateRequest true "标签信息"
-// @Success 201 {object} map[string]model.Tag
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/gallery/tags [post]
+// bindJSON 解析请求体，失败时已写出响应，调用方直接返回。
+func bindJSON(c *gin.Context, target any) bool {
+	if err := c.ShouldBindJSON(target); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+		return false
+	}
+	return true
+}
+
+// CreateTag 处理 POST /API/gallery/tags
 func CreateTag(c *gin.Context) {
 	var req model.TagCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 	tag, err := gallery_repo.CreateTag(req.Name, req.ParentID)
@@ -459,28 +235,14 @@ func CreateTag(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"tag": tag})
 }
 
-// UpdateTag 处理 PUT /api/gallery/tags/:id
-// @Summary 更新标签（改名/移动/收藏）
-// @Description 字段缺省表示不修改；parent_id 显式传 null 表示移动到根级
-// @Tags gallery
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "标签 ID"
-// @Param body body model.TagUpdateRequest true "更新内容"
-// @Success 200 {object} map[string]model.Tag
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 409 {object} map[string]string
-// @Router /api/gallery/tags/{id} [put]
+// UpdateTag 处理 PUT /API/gallery/tags/:id（字段缺省表示不修改）
 func UpdateTag(c *gin.Context) {
 	id, ok := parseUUIDParam(c, "id")
 	if !ok {
 		return
 	}
 	var req model.TagUpdateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -506,16 +268,7 @@ func UpdateTag(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"tag": tag})
 }
 
-// DeleteTag 处理 DELETE /api/gallery/tags/:id
-// @Summary 删除标签（级联删除子孙与标签关联）
-// @Tags gallery
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "标签 ID"
-// @Success 200 {object} model.TagDeleteResponse
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /api/gallery/tags/{id} [delete]
+// DeleteTag 处理 DELETE /API/gallery/tags/:id（级联删除子孙与标签关联）
 func DeleteTag(c *gin.Context) {
 	id, ok := parseUUIDParam(c, "id")
 	if !ok {
@@ -529,24 +282,7 @@ func DeleteTag(c *gin.Context) {
 	c.JSON(http.StatusOK, model.TagDeleteResponse{DeletedIDs: deleted})
 }
 
-// QueryMedia 处理 GET /api/gallery/media
-// @Summary 按标签/类型/删除状态查询媒体及其标签关联
-// @Tags gallery
-// @Produce json
-// @Security ApiKeyAuth
-// @Param tag_ids query string false "标签 ID, 逗号分隔（任一命中）"
-// @Param include_descendants query bool false "标签筛选是否包含子孙标签"
-// @Param untagged query bool false "仅未打标签的媒体"
-// @Param include_deleted query bool false "包含已软删除媒体"
-// @Param mime_type query string false "image / video / image/jpeg"
-// @Param ids query string false "指定媒体 ID, 逗号分隔"
-// @Param sort_by query string false "captured_at(默认)/sync_count/size_bytes/file_path"
-// @Param sort_order query string false "desc(默认)/asc"
-// @Param limit query int false "默认 60, 上限 1000"
-// @Param offset query int false "偏移量"
-// @Success 200 {object} model.MediaQueryResponse
-// @Failure 400 {object} map[string]string
-// @Router /api/gallery/media [get]
+// QueryMedia 处理 GET /API/gallery/media
 func QueryMedia(c *gin.Context) {
 	var params model.MediaQueryParams
 	if err := c.ShouldBindQuery(&params); err != nil {
@@ -561,7 +297,7 @@ func QueryMedia(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if params.SortBy != "" && !isValidMediaSort(params.SortBy) {
+	if params.SortBy != "" && !gallery_repo.IsValidSortField(params.SortBy) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的 sort_by: " + params.SortBy})
 		return
 	}
@@ -587,26 +323,14 @@ func QueryMedia(c *gin.Context) {
 	})
 }
 
-// SetMediaTags 处理 PUT /api/gallery/media/:id/tags
-// @Summary 全量替换单个媒体的标签集合（幂等）
-// @Tags gallery
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param id path string true "媒体 ID"
-// @Param body body model.MediaTagsRequest true "标签集合"
-// @Success 200 {object} model.MediaTagsResponse
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /api/gallery/media/{id}/tags [put]
+// SetMediaTags 处理 PUT /API/gallery/media/:id/tags（全量替换，幂等）
 func SetMediaTags(c *gin.Context) {
 	id, ok := parseUUIDParam(c, "id")
 	if !ok {
 		return
 	}
 	var req model.MediaTagsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -618,21 +342,10 @@ func SetMediaTags(c *gin.Context) {
 	c.JSON(http.StatusOK, model.MediaTagsResponse{MediaID: id, TagIDs: applied})
 }
 
-// BatchMediaTags 处理 POST /api/gallery/media/tags
-// @Summary 批量为多个媒体增删标签（幂等）
-// @Tags gallery
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param body body model.MediaTagsBatchRequest true "增删内容"
-// @Success 200 {object} map[string]int64
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /api/gallery/media/tags [post]
+// BatchMediaTags 处理 POST /API/gallery/media/tags（多媒体的标签增删，幂等）
 func BatchMediaTags(c *gin.Context) {
 	var req model.MediaTagsBatchRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 	if len(req.MediaIDs) == 0 {
@@ -652,25 +365,13 @@ func BatchMediaTags(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"affected": affected})
 }
 
-// PatchMedia 处理 PATCH /api/gallery/media
-// @Summary 更新媒体标注（软删除/备注/捆绑/编辑参数/处理游标）
-// @Description 字段缺省表示不修改；message 空串表示清空；
+// PatchMedia 处理 PATCH /API/gallery/media
 //
-//	group_id 传 null 表示解绑；edit_params 传 null 表示清除
-//
-// @Tags gallery
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param body body model.MediaPatchRequest true "更新内容"
-// @Success 200 {object} model.MediaPatchResponse
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /api/gallery/media [patch]
+// 字段缺省表示不修改；message 空串表示清空；group_id 传 null 表示解绑；
+// edit_params 传 null 表示清除。
 func PatchMedia(c *gin.Context) {
 	var req model.MediaPatchRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误: " + err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 	if len(req.MediaIDs) == 0 {
@@ -699,10 +400,10 @@ func PatchMedia(c *gin.Context) {
 	}
 
 	if len(req.EditParams) > 0 {
-		raw := strings.TrimSpace(string(req.EditParams))
-		if raw == "null" {
+		switch raw := strings.TrimSpace(string(req.EditParams)); raw {
+		case "null":
 			patch.ClearEditParams = true
-		} else {
+		default:
 			text, err := normalizeJSONText(raw)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "edit_params 格式错误: " + err.Error()})
@@ -758,13 +459,4 @@ func validateUUIDList(raw, field string) error {
 		}
 	}
 	return nil
-}
-
-// isValidMediaSort 校验媒体列表排序字段
-func isValidMediaSort(field string) bool {
-	switch field {
-	case "captured_at", "sync_count", "size_bytes", "file_path":
-		return true
-	}
-	return false
 }

@@ -15,6 +15,7 @@ import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
+import 'package:torrid/providers/network_config/network_config_provider.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
@@ -36,10 +37,6 @@ const Duration _batchDelay = Duration(milliseconds: 50);
 class TransferController extends _$TransferController {
   @override
   TransferProgress build() => TransferProgress.idle();
-
-  // ===========================================================================
-  // 公开方法 - 执行传输操作
-  // ===========================================================================
 
   /// 执行传输操作
   Future<TransferResult> execute({
@@ -103,10 +100,6 @@ class TransferController extends _$TransferController {
   void reset() {
     state = TransferProgress.idle();
   }
-
-  // ===========================================================================
-  // 私有方法 - 同步操作
-  // ===========================================================================
 
   Future<TransferResult> _executeSync(TransferTarget target) {
     return switch (target) {
@@ -226,10 +219,6 @@ class TransferController extends _$TransferController {
       );
     }
   }
-
-  // ===========================================================================
-  // 私有方法 - 备份操作
-  // ===========================================================================
 
   Future<TransferResult> _executeBackup(TransferTarget target) {
     return switch (target) {
@@ -357,10 +346,6 @@ class TransferController extends _$TransferController {
       return allFiles; // 查询失败时回退为全量上传
     }
   }
-
-  // ===========================================================================
-  // 私有方法 - 偏好设置同步/备份
-  // ===========================================================================
 
   Future<TransferResult> _syncPreferences() async {
     final startTime = DateTime.now();
@@ -536,7 +521,8 @@ class TransferController extends _$TransferController {
 
     await service.saveSettings(merged);
 
-    // 同步网络配置
+    // 同步网络配置：直接写 prefs 后必须让 NetworkConfigManager 重新读取，
+    // 否则恢复出来的地址/Key 要等应用重启才生效
     final networkConfig = prefsData['networkConfig'];
     if (networkConfig is Map<String, dynamic>) {
       final prefs = PrefsService().prefs;
@@ -552,6 +538,7 @@ class TransferController extends _$TransferController {
       if (activeIndex != null) {
         await prefs.setInt('PC_ACTIVE_INDEX', int.tryParse(activeIndex.toString()) ?? 0);
       }
+      await ref.read(networkConfigManagerProvider.notifier).refresh();
     }
 
     // 清理扁平下载目录
@@ -648,10 +635,6 @@ class TransferController extends _$TransferController {
     }
     return urls;
   }
-
-  // ===========================================================================
-  // 私有方法 - 图片下载
-  // ===========================================================================
 
   Future<TransferResult> _downloadImages({
     required List<String> urls,
@@ -793,10 +776,6 @@ class TransferController extends _$TransferController {
     return stillFailed;
   }
 
-  // ===========================================================================
-  // 私有方法 - 数据上传
-  // ===========================================================================
-
   Future<TransferResult> _uploadData({
     required String path,
     required Map<String, dynamic> jsonData,
@@ -841,10 +820,6 @@ class TransferController extends _$TransferController {
       return TransferResult.failed(message: '上传出错: $e');
     }
   }
-
-  // ===========================================================================
-  // 私有方法 - 状态管理
-  // ===========================================================================
 
   void _updateState({
     required TransferType type,
@@ -904,10 +879,6 @@ class TransferController extends _$TransferController {
       endTime: DateTime.now(),
     );
   }
-
-  // ===========================================================================
-  // 辅助方法
-  // ===========================================================================
 
   List<String> _extractBookletImageUrls(dynamic data) {
     final urls = <String>[];

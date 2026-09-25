@@ -6,6 +6,7 @@ import 'package:northstar/core/providers/ops/core_services_provider.dart';
 import 'package:northstar/domain/ops/models/arg_preset.dart';
 import 'package:northstar/domain/ops/models/default_task_templates.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';
+import 'package:northstar/domain/ops/utils/task_rules.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'task_profiles_provider.g.dart';
@@ -22,8 +23,8 @@ class TaskProfilesController extends _$TaskProfilesController {
     final defaults = buildDefaultTaskTemplates();
     final repository = ref.read(opsPersistenceRepositoryProvider);
 
-    // 任务档案同样在 main() 预载完成，build 只做无副作用的纯计算；
-    // 需要落盘时排到当前帧之后，避免在 build 内改状态。
+    // 任务档案同样在 main() 预载完成；需要落盘时排到当前帧之后，
+    // 避免在 build 内写状态。
     final cached = repository.taskProfiles;
     if (cached == null || cached.isEmpty) {
       Future(() => repository.saveTaskProfiles(defaults));
@@ -119,18 +120,7 @@ class TaskProfilesController extends _$TaskProfilesController {
   }
 
   bool _isGalleryRefreshPreset(ArgPreset preset) {
-    if (preset.id == 'refresh') {
-      return true;
-    }
-
-    for (var i = 0; i < preset.args.length - 1; i++) {
-      if (preset.args[i] == '-mode' &&
-          preset.args[i + 1].trim().toLowerCase() == 'refresh') {
-        return true;
-      }
-    }
-
-    return false;
+    return preset.id == 'refresh' || extractModeFromPreset(preset) == 'refresh';
   }
 
   bool _taskListsSemanticallyEqual(

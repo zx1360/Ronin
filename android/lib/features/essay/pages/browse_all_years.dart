@@ -23,9 +23,6 @@ class BrowseAllYears extends ConsumerStatefulWidget {
 class BrowseAllYearsState extends ConsumerState<BrowseAllYears> {
   final ScrollController _scrollController = ScrollController();
 
-  /// 获取 ScrollController 供外部使用（如滚动到顶部）
-  ScrollController get scrollController => _scrollController;
-
   @override
   void dispose() {
     _scrollController.dispose();
@@ -33,6 +30,7 @@ class BrowseAllYearsState extends ConsumerState<BrowseAllYears> {
   }
 
   void scrollToTop() {
+    if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
       0,
       duration: const Duration(milliseconds: 300),

@@ -58,6 +58,15 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     });
   }
 
+  /// 切换当前查看的组成员，并同步备注输入框（备注是逐文件的）
+  void _selectGroupIndex(int index) {
+    if (index < 0 || index >= _groupMembers.length) return;
+    setState(() {
+      _currentGroupIndex = index;
+      _messageController.text = _currentAsset.message ?? '';
+    });
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
@@ -130,7 +139,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
               child: hasGroup
                   ? PageView.builder(
                       itemCount: _groupMembers.length,
-                      onPageChanged: (index) => setState(() => _currentGroupIndex = index),
+                      onPageChanged: _selectGroupIndex,
                       itemBuilder: (context, index) {
                         return _buildPreviewImage(storage, _groupMembers[index], showFullscreen: true);
                       },
@@ -146,7 +155,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                   bottom: 0,
                   child: Center(
                     child: _buildNavButton(Icons.chevron_left, () {
-                      setState(() => _currentGroupIndex--);
+                      _selectGroupIndex(_currentGroupIndex - 1);
                     }),
                   ),
                 ),
@@ -157,7 +166,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                   bottom: 0,
                   child: Center(
                     child: _buildNavButton(Icons.chevron_right, () {
-                      setState(() => _currentGroupIndex++);
+                      _selectGroupIndex(_currentGroupIndex + 1);
                     }),
                   ),
                 ),
@@ -527,7 +536,9 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     try {
       final db = ref.read(galleryDatabaseProvider);
       final message = _messageController.text.trim();
-      final updatedAsset = widget.asset.copyWith(
+      // 备注属于"当前正在查看的那一个"文件，组成员各写各的
+      final target = _currentAsset;
+      final updatedAsset = target.copyWith(
         message: message.isEmpty ? null : message,
         clearMessage: message.isEmpty,
       );
@@ -535,9 +546,9 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       await db.updateMediaAsset(updatedAsset);
       // 服务端权威: 本地先生效, 备注经缓冲写入服务端
       ref.read(galleryWriteBufferProvider).queuePatch(
-            widget.asset.id,
+            target.id,
             MediaPatchIntent(message: message),
-            baselineAsset: widget.asset,
+            baselineAsset: target,
           );
       ref.invalidate(mediaAssetListProvider);
     } catch (e) {

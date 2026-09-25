@@ -5,16 +5,20 @@ import 'package:go_router/go_router.dart';
 import 'package:system_tray/system_tray.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:northstar/app/routes.dart';
+import 'package:northstar/core/providers/comix/comix_providers.dart';
 import 'package:northstar/core/providers/ops/runtime_process_provider.dart';
 import 'package:northstar/shared/widgets/shell/side_navbar/side_navbar.dart';
 import 'package:northstar/shared/widgets/shell/titlebar/titlebar.dart';
 
+/// 漫画资源页在 [routes] 中的分支索引。
+final int _comixBranchIndex = routes.indexWhere(
+  (route) => route.path == '/comix',
+);
+
 class ShellPage extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
-  const ShellPage({
-    super.key,
-    required this.navigationShell,
-  });
+  const ShellPage({super.key, required this.navigationShell});
 
   @override
   ConsumerState<ShellPage> createState() => _ShellPageState();
@@ -31,6 +35,27 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
     _initSystemTray();
     _initCloseBehavior();
     windowManager.addListener(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncComixPageActive(widget.navigationShell.currentIndex);
+    });
+  }
+
+  @override
+  void didUpdateWidget(ShellPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.navigationShell.currentIndex !=
+        widget.navigationShell.currentIndex) {
+      _syncComixPageActive(widget.navigationShell.currentIndex);
+    }
+  }
+
+  /// indexedStack 的分支常驻不销毁，页面可见性只能由分支索引驱动：
+  /// 切走漫画资源页时必须停掉它的轮询（dispose 不会触发）。
+  void _syncComixPageActive(int currentIndex) {
+    ref
+        .read(comixBoardProvider.notifier)
+        .setPageActive(currentIndex == _comixBranchIndex);
   }
 
   @override
@@ -53,7 +78,7 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
               fit: StackFit.expand,
               children: [
                 Positioned.fill(child: widget.navigationShell),
-                Positioned(top: 0,left: 0, right: 0,child: const TitleBar()),
+                Positioned(top: 0, left: 0, right: 0, child: const TitleBar()),
               ],
             ),
           ),
@@ -61,8 +86,6 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
       ),
     );
   }
-
-
 
   // 系统托盘初始化
   Future<void> _initSystemTray() async {
@@ -83,11 +106,11 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
 
       // 注册事件
       _systemTray.registerSystemTrayEventHandler((eventName) async {
-        switch(eventName){
+        switch (eventName) {
           case kSystemTrayEventClick:
             await windowManager.show();
             break;
-            case kSystemTrayEventRightClick:
+          case kSystemTrayEventRightClick:
             await _systemTray.popUpContextMenu();
             break;
         }
@@ -96,7 +119,9 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
       // 标记初始化成功
       _isTrayInitialized = true;
     } catch (error) {
-      throw Exception("托盘初始化失败: $error");
+      // 托盘初始化失败不能中断启动，也不能把异常抛出 initState 的异步链；
+      // 保持 _isTrayInitialized=false，退出时不会再尝试销毁不存在的图标。
+      debugPrint('托盘初始化失败: $error');
     }
   }
 
@@ -106,7 +131,9 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
 
   @override
   Future<void> onWindowClose() async {
-    final runtimeController = ref.read(runtimeProcessControllerProvider.notifier);
+    final runtimeController = ref.read(
+      runtimeProcessControllerProvider.notifier,
+    );
 
     if (!mounted) {
       return;

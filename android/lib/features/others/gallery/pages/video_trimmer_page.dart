@@ -42,7 +42,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
   /// 初始化失败信息（video-info 请求失败等），非空时显示错误页
   String? _initError;
 
-  // ============ 帧画面预览（图片） ============
+  // 帧画面预览（图片）
 
   /// 当前预览帧（JPEG 字节）
   Uint8List? _frameBytes;
@@ -149,7 +149,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
     return '${min.toString().padLeft(2, '0')}:${whole.toString().padLeft(2, '0')}.$tenth';
   }
 
-  // ============ 帧画面预览 ============
+  // 帧画面预览
 
   /// 拖动滑块：更新数值并节流请求该位置的帧画面
   void _onTrimChanged({required bool isStart, required double v, required double maxSec}) {
@@ -199,7 +199,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
     }
   }
 
-  // ============ 保存 ============
+  // 保存
 
   Future<void> _save() async {
     if (_saving) return;
@@ -248,7 +248,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
     }
   }
 
-  // ============ UI ============
+  // UI
 
   @override
   Widget build(BuildContext context) {

@@ -1,11 +1,9 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:northstar/app/routes.dart';
+import 'package:northstar/app/theme.dart';
 import 'package:window_manager/window_manager.dart';
 
-// TODO: 考虑考虑stateless/stateful 组件及复用及背后机制(以及生命周期深入).
 class SideNavbar extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -14,26 +12,27 @@ class SideNavbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final lastPageIndex = routes.length-1;
+    final lastPageIndex = routes.length - 1;
     final currentIndex = navigationShell.currentIndex;
 
     return Container(
-      color: colorScheme.background,
+      color: AppColors.background,
       child: Column(
         children: [
-          // 顶部图片
           DragToMoveArea(
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.asset("assets/icons/six.ico", width: 48, height: 48),
+                child: Image.asset(
+                  "assets/icons/six.ico",
+                  width: 48,
+                  height: 48,
+                ),
               ),
             ),
           ),
-          // 留出空格
           SizedBox(height: 20),
-
           Expanded(
             child: NavigationRail(
               backgroundColor: Colors.transparent,

@@ -166,7 +166,7 @@ class PersonalizationService {
     return settings.mottos[index];
   }
 
-  // ============ 背景图片管理 ============
+  // 背景图片管理
 
   /// 添加背景图片
   Future<bool> addBackgroundImage(List<int> bytes, String fileName) async {
@@ -197,7 +197,7 @@ class PersonalizationService {
     return deleted;
   }
 
-  // ============ 侧边栏图片管理 ============
+  // 侧边栏图片管理
 
   /// 添加侧边栏图片
   Future<bool> addSidebarImage(List<int> bytes, String fileName) async {
@@ -228,7 +228,7 @@ class PersonalizationService {
     return deleted;
   }
 
-  // ============ 座右铭管理 ============
+  // 座右铭管理
 
   /// 添加座右铭
   Future<void> addMotto(String motto) async {
@@ -260,7 +260,7 @@ class PersonalizationService {
     await saveSettings(settings.copyWith(mottos: newList));
   }
 
-  // ============ 用户信息管理 ============
+  // 用户信息管理
 
   /// 更新昵称
   Future<void> updateNickname(String nickname) async {

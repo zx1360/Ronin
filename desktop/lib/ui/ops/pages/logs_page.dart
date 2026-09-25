@@ -20,6 +20,15 @@ class _LogsPageState extends ConsumerState<LogsPage> {
   final ScrollController _scrollController = ScrollController();
   String? _selectedTaskId;
 
+  /// 用户是否停在日志底部：只有停在底部时才自动滚动，避免打断向上翻阅。
+  bool _stickToBottom = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
   @override
   void dispose() {
     _filterController.dispose();
@@ -27,10 +36,22 @@ class _LogsPageState extends ConsumerState<LogsPage> {
     super.dispose();
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    _stickToBottom = position.pixels >= position.maxScrollExtent - 24;
+  }
+
+  void _scheduleScrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final tasks = ref.watch(taskProfilesControllerProvider);
-    final runtimeBoard = ref.watch(runtimeProcessControllerProvider);
 
     if (tasks.isEmpty) {
       return const Column(
@@ -47,14 +68,30 @@ class _LogsPageState extends ConsumerState<LogsPage> {
       _selectedTaskId = tasks.first.id;
     }
 
+    // 只订阅当前任务的日志，避免其它任务的每次输出都重建本页。
+    final rawLogs = ref.watch(
+      runtimeProcessControllerProvider.select(
+        (board) => board.logs[_selectedTaskId] ?? const <ProcessLogEntry>[],
+      ),
+    );
+    ref.listen(
+      runtimeProcessControllerProvider.select(
+        (board) => board.logs[_selectedTaskId],
+      ),
+      (_, __) {
+        if (_stickToBottom) _scheduleScrollToBottom();
+      },
+    );
+
     final keyword = _filterController.text.trim().toLowerCase();
-    final rawLogs = runtimeBoard.logs[_selectedTaskId] ?? const <ProcessLogEntry>[];
-    final filteredLogs = rawLogs.where((item) {
-      if (keyword.isEmpty) {
-        return true;
-      }
-      return item.text.toLowerCase().contains(keyword);
-    }).toList(growable: false);
+    final filteredLogs = rawLogs
+        .where((item) {
+          if (keyword.isEmpty) {
+            return true;
+          }
+          return item.text.toLowerCase().contains(keyword);
+        })
+        .toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,7 +145,9 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                         if (_selectedTaskId == null) {
                           return;
                         }
-                        ref.read(runtimeProcessControllerProvider.notifier).clearLogs(_selectedTaskId!);
+                        ref
+                            .read(runtimeProcessControllerProvider.notifier)
+                            .clearLogs(_selectedTaskId!);
                       },
                       icon: const Icon(Icons.cleaning_services_outlined),
                       label: const Text('清空'),
@@ -121,7 +160,9 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                               final text = filteredLogs
                                   .map((item) => _formatLine(item))
                                   .join('\n');
-                              await Clipboard.setData(ClipboardData(text: text));
+                              await Clipboard.setData(
+                                ClipboardData(text: text),
+                              );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('日志已复制')),
@@ -152,23 +193,16 @@ class _LogsPageState extends ConsumerState<LogsPage> {
     );
   }
 
-  /// 构建只读但可复制的日志文本区，自动滚动到末尾
+  /// 构建只读但可复制的日志文本区
   Widget _buildLogTextArea(List<ProcessLogEntry> logs) {
-    // 日志到达后自动滚动到末尾
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
-    });
-
     final spans = <TextSpan>[];
     for (final item in logs) {
-      spans.add(TextSpan(
-        text: '${_formatLine(item)}\n',
-        style: TextStyle(
-          color: _streamColor(context, item.streamType),
+      spans.add(
+        TextSpan(
+          text: '${_formatLine(item)}\n',
+          style: TextStyle(color: _streamColor(context, item.streamType)),
         ),
-      ));
+      );
     }
 
     return Scrollbar(
@@ -179,10 +213,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
           width: double.infinity,
           child: SelectableText.rich(
             TextSpan(
-              style: const TextStyle(
-                fontFamily: 'Consolas',
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontFamily: 'Consolas', fontSize: 13),
               children: spans,
             ),
           ),

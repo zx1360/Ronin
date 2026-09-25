@@ -20,20 +20,6 @@ import (
 // 接收 multipart/form-data 格式请求，包含 JSON 数据和图片文件。
 // - booklet/essay: 写入数据库 user_data schema 对应表，图片保存到 img_storage/
 // - preferences: 保持 JSON 文件存储（原逻辑）
-// @Summary 备份指定模块的数据
-// @Description 接收模块 JSON 数据与图片文件并保存
-// @Tags user-data
-// @Accept mpfd
-// @Produce json
-// @Security ApiKeyAuth
-// @Param module path string true "模块名称"
-// @Param jsonData formData string true "JSON 字段集合，键名对应目标文件名（不含扩展名）"
-// @Param files formData file false "待上传的图片文件（可多文件）"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /api/user-data/backup/{module} [post]
 func BackupHandler(c *gin.Context) {
 	moduleName := c.Param("module")
 
@@ -82,9 +68,7 @@ func BackupHandler(c *gin.Context) {
 	backupToFiles(c, moduleConfig, jsonData)
 }
 
-// ============================================================================
 // DB 模式备份 (booklet / essay)
-// ============================================================================
 
 func backupToDB(c *gin.Context, moduleName string, cfg *ModuleConfig, jsonData map[string]json.RawMessage) {
 	switch moduleName {
@@ -250,9 +234,7 @@ func backupEssay(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.Raw
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "随笔数据备份完成"})
 }
 
-// ============================================================================
 // 图片文件处理
-// ============================================================================
 
 // backupSaveImages 保存上传的图片文件到模块图片目录
 func backupSaveImages(c *gin.Context, cfg *ModuleConfig) {
@@ -310,9 +292,7 @@ func backupCleanOrphanImages(cfg *ModuleConfig, moduleName string) {
 	}
 }
 
-// ============================================================================
 // JSON 文件模式备份 (preferences 等，保留原逻辑)
-// ============================================================================
 
 func backupToFiles(c *gin.Context, moduleConfig *ModuleConfig, jsonData map[string]json.RawMessage) {
 	for _, filePath := range moduleConfig.JSONFiles {
@@ -352,9 +332,7 @@ func backupToFiles(c *gin.Context, moduleConfig *ModuleConfig, jsonData map[stri
 	})
 }
 
-// ============================================================================
 // 数据解析辅助函数
-// ============================================================================
 
 // parseFlexTime 兼容多种日期格式
 func parseFlexTime(s string) (time.Time, error) {
@@ -446,9 +424,7 @@ func toJSONRaw(v interface{}) json.RawMessage {
 	return b
 }
 
-// ============================================================================
 // Booklet 解析
-// ============================================================================
 
 func parseBookletStyle(m map[string]interface{}) (model.BookletStyle, error) {
 	id, err := uuid.Parse(getString(m, "id"))
@@ -498,9 +474,7 @@ func parseBookletRecord(m map[string]interface{}) (model.BookletRecord, error) {
 	}, nil
 }
 
-// ============================================================================
 // Essay 解析
-// ============================================================================
 
 func parseEssayArticle(m map[string]interface{}) (model.EssayArticle, error) {
 	id, err := uuid.Parse(getString(m, "id"))

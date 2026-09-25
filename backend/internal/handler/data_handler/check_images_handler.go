@@ -20,17 +20,6 @@ type CheckImagesResponse struct {
 }
 
 // CheckImagesHandler 检查指定模块的图片目录中哪些文件已存在
-// @Summary 检查图片文件是否已存在于服务端
-// @Description 接收文件名列表，返回哪些已存在、哪些缺失（用于增量上传）
-// @Tags user-data
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param module path string true "模块名称"
-// @Param body body CheckImagesRequest true "待检查的文件名列表"
-// @Success 200 {object} CheckImagesResponse
-// @Failure 404 {object} map[string]string
-// @Router /api/user-data/check-images/{module} [post]
 func CheckImagesHandler(c *gin.Context) {
 	moduleName := c.Param("module")
 	moduleConfig := FindModuleConfigByName(moduleName)

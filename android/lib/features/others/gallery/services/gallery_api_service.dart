@@ -37,7 +37,7 @@ class GalleryApiService {
     }
   }
 
-  // ============ 标签 ============
+  // 标签
 
   /// 获取完整标签树（含收藏标记与媒体数）
   Future<List<Tag>> fetchTags() {
@@ -94,7 +94,7 @@ class GalleryApiService {
     });
   }
 
-  // ============ 媒体查询与操作 ============
+  // 媒体查询与操作
 
   /// 按标签/类型/删除状态查询媒体及其标签关联
   Future<MediaQueryResult> queryMedia({
@@ -179,7 +179,7 @@ class GalleryApiService {
     });
   }
 
-  // ============ 解析辅助 ============
+  // 解析辅助
 
   Map<String, dynamic> _tagOf(dynamic body) {
     final data = body as Map<String, dynamic>;

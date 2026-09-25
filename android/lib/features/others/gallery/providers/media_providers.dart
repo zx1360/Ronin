@@ -10,7 +10,7 @@ import 'package:torrid/features/others/gallery/services/gallery_write_buffer.dar
 
 part 'media_providers.g.dart';
 
-// ============ 媒体数据 Providers（服务端权威 + 本地缓存） ============
+// 媒体数据 Providers（服务端权威 + 本地缓存）
 
 /// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
 ///

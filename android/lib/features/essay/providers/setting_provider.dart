@@ -8,10 +8,6 @@ import 'package:torrid/features/essay/models/essay.dart';
 
 part 'setting_provider.g.dart';
 
-// ============================================================================
-// 浏览设置
-// ============================================================================
-
 /// 随笔排序方式
 enum SortType { 
   /// 按时间升序（旧→新）
@@ -81,16 +77,9 @@ class BrowseManager extends _$BrowseManager {
   }
 }
 
-// ============================================================================
-// 当前选中的随笔
-// ============================================================================
-
 /// 当前选中/正在查看的随笔
-/// 
+///
 /// 用于详情页和相关操作时保持当前随笔的引用。
-/// 
-/// **重命名说明**: 原名 `ContentServer`，为提高可读性重命名为 `SelectedEssay`。
-/// 生成的 provider 名称保持 `contentServerProvider` 以保持向后兼容。
 @Riverpod(keepAlive: false)
 class ContentServer extends _$ContentServer {
   @override
@@ -100,7 +89,7 @@ class ContentServer extends _$ContentServer {
   void switchEssay(Essay essay) {
     state = essay.copyWith();
   }
-  
+
   /// 清除当前选中
   void clear() {
     state = null;

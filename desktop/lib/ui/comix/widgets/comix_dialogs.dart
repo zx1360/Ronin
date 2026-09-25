@@ -73,20 +73,6 @@ class UpdateCheckOptions {
   }
 }
 
-/// 删除选项。
-class DeleteOptions {
-  final bool keepFiles;
-
-  const DeleteOptions({this.keepFiles = false});
-
-  Map<String, dynamic> toBody(int comicId) {
-    return <String, dynamic>{
-      'comic_id': comicId,
-      if (keepFiles) 'keep_files': true,
-    };
-  }
-}
-
 /// 展示下载选项对话框。
 Future<DownloadOptions?> showDownloadDialog(
   BuildContext context,
@@ -110,18 +96,10 @@ Future<UpdateCheckOptions?> showUpdateCheckDialog(
   );
 }
 
-/// 展示删除确认对话框。
-Future<DeleteOptions?> showDeleteComicDialog(
-  BuildContext context,
-  ComixComic comic,
-) {
-  return showDialog<DeleteOptions>(
-    context: context,
-    builder: (_) => _DeleteDialog(comic: comic),
-  );
-}
-
 /// 展示删除确认（漫画库网格用：连同本地文件一起删除，不可恢复）。
+///
+/// 后端 `/API/comix/delete` 支持 `keep_files`（仅删记录、保留本地文件），
+/// 当前 UI 未提供该选项。
 Future<bool?> showDeleteComicConfirmDialog(
   BuildContext context,
   ComixComic comic,
@@ -190,8 +168,6 @@ class _DownloadDialogState extends State<_DownloadDialog> {
   }
 
   void _submit() {
-    // 非法输入此前会被静默丢弃（latest 变 null = 全量下载；range 抛错导致
-    // 任务以空错误信息失败），必须在这里拦下并说清原因。
     final latestError = validateLatestCount(_latestController.text);
     final rangeError = validateChapterRange(_rangeController.text);
     final latestText = _latestController.text.trim();
@@ -278,10 +254,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
-        ElevatedButton(
-          onPressed: _submit,
-          child: const Text('开始下载'),
-        ),
+        ElevatedButton(onPressed: _submit, child: const Text('开始下载')),
       ],
     );
   }
@@ -313,7 +286,9 @@ class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
   }
 
   void _submit() {
-    final latestError = _download ? validateLatestCount(_latestController.text) : null;
+    final latestError = _download
+        ? validateLatestCount(_latestController.text)
+        : null;
     if (latestError != null) {
       setState(() => _error = latestError);
       return;
@@ -322,7 +297,9 @@ class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
     Navigator.of(context).pop(
       UpdateCheckOptions(
         download: _download,
-        latest: _download && latestText.isNotEmpty ? int.parse(latestText) : null,
+        latest: _download && latestText.isNotEmpty
+            ? int.parse(latestText)
+            : null,
       ),
     );
   }
@@ -391,76 +368,7 @@ class _UpdateCheckDialogState extends State<_UpdateCheckDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
-        ElevatedButton(
-          onPressed: _submit,
-          child: const Text('开始检查'),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 删除对话框
-// ---------------------------------------------------------------------------
-
-class _DeleteDialog extends StatefulWidget {
-  final ComixComic comic;
-
-  const _DeleteDialog({required this.comic});
-
-  @override
-  State<_DeleteDialog> createState() => _DeleteDialogState();
-}
-
-class _DeleteDialogState extends State<_DeleteDialog> {
-  bool _keepFiles = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('删除漫画'),
-      content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '确认删除「${widget.comic.title}」吗？',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '默认同时删除数据库记录与本地文件（${widget.comic.relDir}），不可恢复。',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const Divider(height: 20),
-            CheckboxListTile(
-              value: _keepFiles,
-              onChanged: (v) => setState(() => _keepFiles = v ?? false),
-              title: const Text('仅删记录，保留本地文件'),
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.error,
-          ),
-          onPressed: () {
-            Navigator.of(context).pop(DeleteOptions(keepFiles: _keepFiles));
-          },
-          child: const Text('确认删除'),
-        ),
+        ElevatedButton(onPressed: _submit, child: const Text('开始检查')),
       ],
     );
   }

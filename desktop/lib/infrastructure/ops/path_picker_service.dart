@@ -1,36 +1,24 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 
 class PathPickerService {
+  /// 选择可执行文件；平台异常（原生弹窗失败等）按"未选择"处理，不抛到 UI 层。
   Future<String?> pickExecutable({String? initialDirectory}) async {
-    final result = await FilePicker.platform.pickFiles(
-      dialogTitle: '选择可执行文件',
-      initialDirectory: initialDirectory,
-      allowMultiple: false,
-      type: FileType.custom,
-      allowedExtensions: const <String>['exe'],
-    );
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: '选择可执行文件',
+        initialDirectory: initialDirectory,
+        allowMultiple: false,
+        type: FileType.custom,
+        allowedExtensions: const <String>['exe'],
+      );
 
-    if (result == null || result.files.isEmpty) {
+      if (result == null || result.files.isEmpty) {
+        return null;
+      }
+
+      return result.files.single.path;
+    } catch (_) {
       return null;
     }
-
-    return result.files.single.path;
-  }
-
-  Future<String?> pickDirectory({String? initialDirectory}) {
-    return FilePicker.platform.getDirectoryPath(
-      dialogTitle: '选择工作目录',
-      initialDirectory: initialDirectory,
-    );
-  }
-
-  Future<bool> executableExists(String path) async {
-    return File(path).exists();
-  }
-
-  Future<bool> directoryExists(String path) async {
-    return Directory(path).exists();
   }
 }

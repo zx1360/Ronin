@@ -8,16 +8,12 @@ class DiscoveredService {
   final String host;
   final int port;
   final String scheme; // "http" 或 "https"
-  final bool hasAuth;
-  final Map<String, String> txtRecords;
 
   const DiscoveredService({
     required this.name,
     required this.host,
     required this.port,
     required this.scheme,
-    required this.hasAuth,
-    required this.txtRecords,
   });
 
   /// 构建 API Base URL
@@ -49,9 +45,12 @@ class MDnsDiscovery {
       await client.start();
 
       try {
-        await for (final ptr in client.lookup<PtrResourceRecord>(
-          ResourceRecordQuery.serverPointer(_serviceType),
-        ).timeout(timeout)) {
+        await for (final ptr
+            in client
+                .lookup<PtrResourceRecord>(
+                  ResourceRecordQuery.serverPointer(_serviceType),
+                )
+                .timeout(timeout)) {
           await _resolveService(client, ptr.domainName, services);
         }
       } on TimeoutException {
@@ -64,8 +63,7 @@ class MDnsDiscovery {
       // 静默回退到空结果，由调用方走 localhost 探测
     }
 
-    return services.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    return services.values.toList()..sort((a, b) => a.name.compareTo(b.name));
   }
 
   /// 解析服务的 SRV / A / TXT 记录
@@ -77,9 +75,7 @@ class MDnsDiscovery {
     try {
       // 1. 获取 SRV 记录 (端口 + 目标主机名)
       final srvRecords = await client
-          .lookup<SrvResourceRecord>(
-            ResourceRecordQuery.service(domainName),
-          )
+          .lookup<SrvResourceRecord>(ResourceRecordQuery.service(domainName))
           .toList();
 
       if (srvRecords.isEmpty) return;
@@ -88,9 +84,7 @@ class MDnsDiscovery {
       List<TxtResourceRecord> txtRecords;
       try {
         txtRecords = await client
-            .lookup<TxtResourceRecord>(
-              ResourceRecordQuery.text(domainName),
-            )
+            .lookup<TxtResourceRecord>(ResourceRecordQuery.text(domainName))
             .toList();
       } catch (_) {
         txtRecords = [];
@@ -104,9 +98,12 @@ class MDnsDiscovery {
         // 4. 查询该主机的 A 记录以获取真实 IP
         String host = '';
         try {
-          await for (final ip in client.lookup<IPAddressResourceRecord>(
-            ResourceRecordQuery.addressIPv4(srvTarget),
-          ).timeout(const Duration(seconds: 2))) {
+          await for (final ip
+              in client
+                  .lookup<IPAddressResourceRecord>(
+                    ResourceRecordQuery.addressIPv4(srvTarget),
+                  )
+                  .timeout(const Duration(seconds: 2))) {
             host = ip.address.address;
             break;
           }
@@ -125,7 +122,6 @@ class MDnsDiscovery {
         if (host.isEmpty) continue;
 
         final scheme = txt['scheme'] == 'http' ? 'http' : 'https';
-        final hasAuth = txt['auth'] == 'yes';
 
         final key = '$host:${srv.port}';
         if (!services.containsKey(key)) {
@@ -134,8 +130,6 @@ class MDnsDiscovery {
             host: host,
             port: srv.port,
             scheme: scheme,
-            hasAuth: hasAuth,
-            txtRecords: txt,
           );
         }
       }

@@ -28,7 +28,7 @@ class TagDragOverlay extends ConsumerStatefulWidget {
 }
 
 class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
-  // ============ 会话状态 ============
+  // 会话状态
 
   /// 浮层是否可见
   bool _visible = false;
@@ -52,13 +52,13 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
   /// 本次会话中已展开的标签 id
   final Set<String> _expandedIds = {};
 
-  // ============ 自动滚动 ============
+  // 自动滚动
 
   Timer? _scrollTimer;
   double _scrollSpeed = 0;
   ScrollController? _scrollTarget;
 
-  // ============ 布局定位 ============
+  // 布局定位
 
   final Map<String, GlobalKey> _rowKeys = {};
   final Map<String, GlobalKey> _favoriteKeys = {};
@@ -79,7 +79,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     super.dispose();
   }
 
-  // ============ 对外入口（GalleryPage 调用） ============
+  // 对外入口（GalleryPage 调用）
 
   /// 按下并拖动开始（先不激活，等待确认向上）
   void startDrag(Offset globalPos) {
@@ -173,7 +173,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     });
   }
 
-  // ============ 内部逻辑 ============
+  // 内部逻辑
 
   void _activate(Offset globalPos) {
     _pending = false;
@@ -237,7 +237,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     }
   }
 
-  // ---- 几何（全部实时读取，避免布局变化后失效） ----
+  // 几何（全部实时读取，避免布局变化后失效）
 
   Rect? _rectOf(GlobalKey key) {
     final box = key.currentContext?.findRenderObject() as RenderBox?;
@@ -295,7 +295,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     }
   }
 
-  // ---- 边缘自动滚动 ----
+  // 边缘自动滚动
 
   void _updateAutoScroll(Offset globalPos) {
     final panel = _panelRect;
@@ -356,7 +356,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     _scrollSpeed = 0;
   }
 
-  // ============ 渲染 ============
+  // 渲染
 
   @override
   Widget build(BuildContext context) {
@@ -367,9 +367,6 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
             const <Tag>[])
         .map((t) => t.id)
         .toSet();
-    final favoriteIds = {
-      for (final tag in ref.watch(favoriteTagsProvider)) tag.id,
-    };
     final favorites = ref.watch(favoriteTagsProvider);
 
     final childrenMap = <String, List<Tag>>{};

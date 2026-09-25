@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -327,54 +326,6 @@ class _CodeSyntaxHighlighter extends SyntaxHighlighter {
         height: 1.5,
       ),
       children: spans,
-    );
-  }
-}
-
-/// 带复制按钮的代码块包装器
-/// 可以通过 MarkdownBody 的 builders 参数使用
-class CodeBlockWrapper extends StatefulWidget {
-  final Widget child;
-  final String code;
-
-  const CodeBlockWrapper({super.key, required this.child, required this.code});
-
-  @override
-  State<CodeBlockWrapper> createState() => _CodeBlockWrapperState();
-}
-
-class _CodeBlockWrapperState extends State<CodeBlockWrapper> {
-  bool _copied = false;
-
-  void _copyCode() async {
-    await Clipboard.setData(ClipboardData(text: widget.code));
-    setState(() => _copied = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() => _copied = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        widget.child,
-        Positioned(
-          top: 8,
-          right: 8,
-          child: IconButton(
-            icon: Icon(
-              _copied ? Icons.check : Icons.copy,
-              size: 18,
-              color: _copied ? Colors.green : Colors.grey,
-            ),
-            onPressed: _copyCode,
-            tooltip: _copied ? '已复制' : '复制代码',
-            visualDensity: VisualDensity.compact,
-          ),
-        ),
-      ],
     );
   }
 }

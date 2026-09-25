@@ -111,21 +111,3 @@ final sidebarImagesProvider = FutureProvider<List<File>>((ref) async {
   ref.watch(appSettingsProvider);
   return service.getImageFiles(PersonalizationImageType.sidebar);
 });
-
-/// 当前选中的随机背景图路径
-final randomBackgroundProvider = Provider<String?>((ref) {
-  final service = ref.watch(personalizationServiceProvider);
-  return service.getRandomBackgroundImage();
-});
-
-/// 当前选中的随机侧边栏图路径
-final randomSidebarProvider = Provider<String?>((ref) {
-  final service = ref.watch(personalizationServiceProvider);
-  return service.getRandomSidebarImage();
-});
-
-/// 当前选中的随机座右铭
-final randomMottoProvider = Provider<String>((ref) {
-  final service = ref.watch(personalizationServiceProvider);
-  return service.getRandomMotto();
-});

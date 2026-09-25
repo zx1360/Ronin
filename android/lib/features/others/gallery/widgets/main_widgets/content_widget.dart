@@ -55,7 +55,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     );
   }
 
-  // ---- 静态状态 ----
+  // 静态状态
 
   Widget _buildCentered(Widget child) =>
       Container(color: Colors.black, child: Center(child: child));
@@ -80,7 +80,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
         ),
       );
 
-  // ---- 数据状态 ----
+  // 数据状态
 
   Widget _buildData(List<MediaAsset> assets, int currentIndex) {
     if (assets.isEmpty) {
@@ -164,7 +164,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     );
   }
 
-  // ---- 图片手势 ----
+  // 图片手势
 
   Widget _buildImageGestures(List<MediaAsset> assets, int currentIndex) {
     final hasPrev = _hasLiveBefore(assets, currentIndex);
@@ -227,7 +227,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     });
   }
 
-  // ---- 视频浮动控制 ----
+  // 视频浮动控制
 
   Widget _buildVideoControls(List<MediaAsset> assets, int currentIndex) {
     final hasPrev = _hasLiveBefore(assets, currentIndex);
@@ -251,7 +251,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     );
   }
 
-  // ---- 辅助 ----
+  // 辅助
 
   bool _hasLiveBefore(List<MediaAsset> assets, int idx) {
     for (int i = idx - 1; i >= 0; i--) {
@@ -299,7 +299,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
   }
 }
 
-// ---- 私有小组件 ----
+// 私有小组件
 
 class _ProgressBar extends StatelessWidget {
   final int current, total;

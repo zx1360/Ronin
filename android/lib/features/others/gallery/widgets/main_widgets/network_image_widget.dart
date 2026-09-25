@@ -12,7 +12,7 @@ import 'package:torrid/features/others/gallery/services/gallery_storage_service.
 ///   (由调用方提供纵向拖动), 未超出则垂直居中;
 /// - 横屏容器(含应用内旋转 90° 后的显示区域): 保持等比完整显示并居中.
 ///
-/// 图片尺寸未知时退化为铺满容器(与改动前的等比显示等价).
+/// 图片尺寸未知时退化为铺满容器.
 Rect imageDisplayRect(Size viewport, Size? image) {
   if (image == null ||
       image.width <= 0 ||
@@ -208,7 +208,7 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   Widget _buildInteractive(Rect painted, Size viewport) {
     final overflows = painted.height > viewport.height + 0.5;
     if (!overflows) {
-      // 完整可见: 与改动前一致的等比显示 (居中)
+      // 完整可见: 等比完整显示并居中
       return InteractiveViewer(
         transformationController: _transformController,
         minScale: _minScale,

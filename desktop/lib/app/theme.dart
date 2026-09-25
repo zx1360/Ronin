@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  /// 深色主题配置
   static ThemeData dark() {
     return ThemeData(
       useMaterial3: true,
@@ -23,7 +22,6 @@ class AppTheme {
     );
   }
 
-  /// 深色模式配色方案
   static const ColorScheme _darkColorScheme = ColorScheme.dark(
     primary: AppColors.primary,
     primaryContainer: AppColors.primaryContainer,
@@ -49,7 +47,6 @@ class AppTheme {
     scrim: AppColors.scrim,
   );
 
-  /// 全局文本样式
   static final TextTheme _textTheme = TextTheme(
     displayLarge: _displayLarge,
     displayMedium: _displayMedium,
@@ -68,7 +65,6 @@ class AppTheme {
     labelSmall: _labelSmall,
   );
 
-  /// AppBar 主题
   static final AppBarTheme _appBarTheme = AppBarTheme(
     backgroundColor: AppColors.surface,
     titleTextStyle: _titleLarge.copyWith(color: AppColors.onSurface),
@@ -77,38 +73,35 @@ class AppTheme {
     shadowColor: AppColors.shadow,
   );
 
-  /// 高强调按钮主题
   static final ElevatedButtonThemeData _elevatedButtonTheme =
       ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: AppColors.primary,
-      foregroundColor: AppColors.onPrimary,
-      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.3),
-      disabledForegroundColor: AppColors.onPrimary.withValues(alpha: 0.6),
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDimens.borderRadius),
-      ),
-      elevation: 2,
-      shadowColor: AppColors.shadow,
-    ),
-  );
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.3),
+          disabledForegroundColor: AppColors.onPrimary.withValues(alpha: 0.6),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimens.borderRadius),
+          ),
+          elevation: 2,
+          shadowColor: AppColors.shadow,
+        ),
+      );
 
-  /// 描边按钮主题
   static final OutlinedButtonThemeData _outlinedButtonTheme =
       OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      foregroundColor: AppColors.onSurface,
-      disabledForegroundColor: AppColors.onSurface.withValues(alpha: 0.38),
-      side: BorderSide(color: AppColors.outline),
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDimens.borderRadius),
-      ),
-    ),
-  );
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.onSurface,
+          disabledForegroundColor: AppColors.onSurface.withValues(alpha: 0.38),
+          side: BorderSide(color: AppColors.outline),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimens.borderRadius),
+          ),
+        ),
+      );
 
-  /// 文本按钮主题
   static final TextButtonThemeData _textButtonTheme = TextButtonThemeData(
     style: TextButton.styleFrom(
       foregroundColor: AppColors.onSurface,
@@ -120,7 +113,6 @@ class AppTheme {
     ),
   );
 
-  /// 卡片主题
   static final CardThemeData _cardTheme = CardThemeData(
     color: AppColors.surface,
     elevation: 2,
@@ -132,61 +124,64 @@ class AppTheme {
     margin: EdgeInsets.zero,
   );
 
-  /// 输入框主题
-  static final InputDecorationTheme _inputDecorationTheme = InputDecorationTheme(
-    filled: true,
-    fillColor: AppColors.surfaceVariant,
-    border: OutlineInputBorder(
-      borderSide: BorderSide(color: AppColors.outline),
-      borderRadius: BorderRadius.circular(AppDimens.borderRadius),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: AppColors.outline),
-      borderRadius: BorderRadius.circular(AppDimens.borderRadius),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: AppColors.primary, width: 2),
-      borderRadius: BorderRadius.circular(AppDimens.borderRadius),
-    ),
-    errorBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: AppColors.error),
-      borderRadius: BorderRadius.circular(AppDimens.borderRadius),
-    ),
-    disabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: AppColors.outlineVariant),
-      borderRadius: BorderRadius.circular(AppDimens.borderRadius),
-    ),
-    hintStyle: _bodyMedium.copyWith(color: AppColors.onSurfaceVariant),
-    labelStyle: _bodyMedium.copyWith(color: AppColors.onSurfaceVariant),
-    errorStyle: _bodySmall.copyWith(color: AppColors.error),
-    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-  );
+  static final InputDecorationTheme _inputDecorationTheme =
+      InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.surfaceVariant,
+        border: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.outline),
+          borderRadius: BorderRadius.circular(AppDimens.borderRadius),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.outline),
+          borderRadius: BorderRadius.circular(AppDimens.borderRadius),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.primary, width: 2),
+          borderRadius: BorderRadius.circular(AppDimens.borderRadius),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.error),
+          borderRadius: BorderRadius.circular(AppDimens.borderRadius),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: AppColors.outlineVariant),
+          borderRadius: BorderRadius.circular(AppDimens.borderRadius),
+        ),
+        hintStyle: _bodyMedium.copyWith(color: AppColors.onSurfaceVariant),
+        labelStyle: _bodyMedium.copyWith(color: AppColors.onSurfaceVariant),
+        errorStyle: _bodySmall.copyWith(color: AppColors.error),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      );
 
-  /// 复选框主题
   static final CheckboxThemeData _checkboxTheme = CheckboxThemeData(
     fillColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return AppColors.primary;
-      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withValues(alpha: 0.38);
+      if (states.contains(WidgetState.disabled)) {
+        return AppColors.onSurface.withValues(alpha: 0.38);
+      }
       return null;
     }),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
   );
 
-  /// 开关主题
   static final SwitchThemeData _switchTheme = SwitchThemeData(
     thumbColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return AppColors.onPrimary;
-      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withValues(alpha: 0.38);
+      if (states.contains(WidgetState.disabled)) {
+        return AppColors.onSurface.withValues(alpha: 0.38);
+      }
       return AppColors.onSurface;
     }),
     trackColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return AppColors.primary;
-      if (states.contains(WidgetState.disabled)) return AppColors.onSurface.withValues(alpha: 0.12);
+      if (states.contains(WidgetState.disabled)) {
+        return AppColors.onSurface.withValues(alpha: 0.12);
+      }
       return AppColors.onSurface.withValues(alpha: 0.38);
     }),
   );
 
-  /// 对话框主题
   static final DialogThemeData _dialogTheme = DialogThemeData(
     backgroundColor: AppColors.surface,
     elevation: 4,
@@ -198,17 +193,17 @@ class AppTheme {
     contentTextStyle: _bodyMedium,
   );
 
-  /// 底部弹窗主题
   static final BottomSheetThemeData _bottomSheetTheme = BottomSheetThemeData(
     backgroundColor: AppColors.surface,
     elevation: 4,
     shadowColor: AppColors.shadow,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimens.borderRadius)),
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(AppDimens.borderRadius),
+      ),
     ),
   );
 
-  /// 提示条主题
   static final SnackBarThemeData _snackBarTheme = SnackBarThemeData(
     backgroundColor: AppColors.surfaceVariant,
     contentTextStyle: _bodyMedium.copyWith(color: AppColors.onSurfaceVariant),
@@ -219,36 +214,114 @@ class AppTheme {
     ),
   );
 
-  /// 底部导航栏主题
-  static final NavigationBarThemeData _navigationBarTheme = NavigationBarThemeData(
-    backgroundColor: AppColors.surface,
-    indicatorColor: AppColors.primary.withValues(alpha: 0.2),
-    labelTextStyle: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) return _labelSmall.copyWith(color: AppColors.primary);
-      return _labelSmall.copyWith(color: AppColors.onSurfaceVariant);
-    }),
-    iconTheme: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) return IconThemeData(color: AppColors.primary);
-      return IconThemeData(color: AppColors.onSurfaceVariant);
-    }),
-  );
+  static final NavigationBarThemeData _navigationBarTheme =
+      NavigationBarThemeData(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.primary.withValues(alpha: 0.2),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return _labelSmall.copyWith(color: AppColors.primary);
+          }
+          return _labelSmall.copyWith(color: AppColors.onSurfaceVariant);
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return IconThemeData(color: AppColors.primary);
+          }
+          return IconThemeData(color: AppColors.onSurfaceVariant);
+        }),
+      );
 
-  // 文本样式定义
-  static final TextStyle _displayLarge = TextStyle(fontSize: 57, fontWeight: FontWeight.w400, letterSpacing: -0.25, color: AppColors.onBackground);
-  static final TextStyle _displayMedium = TextStyle(fontSize: 45, fontWeight: FontWeight.w400, letterSpacing: 0, color: AppColors.onBackground);
-  static final TextStyle _displaySmall = TextStyle(fontSize: 36, fontWeight: FontWeight.w400, letterSpacing: 0, color: AppColors.onBackground);
-  static final TextStyle _headlineLarge = TextStyle(fontSize: 32, fontWeight: FontWeight.w400, letterSpacing: 0, color: AppColors.onBackground);
-  static final TextStyle _headlineMedium = TextStyle(fontSize: 28, fontWeight: FontWeight.w400, letterSpacing: 0, color: AppColors.onBackground);
-  static final TextStyle _headlineSmall = TextStyle(fontSize: 24, fontWeight: FontWeight.w400, letterSpacing: 0, color: AppColors.onBackground);
-  static final TextStyle _titleLarge = TextStyle(fontSize: 22, fontWeight: FontWeight.w500, letterSpacing: 0, color: AppColors.onBackground);
-  static final TextStyle _titleMedium = TextStyle(fontSize: 16, fontWeight: FontWeight.w500, letterSpacing: 0.15, color: AppColors.onBackground);
-  static final TextStyle _titleSmall = TextStyle(fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1, color: AppColors.onBackground);
-  static final TextStyle _bodyLarge = TextStyle(fontSize: 16, fontWeight: FontWeight.w400, letterSpacing: 0.5, color: AppColors.onBackground);
-  static final TextStyle _bodyMedium = TextStyle(fontSize: 14, fontWeight: FontWeight.w400, letterSpacing: 0.25, color: AppColors.onBackground);
-  static final TextStyle _bodySmall = TextStyle(fontSize: 12, fontWeight: FontWeight.w400, letterSpacing: 0.4, color: AppColors.onBackground);
-  static final TextStyle _labelLarge = TextStyle(fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.1, color: AppColors.onBackground);
-  static final TextStyle _labelMedium = TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.5, color: AppColors.onBackground);
-  static final TextStyle _labelSmall = TextStyle(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0.5, color: AppColors.onBackground);
+  static final TextStyle _displayLarge = TextStyle(
+    fontSize: 57,
+    fontWeight: FontWeight.w400,
+    letterSpacing: -0.25,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _displayMedium = TextStyle(
+    fontSize: 45,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _displaySmall = TextStyle(
+    fontSize: 36,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _headlineLarge = TextStyle(
+    fontSize: 32,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _headlineMedium = TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _headlineSmall = TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _titleLarge = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _titleMedium = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.15,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _titleSmall = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.1,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _bodyLarge = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.5,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _bodyMedium = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.25,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _bodySmall = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.4,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _labelLarge = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.1,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _labelMedium = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.5,
+    color: AppColors.onBackground,
+  );
+  static final TextStyle _labelSmall = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.5,
+    color: AppColors.onBackground,
+  );
 }
 
 class AppColors {

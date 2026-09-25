@@ -1,5 +1,5 @@
 name: northstar
-description: "A new Flutter project."
+description: "Ronin 桌面端：Monarch 服务器的图形化管理面板。"
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 version: 1.0.0+1
@@ -27,20 +27,14 @@ dependencies:
   go_router: ^16.2.4
   # 工具包类别
   path: ^1.9.1
-  logging: ^1.3.0
   # 文件选择器
   file_picker: ^10.3.3
 
-
-  # ----网络相关----
-  # 网络请求
-  http: ^1.5.0
 
   # ----更好的显示----
   # 时间格式化
   intl: ^0.20.2
 
-  cupertino_icons: ^1.0.8
   multicast_dns: ^0.3.3
 
 

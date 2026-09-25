@@ -4,15 +4,18 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
 ### 模块
 
-- **Monarch HTTP**：Gin 服务器，为 Torrid (Android) 和 Northstar (Desktop) 提供 REST API。
-- **Gizmos CLI**（`gizmos/`）：独立 Go module，命令行批处理（漫画索引、媒体摄入/刷新/删除）。
+- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器，为 Torrid (Android) 和 Northstar (Desktop) 提供 REST API。
+- **Gizmos CLI**（`gizmos/`，独立 Go module）：命令行批处理媒体库（`ingest`/`execute`/`refresh`）。
 - **comix 爬虫集成**（`internal/service/comix/` + `internal/handler/comix_handler/`）：以子进程方式调用
   外部 comix 项目（`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
   提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
+  `comix` schema 的表由 comix 项目自行建表与维护，本项目只读写。
+- **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长，供画廊剪辑页使用。
 
 ### 技术栈
 
-Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权。Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
+Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁）。
+Immich 反向代理（`/api/*` → `127.0.0.1:2283`）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
 
 ### 快速启动
 
@@ -23,14 +26,15 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 
 ### 环境变量 (.env)
 
-`LOCAL_PORT`, `LOCAL_DEBUG_PORT`, `STATIC_DIR`, `GALLERY_DIR`, `COMIC_DIR`, `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`
+`LOCAL_PORT`, `LOCAL_DEBUG_PORT`, `STATIC_DIR`, `GALLERY_DIR`, `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`,
+`API_KEY_SERVER`, `API_KEY_IMMICH`；comix 集成可选 `COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`。
 
 ### API 概览
 
 | 路由组 | 关键端点 | 用途 |
 |--------|---------|------|
-| `/API/user-data` | `GET /sync/:module`, `POST /backup/:module` | 用户数据同步/备份 |
-| `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download` | 漫画浏览与离线下载（Android 端主用） |
+| `/API/user-data` | `GET /sync/:module`, `POST /backup/:module`, `POST /check-images/:module` | 用户数据同步/备份（提交完整数据集，服务端事务内全量替换） |
+| `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download`, `/sync-readed` | 漫画浏览与离线下载（Android 端主用） |
 | `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Desktop 端主用） |
 | `/API/gallery` | `GET /batch`, `GET /overview`, `GET /:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
 | `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
@@ -38,23 +42,28 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
 | `/api/*` | 所有方法 | Immich 反向代理 |
 
-### CLI 工具 (Gizmos)
+### 验收
 
-详见 `references/cli/`。主要命令: Comic Indexer（`refresh`/`full-reindex`）、Gallery（`ingest`/`execute`/`refresh`）。
+```bash
+go build ./... && go vet ./... && go test ./...   # 在 backend/ 与 backend/gizmos/ 各执行一次
+```
 
 ### 跨项目契约
 
-修改 Go 接口或 CLI 后运行：
+修改 Go 接口、路由或 CLI 参数后运行（会同步 `references/api/` 与 `references/cli/`）：
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
 ```
+
 ### 数据库
 
-表定义及触发器见 `AGENTS_DB.md`（索引）和 `references/db/`（分模块明细）.
+表定义及触发器见 `references/db/init.sql`（gallery 与 user_data，幂等可重复执行）；
+索引见 `AGENTS_DB.md`，分模块明细见 `references/db/`。
 
 ### 硬性要求
 
 - 考虑边界情况, 做好异常防护.
 - 除非明确要求, 不对已有功能引入破坏性修改.
 - 更新数据库记录时显式更新所有字段值.
+- 涉及用户数据的写入必须走事务, 保证失败可回滚.
 - 注意代码可维护性.
