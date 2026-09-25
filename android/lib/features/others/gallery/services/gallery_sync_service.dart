@@ -15,6 +15,21 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'gallery_sync_service.g.dart';
 
+/// 批次处理范围上界
+///
+/// 取"当前浏览位置"与"最后操作位置"的较大者: 例如在末尾打标签后又翻回前面,
+/// 标记已处理应覆盖到打过标签的位置, 避免已处理的媒体又被下载回来.
+/// [length] 为队列长度, 已知时钳制在上界内; 未知(<=0)时交给数据库 LIMIT 截断.
+int processedUpperIndex({
+  required int currentIndex,
+  required int modifiedCount,
+  required int length,
+}) {
+  final upper = currentIndex > modifiedCount ? currentIndex : modifiedCount;
+  if (length <= 0) return upper < 0 ? 0 : upper;
+  return upper.clamp(0, length - 1);
+}
+
 /// 同步状态
 enum SyncStatus {
   idle,
@@ -283,9 +298,9 @@ class GallerySyncService extends _$GallerySyncService {
 
   /// 标记已处理并清理本地缓存
   ///
-  /// 标签/标注都已通过操作接口写入服务端, 这里只:
-  /// 1. 把 `0..currentIndex` 的媒体标记为已处理（服务端 sync_count + 1, 作为批次游标,
-  ///    使已处理媒体排到队尾）;
+  /// 标签/标注都已通过操作接口实时写入服务端, 这里只做两件事:
+  /// 1. 把队列前段 `0..[processedUpperIndex]` 的媒体在服务端 `sync_count + 1`
+  ///    （批次处理游标, 使已处理媒体排到队尾, 下次下载取到的就是未处理的）;
   /// 2. 删除这批媒体的本地记录与缩略图/预览图, 腾出空间下载下一批.
   Future<bool> markProcessedAndClean() async {
     if (state.status == SyncStatus.downloading ||
@@ -304,10 +319,15 @@ class GallerySyncService extends _$GallerySyncService {
         message: '正在准备数据...',
       );
 
-      final currentIndex = ref.read(galleryCurrentIndexProvider);
+      final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+      final upperIndex = processedUpperIndex(
+        currentIndex: ref.read(galleryCurrentIndexProvider),
+        modifiedCount: ref.read(galleryModifiedCountProvider),
+        length: assets.length,
+      );
 
-      // 1. 取队列中 0..currentIndex 的媒体及其组成员
-      final data = await db.getPartialDataForUpload(currentIndex);
+      // 1. 取队列中 0..upperIndex 的媒体及其组成员
+      final data = await db.getPartialDataForUpload(upperIndex);
       if (data.assets.isEmpty) {
         state = const SyncProgress(
           status: SyncStatus.success,

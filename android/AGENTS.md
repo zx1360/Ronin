@@ -25,7 +25,6 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 - 本地存储：Hive + SharedPreferences + sqflite
 - 媒体播放：chewie, video_player, audioplayers, photo_view
 - 代码生成：json_serializable + build_runner + hive_generator
-- 验收测试：`flutter test`（`test/` 下为关键纯逻辑用例，改动相关逻辑后请一并运行）
 
 ### 与后端协同
 

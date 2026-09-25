@@ -241,9 +241,20 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
     
     if (confirm != true) return;
-    
-    await ref.read(mediaAssetListProvider.notifier).unbundleMedia([currentMember.id]);
-    
+
+    try {
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .unbundleMedia([currentMember.id]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('移出组失败: $e')));
+      }
+      return;
+    }
+
+    if (!mounted) return;
     setState(() {
       _groupMembers.removeAt(_currentGroupIndex);
       if (_currentGroupIndex >= _groupMembers.length) {

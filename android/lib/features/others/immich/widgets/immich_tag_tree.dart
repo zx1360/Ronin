@@ -92,8 +92,16 @@ class ImmichTagTreePanel extends ConsumerStatefulWidget {
 
 class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
   final Set<String> _expanded = {};
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
   bool _expandInitialized = false;
   bool _showFavorites = true;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +124,31 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                     child: const Text('完成'),
                   ),
                 ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: '搜索标签名或路径',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                        ),
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (value) =>
+                    setState(() => _query = value.trim().toLowerCase()),
               ),
             ),
             Padding(
@@ -174,9 +207,18 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                     );
                   }
                   _initExpanded(tags, filter.tagIds);
+                  final searching = _query.isNotEmpty;
+                  final visible = searching ? matchedTagIds(tags, _query) : null;
+                  if (searching && (visible == null || visible.isEmpty)) {
+                    return const Center(
+                      child: Text('未找到匹配的标签',
+                          style: TextStyle(color: Colors.grey, fontSize: 13)),
+                    );
+                  }
                   final childrenMap = groupTagsByParent(tags);
                   final nodes = flattenTagTree(
                     childrenMap,
+                    visible: visible,
                     expanded: _expanded,
                   );
                   return ListView.builder(

@@ -493,11 +493,41 @@ class _MediaDetailSheet extends ConsumerStatefulWidget {
 class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
   bool _busy = false;
 
+  /// 列表未覆盖该媒体时兜底拉取一次标签（多页刷新后仍能正确显示）
+  List<String>? _fetchedTagIds;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureTagsLoaded());
+  }
+
+  Future<void> _ensureTagsLoaded() async {
+    final page = ref.read(immichMediaProvider).valueOrNull;
+    if (page != null && page.tagIdsByMedia.containsKey(widget.mediaId)) return;
+    try {
+      final result = await ref.read(galleryApiProvider).queryMedia(
+            ids: [widget.mediaId],
+            includeDeleted: true,
+            limit: 1,
+          );
+      final ids = [
+        for (final link in result.mediaTagLinks)
+          if (link.mediaId == widget.mediaId) link.tagId,
+      ];
+      if (mounted) setState(() => _fetchedTagIds = ids);
+    } catch (_) {
+      // 拉取失败时保持空标签展示, 不做额外提示
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final page = ref.watch(immichMediaProvider).valueOrNull;
     final asset = _findAsset(page, widget.mediaId) ?? widget.fallback;
-    final tagIds = page?.tagIdsByMedia[widget.mediaId] ?? const <String>[];
+    final tagIds = page?.tagIdsByMedia[widget.mediaId] ??
+        _fetchedTagIds ??
+        const <String>[];
     final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
     final byId = {for (final tag in tags) tag.id: tag};
     final linkedTags = [
