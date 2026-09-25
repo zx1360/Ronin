@@ -6,6 +6,7 @@ import 'package:system_tray/system_tray.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:northstar/app/routes.dart';
+import 'package:northstar/core/providers/ai/ai_providers.dart';
 import 'package:northstar/core/providers/comix/comix_providers.dart';
 import 'package:northstar/core/providers/ops/runtime_process_provider.dart';
 import 'package:northstar/shared/widgets/shell/side_navbar/side_navbar.dart';
@@ -15,6 +16,9 @@ import 'package:northstar/shared/widgets/shell/titlebar/titlebar.dart';
 final int _comixBranchIndex = routes.indexWhere(
   (route) => route.path == '/comix',
 );
+
+/// AI 媒体处理页在 [routes] 中的分支索引。
+final int _aiBranchIndex = routes.indexWhere((route) => route.path == '/ai');
 
 class ShellPage extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
@@ -51,11 +55,14 @@ class _ShellPageState extends ConsumerState<ShellPage> with WindowListener {
   }
 
   /// indexedStack 的分支常驻不销毁，页面可见性只能由分支索引驱动：
-  /// 切走漫画资源页时必须停掉它的轮询（dispose 不会触发）。
+  /// 切走页面时必须停掉它的轮询（dispose 不会触发）。
   void _syncComixPageActive(int currentIndex) {
     ref
         .read(comixBoardProvider.notifier)
         .setPageActive(currentIndex == _comixBranchIndex);
+    ref
+        .read(aiBoardProvider.notifier)
+        .setPageActive(currentIndex == _aiBranchIndex);
   }
 
   @override

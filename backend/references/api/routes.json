@@ -1,9 +1,101 @@
 {
-  "generated_at": "2026-09-25T10:48:38Z",
+  "generated_at": "2026-09-25T14:28:53Z",
   "routes": [
     {
       "method": "GET",
       "path": "/"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/cancel"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/duplicates"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/enqueue"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/faces/assign"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/index/rebuild"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/media/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/persons"
+    },
+    {
+      "method": "DELETE",
+      "path": "/API/ai/persons/:id"
+    },
+    {
+      "method": "PATCH",
+      "path": "/API/ai/persons/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/persons/:id/faces"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/persons/merge"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/process/:capability/start"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/process/:capability/stop"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/recluster"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/resume"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/retry"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/search"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/search/image"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/settings"
+    },
+    {
+      "method": "PUT",
+      "path": "/API/ai/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/similar/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/status"
     },
     {
       "method": "GET",

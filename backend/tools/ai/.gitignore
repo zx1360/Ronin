@@ -1,0 +1,5 @@
+# 侧车本地产物不入库：可随时删除后由 install.ps1 重建
+.venv/
+models/
+__pycache__/
+*.pyc
