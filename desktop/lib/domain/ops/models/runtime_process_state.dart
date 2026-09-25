@@ -1,11 +1,4 @@
-enum RuntimeStatus {
-  idle,
-  starting,
-  running,
-  stopping,
-  stopped,
-  failed,
-}
+enum RuntimeStatus { idle, starting, running, stopping, stopped, failed }
 
 class RuntimeProcessState {
   final String taskId;
@@ -25,8 +18,6 @@ class RuntimeProcessState {
     this.exitCode,
     this.message,
   });
-
-  bool get isRunning => status == RuntimeStatus.running;
 
   RuntimeProcessState copyWith({
     String? taskId,

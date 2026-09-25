@@ -8,7 +8,7 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'stats_providers.g.dart';
 
-// ============ 统计信息 Providers ============
+// 统计信息 Providers
 
 /// 数据库统计信息 Provider
 @Riverpod(keepAlive: true)

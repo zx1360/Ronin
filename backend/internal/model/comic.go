@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// 漫画总元数据（实时计算，不再依赖 comic_summary 表）
+// ComicTotalMetaData 漫画总元数据（实时聚合）。
 type ComicTotalMetaData struct {
 	BookCount         int       `json:"book_count"`
 	TotalChapterCount int       `json:"total_chapter_count"`
@@ -12,10 +12,9 @@ type ComicTotalMetaData struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
-// 漫画数据类
-// chapter_count 和 image_count 由 SQL 实时聚合，不再存储冗余字段
+// ComicInfo 漫画概览；chapter_count / image_count 由 SQL 实时聚合。
 type ComicInfo struct {
-	Id           string `json:"id"`
+	ID           string `json:"id"`
 	Title        string `json:"title"`
 	ChapterCount int    `json:"chapter_count"`
 	ImageCount   int    `json:"image_count"`
@@ -24,18 +23,17 @@ type ComicInfo struct {
 	Readed       bool   `json:"readed"`
 }
 
-// 章节数据类
-// image_count 由 SQL 实时聚合，不再存储冗余字段
+// ChapterInfo 章节；image_count 由 SQL 实时聚合，Images 仅在下载清单中填充。
 type ChapterInfo struct {
-	Id           string      `json:"id"`
-	ComicId      string      `json:"comic_id"`
+	ID           string      `json:"id"`
+	ComicID      string      `json:"comic_id"`
 	DirName      string      `json:"dir_name"`
 	ChapterIndex int         `json:"chapter_index"`
 	ImageCount   int         `json:"image_count"`
 	Images       []ImageInfo `json:"images,omitempty"`
 }
 
-// 图片信息数据类
+// ImageInfo 章节内的单张图片。
 type ImageInfo struct {
 	Path   string `json:"path"`
 	Width  int32  `json:"width"`
@@ -50,7 +48,7 @@ type SyncReadedRequest struct {
 // SyncReadedResponse 同步已读状态响应
 type SyncReadedResponse struct {
 	UpdatedCount int            `json:"updated_count"`
-	NewChapters  map[string]int `json:"new_chapters"` // comic_id → 服务器新增章节数
+	NewChapters  map[string]int `json:"new_chapters"` // comic_id → 服务器章节总数
 }
 
 // UpdateComicRequest 更新漫画元数据请求

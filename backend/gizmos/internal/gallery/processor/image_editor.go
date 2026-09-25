@@ -42,8 +42,7 @@ func ApplyImageEdit(srcPath, dstPath string, editParamsJSON string) error {
 
 	// 打开源图片（原生解码失败时自动 ffmpeg 后备；AutoOrientation 与
 	// Android 端解码行为一致，保证两端处于同一"已校正 EXIF 方向"的像素空间）
-	proc := &Processor{ffmpegPath: "ffmpeg"}
-	src, err := proc.openImageWithFallback(srcPath)
+	src, err := openImageWithFallback(srcPath)
 	if err != nil {
 		return fmt.Errorf("打开图片失败: %w", err)
 	}

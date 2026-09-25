@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:northstar/domain/ops/models/ops_overview.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
-import 'package:northstar/services/cert_trust.dart';
+import 'package:northstar/infrastructure/api_http_helper.dart';
 
 /// 统一 Ops API 异常
 ///
@@ -21,28 +20,13 @@ class OpsApiException implements Exception {
 }
 
 class OpsApiClient {
-  HttpClient? _client;
-  Uri? _lastBaseUri;
-
-  /// 获取或创建复用的 HttpClient（base URL 变更时重建）
-  HttpClient _getClient(Uri uri) {
-    final isHttps = uri.scheme.toLowerCase() == 'https';
-    if (_client != null && _lastBaseUri?.origin == uri.origin) {
-      return _client!;
-    }
-    _client?.close(force: true);
-    _client = isHttps
-        ? CertTrust.createSecureClient()
-        : (HttpClient()..connectionTimeout = const Duration(seconds: 6));
-    _lastBaseUri = uri;
-    return _client!;
-  }
+  final ApiHttpClientHolder _http = ApiHttpClientHolder(
+    connectTimeout: const Duration(seconds: 6),
+  );
 
   /// 释放底层 HttpClient
   void dispose() {
-    _client?.close(force: true);
-    _client = null;
-    _lastBaseUri = null;
+    _http.dispose();
   }
 
   /// 根据 URL 协议请求监控接口
@@ -53,10 +37,13 @@ class OpsApiClient {
 
   // --- 内部工具 ---
 
-  Future<Map<String, dynamic>> _getJson(OpsSettings settings, String endpoint) async {
-    final uri = _buildUri(settings.apiBaseUrl, endpoint);
-    final client = _getClient(uri);
-    final headers = _buildHeaders(settings);
+  Future<Map<String, dynamic>> _getJson(
+    OpsSettings settings,
+    String endpoint,
+  ) async {
+    final uri = buildApiUri(settings.apiBaseUrl, endpoint);
+    final client = _http.clientFor(uri);
+    final headers = buildApiHeaders(settings.apiKey);
 
     final request = await client.getUrl(uri);
     headers.forEach(request.headers.set);
@@ -78,40 +65,11 @@ class OpsApiClient {
       return;
     }
 
-    var detail = '';
-    if (body != null && body.trim().isNotEmpty) {
-      try {
-        final decoded = jsonDecode(body);
-        if (decoded is Map && decoded['error'] is String) {
-          detail = ': ${decoded['error']}';
-        }
-      } catch (_) {
-        // 非 JSON 响应体，忽略详情
-      }
-    }
-
+    final detail = apiErrorDetailOf(tryDecodeJsonMap(body ?? ''));
     throw OpsApiException(
       '接口请求失败: HTTP $statusCode$detail',
       statusCode: statusCode,
       body: body,
     );
-  }
-
-  Map<String, String> _buildHeaders(OpsSettings settings) {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-    };
-    final apiKey = settings.apiKey.trim();
-    if (apiKey.isNotEmpty) {
-      headers['X-API-Key'] = apiKey;
-    }
-    return headers;
-  }
-
-  Uri _buildUri(String base, String endpoint) {
-    final normalizedBase = base.trim().replaceAll(RegExp(r'/+$'), '');
-    final normalizedEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
-    final target = '$normalizedBase$normalizedEndpoint';
-    return Uri.parse(target);
   }
 }

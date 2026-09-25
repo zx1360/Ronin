@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:northstar/domain/comix/models/comix_models.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
-import 'package:northstar/services/cert_trust.dart';
+import 'package:northstar/infrastructure/api_http_helper.dart';
 
 /// 统一 comix API 异常（HTTP 级或业务 ok=false）。
 class ComixApiException implements Exception {
@@ -61,53 +60,16 @@ abstract class ComixApi {
 /// 复用 OpsSettings（apiBaseUrl + apiKey）与 CertTrust（自签证书），
 /// 与 OpsApiClient 同一套连接模式；仅 comix 接口专用。
 class ComixApiClient implements ComixApi {
-  HttpClient? _client;
-  Uri? _lastBaseUri;
-
-  HttpClient _getClient(Uri uri) {
-    final isHttps = uri.scheme.toLowerCase() == 'https';
-    if (_client != null && _lastBaseUri?.origin == uri.origin) {
-      return _client!;
-    }
-    _client?.close(force: true);
-    _client = isHttps
-        ? CertTrust.createSecureClient()
-        : (HttpClient()..connectionTimeout = const Duration(seconds: 8));
-    _lastBaseUri = uri;
-    return _client!;
-  }
+  final ApiHttpClientHolder _http = ApiHttpClientHolder(
+    connectTimeout: const Duration(seconds: 8),
+  );
 
   @override
   void dispose() {
-    _client?.close(force: true);
-    _client = null;
-    _lastBaseUri = null;
+    _http.dispose();
   }
 
   // --- 同步只读接口 ---
-
-  Future<ComixConfig> fetchConfig(OpsSettings settings) async {
-    final json = await _getJson(settings, '/API/comix/config');
-    final data = json['data'];
-    if (data is! Map<String, dynamic>) {
-      throw const ComixApiException('comix 配置接口返回结构异常');
-    }
-    return ComixConfig.fromJson(data);
-  }
-
-  Future<List<ComixSite>> fetchSites(OpsSettings settings) async {
-    final json = await _getJson(settings, '/API/comix/sites');
-    final data = json['data'];
-    if (data is! Map<String, dynamic>) {
-      throw const ComixApiException('sites 接口返回结构异常');
-    }
-    final list = data['sites'];
-    if (list is! List) return const [];
-    return list
-        .whereType<Map<String, dynamic>>()
-        .map(ComixSite.fromJson)
-        .toList();
-  }
 
   @override
   Future<List<ComixComic>> fetchComics(OpsSettings settings) async {
@@ -151,7 +113,12 @@ class ComixApiClient implements ComixApi {
     String endpoint,
     Map<String, dynamic> body,
   ) async {
-    final json = await _request(settings, 'POST', '/API/comix/$endpoint', body: body);
+    final json = await _request(
+      settings,
+      'POST',
+      '/API/comix/$endpoint',
+      body: body,
+    );
     final data = json['data'];
     if (data is! Map<String, dynamic>) {
       throw const ComixApiException('启动任务接口返回结构异常');
@@ -260,9 +227,9 @@ class ComixApiClient implements ComixApi {
     OpsSettings settings,
     String endpoint,
   ) async {
-    final uri = _buildUri(settings.apiBaseUrl, endpoint);
-    final client = _getClient(uri);
-    final headers = _buildHeaders(settings);
+    final uri = buildApiUri(settings.apiBaseUrl, endpoint);
+    final client = _http.clientFor(uri);
+    final headers = buildApiHeaders(settings.apiKey);
 
     final request = await client.getUrl(uri);
     headers.forEach(request.headers.set);
@@ -279,9 +246,9 @@ class ComixApiClient implements ComixApi {
     Map<String, dynamic>? body,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    final uri = _buildUri(settings.apiBaseUrl, endpoint);
-    final client = _getClient(uri);
-    final headers = _buildHeaders(settings);
+    final uri = buildApiUri(settings.apiBaseUrl, endpoint);
+    final client = _http.clientFor(uri);
+    final headers = buildApiHeaders(settings.apiKey);
     headers['Content-Type'] = 'application/json';
 
     final request = await client.openUrl(method, uri);
@@ -305,21 +272,9 @@ class ComixApiClient implements ComixApi {
     String body,
   ) {
     if (statusCode < 200 || statusCode >= 300) {
-      var detail = '';
-      Map<String, dynamic>? payload;
-      try {
-        final decoded = jsonDecode(body);
-        if (decoded is Map<String, dynamic>) {
-          payload = decoded;
-          if (decoded['error'] is String) {
-            detail = ': ${decoded['error']}';
-          }
-        }
-      } catch (_) {
-        // 非 JSON 响应体
-      }
+      final payload = tryDecodeJsonMap(body);
       throw ComixApiException(
-        '接口请求失败: HTTP $statusCode$detail',
+        '接口请求失败: HTTP $statusCode${apiErrorDetailOf(payload)}',
         statusCode: statusCode,
         payload: payload,
       );
@@ -338,20 +293,5 @@ class ComixApiClient implements ComixApi {
       );
     }
     return decoded;
-  }
-
-  Map<String, String> _buildHeaders(OpsSettings settings) {
-    final headers = <String, String>{'Accept': 'application/json'};
-    final apiKey = settings.apiKey.trim();
-    if (apiKey.isNotEmpty) {
-      headers['X-API-Key'] = apiKey;
-    }
-    return headers;
-  }
-
-  Uri _buildUri(String base, String endpoint) {
-    final normalizedBase = base.trim().replaceAll(RegExp(r'/+$'), '');
-    final normalizedEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
-    return Uri.parse('$normalizedBase$normalizedEndpoint');
   }
 }

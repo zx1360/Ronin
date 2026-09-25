@@ -56,9 +56,8 @@ class ChapterInfo {
       comicId: comicId ?? this.comicId,
       chapterIndex: chapterIndex ?? this.chapterIndex,
       dirName: dirName ?? this.dirName,
-      // 可恶这一行害得我改了不下三个小时左右
-      // 原版本: 创建一个每个列表元素都转为Map, 且转为Map<String, dynamic>, 但元素本身仍是Map. 什么吊语言特性.
-      // images: images?.map((e) => Map.from(e)).toList().cast<Map<String, dynamic>>() ?? this.images,
+      // 必须显式重建为 Map<String, dynamic>：直接 cast 的话列表元素仍是原始 Map，
+      // 后续按 Map<String, dynamic> 使用时会抛类型错误
       images: images?.map((e) => Map<String, dynamic>.from(e)).toList() ?? this.images,
       imageCount: imageCount ?? images?.length ?? this.imageCount,
     );

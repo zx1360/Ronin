@@ -10,26 +10,6 @@ String? extractModeFromPreset(ArgPreset preset) {
   return null;
 }
 
-bool requiresDangerConfirmation(TaskProfile task, ArgPreset preset) {
-  final mode = extractModeFromPreset(preset);
-
-  if (task.type == TaskType.gallery &&
-      (mode == 'execute' || mode == 'refresh')) {
-    return true;
-  }
-
-  if (task.type == TaskType.comicIndexer &&
-      (mode == 'full-reindex' || mode == 'refresh')) {
-    return true;
-  }
-
-  return false;
-}
-
-String buildDangerPhrase(TaskProfile task, ArgPreset preset) {
-  return 'CONFIRM ${task.name} ${preset.name}';
-}
-
 bool requiresFfmpegCheck(TaskProfile task, ArgPreset preset) {
   final mode = extractModeFromPreset(preset);
   if (task.type == TaskType.gallery &&

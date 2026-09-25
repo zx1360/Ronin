@@ -14,8 +14,9 @@ class OpsPersistenceRepository {
   static const _settingsFileName = 'ops.settings.v1.json';
   static const _tasksFileName = 'ops.tasks.v1.json';
 
-  // 启动预载结果。构造后立即在后台读取，因此 provider 可以同步拿到持久化配置
-  // ——异步读取会让依赖配置的首次请求带着默认值发出去（必然连错端口）。
+  // 启动预载结果：首次读取时才真正开始，因此 bootstrap() 必须先 await
+  // ensureLoaded()，provider 才能在 build 里同步拿到持久化配置——否则首个请求
+  // 会带着默认值发出（必然连错端口）。
   late final Future<void> _preload = _preloadAll();
   OpsSettings? _settingsCache;
   List<TaskProfile>? _tasksCache;
@@ -56,13 +57,14 @@ class OpsPersistenceRepository {
     return settings;
   }
 
-  Future<void> saveSettings(OpsSettings settings) async {
+  /// 保存配置；返回是否至少写入成功一处（主文件或旧版 SharedPreferences）。
+  Future<bool> saveSettings(OpsSettings settings) async {
     _settingsCache = settings;
     final payload = jsonEncode(settings.toJson());
-    final savedToPrimary = await _writePrimaryFile(_settingsFileName, payload);
-    if (!savedToPrimary) {
-      await _writeLegacyValue(_legacySettingsKey, payload);
+    if (await _writePrimaryFile(_settingsFileName, payload)) {
+      return true;
     }
+    return _writeLegacyValue(_legacySettingsKey, payload);
   }
 
   Future<List<TaskProfile>?> _loadTaskProfilesFromDisk() async {
@@ -83,14 +85,15 @@ class OpsPersistenceRepository {
     return tasks;
   }
 
-  Future<void> saveTaskProfiles(List<TaskProfile> tasks) async {
+  /// 保存任务档案；返回是否至少写入成功一处（主文件或旧版 SharedPreferences）。
+  Future<bool> saveTaskProfiles(List<TaskProfile> tasks) async {
     _tasksCache = tasks;
     final payload = tasks.map((item) => item.toJson()).toList(growable: false);
     final encoded = jsonEncode(payload);
-    final savedToPrimary = await _writePrimaryFile(_tasksFileName, encoded);
-    if (!savedToPrimary) {
-      await _writeLegacyValue(_legacyTasksKey, encoded);
+    if (await _writePrimaryFile(_tasksFileName, encoded)) {
+      return true;
     }
+    return _writeLegacyValue(_legacyTasksKey, encoded);
   }
 
   List<TaskProfile> _decodeTasks(List<dynamic> entries) {
@@ -162,16 +165,20 @@ class OpsPersistenceRepository {
   }
 
   Future<Directory> _storageDirectory() async {
-    final basePath = _resolveBaseStoragePath();
-    final targetPath = path.join(basePath, _storageFolder, _opsSubFolder);
-    final directory = Directory(targetPath);
+    final directory = Directory(storageDirectoryPath());
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }
     return directory;
   }
 
-  String _resolveBaseStoragePath() {
+  /// 本地配置目录（base/northstar_data/ops）：设置页展示与实际写入共用同一路径，
+  /// 避免两处各写一份推导逻辑。
+  static String storageDirectoryPath() {
+    return path.join(_resolveBaseStoragePath(), _storageFolder, _opsSubFolder);
+  }
+
+  static String _resolveBaseStoragePath() {
     final executablePath = Platform.resolvedExecutable;
     final executableName = path.basename(executablePath).toLowerCase();
 
@@ -193,12 +200,13 @@ class OpsPersistenceRepository {
     }
   }
 
-  Future<void> _writeLegacyValue(String key, String value) async {
+  Future<bool> _writeLegacyValue(String key, String value) async {
     try {
       final prefs = await PrefsService.prefs;
-      await prefs.setString(key, value);
+      return await prefs.setString(key, value);
     } catch (_) {
       // no-op: fallback write failure should not break runtime.
+      return false;
     }
   }
 }

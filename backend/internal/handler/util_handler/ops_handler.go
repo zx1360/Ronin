@@ -24,7 +24,8 @@ type dirUsage struct {
 }
 
 // ---------------------------------------------------------------------------
-// 目录用量缓存：static 等大目录的统计在后台按 TTL 刷新，请求只读缓存（毫秒级）。
+// 目录用量缓存：static 等大目录的统计由后台按 TTL 刷新，请求只读缓存（毫秒级）。
+// gallery 的 Media/Deleted 数量与体积不遍历磁盘，改由 DB 聚合提供。
 // ---------------------------------------------------------------------------
 
 const usageCacheTTL = 5 * time.Minute
@@ -50,8 +51,7 @@ func StartDirUsageRefresher() {
 }
 
 func refreshAllDirUsage() {
-	roots := cachedUsageRoots()
-	for _, root := range roots {
+	for _, root := range cachedUsageRoots() {
 		usage := collectDirUsage(root)
 		usageCacheMu.Lock()
 		usageCache[root] = usage
@@ -60,16 +60,15 @@ func refreshAllDirUsage() {
 }
 
 func cachedUsageRoots() []string {
-	// static 目录与 gallery 中不依赖 DB 统计的子目录（Media/Deleted 由 DB 提供）
 	roots := []string{config.AppConf.StaticDir}
-	if config.AppConf.GalleryDir != "" {
-		roots = append(roots,
-			config.AppConf.GalleryDir,
-			filepath.Join(config.AppConf.GalleryDir, "Thumbs"),
-			filepath.Join(config.AppConf.GalleryDir, "Preview"),
-		)
+	if config.AppConf.GalleryDir == "" {
+		return roots
 	}
-	return roots
+	return append(roots,
+		config.AppConf.GalleryDir,
+		filepath.Join(config.AppConf.GalleryDir, "Thumbs"),
+		filepath.Join(config.AppConf.GalleryDir, "Preview"),
+	)
 }
 
 // getCachedDirUsage 返回目录用量；缓存未就绪时同步计算（服务刚启动的罕见情况）。
@@ -87,10 +86,7 @@ func getCachedDirUsage(root string) dirUsage {
 	return usage
 }
 
-// ---------------------------------------------------------------------------
-// gallery DB 统计（media_assets 聚合，毫秒级，无需遍历磁盘）
-// ---------------------------------------------------------------------------
-
+// galleryDBStats gallery 媒体文件的聚合统计（由 media_assets 直接算出，无需遍历磁盘）。
 type galleryDBStats struct {
 	MediaFiles   int64
 	MediaBytes   int64
@@ -108,98 +104,71 @@ func queryGalleryDBStats(ctx context.Context) galleryDBStats {
 	}
 	err := pool.QueryRow(ctx, `
 		SELECT
-			COUNT(*)                                                      AS total,
-			COUNT(*) FILTER (WHERE is_deleted)                            AS deleted,
-			COALESCE(SUM(size_bytes) FILTER (WHERE NOT is_deleted), 0)    AS media_bytes,
-			COALESCE(SUM(size_bytes) FILTER (WHERE is_deleted), 0)        AS deleted_bytes
+			COUNT(*) FILTER (WHERE NOT is_deleted),
+			COALESCE(SUM(size_bytes) FILTER (WHERE NOT is_deleted), 0),
+			COUNT(*) FILTER (WHERE is_deleted),
+			COALESCE(SUM(size_bytes) FILTER (WHERE is_deleted), 0)
 		FROM gallery.media_assets
-	`).Scan(&stats.MediaFiles, &stats.DeletedFiles, &stats.MediaBytes, &stats.DeletedBytes)
+	`).Scan(&stats.MediaFiles, &stats.MediaBytes, &stats.DeletedFiles, &stats.DeletedBytes)
 	if err != nil {
 		stats.DBError = err.Error()
-		return stats
 	}
-	stats.MediaFiles -= stats.DeletedFiles
 	return stats
 }
 
 // SystemOverview 返回服务端基础运维信息，便于桌面端统一展示。
-// 优化：gallery Media/Deleted 用 DB 聚合（毫秒级）；static 等目录用量由后台
-// TTL 缓存提供（5 分钟刷新，启动预热），避免每次请求全量遍历磁盘。
-// @Summary 获取服务端运行概览
-// @Tags util
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} map[string]interface{}
-// @Router /api/ops/overview [get]
 func SystemOverview(c *gin.Context) {
-	StartDirUsageRefresher() // 幂等：确保后台刷新已启动
-
 	galleryStats := queryGalleryDBStats(c.Request.Context())
 
-	staticUsage := getCachedDirUsage(config.AppConf.StaticDir)
-	galleryRootUsage := getCachedDirUsage(config.AppConf.GalleryDir)
-	galleryThumbsUsage := getCachedDirUsage(filepath.Join(config.AppConf.GalleryDir, "Thumbs"))
-	galleryPreviewUsage := getCachedDirUsage(filepath.Join(config.AppConf.GalleryDir, "Preview"))
-
-	galleryMediaUsage := dirUsage{
-		Path:   filepath.Join(config.AppConf.GalleryDir, "Media"),
-		Exists: true,
-		Files:  galleryStats.MediaFiles,
-		Bytes:  galleryStats.MediaBytes,
-		Error:  galleryStats.DBError,
+	currentPort := config.NetConf.LocalPort
+	if config.IsLocalMode {
+		currentPort = config.NetConf.LocalDebugPort
 	}
-	galleryDeletedUsage := dirUsage{
-		Path:   filepath.Join(config.AppConf.GalleryDir, "Deleted"),
-		Exists: true,
-		Files:  galleryStats.DeletedFiles,
-		Bytes:  galleryStats.DeletedBytes,
-		Error:  galleryStats.DBError,
-	}
-
-	dbReachable := false
-	dbErr := ""
-	if pool := db.GetPool(); pool != nil {
-		if err := pool.Ping(c.Request.Context()); err != nil {
-			dbErr = err.Error()
-		} else {
-			dbReachable = true
-		}
-	} else {
-		dbErr = "database pool is nil"
-	}
-
-	// static 绝对路径：桌面端需要直接读写封面文件，而相对路径按其自身运行目录
-	// 无法解析（服务端与客户端的 CWD 不同）。
+	// 桌面端需要直接读写封面等文件，因此必须给出绝对路径：服务端与客户端的
+	// 工作目录不同，相对路径在客户端无法解析。
 	staticDir, absErr := filepath.Abs(config.AppConf.StaticDir)
+	staticDirError := ""
+	if absErr != nil {
+		staticDirError = absErr.Error()
+	}
+
+	dbReachable, dbErr := false, ""
+	if pool := db.GetPool(); pool == nil {
+		dbErr = "database pool is nil"
+	} else if err := pool.Ping(c.Request.Context()); err != nil {
+		dbErr = err.Error()
+	} else {
+		dbReachable = true
+	}
+
+	galleryDirUsage := func(sub string, files, bytes int64) dirUsage {
+		return dirUsage{
+			Path:   filepath.Join(config.AppConf.GalleryDir, sub),
+			Exists: true,
+			Files:  files,
+			Bytes:  bytes,
+			Error:  galleryStats.DBError,
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"service": gin.H{
-			"isLocalMode": config.IsLocalMode,
-			"port": func() string {
-				if config.IsLocalMode {
-					return config.NetConf.LocalDebugPort
-				}
-				return config.NetConf.LocalPort
-			}(),
-			"staticDir": staticDir,
-			"staticDirError": func() string {
-				if absErr != nil {
-					return absErr.Error()
-				}
-				return ""
-			}(),
+			"isLocalMode":    config.IsLocalMode,
+			"port":           currentPort,
+			"staticDir":      staticDir,
+			"staticDirError": staticDirError,
 		},
 		"database": gin.H{
 			"reachable": dbReachable,
 			"error":     dbErr,
 		},
 		"storage": gin.H{
-			"static":         staticUsage,
-			"galleryRoot":    galleryRootUsage,
-			"galleryMedia":   galleryMediaUsage,
-			"galleryThumbs":  galleryThumbsUsage,
-			"galleryPreview": galleryPreviewUsage,
-			"galleryDeleted": galleryDeletedUsage,
+			"static":         getCachedDirUsage(config.AppConf.StaticDir),
+			"galleryRoot":    getCachedDirUsage(config.AppConf.GalleryDir),
+			"galleryMedia":   galleryDirUsage("Media", galleryStats.MediaFiles, galleryStats.MediaBytes),
+			"galleryThumbs":  getCachedDirUsage(filepath.Join(config.AppConf.GalleryDir, "Thumbs")),
+			"galleryPreview": getCachedDirUsage(filepath.Join(config.AppConf.GalleryDir, "Preview")),
+			"galleryDeleted": galleryDirUsage("Deleted", galleryStats.DeletedFiles, galleryStats.DeletedBytes),
 		},
 	})
 }

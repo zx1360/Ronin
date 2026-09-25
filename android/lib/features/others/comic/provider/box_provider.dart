@@ -12,10 +12,6 @@ import 'package:torrid/core/services/storage/hive_service.dart';
 
 part 'box_provider.g.dart';
 
-// ============================================================================
-// ComicPreference Box & Stream
-// ============================================================================
-
 /// 漫画阅读偏好的 Hive Box
 @riverpod
 Box<ComicPreference> comicPrefBox(ComicPrefBoxRef ref) {
@@ -34,10 +30,6 @@ Stream<List<ComicPreference>> comicPrefStream(ComicPrefStreamRef ref) async* {
   }
 }
 
-// ============================================================================
-// ComicInfo Box & Stream
-// ============================================================================
-
 /// 漫画信息的 Hive Box
 @riverpod
 Box<ComicInfo> comicInfoBox(ComicInfoBoxRef ref) {
@@ -55,10 +47,6 @@ Stream<List<ComicInfo>> comicInfoStream(ComicInfoStreamRef ref) async* {
     }
   }
 }
-
-// ============================================================================
-// ChapterInfo Box & Stream
-// ============================================================================
 
 /// 章节信息的 Hive Box
 @riverpod

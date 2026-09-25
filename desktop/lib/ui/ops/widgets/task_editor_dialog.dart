@@ -278,14 +278,22 @@ class _TaskEditorDialogState extends ConsumerState<TaskEditorDialog> {
   Future<void> _pickExecutable() async {
     final picker = ref.read(pathPickerServiceProvider);
     final initialDirectory = _initialExecutableDirectory();
-    final path = await picker.pickExecutable(
-      initialDirectory: initialDirectory,
-    );
+    final String? path;
+    try {
+      path = await picker.pickExecutable(initialDirectory: initialDirectory);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('选择可执行文件失败: $e')));
+      return;
+    }
     if (path == null || !mounted) {
       return;
     }
+    final selectedPath = path;
     setState(() {
-      _exeController.text = path;
+      _exeController.text = selectedPath;
     });
   }
 

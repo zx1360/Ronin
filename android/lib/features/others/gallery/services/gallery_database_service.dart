@@ -130,7 +130,7 @@ class GalleryDatabaseService {
     AppLogger().info('Gallery 数据库初始化完成');
   }
 
-  // ============ MediaAsset CRUD ============
+  // MediaAsset CRUD
 
   /// 插入或更新媒体文件记录 (批量)
   Future<void> upsertMediaAssets(List<MediaAsset> assets) async {
@@ -300,7 +300,7 @@ class GalleryDatabaseService {
     );
   }
 
-  // ============ Tag CRUD ============
+  // Tag CRUD
 
   /// 用服务端标签表镜像本地缓存（服务端权威）
   ///
@@ -505,7 +505,7 @@ class GalleryDatabaseService {
     }
   }
 
-  // ============ MediaTagLink CRUD ============
+  // MediaTagLink CRUD
 
   /// 插入媒体-标签关联 (批量)
   Future<void> upsertMediaTagLinks(List<MediaTagLink> links) async {
@@ -706,7 +706,7 @@ class GalleryDatabaseService {
     );
   }
 
-  // ============ 批量操作 / 同步相关 ============
+  // 批量操作 / 同步相关
 
   /// 清空所有表数据
   Future<void> clearAllData() async {

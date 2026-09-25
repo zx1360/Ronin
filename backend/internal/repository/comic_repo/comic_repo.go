@@ -1,336 +1,307 @@
+// Package comic_repo 提供 Android 端"漫画"模块的只读查询与管理字段写入。
+//
+// 数据对象为 comix schema 中由爬虫维护的表/视图；本包不做爬虫操作。
 package comic_repo
 
 import (
 	"context"
 	"fmt"
-	"monarch/internal/model"
-	"monarch/internal/service/db"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"monarch/internal/model"
+	"monarch/internal/service/db"
 )
 
-///	repo.go分两层函数:
-// 	第一层供外部调用, 仅接收业务参数.
-//	第二层核心函数私有, 同时接受ctx, pool等参数.
-// 	(可同时附带另一个可带上下文的版本)支持自定义 ctx+pool（多数据源/长超时场景）
+// withPool 以默认超时的上下文执行查询，并传入全局连接池。
+func withPool[T any](fn func(ctx context.Context, pool *pgxpool.Pool) (T, error)) (T, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return fn(ctx, db.GetPool())
+}
 
-// 读取漫画总计数元数据（实时聚合，不再依赖已删除的 comic_summary 表）
+// GetComicMetaData 读取漫画总计数元数据（实时聚合）。
 func GetComicMetaData() (*model.ComicTotalMetaData, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return getComicMetaData(ctx, db.GetPool())
-}
-func getComicMetaData(ctx context.Context, pool *pgxpool.Pool) (*model.ComicTotalMetaData, error) {
-	var metadata model.ComicTotalMetaData
-	query := `
-		SELECT
-			(SELECT COUNT(*) FROM comix.comic_books) as book_count,
-			(SELECT COUNT(*) FROM comix.comic_chapters) as total_chapter_count,
-			(SELECT COUNT(*) FROM comix.comic_images) as total_image_count
-	`
-	err := pool.QueryRow(ctx, query).Scan(&metadata.BookCount, &metadata.TotalChapterCount, &metadata.TotalImageCount)
-	if err != nil {
-		return nil, fmt.Errorf("查询漫画总元数据失败: %w", err)
-	}
-	metadata.UpdatedAt = time.Now()
-	return &metadata, nil
+	return withPool(func(ctx context.Context, pool *pgxpool.Pool) (*model.ComicTotalMetaData, error) {
+		var metadata model.ComicTotalMetaData
+		err := pool.QueryRow(ctx, `
+			SELECT
+				(SELECT COUNT(*) FROM comix.comic_books),
+				(SELECT COUNT(*) FROM comix.comic_chapters),
+				(SELECT COUNT(*) FROM comix.comic_images)
+		`).Scan(&metadata.BookCount, &metadata.TotalChapterCount, &metadata.TotalImageCount)
+		if err != nil {
+			return nil, fmt.Errorf("查询漫画总元数据失败: %w", err)
+		}
+		metadata.UpdatedAt = time.Now()
+		return &metadata, nil
+	})
 }
 
-// 获取所有漫画的总览信息（chapter_count/image_count 实时聚合）
+// GetAllComicInfos 获取所有漫画的总览信息（章节数/图片数实时聚合）。
 func GetAllComicInfos() ([]model.ComicInfo, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return getAllComicInfos(ctx, db.GetPool())
-}
-func getAllComicInfos(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInfo, error) {
-	query := `
-		SELECT
-			b.id, b.title, b.cover_image, b.is_public, b.readed,
-			COUNT(DISTINCT ch.id) as chapter_count,
-			COUNT(img.id) as image_count
-		FROM comix.comic_books b
-		LEFT JOIN comix.comic_chapters ch ON ch.comic_id = b.id
-		LEFT JOIN comix.comic_images img ON img.chapter_id = ch.id
-		GROUP BY b.id, b.title, b.cover_image, b.is_public, b.readed
-		ORDER BY b.title
-	`
-	rows, err := pool.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("查询漫画元数据失败: %w", err)
-	}
-	defer rows.Close()
-	var comicInfos []model.ComicInfo
-	for rows.Next() {
-		var comicInfo model.ComicInfo
-		if err := rows.Scan(&comicInfo.Id, &comicInfo.Title, &comicInfo.CoverImage,
-			&comicInfo.IsPublic, &comicInfo.Readed,
-			&comicInfo.ChapterCount, &comicInfo.ImageCount); err != nil {
-			return nil, fmt.Errorf("扫描漫画数据失败: %w", err)
+	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]model.ComicInfo, error) {
+		rows, err := pool.Query(ctx, `
+			SELECT
+				b.id, b.title, b.cover_image, b.is_public, b.readed,
+				COUNT(DISTINCT ch.id) AS chapter_count,
+				COUNT(img.id)         AS image_count
+			FROM comix.comic_books b
+			LEFT JOIN comix.comic_chapters ch ON ch.comic_id = b.id
+			LEFT JOIN comix.comic_images img ON img.chapter_id = ch.id
+			GROUP BY b.id, b.title, b.cover_image, b.is_public, b.readed
+			ORDER BY b.title
+		`)
+		if err != nil {
+			return nil, fmt.Errorf("查询漫画元数据失败: %w", err)
 		}
-		comicInfos = append(comicInfos, comicInfo)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("迭代结果集失败: %w", err)
-	}
-	return comicInfos, nil
+		defer rows.Close()
+
+		var infos []model.ComicInfo
+		for rows.Next() {
+			var info model.ComicInfo
+			if err := rows.Scan(&info.ID, &info.Title, &info.CoverImage,
+				&info.IsPublic, &info.Readed,
+				&info.ChapterCount, &info.ImageCount); err != nil {
+				return nil, fmt.Errorf("扫描漫画数据失败: %w", err)
+			}
+			infos = append(infos, info)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("迭代结果集失败: %w", err)
+		}
+		return infos, nil
+	})
 }
 
-// 获取某章节(全局唯一章节id)及其下的图片信息
+// GetChaptersWithComicId 获取指定漫画的章节列表（含每章图片数）。
 func GetChaptersWithComicId(comicId string) ([]model.ChapterInfo, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return getChaptersWithComicId(ctx, db.GetPool(), comicId)
-}
-func getChaptersWithComicId(ctx context.Context, pool *pgxpool.Pool, comicId string) ([]model.ChapterInfo, error) {
-	var chapterInfos []model.ChapterInfo
-	query := `
-		SELECT ch.id, ch.comic_id, ch.dir_name, ch.chapter_index,
-			COUNT(ci.id) as image_count
-		FROM comix.comic_chapters ch
-		LEFT JOIN comix.comic_images ci ON ci.chapter_id = ch.id
-		WHERE ch.comic_id = $1
-		GROUP BY ch.id, ch.comic_id, ch.dir_name, ch.chapter_index
-		ORDER BY ch.chapter_index ASC
-	`
-	rows, err := pool.Query(ctx, query, comicId)
-	if err != nil {
-		return nil, fmt.Errorf("查询漫画下的章节信息失败: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var chapterInfo model.ChapterInfo
-		if err := rows.Scan(&chapterInfo.Id, &chapterInfo.ComicId, &chapterInfo.DirName, &chapterInfo.ChapterIndex, &chapterInfo.ImageCount); err != nil {
-			return nil, fmt.Errorf("扫描章节数据失败: %w", err)
+	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]model.ChapterInfo, error) {
+		rows, err := pool.Query(ctx, `
+			SELECT ch.id, ch.comic_id, ch.dir_name, ch.chapter_index, COUNT(ci.id)
+			FROM comix.comic_chapters ch
+			LEFT JOIN comix.comic_images ci ON ci.chapter_id = ch.id
+			WHERE ch.comic_id = $1
+			GROUP BY ch.id, ch.comic_id, ch.dir_name, ch.chapter_index
+			ORDER BY ch.chapter_index ASC
+		`, comicId)
+		if err != nil {
+			return nil, fmt.Errorf("查询漫画下的章节信息失败: %w", err)
 		}
-		chapterInfos = append(chapterInfos, chapterInfo)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("迭代结果集失败: %w", err)
-	}
-	return chapterInfos, nil
+		defer rows.Close()
+
+		var chapters []model.ChapterInfo
+		for rows.Next() {
+			var chapter model.ChapterInfo
+			if err := rows.Scan(&chapter.ID, &chapter.ComicID, &chapter.DirName,
+				&chapter.ChapterIndex, &chapter.ImageCount); err != nil {
+				return nil, fmt.Errorf("扫描章节数据失败: %w", err)
+			}
+			chapters = append(chapters, chapter)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("迭代结果集失败: %w", err)
+		}
+		return chapters, nil
+	})
 }
 
-// 获取某章节(全局唯一章节id)及其下的图片信息
+// GetImagesWithChapterId 获取指定章节下的图片清单。
 func GetImagesWithChapterId(chapterId string) ([]model.ImageInfo, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return getImagesWithChapterId(ctx, db.GetPool(), chapterId)
-}
-func getImagesWithChapterId(ctx context.Context, pool *pgxpool.Pool, chapterId string) ([]model.ImageInfo, error) {
-	var images []model.ImageInfo
-	query := `select image_path, width, height from comix.comic_images where chapter_id=$1 order by sort_num asc;`
-	rows, err := pool.Query(ctx, query, chapterId)
-	if err != nil {
-		return nil, fmt.Errorf("查询章节下的图片信息失败: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var img model.ImageInfo
-		if err := rows.Scan(&img.Path, &img.Width, &img.Height); err != nil {
-			return nil, fmt.Errorf("扫描图片数据失败: %w", err)
+	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]model.ImageInfo, error) {
+		rows, err := pool.Query(ctx,
+			`SELECT image_path, width, height FROM comix.comic_images
+			 WHERE chapter_id = $1 ORDER BY sort_num ASC`, chapterId)
+		if err != nil {
+			return nil, fmt.Errorf("查询章节下的图片信息失败: %w", err)
 		}
-		images = append(images, img)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("迭代结果集失败: %w", err)
-	}
-	return images, nil
+		defer rows.Close()
+
+		var images []model.ImageInfo
+		for rows.Next() {
+			var img model.ImageInfo
+			if err := rows.Scan(&img.Path, &img.Width, &img.Height); err != nil {
+				return nil, fmt.Errorf("扫描图片数据失败: %w", err)
+			}
+			images = append(images, img)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("迭代结果集失败: %w", err)
+		}
+		return images, nil
+	})
 }
 
-// 漫画下载清单manifest获取, 获取某漫画的所有章节信息(带有所有图片信息)
+// GetComicAllChaptersAndImages 获取整部漫画的章节与图片（按章节号、图片序号升序）。
 func GetComicAllChaptersAndImages(comicId string) (map[string]model.ChapterInfo, map[string][]model.ImageInfo, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return getComicAllChaptersAndImages(ctx, db.GetPool(), comicId)
-}
-func getComicAllChaptersAndImages(ctx context.Context, pool *pgxpool.Pool, comicId string) (map[string]model.ChapterInfo, map[string][]model.ImageInfo, error) {
-	query := `
-        SELECT
-            c.id as chapter_id, c.comic_id, c.dir_name, c.chapter_index,
-            i.image_path, i.width, i.height
-        FROM comix.comic_chapters c
-        LEFT JOIN comix.comic_images i ON c.id = i.chapter_id
-        WHERE c.comic_id = $1
-        ORDER BY c.chapter_index ASC, i.sort_num ASC;
-    `
-	rows, err := pool.Query(ctx, query, comicId)
-	if err != nil {
-		return nil, nil, fmt.Errorf("关联查询章节和图片失败: %w", err)
+	type result struct {
+		chapters map[string]model.ChapterInfo
+		images   map[string][]model.ImageInfo
 	}
-	defer rows.Close()
-
-	chapterMap := make(map[string]model.ChapterInfo)
-	imageMap := make(map[string][]model.ImageInfo)
-
-	for rows.Next() {
-		var (
-			chapterId    string
-			comicId      string
-			dirName      string
-			chapterIndex int
-			imagePath    pgtype.Text
-			width        pgtype.Int4
-			height       pgtype.Int4
-		)
-		err := rows.Scan(
-			&chapterId, &comicId, &dirName, &chapterIndex,
-			&imagePath, &width, &height,
-		)
+	out, err := withPool(func(ctx context.Context, pool *pgxpool.Pool) (*result, error) {
+		rows, err := pool.Query(ctx, `
+			SELECT c.id, c.comic_id, c.dir_name, c.chapter_index, i.image_path, i.width, i.height
+			FROM comix.comic_chapters c
+			LEFT JOIN comix.comic_images i ON c.id = i.chapter_id
+			WHERE c.comic_id = $1
+			ORDER BY c.chapter_index ASC, i.sort_num ASC
+		`, comicId)
 		if err != nil {
-			return nil, nil, fmt.Errorf("扫描章节图片数据失败: %w", err)
+			return nil, fmt.Errorf("关联查询章节和图片失败: %w", err)
 		}
+		defer rows.Close()
 
-		if _, exists := chapterMap[chapterId]; !exists {
-			chapterMap[chapterId] = model.ChapterInfo{
-				Id:           chapterId,
-				ComicId:      comicId,
-				DirName:      dirName,
-				ChapterIndex: chapterIndex,
+		res := &result{
+			chapters: make(map[string]model.ChapterInfo),
+			images:   make(map[string][]model.ImageInfo),
+		}
+		for rows.Next() {
+			var (
+				chapterId    string
+				comicId      string
+				dirName      string
+				chapterIndex int
+				imagePath    pgtype.Text
+				width        pgtype.Int4
+				height       pgtype.Int4
+			)
+			if err := rows.Scan(&chapterId, &comicId, &dirName, &chapterIndex,
+				&imagePath, &width, &height); err != nil {
+				return nil, fmt.Errorf("扫描章节图片数据失败: %w", err)
+			}
+
+			if _, exists := res.chapters[chapterId]; !exists {
+				res.chapters[chapterId] = model.ChapterInfo{
+					ID:           chapterId,
+					ComicID:      comicId,
+					DirName:      dirName,
+					ChapterIndex: chapterIndex,
+				}
+			}
+			if imagePath.Valid {
+				res.images[chapterId] = append(res.images[chapterId], model.ImageInfo{
+					Path:   imagePath.String,
+					Width:  width.Int32,
+					Height: height.Int32,
+				})
 			}
 		}
-
-		if imagePath.Valid {
-			img := model.ImageInfo{
-				Path:   imagePath.String,
-				Width:  width.Int32,
-				Height: height.Int32,
-			}
-			imageMap[chapterId] = append(imageMap[chapterId], img)
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("迭代章节图片结果集失败: %w", err)
 		}
-	}
 
-	if err := rows.Err(); err != nil {
-		return nil, nil, fmt.Errorf("迭代章节图片结果集失败: %w", err)
+		for chapterId, chapter := range res.chapters {
+			chapter.ImageCount = len(res.images[chapterId])
+			res.chapters[chapterId] = chapter
+		}
+		return res, nil
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-
-	// 填充 image_count
-	for chId, ch := range chapterMap {
-		ch.ImageCount = len(imageMap[chId])
-		chapterMap[chId] = ch
-	}
-
-	return chapterMap, imageMap, nil
+	return out.chapters, out.images, nil
 }
 
-// --- 新增 CRUD ---
-
-// UpdateComicMeta 更新漫画的 is_public / readed / cover_image
+// UpdateComicMeta 更新漫画的 is_public / readed / cover_image（缺省字段表示不修改）。
 func UpdateComicMeta(comicId string, req model.UpdateComicRequest) error {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return updateComicMeta(ctx, db.GetPool(), comicId, req)
-}
-func updateComicMeta(ctx context.Context, pool *pgxpool.Pool, comicId string, req model.UpdateComicRequest) error {
-	// 动态构建 SET 子句
-	setClauses := ""
-	args := []interface{}{}
-	argIdx := 1
+	_, err := withPool(func(ctx context.Context, pool *pgxpool.Pool) (struct{}, error) {
+		sets := []string{}
+		args := []any{}
+		add := func(column string, value any) {
+			args = append(args, value)
+			sets = append(sets, fmt.Sprintf("%s=$%d", column, len(args)))
+		}
+		if req.IsPublic != nil {
+			add("is_public", *req.IsPublic)
+		}
+		if req.Readed != nil {
+			add("readed", *req.Readed)
+		}
+		if req.CoverImage != nil {
+			add("cover_image", *req.CoverImage)
+		}
+		if len(sets) == 0 {
+			return struct{}{}, nil
+		}
 
-	if req.IsPublic != nil {
-		setClauses += fmt.Sprintf("is_public=$%d, ", argIdx)
-		args = append(args, *req.IsPublic)
-		argIdx++
-	}
-	if req.Readed != nil {
-		setClauses += fmt.Sprintf("readed=$%d, ", argIdx)
-		args = append(args, *req.Readed)
-		argIdx++
-	}
-	if req.CoverImage != nil {
-		setClauses += fmt.Sprintf("cover_image=$%d, ", argIdx)
-		args = append(args, *req.CoverImage)
-		argIdx++
-	}
-
-	if len(args) == 0 {
-		return nil
-	}
-
-	// 去掉末尾 ", "
-	setClauses = setClauses[:len(setClauses)-2]
-	args = append(args, comicId)
-	query := fmt.Sprintf("UPDATE comix.comic_books SET %s WHERE id=$%d", setClauses, argIdx)
-
-	_, err := pool.Exec(ctx, query, args...)
-	if err != nil {
-		return fmt.Errorf("更新漫画元数据失败: %w", err)
-	}
-	return nil
+		args = append(args, comicId)
+		query := fmt.Sprintf("UPDATE comix.comic_books SET %s WHERE id=$%d",
+			strings.Join(sets, ", "), len(args))
+		if _, err := pool.Exec(ctx, query, args...); err != nil {
+			return struct{}{}, fmt.Errorf("更新漫画元数据失败: %w", err)
+		}
+		return struct{}{}, nil
+	})
+	return err
 }
 
-// DeleteComic 删除漫画及级联数据，返回该漫画的标题与存储相对路径(rel_dir)用于后续清理
+// DeleteComic 删除漫画及级联数据，返回标题与存储相对路径(rel_dir)供调用方清理文件。
 //
-// 两者都需要：legacy 资源的目录以标题命名（comics/{title}），
-// 爬虫登记的资源以主键命名（comics/{comic_id}）。
-// 只用标题删目录会漏掉爬虫资源，在 static/comics 下残留整本漫画文件。
+// 两者都需要：legacy 资源的目录以标题命名（comics/{title}），爬虫登记的资源以主键
+// 命名（comics/{comic_id}）；只用标题删目录会残留整本漫画文件。
 func DeleteComic(comicId string) (title string, relDir string, err error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return deleteComic(ctx, db.GetPool(), comicId)
-}
-func deleteComic(ctx context.Context, pool *pgxpool.Pool, comicId string) (string, string, error) {
-	// 先取标题与存储相对路径（删除后无法再查；rel_dir 为纯列，视图不暴露）
-	// 用 id::text 与入参（text）比较：与旧视图语义一致，且可走 idx_comic_id_text。
-	var title, relDir string
-	if err := pool.QueryRow(ctx,
-		`SELECT title, rel_dir FROM comix.comic WHERE id::text = $1`, comicId,
-	).Scan(&title, &relDir); err != nil {
-		return "", "", fmt.Errorf("查询漫画标题失败: %w", err)
-	}
-
-	// 级联删除: comic_images → comic_chapters → comic_books
-	// 由于表有 CASCADE 外键约束，只需删除 comic_books 即可
-	if _, err := pool.Exec(ctx, `DELETE FROM comix.comic_books WHERE id=$1`, comicId); err != nil {
-		return "", "", fmt.Errorf("删除漫画失败: %w", err)
-	}
-	return title, filepath.ToSlash(relDir), nil
-}
-
-// SyncReadedStatus 批量更新 readed 状态并返回每本漫画服务器上的章节数（用于增量下载判断）
-func SyncReadedStatus(readedIds []string) (*model.SyncReadedResponse, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return syncReadedStatus(ctx, db.GetPool(), readedIds)
-}
-func syncReadedStatus(ctx context.Context, pool *pgxpool.Pool, readedIds []string) (*model.SyncReadedResponse, error) {
-	resp := &model.SyncReadedResponse{
-		NewChapters: make(map[string]int),
-	}
-
-	// 1. 批量标记 readed = true（如果有需要标记的ID）
-	if len(readedIds) > 0 {
-		tag, err := pool.Exec(ctx, `UPDATE comix.comic_books SET readed = TRUE WHERE id = ANY($1)`, readedIds)
-		if err != nil {
-			return nil, fmt.Errorf("批量更新已读状态失败: %w", err)
+	type deleted struct{ title, relDir string }
+	out, err := withPool(func(ctx context.Context, pool *pgxpool.Pool) (*deleted, error) {
+		// rel_dir 为纯列，视图不暴露；用 id::text 与入参（text）比较以走 idx_comic_id_text
+		var result deleted
+		if err := pool.QueryRow(ctx,
+			`SELECT title, rel_dir FROM comix.comic WHERE id::text = $1`, comicId,
+		).Scan(&result.title, &result.relDir); err != nil {
+			return nil, fmt.Errorf("查询漫画标题失败: %w", err)
 		}
-		resp.UpdatedCount = int(tag.RowsAffected())
-	}
 
-	// 2. 始终返回所有漫画的最新章节总数（供客户端对比增量）
-	rows, err := pool.Query(ctx, `
-		SELECT b.id, COUNT(ch.id)
-		FROM comix.comic_books b
-		LEFT JOIN comix.comic_chapters ch ON ch.comic_id = b.id
-		GROUP BY b.id
-	`)
+		// comic_images → comic_chapters → comic_books 均为 CASCADE 外键，删主表即可
+		if _, err := pool.Exec(ctx, `DELETE FROM comix.comic_books WHERE id=$1`, comicId); err != nil {
+			return nil, fmt.Errorf("删除漫画失败: %w", err)
+		}
+		return &result, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("查询漫画章节计数失败: %w", err)
+		return "", "", err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var comicId string
-		var count int
-		if err := rows.Scan(&comicId, &count); err != nil {
-			return nil, fmt.Errorf("扫描章节计数失败: %w", err)
-		}
-		resp.NewChapters[comicId] = count
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("迭代章节计数结果失败: %w", err)
-	}
+	return out.title, filepath.ToSlash(out.relDir), nil
+}
 
-	return resp, nil
+// SyncReadedStatus 批量标记已读，并返回每本漫画的服务器章节总数（供客户端判断增量）。
+func SyncReadedStatus(readedIds []string) (*model.SyncReadedResponse, error) {
+	return withPool(func(ctx context.Context, pool *pgxpool.Pool) (*model.SyncReadedResponse, error) {
+		resp := &model.SyncReadedResponse{NewChapters: make(map[string]int)}
+
+		if len(readedIds) > 0 {
+			tag, err := pool.Exec(ctx,
+				`UPDATE comix.comic_books SET readed = TRUE WHERE id = ANY($1)`, readedIds)
+			if err != nil {
+				return nil, fmt.Errorf("批量更新已读状态失败: %w", err)
+			}
+			resp.UpdatedCount = int(tag.RowsAffected())
+		}
+
+		rows, err := pool.Query(ctx, `
+			SELECT b.id, COUNT(ch.id)
+			FROM comix.comic_books b
+			LEFT JOIN comix.comic_chapters ch ON ch.comic_id = b.id
+			GROUP BY b.id
+		`)
+		if err != nil {
+			return nil, fmt.Errorf("查询漫画章节计数失败: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var comicId string
+			var count int
+			if err := rows.Scan(&comicId, &count); err != nil {
+				return nil, fmt.Errorf("扫描章节计数失败: %w", err)
+			}
+			resp.NewChapters[comicId] = count
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("迭代章节计数结果失败: %w", err)
+		}
+		return resp, nil
+	})
 }

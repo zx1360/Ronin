@@ -3,31 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/comix/models/comix_models.dart';
 
-/// 通用状态徽章（可用/不可用、精确/模糊等）。
-class ComixStatusChip extends StatelessWidget {
-  final bool ok;
-  final String label;
-
-  const ComixStatusChip({super.key, required this.ok, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = ok ? Colors.greenAccent.shade400 : Colors.orange;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.7)),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
-      ),
-    );
-  }
-}
-
 /// 章节状态徽章。
 class ChapterStatusChip extends StatelessWidget {
   final String status;
@@ -55,10 +30,34 @@ class ChapterStatusChip extends StatelessWidget {
   }
 }
 
-/// 任务状态徽章。
+/// 任务状态 → (颜色, 标签) 的统一映射：任务面板徽章与网址下载结果共用，
+/// 避免两处 switch 各自漂移。
 ///
 /// [businessFailure] 用于把"进程正常结束但业务结果 ok=false/非零退出码"的任务
 /// 标成失败，而不是绿色"完成"（后端把退出码 2 记为 finished）。
+/// [unknownStyle] 由调用方给出：`unknown` 在不同上下文语义不同（任务面板=未知，
+/// 网址下载=已提交待出现 / 提交失败），其余状态统一。
+(Color, String) comixTaskStatusStyle(
+  ComixTaskStatus status, {
+  bool businessFailure = false,
+  (Color, String)? unknownStyle,
+}) {
+  if (status == ComixTaskStatus.unknown) {
+    return unknownStyle ?? (Colors.grey, '未知');
+  }
+  return switch (status) {
+    ComixTaskStatus.running => (Colors.blueAccent, '运行中'),
+    ComixTaskStatus.finished =>
+      businessFailure
+          ? (Colors.redAccent, '业务错误')
+          : (Colors.greenAccent.shade400, '完成'),
+    ComixTaskStatus.failed => (Colors.redAccent, '失败'),
+    ComixTaskStatus.killed => (Colors.orange, '已中断'),
+    ComixTaskStatus.unknown => (Colors.grey, '未知'),
+  };
+}
+
+/// 任务状态徽章。
 class TaskStatusChip extends StatelessWidget {
   final ComixTaskStatus status;
   final bool businessFailure;
@@ -71,14 +70,10 @@ class TaskStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (color, label) = switch (status) {
-      ComixTaskStatus.running => (Colors.blueAccent, '运行中'),
-      ComixTaskStatus.finished =>
-        businessFailure ? (Colors.redAccent, '业务错误') : (Colors.greenAccent.shade400, '完成'),
-      ComixTaskStatus.failed => (Colors.redAccent, '失败'),
-      ComixTaskStatus.killed => (Colors.orange, '已中断'),
-      ComixTaskStatus.unknown => (Colors.grey, '未知'),
-    };
+    final (color, label) = comixTaskStatusStyle(
+      status,
+      businessFailure: businessFailure,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -86,10 +81,7 @@ class TaskStatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.7)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 11, color: color),
-      ),
+      child: Text(label, style: TextStyle(fontSize: 11, color: color)),
     );
   }
 }
@@ -188,7 +180,9 @@ List<String> _downloadSummary(Map<String, dynamic> data, {String prefix = ''}) {
       }
     }
   }
-  if (downloaded is List && downloaded.isEmpty && (failed is! List || failed.isEmpty)) {
+  if (downloaded is List &&
+      downloaded.isEmpty &&
+      (failed is! List || failed.isEmpty)) {
     parts.add('无待下载章节');
   }
   final message = data['message'];

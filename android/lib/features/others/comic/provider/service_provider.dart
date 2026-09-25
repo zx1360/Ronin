@@ -19,10 +19,6 @@ import 'package:torrid/core/services/io/io_service.dart';
 
 part 'service_provider.g.dart';
 
-// ============================================================================
-// 全量扫描
-// ============================================================================
-
 /// 扫描漫画目录获取所有漫画和章节元数据
 /// 
 /// 遍历 `comics` 目录下的所有子目录，生成 [ComicInfo] 和 [ChapterInfo]。
@@ -74,10 +70,6 @@ Future<Map<String, dynamic>> allInfos(AllInfosRef ref) async {
     "chapterInfos": {for (final info in chapterInfos) info.id: info},
   };
 }
-
-// ============================================================================
-// 增量扫描
-// ============================================================================
 
 /// 获取需要删除的漫画记录
 /// 
@@ -174,10 +166,6 @@ Future<Map<String, dynamic>> newInfos(NewInfosRef ref) async {
     "chapterInfos": {for (final info in chapterInfos) info.id: info},
   };
 }
-
-// ============================================================================
-// 辅助方法
-// ============================================================================
 
 /// 从目录构建漫画信息
 Future<ComicInfo> _buildComicInfo(Directory comicDir, String comicName) async {

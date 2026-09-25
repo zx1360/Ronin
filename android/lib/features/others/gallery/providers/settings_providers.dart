@@ -3,7 +3,7 @@ import 'package:torrid/core/services/storage/prefs_service.dart';
 
 part 'settings_providers.g.dart';
 
-// ============ 设置项 Providers (SharedPreferences) ============
+// 设置项 Providers (SharedPreferences)
 
 /// Gallery 设置常量
 class GalleryPrefsKeys {

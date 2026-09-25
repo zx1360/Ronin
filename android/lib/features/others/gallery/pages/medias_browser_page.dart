@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -386,16 +386,18 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   /// 构建底部操作栏
   Widget _buildBottomBar() {
-    // 检查选中项中是否有已删除的
     final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final hasDeletedSelected = _selectedIds.any((id) {
-      final asset = allAssets.firstWhere((a) => a.id == id, orElse: () => allAssets.first);
-      return asset.isDeleted;
-    });
-    final hasNonDeletedSelected = _selectedIds.any((id) {
-      final asset = allAssets.firstWhere((a) => a.id == id, orElse: () => allAssets.first);
-      return !asset.isDeleted;
-    });
+    final selected = _selectedIds
+        .map((id) {
+          for (final asset in allAssets) {
+            if (asset.id == id) return asset;
+          }
+          return null;
+        })
+        .whereType<MediaAsset>()
+        .toList();
+    final hasDeletedSelected = selected.any((asset) => asset.isDeleted);
+    final hasNonDeletedSelected = selected.any((asset) => !asset.isDeleted);
     
     return Container(
       color: Colors.grey[900],

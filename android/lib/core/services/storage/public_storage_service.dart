@@ -72,7 +72,7 @@ class PublicStorageService {
     return storageResult.isGranted;
   }
 
-  // ============ 通用保存 ============
+  // 通用保存
 
   /// 将字节数据保存到公共目录
   ///
@@ -144,7 +144,7 @@ class PublicStorageService {
     }
   }
 
-  // ============ 特殊操作 ============
+  // 特殊操作
 
   /// 合并多张图片并保存到公共目录（在 isolate 中执行）
   ///
@@ -208,7 +208,7 @@ class PublicStorageService {
     return true;
   }
 
-  // ============ 便捷方法 ============
+  // 便捷方法
 
   /// 生成带时间戳的唯一文件名
   ///

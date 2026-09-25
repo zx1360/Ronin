@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// FlexTime 自定义时间类型，兼容多种时间格式
+// FlexTime 包装 time.Time，JSON 侧兼容多种时间格式（客户端序列化格式不统一）。
 type FlexTime time.Time
 
 // UnmarshalJSON 实现 JSON 反序列化，支持多种时间格式
@@ -47,11 +47,6 @@ func (ft FlexTime) MarshalJSON() ([]byte, error) {
 		return []byte("null"), nil
 	}
 	return []byte("\"" + t.Format(time.RFC3339Nano) + "\""), nil
-}
-
-// Time 转换为标准 time.Time
-func (ft FlexTime) Time() time.Time {
-	return time.Time(ft)
 }
 
 // Scan 实现 sql.Scanner 接口，用于从数据库读取
@@ -119,11 +114,6 @@ type BatchData struct {
 	MediaAssets   []MediaAsset   `json:"media_assets"`
 	Tags          []Tag          `json:"tags"`
 	MediaTagLinks []MediaTagLink `json:"media_tag_links"`
-}
-
-// TagsResponse /api/gallery/tags 响应结构
-type TagsResponse struct {
-	Tags []Tag `json:"tags"`
 }
 
 // TagCreateRequest POST /api/gallery/tags 请求结构

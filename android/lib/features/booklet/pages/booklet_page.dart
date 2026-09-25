@@ -23,7 +23,9 @@ class BookletPage extends ConsumerStatefulWidget {
 
 class _BookletPageState extends ConsumerState<BookletPage> {
   Style? _latestStyle;
-  late Record _targetRecord;
+  Record? _targetRecord;
+  /// 尚未落库的空记录按日期缓存：避免每次 build 都生成新 id（会造成同日多条记录）
+  final Map<String, Record> _draftRecords = {};
   // 用以呈现渲染的数据
   List<Task> _tasks = [];
   Map<String, dynamic> _stats = {};
@@ -36,24 +38,48 @@ class _BookletPageState extends ConsumerState<BookletPage> {
   // 往期打卡补签相关.
   DateTime targetDate = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
+  /// 取当前日期对应的记录；没有则创建一条草稿（同一天复用同一个草稿）
+  Record _recordFor(Style style) {
+    final key = '${style.id}|${targetDate.year}-${targetDate.month}-${targetDate.day}';
+    return _draftRecords.putIfAbsent(
+      key,
+      () => Record.empty(style: style, date: targetDate),
+    );
+  }
+
+  /// 写入当前记录：先落库再刷新，避免直接改动 provider 暴露的 Hive 实例
+  Future<void> _persist() async {
+    final record = _targetRecord;
+    if (record == null || _latestStyle == null) return;
+    await _server!.putRecord(styleId: _latestStyle!.id, record: record);
+  }
+
   // # record变动(任务完成情况, 标题/描述, 留言)
   Future<void> toggleCompletion(String taskId, bool completed) async {
-    _targetRecord.taskCompletion[taskId] = completed;
-    await _server!.putRecord(styleId: _latestStyle!.id, record: _targetRecord);
+    final record = _targetRecord;
+    if (record == null) return;
+    setState(() {
+      record.taskCompletion[taskId] = completed;
+    });
+    await _persist();
   }
 
   // # 保存消息到记录
   Future<void> saveMessage() async {
-    if (_latestStyle == null) return;
-    _targetRecord.message = _messageController.text;
-    await _server!.putRecord(styleId: _latestStyle!.id, record: _targetRecord);
+    final record = _targetRecord;
+    if (record == null || _latestStyle == null) return;
+    record.message = _messageController.text;
+    await _persist();
   }
 
   // # 更新心情记录
   Future<void> updateMood(MoodType? mood) async {
-    if (_latestStyle == null) return;
-    _targetRecord.mood = mood;
-    await _server!.putRecord(styleId: _latestStyle!.id, record: _targetRecord);
+    final record = _targetRecord;
+    if (record == null) return;
+    setState(() {
+      record.mood = mood;
+    });
+    await _persist();
   }
 
   // # 选择要操作的打卡日期.
@@ -90,7 +116,8 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     _latestStyle = ref.watch(latestStyleProvider);
     // 如果有style记录或变动, 则(重新)绑定一系列数据监听.
     if (_latestStyle != null) {
-      _targetRecord = ref.watch(recordByDateProvider(targetDate: targetDate))??Record.empty(style: _latestStyle!, date: targetDate);
+      final persisted = ref.watch(recordByDateProvider(targetDate: targetDate));
+      _targetRecord = persisted ?? _recordFor(_latestStyle!);
       _completions.clear();
 
       _tasks = _latestStyle!.tasks;
@@ -100,9 +127,12 @@ class _BookletPageState extends ConsumerState<BookletPage> {
       );
 
       for (final task in _latestStyle!.tasks) {
-        _completions.add(_targetRecord.taskCompletion[task.id] ?? false);
+        _completions.add(_targetRecord!.taskCompletion[task.id] ?? false);
       }
-      _messageController.text = _targetRecord.message;
+      // 仅在内容确实不同且输入框未聚焦时同步，避免打字过程中光标被重置
+      if (!_focusNode.hasFocus && _messageController.text != _targetRecord!.message) {
+        _messageController.text = _targetRecord!.message;
+      }
     }
 
     // 日期范围, 打卡补签等相关.
@@ -237,14 +267,14 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                         Expanded(
                           child: isSameDay(targetDate, DateTime.now())
                               ? MoodSelector(
-                                  selectedMood: _targetRecord.mood,
+                                  selectedMood: _targetRecord?.mood,
                                   onMoodChanged: updateMood,
                                   compact: true,
                                   iconSize: 24,
                                 )
-                              : (_targetRecord.mood != null
+                              : (_targetRecord?.mood != null
                                   ? MoodDisplay(
-                                      mood: _targetRecord.mood,
+                                      mood: _targetRecord?.mood,
                                       iconSize: 24,
                                       showLabel: true,
                                     )

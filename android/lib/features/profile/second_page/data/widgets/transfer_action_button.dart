@@ -127,39 +127,3 @@ class TransferActionButton extends ConsumerWidget {
     return result == true;
   }
 }
-
-/// 同步所有按钮
-class SyncAllButton extends StatelessWidget {
-  const SyncAllButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return TransferActionButton(
-      action: const TransferAction(
-        type: TransferType.sync,
-        target: TransferTarget.booklet,
-        label: '同步所有',
-        highlighted: true,
-      ),
-      isAll: true,
-    );
-  }
-}
-
-/// 备份所有按钮
-class BackupAllButton extends StatelessWidget {
-  const BackupAllButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return TransferActionButton(
-      action: const TransferAction(
-        type: TransferType.backup,
-        target: TransferTarget.booklet,
-        label: '备份所有',
-        highlighted: true,
-      ),
-      isAll: true,
-    );
-  }
-}

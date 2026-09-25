@@ -27,22 +27,14 @@ type MediaAsset struct {
 
 // FileInfo 文件扫描时的临时信息结构
 type FileInfo struct {
-	OriginalPath string    // 原始文件路径
-	FileName     string    // 文件名
-	Extension    string    // 扩展名（小写，含点）
-	SizeBytes    int64     // 文件大小
-	Hash         []byte    // SHA-256 哈希
-	MimeType     string    // MIME 类型
-	CapturedAt   time.Time // 文件日期
-	IsVideo      bool      // 是否为视频
-	IsAnimated   bool      // 是否为动态图（如 GIF）
-}
-
-// ProcessResult 处理结果
-type ProcessResult struct {
-	Asset       *MediaAsset // 生成的媒体资产
-	Error       error       // 处理错误
-	IsDuplicate bool        // 是否重复文件
+	FileName   string    // 文件名
+	Extension  string    // 扩展名（小写，含点）
+	SizeBytes  int64     // 文件大小
+	Hash       []byte    // SHA-256 哈希
+	MimeType   string    // MIME 类型
+	CapturedAt time.Time // 文件日期
+	IsVideo    bool      // 是否为视频
+	IsAnimated bool      // 是否为动态图（如 GIF）
 }
 
 // SupportedImageExts 支持的图片扩展名

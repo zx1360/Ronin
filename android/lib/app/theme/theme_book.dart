@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // --- 颜色常量（遵循 Material 3 命名规范，新增原确认框专属颜色） ---
+  // 颜色常量（遵循 Material 3 命名规范）
   static const Color primary = Color(0xFF8B5A2B); // 主色调：温暖棕褐色
   static const Color onPrimary = Color(0xFFFFFFFF); // 主色上的文本色
   static const Color primaryContainer = Color(0xFFE8E2D3); // 主色容器
@@ -13,23 +13,22 @@ class AppTheme {
   static const Color onSecondaryContainer = Color(0xFF2D4E30); // 辅助色容器上的文本色
 
   static const Color error = Color(0xFFF99E9C); // 错误色：柔和红色（主题默认）
-  static const Color errorVivid = Color(0xFFD32F2F); // 新增：原确认框鲜明红色（继续按钮）
+  static const Color errorVivid = Color(0xFFD32F2F); // 鲜明的错误色（危险操作确认）
   static const Color onError = Color(0xFFFFFFFF); // 错误色上的文本色
   static const Color errorContainer = Color(0xFFFEECEB); // 错误色容器
   static const Color onErrorContainer = Color(0xFF7A2724); // 错误色容器上的文本色
 
   static const Color surface = Color(0xFFFCFAF7); // 表面色：极浅米色
-  static const Color surfaceWarm = Color(0xFFF5F0E1); // 新增：原确认框温暖米色背景
+  static const Color surfaceWarm = Color(0xFFF5F0E1); // 温暖的表层色
   static const Color onSurface = Color(0xFF3A2E2F); // 表面上的文本色
   static const Color surfaceContainer = Color(0xFFFFFFFF); // 表面容器色
   static const Color surfaceContainerHighest = Color(0xFFE8E2D3); // 最高层级表面容器
-  static const Color onSurfaceVariant = Color(0xFF8B7355); // 表面变体上的文本色（原取消按钮色）
+  static const Color onSurfaceVariant = Color(0xFF8B7355); // 表面变体上的文本色
   static const Color outline = Color(0xFFD4C8B0); // 轮廓色
 
   static const Color background = Color(0xFFFCFAF7); // 背景色
   static const Color onBackground = Color(0xFF3A2E2F); // 背景上的文本色
 
-  // --- 主题配置 ---
   static ThemeData bookTheme() {
     final colorScheme = ColorScheme.light(
       primary: primary,

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
@@ -7,7 +5,7 @@ import 'package:northstar/core/providers/ops/task_profiles_provider.dart';
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
 import 'package:northstar/domain/ops/models/task_profile.dart';
-import 'package:path/path.dart' as path;
+import 'package:northstar/infrastructure/ops/ops_persistence_repository.dart';
 import 'package:northstar/shared/widgets/heading/heading.dart';
 import 'package:northstar/ui/ops/widgets/task_editor_dialog.dart';
 
@@ -40,15 +38,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final settingsController = ref.read(opsSettingsControllerProvider.notifier);
     final tasks = ref.watch(taskProfilesControllerProvider);
     final taskController = ref.read(taskProfilesControllerProvider.notifier);
-    final executableName = path
-        .basename(Platform.resolvedExecutable)
-        .toLowerCase();
-    final basePath =
-        executableName == 'flutter_tester.exe' || executableName == 'dart.exe'
-        ? Directory.current.path
-        : File(Platform.resolvedExecutable).parent.path;
-    final storagePathHint =
-        '$basePath${Platform.pathSeparator}northstar_data${Platform.pathSeparator}ops';
+    final storagePathHint = OpsPersistenceRepository.storageDirectoryPath();
 
     _syncControllersIfNeeded(settings);
 
@@ -133,7 +123,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                     : (parsedSeconds > 3600
                                           ? 3600
                                           : parsedSeconds);
-                                await settingsController.update(
+                                final saved = await settingsController.update(
                                   apiBaseUrl: _apiBaseUrlController.text.trim(),
                                   apiKey: _apiKeyController.text.trim(),
                                   autoRefreshSeconds: safeSeconds,
@@ -144,7 +134,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 );
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('设置已保存')),
+                                    SnackBar(
+                                      content: Text(
+                                        saved
+                                            ? '设置已保存'
+                                            : '设置已在本次运行生效，但写入本地配置文件失败',
+                                      ),
+                                    ),
                                   );
                                 }
                               },

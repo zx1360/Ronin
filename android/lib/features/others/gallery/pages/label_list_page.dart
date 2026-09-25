@@ -143,6 +143,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
                         itemBuilder: (context, index) => _buildTagTile(
                           tag: roots[index],
                           childrenMap: childrenMap,
+                          byId: byId,
                           appliedIds: appliedIds,
                           favoriteIds: favoriteIds,
                           depth: 0,
@@ -157,7 +158,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     );
   }
 
-  // ============ 顶部区域 ============
+  // 顶部区域
 
   /// 标签自动套用开关（仅在打标签模式下显示）
   Widget _buildAutoApplyToggle() {
@@ -276,11 +277,12 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     );
   }
 
-  // ============ 标签行 ============
+  // 标签行
 
   Widget _buildTagTile({
     required Tag tag,
     required Map<String, List<Tag>> childrenMap,
+    required Map<String, Tag> byId,
     required Set<String> appliedIds,
     required Set<String> favoriteIds,
     required int depth,
@@ -298,7 +300,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
             final draggedId = details.data;
             // 不能拖到自己或自己的子节点
             if (draggedId == tag.id) return false;
-            return !_isDescendant(draggedId, tag.id, childrenMap);
+            return !_isAncestorOf(draggedId, tag.id, byId);
           },
           onAcceptWithDetails: (details) => _moveTag(details.data, tag.id),
           builder: (context, candidateData, rejectedData) {
@@ -355,6 +357,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
             _buildTagTile(
               tag: child,
               childrenMap: childrenMap,
+              byId: byId,
               appliedIds: appliedIds,
               favoriteIds: favoriteIds,
               depth: depth + 1,
@@ -364,7 +367,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     );
   }
 
-  // ============ 状态操作 ============
+  // 状态操作
 
   /// 首次进入时展开已选标签所在的路径（默认其余折叠, 避免大树难以浏览）
   void _initExpandedIds(List<Tag> tags, Set<String> appliedIds) {
@@ -433,7 +436,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     }
   }
 
-  // ============ 标签结构编辑 ============
+  // 标签结构编辑
 
   void _handleMenuAction(String action, Tag tag) {
     switch (action) {
@@ -564,16 +567,15 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     }
   }
 
-  /// 检查 [descendantId] 是否为 [ancestorId] 的子孙
-  bool _isDescendant(
-    String ancestorId,
-    String descendantId,
-    Map<String, List<Tag>> childrenMap,
-  ) {
-    final children = childrenMap[ancestorId] ?? const <Tag>[];
-    for (final child in children) {
-      if (child.id == descendantId) return true;
-      if (_isDescendant(child.id, descendantId, childrenMap)) return true;
+  /// 检查 [ancestorId] 是否是 [descendantId] 的祖先
+  ///
+  /// 沿 parentId 向上回溯，而不是遍历当前（可能被搜索过滤过的）childrenMap——
+  /// 否则过滤掉中间层级后会把子孙误判为可放置目标，从而形成树环。
+  bool _isAncestorOf(String ancestorId, String descendantId, Map<String, Tag> byId) {
+    var parentId = byId[descendantId]?.parentId;
+    while (parentId != null) {
+      if (parentId == ancestorId) return true;
+      parentId = byId[parentId]?.parentId;
     }
     return false;
   }

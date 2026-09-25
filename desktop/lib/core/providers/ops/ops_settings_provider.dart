@@ -15,14 +15,14 @@ class OpsSettingsController extends _$OpsSettingsController {
     // 配置在 main() 预载完成，这里同步取持久化值：若在 build 里异步补载，
     // 首个请求会先带默认配置发出（连错端口/端口），启动后必须手动刷新才能恢复。
     final cached = ref.read(opsPersistenceRepositoryProvider).settings;
-    if (cached == null) {
-      return OpsSettings.defaults();
-    }
-    CertTrust.setApiKey(cached.apiKey);
-    return cached;
+    final settings = cached ?? OpsSettings.defaults();
+    CertTrust.setApiKey(settings.apiKey);
+    CertTrust.setServerBaseUrl(settings.apiBaseUrl);
+    return settings;
   }
 
-  Future<void> update({
+  /// 保存配置；返回是否成功落盘（false 时 UI 应如实提示，而不是谎报已保存）。
+  Future<bool> update({
     String? apiBaseUrl,
     String? apiKey,
     int? autoRefreshSeconds,
@@ -35,7 +35,8 @@ class OpsSettingsController extends _$OpsSettingsController {
       hideApiKey: hideApiKey,
     );
     CertTrust.setApiKey(state.apiKey);
-    await _save();
+    CertTrust.setServerBaseUrl(state.apiBaseUrl);
+    return _save();
   }
 
   /// mDNS 服务发现 + localhost 兜底
@@ -77,7 +78,7 @@ class OpsSettingsController extends _$OpsSettingsController {
     // 尝试连接 localhost 上的 Monarch 常见端口
     const candidates = [
       'https://127.0.0.1:7274', // 生产模式 HTTPS
-      'http://127.0.0.1:7275',  // 开发模式 HTTP
+      'http://127.0.0.1:7275', // 开发模式 HTTP
     ];
 
     for (final url in candidates) {
@@ -88,6 +89,11 @@ class OpsSettingsController extends _$OpsSettingsController {
         );
         try {
           final request = await client.getUrl(uri.replace(path: '/API/test'));
+          // 当前配置的地址可能不是被探测的端口，全局注入不会命中，这里显式带上。
+          final apiKey = CertTrust.apiKey;
+          if (apiKey != null) {
+            request.headers.set('X-API-Key', apiKey);
+          }
           final response = await request.close().timeout(
             const Duration(seconds: 2),
           );
@@ -104,8 +110,8 @@ class OpsSettingsController extends _$OpsSettingsController {
     return null;
   }
 
-  Future<void> _save() async {
+  Future<bool> _save() async {
     final repository = ref.read(opsPersistenceRepositoryProvider);
-    await repository.saveSettings(state);
+    return repository.saveSettings(state);
   }
 }

@@ -12,13 +12,15 @@ class RetagWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final labels = ref.watch(labelsProvider);
     final essay = ref.watch(contentServerProvider);
+    if (essay == null) return const SizedBox.shrink();
+
     final selectedLabels = labels
-        .where((l) => essay!.labels.contains(l.id))
+        .where((l) => essay.labels.contains(l.id))
         .map((l) => l.id)
         .toList();
 
     void onToggle(String labelId) {
-      ref.read(essayServiceProvider.notifier).retag(essay!.id, labelId);
+      ref.read(essayServiceProvider.notifier).retag(essay.id, labelId);
     }
 
     final maxHeight = MediaQuery.of(context).size.height * 0.85;

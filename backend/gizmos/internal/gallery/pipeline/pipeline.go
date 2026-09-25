@@ -205,7 +205,7 @@ func (p *Pipeline) processFile(ctx context.Context, filePath string) (*model.Med
 	}
 
 	// 生成唯一文件名（避免冲突）
-	newFileName := p.generateUniqueFileName(mediaSubDir, fileInfo.FileName)
+	newFileName := generateUniqueFileName(mediaSubDir, fileInfo.FileName)
 	newMediaPath := filepath.Join(mediaSubDir, newFileName)
 
 	if err := moveFile(filePath, newMediaPath); err != nil {
@@ -599,38 +599,30 @@ func (p *Pipeline) moveToDeleted(filePath string) error {
 
 // cleanEmptyDirs 清理空目录
 func (p *Pipeline) cleanEmptyDirs() {
-	dirs := []string{p.config.MediaDir, p.config.ThumbsDir, p.config.PreviewDir}
-
-	for _, dir := range dirs {
+	for _, dir := range []string{p.config.MediaDir, p.config.ThumbsDir, p.config.PreviewDir} {
 		p.cleanEmptyDirsRecursive(dir)
 	}
 }
 
-// cleanEmptyDirsRecursive 递归清理空目录（从最深层开始）
+// cleanEmptyDirsRecursive 递归清理空目录（自最深一层向上）
 func (p *Pipeline) cleanEmptyDirsRecursive(rootDir string) {
-	// 收集所有子目录（按深度排序，先处理最深的）
 	var dirs []string
-	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() && path != rootDir {
+	_ = filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
+		if err == nil && d.IsDir() && path != rootDir {
 			dirs = append(dirs, path)
 		}
 		return nil
 	})
 
-	// 从后往前遍历（最深的目录在后面）
+	// WalkDir 是深度优先，父目录必然排在子目录之后，倒序即"先子后父"
 	for i := len(dirs) - 1; i >= 0; i-- {
 		dir := dirs[i]
 		entries, err := os.ReadDir(dir)
-		if err != nil {
+		if err != nil || len(entries) > 0 {
 			continue
 		}
-		if len(entries) == 0 {
-			if err := os.Remove(dir); err == nil {
-				log.Printf("清理空目录: %s", dir)
-			}
+		if err := os.Remove(dir); err == nil {
+			log.Printf("清理空目录: %s", dir)
 		}
 	}
 }
@@ -653,36 +645,26 @@ func (p *Pipeline) ensureDirectories() error {
 	return nil
 }
 
-// generateUniqueFileName 生成唯一文件名（全局函数，供多处复用）
+// generateUniqueFileName 在 dir 下生成不冲突的文件名（重名时追加 _1、_2…）
 func generateUniqueFileName(dir, originalName string) string {
-	name := originalName
 	ext := filepath.Ext(originalName)
 	baseName := strings.TrimSuffix(originalName, ext)
 
-	counter := 1
-	for {
-		fullPath := filepath.Join(dir, name)
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+	name := originalName
+	for counter := 1; ; counter++ {
+		if _, err := os.Stat(filepath.Join(dir, name)); os.IsNotExist(err) {
 			return name
 		}
 		name = fmt.Sprintf("%s_%d%s", baseName, counter, ext)
-		counter++
 	}
 }
 
-// Pipeline.generateUniqueFileName 方法版本（向后兼容）
-func (p *Pipeline) generateUniqueFileName(dir, originalName string) string {
-	return generateUniqueFileName(dir, originalName)
-}
-
-// moveFile 移动文件
+// moveFile 移动文件：优先用 rename（同一文件系统内最快），跨盘时退化为复制后删除。
 func moveFile(src, dst string) error {
-	// 先尝试重命名（同一文件系统内最快）
 	if err := os.Rename(src, dst); err == nil {
 		return nil
 	}
 
-	// 跨文件系统时，复制后删除
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -693,30 +675,22 @@ func moveFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
-
 	if _, err := dstFile.ReadFrom(srcFile); err != nil {
+		dstFile.Close()
+		return err
+	}
+	// 必须先关闭再删除源文件：否则目标可能尚未落盘就丢失了源数据
+	if err := dstFile.Close(); err != nil {
 		return err
 	}
 
-	// 保留原文件权限
-	srcInfo, err := os.Stat(src)
-	if err == nil {
-		os.Chmod(dst, srcInfo.Mode())
+	if srcInfo, err := os.Stat(src); err == nil {
+		_ = os.Chmod(dst, srcInfo.Mode())
 	}
-
 	return os.Remove(src)
 }
 
-// moveFileWithDir 移动文件（自动创建目标目录）
-func moveFileWithDir(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	return moveFile(src, dst)
-}
-
-// strPtr 字符串指针辅助函数
+// strPtr 字符串指针辅助函数（空串视为 nil）
 func strPtr(s string) *string {
 	if s == "" {
 		return nil
@@ -740,14 +714,21 @@ func calculateFileHash(filePath string) ([]byte, error) {
 	return hasher.Sum(nil), nil
 }
 
-// copyFileData 通过读取全部内容再写入的方式复制文件（避免 moveFile 跨盘/句柄锁定问题）
+// copyFileData 流式复制文件（用于编辑结果写回，避免把整个文件读入内存）
 func copyFileData(src, dst string) error {
-	data, err := os.ReadFile(src)
+	srcFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("读取源文件失败: %w", err)
 	}
-	if err := os.WriteFile(dst, data, 0644); err != nil {
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
 		return fmt.Errorf("写入目标文件失败: %w", err)
 	}
-	return nil
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		dstFile.Close()
+		return fmt.Errorf("写入目标文件失败: %w", err)
+	}
+	return dstFile.Close()
 }

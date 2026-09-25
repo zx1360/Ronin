@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:torrid/core/services/debug/logging_service.dart';
 
-// ----comic_page.dart
+// comic_page.dart
 // 查找目录中的第一张图片
 Future<String> findFirstImage(Directory dir) async {
   try {

@@ -1,165 +1,112 @@
+// Package comic_handler 提供 Android 端"漫画"模块的接口（legacy 书库 + 在线章节）。
+//
+// 数据来自 comix schema 中由爬虫维护的视图；管理字段更新仍写回数据库。
 package comic_handler
 
 import (
 	"fmt"
-	"monarch/internal/config"
-	"monarch/internal/model"
-	"monarch/internal/repository/comic_repo"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/gin-gonic/gin"
+
+	"monarch/internal/config"
+	"monarch/internal/model"
+	"monarch/internal/repository/comic_repo"
 )
 
-// ----漫画数据----
-// 获取漫画总信息
-// @Summary 获取漫画汇总元数据
-// @Tags comic
-// @Produce json
-// @Success 200 {object} model.ComicTotalMetaData
-// @Router /api/comic/meta-info [get]
+// FetchComicMetadata 获取漫画汇总元数据。
 func FetchComicMetadata(c *gin.Context) {
 	metadata, err := comic_repo.GetComicMetaData()
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(200, metadata)
+	c.JSON(http.StatusOK, metadata)
 }
 
-// 获取所有漫画信息
-// @Summary 获取全部漫画列表
-// @Tags comic
-// @Produce json
-// @Success 200 {array} model.ComicInfo
-// @Router /api/comic/comic-info [get]
+// FetchAllComicInfos 获取全部漫画列表。
 func FetchAllComicInfos(c *gin.Context) {
 	comicInfos, err := comic_repo.GetAllComicInfos()
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(200, comicInfos)
+	c.JSON(http.StatusOK, comicInfos)
 }
 
-// 获取某漫画的所有章节信息
-// @Summary 获取指定漫画的章节列表
-// @Tags comic
-// @Produce json
-// @Param comic-id path string true "漫画ID"
-// @Success 200 {array} model.ChapterInfo
-// @Router /api/comic/comic-info/{comic-id} [get]
+// FetchChaptersWithComicId 获取指定漫画的章节列表。
 func FetchChaptersWithComicId(c *gin.Context) {
-	comicId := c.Param("comic-id")
-	chapters, err := comic_repo.GetChaptersWithComicId(comicId)
+	chapters, err := comic_repo.GetChaptersWithComicId(c.Param("comic-id"))
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(200, chapters)
+	c.JSON(http.StatusOK, chapters)
 }
 
-// 在线阅读, 获取某章节的详细信息(包括图片)
-// @Summary 获取指定章节详情（含图片）
-// @Tags comic
-// @Produce json
-// @Param chapter-id path string true "章节ID"
-// @Success 200 {object} model.ChapterInfo
-// @Failure 404 {object} map[string]string
-// @Router /api/comic/chapter-info/{chapter-id} [get]
+// FetchImagesWithChapterId 获取指定章节的图片清单（在线阅读用）。
 func FetchImagesWithChapterId(c *gin.Context) {
-	chapterId := c.Param("chapter-id")
-	chapterInfo, err := comic_repo.GetImagesWithChapterId(chapterId)
+	chapterInfo, err := comic_repo.GetImagesWithChapterId(c.Param("chapter-id"))
 	if err != nil {
-		c.JSON(404, gin.H{
-			"message": fmt.Sprintf("FetchChapterInfo出错: %v", err),
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("FetchChapterInfo出错: %v", err)})
 		return
 	}
-	c.JSON(200, chapterInfo)
+	c.JSON(http.StatusOK, chapterInfo)
 }
 
-// 下载整部漫画
-// @Summary 下载整部漫画清单
-// @Tags comic
-// @Produce json
-// @Param comic-id path string true "漫画ID"
-// @Success 200 {array} model.ChapterInfo
-// @Router /api/comic/download/{comic-id} [get]
+// DownloadComic 返回整部漫画的章节+图片清单（客户端据此离线下载）。
 func DownloadComic(c *gin.Context) {
-	comicId := c.Param("comic-id")
-	chapterMap, imageMap, err := comic_repo.GetComicAllChaptersAndImages(comicId)
+	chapterMap, imageMap, err := comic_repo.GetComicAllChaptersAndImages(c.Param("comic-id"))
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	manifest := make([]model.ChapterInfo, 0, len(chapterMap))
 	for _, chapter := range chapterMap {
 		manifest = append(manifest, model.ChapterInfo{
-			Id:           chapter.Id,
-			ComicId:      chapter.ComicId,
+			ID:           chapter.ID,
+			ComicID:      chapter.ComicID,
 			DirName:      chapter.DirName,
 			ChapterIndex: chapter.ChapterIndex,
 			ImageCount:   chapter.ImageCount,
-			Images:       imageMap[chapter.Id],
+			Images:       imageMap[chapter.ID],
 		})
 	}
 	sort.Slice(manifest, func(i, j int) bool {
 		return manifest[i].ChapterIndex < manifest[j].ChapterIndex
 	})
 
-	c.JSON(200, manifest)
+	c.JSON(http.StatusOK, manifest)
 }
 
-// ---- 新增: 漫画管理接口 ----
-
-// UpdateComic 更新漫画元数据 (is_public/readed/cover_image)
-// @Summary 更新漫画元数据
-// @Tags comic
-// @Accept json
-// @Produce json
-// @Param comic-id path string true "漫画ID"
-// @Param body body model.UpdateComicRequest true "更新字段"
-// @Success 200 {object} map[string]string
-// @Router /api/comic/comic-info/{comic-id} [put]
+// UpdateComic 更新漫画元数据（is_public / readed / cover_image）。
 func UpdateComic(c *gin.Context) {
-	comicId := c.Param("comic-id")
 	var req model.UpdateComicRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "请求体格式无效: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式无效: " + err.Error()})
 		return
 	}
-
-	if err := comic_repo.UpdateComicMeta(comicId, req); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+	if err := comic_repo.UpdateComicMeta(c.Param("comic-id"), req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(200, gin.H{"status": "ok"})
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// DeleteComic 删除漫画（级联删除数据库记录 + 文件系统资源）
-// @Summary 删除漫画
-// @Tags comic
-// @Produce json
-// @Param comic-id path string true "漫画ID"
-// @Success 200 {object} map[string]string
-// @Router /api/comic/comic-info/{comic-id} [delete]
+// DeleteComic 删除漫画：先删数据库记录，再清理文件系统资源。
+//
+// 文件布局有两套，都要覆盖（目录不存在时 RemoveAll 返回 nil，无需预判）：
+// legacy 资源为 {STATIC_DIR}/comics/{title}，爬虫资源为 {STATIC_DIR}/{rel_dir}。
 func DeleteComic(c *gin.Context) {
-	comicId := c.Param("comic-id")
-
-	// 先获取标题与存储相对路径用于删除文件
-	title, relDir, err := comic_repo.DeleteComic(comicId)
+	title, relDir, err := comic_repo.DeleteComic(c.Param("comic-id"))
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 删除文件系统中的漫画资源目录。
-	// 两套布局都要覆盖：爬虫资源为 {STATIC_DIR}/{comic_id}（rel_dir，权威来源），
-	// legacy 资源为 {STATIC_DIR}/comics/{title}。
-	// 目录不存在时 RemoveAll 返回 nil，因此只需收集真正的失败。
-	var failed []string
 	targets := make([]string, 0, 2)
 	if relDir != "" {
 		targets = append(targets, filepath.Join(config.AppConf.StaticDir, filepath.FromSlash(relDir)))
@@ -167,43 +114,36 @@ func DeleteComic(c *gin.Context) {
 	if title != "" {
 		targets = append(targets, filepath.Join(config.AppConf.StaticDir, "comics", title))
 	}
+
+	var failed []string
 	for _, dir := range targets {
 		if err := os.RemoveAll(dir); err != nil {
 			failed = append(failed, fmt.Sprintf("%s: %v", dir, err))
 		}
 	}
 	if len(failed) > 0 {
-		// 文件删除失败不阻塞响应，但记录
-		c.JSON(200, gin.H{
+		// 文件清理失败不阻塞响应，但要如实告知客户端
+		c.JSON(http.StatusOK, gin.H{
 			"status":  "partial",
 			"message": fmt.Sprintf("数据库记录已删除，但文件清理失败: %v", failed),
 			"deleted": title,
 		})
 		return
 	}
-
-	c.JSON(200, gin.H{"status": "ok", "deleted": title})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "deleted": title})
 }
 
-// SyncReadedStatus 同步已读状态并返回各漫画服务器章节总数
-// @Summary 同步已读状态
-// @Tags comic
-// @Accept json
-// @Produce json
-// @Param body body model.SyncReadedRequest true "已读漫画ID列表"
-// @Success 200 {object} model.SyncReadedResponse
-// @Router /api/comic/sync-readed [post]
+// SyncReadedStatus 同步已读状态，并返回各漫画的服务器章节总数（供客户端判断增量）。
 func SyncReadedStatus(c *gin.Context) {
 	var req model.SyncReadedRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "请求体格式无效: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式无效: " + err.Error()})
 		return
 	}
-
 	resp, err := comic_repo.SyncReadedStatus(req.ReadedIds)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(200, resp)
+	c.JSON(http.StatusOK, resp)
 }

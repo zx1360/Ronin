@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
@@ -17,8 +18,17 @@ class SettingWidget extends ConsumerWidget {
         .where((l) => settings.selectedLabels.contains(l.id))
         .map((l) => l.id)
         .toList();
+
     void onToggle(String labelId) {
       ref.read(browseManagerProvider.notifier).toggleLabel(labelId);
+    }
+
+    Future<void> refreshStatistics() async {
+      final notifier = ref.read(essayServiceProvider.notifier);
+      // 必须按序 await：重算计数后才知道哪些标签真的没有被引用
+      await notifier.refreshLabel();
+      await notifier.refreshYear();
+      await notifier.deleteZeroLabels();
     }
 
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
@@ -36,43 +46,35 @@ class SettingWidget extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          // 排序方式
           const Text('排序方式:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          RadioListTile<SortType>(
-            title: const Text('时间升序'),
-            value: SortType.ascending,
+          RadioGroup<SortType>(
             groupValue: settings.sortType,
             onChanged: (value) {
               if (value != null) {
                 ref.read(browseManagerProvider.notifier).setSortType(value);
               }
             },
-          ),
-          RadioListTile<SortType>(
-            title: const Text('时间降序'),
-            value: SortType.descending,
-            groupValue: settings.sortType,
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(browseManagerProvider.notifier).setSortType(value);
-              }
-            },
-          ),
-          RadioListTile<SortType>(
-            title: const Text('随机'),
-            value: SortType.random,
-            groupValue: settings.sortType,
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(browseManagerProvider.notifier).setSortType(value);
-              }
-            },
+            child: const Column(
+              children: [
+                RadioListTile<SortType>(
+                  title: Text('时间升序'),
+                  value: SortType.ascending,
+                ),
+                RadioListTile<SortType>(
+                  title: Text('时间降序'),
+                  value: SortType.descending,
+                ),
+                RadioListTile<SortType>(
+                  title: Text('随机'),
+                  value: SortType.random,
+                ),
+              ],
+            ),
           ),
 
           const SizedBox(height: 16),
 
-          // 标签筛选
           const Text('标签筛选:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
 
@@ -87,16 +89,17 @@ class SettingWidget extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          // 重置按钮和刷新所有统计信息按钮.
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               ElevatedButton(
-                onPressed: () {
-                  final notifier = ref.read(essayServiceProvider.notifier);
-                  notifier.refreshLabel();
-                  notifier.refreshYear();
-                  notifier.deleteZeroLabels();
+                onPressed: () async {
+                  try {
+                    await refreshStatistics();
+                    if (context.mounted) displaySnackBar(context, '统计信息已刷新');
+                  } catch (e) {
+                    if (context.mounted) displaySnackBar(context, '刷新失败: $e');
+                  }
                 },
                 child: const Text('刷新信息'),
               ),

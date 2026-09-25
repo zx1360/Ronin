@@ -28,15 +28,12 @@ class _ComixPageState extends ConsumerState<ComixPage>
     _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      // 页面可见时才允许轮询；离开后由 dispose 关闭，避免空闲时仍在请求。
-      ref.read(comixBoardProvider.notifier).setPageActive(true);
       await ref.read(comixBoardProvider.notifier).refresh();
     });
   }
 
   @override
   void dispose() {
-    ref.read(comixBoardProvider.notifier).setPageActive(false);
     _tabController.dispose();
     super.dispose();
   }
@@ -60,11 +57,7 @@ class _ComixPageState extends ConsumerState<ComixPage>
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: const [
-              UrlDownloadTab(),
-              ComicsLibraryTab(),
-              TasksTab(),
-            ],
+            children: const [UrlDownloadTab(), ComicsLibraryTab(), TasksTab()],
           ),
         ),
       ],

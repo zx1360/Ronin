@@ -8,20 +8,19 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// 应用配置数据类
+// AppConfig 应用配置数据类
 type AppConfig struct {
 	StaticDir  string
 	GalleryDir string
-	ComicDir   string
 }
 
-// 网络配置
+// NetConfig 网络配置
 type NetConfig struct {
 	LocalPort      string
 	LocalDebugPort string
 }
 
-// 数据库配置
+// DbConfig 数据库配置
 type DbConfig struct {
 	DbIP       string
 	DbPort     string
@@ -30,38 +29,34 @@ type DbConfig struct {
 	DbName     string
 }
 
-// comix 爬虫集成配置（子进程调用 python -m comix.cli）
+// ComixConfig comix 爬虫集成配置（子进程调用 python -m comix.cli）
 type ComixConfig struct {
 	Python string // python 可执行文件（默认 "python"）
 	Root   string // comix 项目根目录（依赖 .env 与 util 包，必须设置）
 }
 
-// 运行模式
+// IsLocalMode 运行模式：true=本地开发(HTTP+免鉴权)
 var IsLocalMode bool
 
 // 向外暴露数据对象
 var (
-	AppConf AppConfig
-	NetConf NetConfig
-	DbConf  DbConfig
+	AppConf   AppConfig
+	NetConf   NetConfig
+	DbConf    DbConfig
 	ComixConf ComixConfig
 )
 
-// 配置加载
+// Load 从 .env 与环境变量加载配置，并校验必要项。
 func Load() error {
 	// 尝试从 .env 文件加载环境变量（文件不存在时不报错）
 	_ = godotenv.Load()
 
-	// 应用配置
 	AppConf.StaticDir = os.Getenv("STATIC_DIR")
 	AppConf.GalleryDir = os.Getenv("GALLERY_DIR")
-	AppConf.ComicDir = os.Getenv("COMIC_DIR")
 
-	// 网络配置
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")
 	NetConf.LocalDebugPort = os.Getenv("LOCAL_DEBUG_PORT")
 
-	// 数据库连接配置
 	DbConf.DbIP = os.Getenv("DB_IP")
 	DbConf.DbPort = os.Getenv("DB_PORT")
 	DbConf.DbUser = os.Getenv("DB_USER")
@@ -83,7 +78,6 @@ func Validate() error {
 	required := map[string]string{
 		"STATIC_DIR":  AppConf.StaticDir,
 		"GALLERY_DIR": AppConf.GalleryDir,
-		"COMIC_DIR":   AppConf.ComicDir,
 		"LOCAL_PORT":  NetConf.LocalPort,
 		"DB_IP":       DbConf.DbIP,
 		"DB_PORT":     DbConf.DbPort,

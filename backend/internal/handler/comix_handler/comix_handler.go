@@ -76,7 +76,7 @@ func Init(c *gin.Context) {
 func Sites(c *gin.Context) {
 	sites, err := comix_repo.ListSites()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"sites": sites}})
@@ -86,7 +86,7 @@ func Sites(c *gin.Context) {
 func List(c *gin.Context) {
 	comics, err := comix_repo.ListComics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"comics": comics}})
@@ -102,10 +102,10 @@ func Chapters(c *gin.Context) {
 	chapters, err := comix_repo.ListChapters(comicID)
 	if err != nil {
 		if errors.Is(err, comix_repo.ErrComicNotFound) {
-			c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+			respondError(c, http.StatusOK, err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -114,7 +114,7 @@ func Chapters(c *gin.Context) {
 	})
 }
 
-// Delete 删除漫画（直查库：DB 级联 + 文件删除，可 keep-files）。
+// Delete 删除漫画（DB 级联 + 文件删除，可 keep-files）。
 func Delete(c *gin.Context) {
 	var req DeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.ComicID <= 0 {
@@ -124,10 +124,10 @@ func Delete(c *gin.Context) {
 	result, err := comix_repo.DeleteComic(req.ComicID, req.KeepFiles)
 	if err != nil {
 		if errors.Is(err, comix_repo.ErrComicNotFound) {
-			c.JSON(http.StatusOK, gin.H{"ok": false, "error": err.Error()})
+			respondError(c, http.StatusOK, err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": result})
@@ -152,7 +152,7 @@ func DownloadURL(c *gin.Context) {
 
 	sites, err := comix_repo.ListSites()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -287,7 +287,7 @@ func ListTasks(c *gin.Context) {
 func GetTask(c *gin.Context) {
 	task, err := comix.Manager.Get(c.Param("task-id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusNotFound, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": task})
@@ -297,7 +297,7 @@ func GetTask(c *gin.Context) {
 func StopTask(c *gin.Context) {
 	taskID := c.Param("task-id")
 	if err := comix.Manager.Stop(taskID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"task_id": taskID, "status": comix.TaskKilled}})
@@ -305,13 +305,18 @@ func StopTask(c *gin.Context) {
 
 // ---- 内部辅助 ----
 
+// respondError 按 comix 协议输出错误响应（业务错误 200 + ok=false，故障 5xx）。
+func respondError(c *gin.Context, status int, err error) {
+	c.JSON(status, gin.H{"ok": false, "error": err.Error()})
+}
+
 // runSync 同步执行一次快速 comix 命令并直接返回其 JSON 结果。
 func runSync(c *gin.Context, cmd string, rest ...string) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), syncTimeout)
 	defer cancel()
 	result, err := comix.RunSync(ctx, cmd, rest...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -321,7 +326,7 @@ func runSync(c *gin.Context, cmd string, rest ...string) {
 func startTask(c *gin.Context, name, cmd string, rest ...string) {
 	task, err := comix.Manager.Start(name, cmd, rest...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

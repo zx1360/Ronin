@@ -25,15 +25,9 @@ import 'package:torrid/core/services/io/io_service.dart';
 
 part 'notifier_provider.g.dart';
 
-// ============================================================================
-// 数据仓库
-// ============================================================================
-
 /// Comic 模块的数据仓库
 ///
 /// 封装对 [ComicPreference]、[ComicInfo]、[ChapterInfo] 三个 Box 的访问。
-///
-/// **重构说明**: 原名 `Cashier`，重命名为语义更清晰的 `ComicRepository`。
 class ComicRepository {
   final Box<ComicPreference> prefBox;
   final Box<ComicInfo> comicInfoBox;
@@ -45,10 +39,6 @@ class ComicRepository {
     required this.chapterInfoBox,
   });
 }
-
-// ============================================================================
-// Comic 服务
-// ============================================================================
 
 /// Comic 模块的核心服务
 ///
@@ -72,10 +62,6 @@ class ComicService extends _$ComicService {
       chapterInfoBox: ref.read(chapterInfoBoxProvider),
     );
   }
-
-  // --------------------------------------------------------------------------
-  // 阅读偏好管理
-  // --------------------------------------------------------------------------
 
   /// 保存漫画阅读偏好
   Future<void> putComicPref({required ComicPreference comicPref}) async {
@@ -102,10 +88,6 @@ class ComicService extends _$ComicService {
     );
     ref.invalidate(comicPrefWithComicIdProvider);
   }
-
-  // --------------------------------------------------------------------------
-  // 漫画下载
-  // --------------------------------------------------------------------------
 
   /// 下载整部漫画并保存到本地
   ///
@@ -307,10 +289,6 @@ class ComicService extends _$ComicService {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // 同步
-  // --------------------------------------------------------------------------
-
   /// 用服务器数据同步更新本地漫画各字段
   ///
   /// 仅更新服务器侧维护的字段（is_public / readed / chapter_count / image_count），
@@ -329,10 +307,6 @@ class ComicService extends _$ComicService {
       ),
     );
   }
-
-  // --------------------------------------------------------------------------
-  // 元数据刷新
-  // --------------------------------------------------------------------------
 
   /// 刷新所有漫画元数据（完全重建）
   Future<void> refreshInfosAll() async {

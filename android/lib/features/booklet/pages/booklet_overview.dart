@@ -58,12 +58,20 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
   /// 切换选中的样式（下拉框回调）
   /// [newStyle]：新选中的样式
   void _onStyleChanged(String? newStyleId) {
-    if (newStyleId != _currentStyle?.id) {
-      setState(() {
-        _currentStyle = ref.read(styleByIdProvider(newStyleId!));
-        _selectedTaskId = null; // 切换样式时重置任务筛选
-      });
+    if (newStyleId == null || newStyleId == _currentStyle?.id) return;
+    setState(() {
+      _currentStyle = ref.read(styleByIdProvider(newStyleId));
+      _selectedTaskId = null; // 切换样式时重置任务筛选
+    });
+  }
+
+  /// 当前筛选任务的标题；任务已被删除时回退到默认标题
+  String _selectedTaskTitle() {
+    final tasks = _currentStyle?.tasks ?? const <Task>[];
+    for (final task in tasks) {
+      if (task.id == _selectedTaskId) return task.title;
     }
+    return '所选任务';
   }
 
   /// 打开新建样式BottomSheet（最大高度85%设备高度，超出可滚动）
@@ -117,10 +125,10 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
         source: ImageSource.gallery,
         imageQuality: 80, // 图片质量压缩
       );
-      if (pickedFile != null && mounted) {
-        imagePaths[index] = pickedFile.path;
-        imageFiles[index] = pickedFile;
-      }
+      // 弹选择器期间任务行可能已被删除，越界写入会抛 RangeError
+      if (pickedFile == null || !mounted || index >= imagePaths.length) return;
+      imagePaths[index] = pickedFile.path;
+      imageFiles[index] = pickedFile;
       updateTasks();
     }
 
@@ -219,7 +227,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
 
       // 创建新Style并保存到Hive
       final newStyle = Style.newOne(getTodayDate(), tasks);
-      _server.putStyle(style: newStyle);
+      await _server.putStyle(style: newStyle);
 
       // 关闭BottomSheet并刷新页面数据
       if (mounted) {
@@ -456,7 +464,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                 // 打卡记录日历
                 Text(
                   _selectedTaskId != null
-                      ? '「${_currentStyle!.tasks.firstWhere((t) => t.id == _selectedTaskId, orElse: () => _currentStyle!.tasks.first).title}」完成记录'
+                      ? '「${_selectedTaskTitle()}」完成记录'
                       : '打卡记录总览',
                   style: noteTitle,
                 ),

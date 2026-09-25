@@ -67,10 +67,6 @@ class RuntimeProcessController extends _$RuntimeProcessController {
     return state.runtimes[taskId] ?? RuntimeProcessState.idle(taskId);
   }
 
-  List<ProcessLogEntry> logsOf(String taskId) {
-    return state.logs[taskId] ?? const <ProcessLogEntry>[];
-  }
-
   bool get hasRunningTasks {
     for (final runtime in state.runtimes.values) {
       if (runtime.status == RuntimeStatus.running ||
@@ -92,9 +88,10 @@ class RuntimeProcessController extends _$RuntimeProcessController {
     }
 
     if (requiresFfmpegCheck(task, preset)) {
-      final missing = await checker.findMissingCommands(
-        const <String>['ffmpeg', 'ffprobe'],
-      );
+      final missing = await checker.findMissingCommands(const <String>[
+        'ffmpeg',
+        'ffprobe',
+      ]);
       if (missing.isNotEmpty) {
         return RuntimeActionResult.failure(
           '缺失依赖: ${missing.join(', ')}，请先安装并加入 PATH',
@@ -148,16 +145,21 @@ class RuntimeProcessController extends _$RuntimeProcessController {
       return RuntimeActionResult.failure(result.error ?? '启动失败');
     }
 
-    _updateRuntime(
-      task.id,
-      RuntimeProcessState(
-        taskId: task.id,
-        status: RuntimeStatus.running,
-        pid: result.pid,
-        startedAt: runtimeOf(task.id).startedAt ?? DateTime.now(),
-        message: '运行中',
-      ),
-    );
+    // 进程可能在 start() 返回前就已退出（onExit 已把状态落定为 stopped/failed），
+    // 此时不能再用 running 覆盖，否则 UI 会一直显示"运行中"。
+    final current = runtimeOf(task.id);
+    if (current.status == RuntimeStatus.starting) {
+      _updateRuntime(
+        task.id,
+        RuntimeProcessState(
+          taskId: task.id,
+          status: RuntimeStatus.running,
+          pid: result.pid,
+          startedAt: current.startedAt ?? DateTime.now(),
+          message: '运行中',
+        ),
+      );
+    }
 
     return RuntimeActionResult.success('任务已启动');
   }
@@ -170,10 +172,9 @@ class RuntimeProcessController extends _$RuntimeProcessController {
 
     _updateRuntime(
       task.id,
-      runtimeOf(task.id).copyWith(
-        status: RuntimeStatus.stopping,
-        message: '正在停止...',
-      ),
+      runtimeOf(
+        task.id,
+      ).copyWith(status: RuntimeStatus.stopping, message: '正在停止...'),
     );
 
     try {
@@ -193,10 +194,9 @@ class RuntimeProcessController extends _$RuntimeProcessController {
       );
       _updateRuntime(
         task.id,
-        runtimeOf(task.id).copyWith(
-          status: RuntimeStatus.failed,
-          message: '停止失败: $error',
-        ),
+        runtimeOf(
+          task.id,
+        ).copyWith(status: RuntimeStatus.failed, message: '停止失败: $error'),
       );
       return RuntimeActionResult.failure('停止失败: $error');
     }
@@ -215,8 +215,9 @@ class RuntimeProcessController extends _$RuntimeProcessController {
 
   void _appendLog(ProcessLogEntry entry) {
     final nextLogs = Map<String, List<ProcessLogEntry>>.from(state.logs);
-    final list = List<ProcessLogEntry>.from(nextLogs[entry.taskId] ?? const <ProcessLogEntry>[])
-      ..add(entry);
+    final list = List<ProcessLogEntry>.from(
+      nextLogs[entry.taskId] ?? const <ProcessLogEntry>[],
+    )..add(entry);
 
     if (list.length > state.maxLinesPerTask) {
       list.removeRange(0, list.length - state.maxLinesPerTask);

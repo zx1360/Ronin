@@ -24,16 +24,4 @@ class AppLogger {
   void warning(String message) => _logger.warning(message);
   void error(String message, [Object? error, StackTrace? stackTrace]) =>
       _logger.severe(message, error, stackTrace);
-
-  // 设置日志级别
-  void setLevel(Level level) {
-    Logger.root.level = level;
-  }
 }
-
-// 全局函数, 简化调用
-void logDebug(String message) => AppLogger().debug(message);
-void logInfo(String message) => AppLogger().info(message);
-void logWarning(String message) => AppLogger().warning(message);
-void logError(String message, [Object? error, StackTrace? stackTrace]) =>
-    AppLogger().error(message, error, stackTrace);

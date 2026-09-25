@@ -1,6 +1,8 @@
 /// Essay 模块的派生状态提供者
 ///
 /// 基于 Box 数据流提供经过处理的同步数据访问。
+/// 这些 provider 都返回副本：Box 流里的列表与对象是共享实例，
+/// 就地排序/洗牌会污染其它消费者（随机排序尤其会"渗漏"到所有读取方）。
 library;
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -12,10 +14,6 @@ import 'package:torrid/features/essay/providers/setting_provider.dart';
 
 part 'status_provider.g.dart';
 
-// ============================================================================
-// 标签数据
-// ============================================================================
-
 /// 所有标签列表（按随笔数量降序排列）
 @riverpod
 List<Label> labels(LabelsRef ref) {
@@ -23,12 +21,13 @@ List<Label> labels(LabelsRef ref) {
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  final labels = asyncVal.asData?.value ?? [];
-  return labels..sort((a, b) => b.essayCount.compareTo(a.essayCount));
+  final source = asyncVal.asData?.value ?? const <Label>[];
+  return List<Label>.of(source)
+    ..sort((a, b) => b.essayCount.compareTo(a.essayCount));
 }
 
 /// 标签 ID 到名称的映射表
-/// 
+///
 /// 便于在显示时快速查找标签名称。
 @riverpod
 Map<String, String> idMap(IdMapRef ref) {
@@ -36,57 +35,46 @@ Map<String, String> idMap(IdMapRef ref) {
   return {for (final label in allLabels) label.id: label.name};
 }
 
-// ============================================================================
-// 年度统计数据
-// ============================================================================
-
-/// 所有年度统计数据（按年份降序排列）
-/// 
-/// 每个年度内的月份数据按月份升序排列。
+/// 所有年度统计数据（按年份降序排列，每年内月份按升序排列）
 @riverpod
 List<YearSummary> summaries(SummariesRef ref) {
   final asyncVal = ref.watch(summaryStreamProvider);
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  final summaries = asyncVal.asData?.value ?? [];
-  
-  // 对每个年度的月份数据进行排序
-  for (final summary in summaries) {
-    summary.monthSummaries.sort(
-      (a, b) => int.parse(a.month).compareTo(int.parse(b.month)),
-    );
-  }
+  final source = asyncVal.asData?.value ?? const <YearSummary>[];
 
-  // 年度按降序排列
-  return summaries
-    ..sort((a, b) => int.parse(b.year).compareTo(int.parse(a.year)));
+  final sorted = source.map((summary) {
+    final months = List<MonthSummary>.of(summary.monthSummaries)
+      ..sort((a, b) => int.parse(a.month).compareTo(int.parse(b.month)));
+    return summary.copyWith(monthSummaries: months);
+  }).toList();
+
+  sorted.sort((a, b) => int.parse(b.year).compareTo(int.parse(a.year)));
+  return sorted;
 }
 
-// ============================================================================
-// 筛选后的随笔数据
-// ============================================================================
-
 /// 经过筛选和排序的随笔列表
-/// 
+///
 /// 根据 [BrowseManager] 的设置进行标签筛选和排序。
 @riverpod
 Future<List<Essay>> filteredEssays(FilteredEssaysRef ref) async {
   final essays = await ref.watch(essayStreamProvider.future);
   final settings = ref.watch(browseManagerProvider);
 
-  List<Essay> filtered = essays;
-  
-  // 按标签筛选
+  // 始终从副本出发排序/洗牌，避免改动 Box 流中的共享列表
+  var filtered = List<Essay>.of(essays);
+
   if (settings.selectedLabels.isNotEmpty) {
-    filtered = filtered.where((essay) {
-      return settings.selectedLabels.any(
-        (labelId) => essay.labels.contains(labelId),
-      );
-    }).toList();
+    filtered = filtered
+        .where(
+          (essay) => settings.selectedLabels.any(
+            (labelId) => essay.labels.contains(labelId),
+          ),
+        )
+        .toList();
   }
 
-  // 按设置排序
   switch (settings.sortType) {
     case SortType.ascending:
       filtered.sort((a, b) => a.date.compareTo(b.date));

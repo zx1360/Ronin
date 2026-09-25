@@ -15,14 +15,14 @@ import (
 	"monarch/internal/handler/util_handler"
 )
 
+// SetupRouter 构建全部路由与中间件。
 func SetupRouter() *gin.Engine {
-	// 设置频控日志路径为 static 目录
+	// 封禁日志写在 static 目录下，随应用目录一起迁移/删除
 	util_handler.SetBanLogPath(filepath.Join(config.AppConf.StaticDir, "logs.txt"))
 
-	// gin.SetMode(gin.ReleaseMode) // 切换到发布模式	(终端打印信息更少)
 	r := gin.Default()
 
-	// CORS 跨域配置（HTTPS自签证书场景）
+	// CORS 跨域配置（HTTPS 自签证书场景）
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -39,10 +39,10 @@ func SetupRouter() *gin.Engine {
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)
 
-	// 前端路由	资源/页面
-	r.GET("/", func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, gin.H{
-			"message": "假设是个index.html页面",
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service": "monarch",
+			"message": "Monarch HTTP 服务运行中",
 		})
 	})
 

@@ -23,35 +23,11 @@ func NewRepository() *Repository {
 // HashExists 检查哈希是否已存在
 func (r *Repository) HashExists(ctx context.Context, hash []byte) (bool, error) {
 	var exists bool
-	err := db.Pool.QueryRow(ctx,
+	err := db.GetPool().QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM gallery.media_assets WHERE hash = $1)`,
 		hash,
 	).Scan(&exists)
 	return exists, err
-}
-
-// InsertMediaAsset 插入媒体资产记录
-func (r *Repository) InsertMediaAsset(ctx context.Context, asset *model.MediaAsset) error {
-	_, err := db.Pool.Exec(ctx, `
-		INSERT INTO gallery.media_assets (
-			id, captured_at, file_path, thumb_path, preview_path, 
-			hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-	`,
-		asset.ID,
-		asset.CapturedAt,
-		asset.FilePath,
-		asset.ThumbPath,
-		asset.PreviewPath,
-		asset.Hash,
-		asset.SizeBytes,
-		asset.MimeType,
-		asset.IsDeleted,
-		asset.SyncCount,
-		asset.GroupID,
-		asset.EditParams,
-	)
-	return err
 }
 
 // BatchInsertMediaAssets 批量插入媒体资产
@@ -84,7 +60,7 @@ func (r *Repository) BatchInsertMediaAssets(ctx context.Context, assets []*model
 		)
 	}
 
-	br := db.Pool.SendBatch(ctx, batch)
+	br := db.GetPool().SendBatch(ctx, batch)
 	defer br.Close()
 
 	for range assets {
@@ -98,7 +74,7 @@ func (r *Repository) BatchInsertMediaAssets(ctx context.Context, assets []*model
 
 // GetDeletedAssets 获取标记为删除的媒体资产
 func (r *Repository) GetDeletedAssets(ctx context.Context) ([]*model.MediaAsset, error) {
-	rows, err := db.Pool.Query(ctx, `
+	rows, err := db.GetPool().Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
 			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets 
@@ -139,7 +115,7 @@ func (r *Repository) GetDeletedAssets(ctx context.Context) ([]*model.MediaAsset,
 
 // GetGroupedAssets 获取被捆绑到指定主文件的所有资产
 func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([]*model.MediaAsset, error) {
-	rows, err := db.Pool.Query(ctx, `
+	rows, err := db.GetPool().Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
 			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets 
@@ -180,7 +156,7 @@ func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([
 
 // DeleteAssetRecord 物理删除数据库记录
 func (r *Repository) DeleteAssetRecord(ctx context.Context, id uuid.UUID) error {
-	_, err := db.Pool.Exec(ctx, `DELETE FROM gallery.media_assets WHERE id = $1`, id)
+	_, err := db.GetPool().Exec(ctx, `DELETE FROM gallery.media_assets WHERE id = $1`, id)
 	return err
 }
 
@@ -190,53 +166,13 @@ func (r *Repository) BatchDeleteAssetRecords(ctx context.Context, ids []uuid.UUI
 		return nil
 	}
 
-	_, err := db.Pool.Exec(ctx, `DELETE FROM gallery.media_assets WHERE id = ANY($1)`, ids)
+	_, err := db.GetPool().Exec(ctx, `DELETE FROM gallery.media_assets WHERE id = ANY($1)`, ids)
 	return err
-}
-
-// GetAssetByID 根据 ID 获取媒体资产
-func (r *Repository) GetAssetByID(ctx context.Context, id uuid.UUID) (*model.MediaAsset, error) {
-	asset := &model.MediaAsset{}
-	err := db.Pool.QueryRow(ctx, `
-		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path, 
-			   preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
-		FROM gallery.media_assets 
-		WHERE id = $1
-	`, id).Scan(
-		&asset.ID,
-		&asset.CreatedAt,
-		&asset.UpdatedAt,
-		&asset.CapturedAt,
-		&asset.FilePath,
-		&asset.ThumbPath,
-		&asset.PreviewPath,
-		&asset.Hash,
-		&asset.SizeBytes,
-		&asset.MimeType,
-		&asset.IsDeleted,
-		&asset.SyncCount,
-		&asset.GroupID,
-		&asset.EditParams,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return asset, nil
-}
-
-// CountAssets 统计媒体资产数量
-func (r *Repository) CountAssets(ctx context.Context) (total int64, deleted int64, err error) {
-	err = db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM gallery.media_assets`).Scan(&total)
-	if err != nil {
-		return
-	}
-	err = db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM gallery.media_assets WHERE is_deleted = true`).Scan(&deleted)
-	return
 }
 
 // GetAllAssets 获取所有媒体资产（包含 is_deleted=true 记录）
 func (r *Repository) GetAllAssets(ctx context.Context) ([]*model.MediaAsset, error) {
-	rows, err := db.Pool.Query(ctx, `
+	rows, err := db.GetPool().Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
 		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets
@@ -277,7 +213,7 @@ func (r *Repository) GetAllAssets(ctx context.Context) ([]*model.MediaAsset, err
 
 // GetActiveAssets 获取未删除的媒体资产
 func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, error) {
-	rows, err := db.Pool.Query(ctx, `
+	rows, err := db.GetPool().Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
 		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets
@@ -319,7 +255,7 @@ func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, 
 
 // UpdateMediaAssetFull 显式更新媒体资产所有字段
 func (r *Repository) UpdateMediaAssetFull(ctx context.Context, asset *model.MediaAsset) error {
-	_, err := db.Pool.Exec(ctx, `
+	_, err := db.GetPool().Exec(ctx, `
 		UPDATE gallery.media_assets SET
 			created_at   = $1,
 			updated_at   = $2,
@@ -356,7 +292,7 @@ func (r *Repository) UpdateMediaAssetFull(ctx context.Context, asset *model.Medi
 
 // GetEditedAssets 获取所有有编辑参数且未删除的媒体资产
 func (r *Repository) GetEditedAssets(ctx context.Context) ([]*model.MediaAsset, error) {
-	rows, err := db.Pool.Query(ctx, `
+	rows, err := db.GetPool().Query(ctx, `
 		SELECT id, created_at, updated_at, captured_at, file_path, thumb_path,
 		       preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
 		FROM gallery.media_assets
@@ -398,7 +334,7 @@ func (r *Repository) GetEditedAssets(ctx context.Context) ([]*model.MediaAsset, 
 
 // UpdateAssetAfterEdit 编辑后更新资产：更新 file_path/thumb_path/preview_path/hash/size_bytes/mime_type 并清除 edit_params
 func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.MediaAsset) error {
-	_, err := db.Pool.Exec(ctx, `
+	_, err := db.GetPool().Exec(ctx, `
 		UPDATE gallery.media_assets SET
 			updated_at   = $1,
 			file_path    = $2,
@@ -424,7 +360,7 @@ func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.Medi
 
 // ClearEditParams 仅清除指定资产的 edit_params（用于"无操作编辑"场景，不触碰任何文件）
 func (r *Repository) ClearEditParams(ctx context.Context, id uuid.UUID) error {
-	_, err := db.Pool.Exec(ctx, `
+	_, err := db.GetPool().Exec(ctx, `
 		UPDATE gallery.media_assets SET
 			updated_at  = NOW(),
 			edit_params = NULL

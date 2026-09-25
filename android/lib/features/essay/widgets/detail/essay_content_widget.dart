@@ -22,10 +22,12 @@ class EssayContentWidget extends ConsumerWidget {
     final theme = Theme.of(context);
     final dateFormat = DateFormat('yyyy年MM月dd日 HH:mm');
 
-    // 内容数据
-    final essay = ref.watch(contentServerProvider)!;
+    // 内容数据（随笔未选中时不渲染正文）
+    final essay = ref.watch(contentServerProvider);
+    if (essay == null) return const SizedBox.shrink();
     final idMap = ref.watch(idMapProvider);
-    final labelNames = essay.labels.map((l) => idMap[l]!);
+    // 标签可能已被删除：查不到名称时保留 id，避免整页崩溃
+    final labelNames = essay.labels.map((l) => idMap[l] ?? l);
 
     // 对于当天的随笔提供删除/重写功能.
     final isToday = isSameDay(essay.date, DateTime.now());

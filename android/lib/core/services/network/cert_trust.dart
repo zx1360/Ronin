@@ -23,11 +23,6 @@ class CertTrust {
     HttpOverrides.global = _TrustedCertHttpOverrides(_securityContext!);
   }
 
-  /// 为 Dio 配置 IOHttpClientAdapter 以信任自签证书.
-  static void configureDio(HttpClient httpClient) {
-    httpClient.badCertificateCallback = _verifyCert;
-  }
-
   /// 创建已配置信任的 IOHttpClientAdapter, 供 Dio 使用.
   static IOHttpClientAdapter createAdapter() {
     return IOHttpClientAdapter(

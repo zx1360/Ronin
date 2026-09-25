@@ -12,7 +12,7 @@ part 'data_source_provider.g.dart';
 /// 负责 Hive Box 的访问和数据流的提供
 /// ============================================================================
 
-// ==================== Hive Box Providers ====================
+// Hive Box Providers
 
 /// Style Box Provider - 提供 Style 数据的 Hive Box 访问
 @riverpod
@@ -26,7 +26,7 @@ Box<Record> recordBox(RecordBoxRef ref) {
   return Hive.box(HiveService.recordBoxName);
 }
 
-// ==================== 数据流 Providers ====================
+// 数据流 Providers
 
 /// Style 数据流 - 监听 Box 变化，实时推送最新数据
 @riverpod
@@ -56,7 +56,7 @@ Stream<List<Record>> recordStream(RecordStreamRef ref) async* {
   }
 }
 
-// ==================== 基础数据 Providers ====================
+// 基础数据 Providers
 
 /// 所有 Style 列表 - 同步访问接口
 @riverpod

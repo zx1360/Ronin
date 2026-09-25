@@ -109,7 +109,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     );
   }
 
-  // ============ 筛选栏 ============
+  // 筛选栏
 
   Widget _buildFilterBar() {
     final filter = ref.watch(immichFilterNotifierProvider);
@@ -232,7 +232,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     );
   }
 
-  // ============ 主体 ============
+  // 主体
 
   Widget _buildBody(
     AsyncValue<ImmichMediaPage> mediaAsync,
@@ -314,7 +314,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     );
   }
 
-  // ============ 基础交互 ============
+  // 基础交互
 
   Future<void> _sync() async {
     try {
@@ -388,7 +388,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     ];
   }
 
-  // ============ 批量操作 ============
+  // 批量操作
 
   Future<void> _addTagsToSelection() async {
     final ids = _selectedIdsOrdered;

@@ -30,11 +30,6 @@ class WindowsProcessManager {
 
   bool isRunning(String taskId) => _running.containsKey(taskId);
 
-  bool get hasRunningProcess => _running.isNotEmpty;
-
-  List<int> get runningPids =>
-      _running.values.map((item) => item.process.pid).toList(growable: false);
-
   Future<ProcessStartResult> start({
     required TaskProfile task,
     required ArgPreset preset,

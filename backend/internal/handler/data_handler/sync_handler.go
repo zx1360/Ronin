@@ -12,17 +12,6 @@ import (
 )
 
 // SyncHandler 处理数据同步请求
-// @Summary 同步指定模块的数据
-// @Description 读取指定模块的所有数据（DB 表或 JSON 文件），合并后返回
-// @Tags user-data
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param module path string true "模块名称"
-// @Success 200 {object} map[string]interface{} "成功返回合并后的JSON数据"
-// @Failure 404 {object} map[string]string "模块未找到"
-// @Failure 500 {object} map[string]string "服务器内部错误"
-// @Router /api/user-data/sync/{module} [get]
 func SyncHandler(c *gin.Context) {
 	moduleName := c.Param("module")
 	moduleConfig := FindModuleConfigByName(moduleName)
@@ -143,10 +132,7 @@ func syncFromFiles(c *gin.Context, moduleConfig *ModuleConfig) {
 	c.JSON(http.StatusOK, mergedData)
 }
 
-// ============================================================================
 // DB 模型 → JSON Map 转换（保持与 Android 端 JSON 格式兼容）
-// ============================================================================
-
 // toMap 将任意 struct 通过 JSON 往返转换为 map[string]interface{}
 // json.RawMessage 字段会正确展开为 JSON 对象/数组
 func toMap(v interface{}) map[string]interface{} {
