@@ -116,64 +116,119 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     final notifier = ref.read(immichFilterNotifierProvider.notifier);
     final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
     final byId = {for (final tag in tags) tag.id: tag};
+    final favorites = ref.watch(favoriteTagsProvider);
+    final total = ref.watch(immichMediaProvider).valueOrNull?.total;
     final active = filter.tagIds.isNotEmpty ||
         filter.untagged ||
         filter.includeDeleted ||
         !filter.includeDescendants;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 2,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          for (final id in filter.tagIds)
-            Tooltip(
-              message: byId[id]?.fullPath ?? '',
-              child: InputChip(
-                label: Text(
-                  byId[id]?.name ?? '未知标签',
-                  style: const TextStyle(fontSize: 12),
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 第一行: 条件开关 + 结果数
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+          child: Row(
+            children: [
+              FilterChip(
+                label: const Text('未打标签', style: TextStyle(fontSize: 12)),
+                selected: filter.untagged,
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                onDeleted: () => notifier.toggleTag(id),
+                onSelected: (_) => notifier.toggleUntagged(),
               ),
-            ),
-          FilterChip(
-            label: const Text('未打标签', style: TextStyle(fontSize: 12)),
-            selected: filter.untagged,
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onSelected: (_) => notifier.toggleUntagged(),
-          ),
-          FilterChip(
-            label: const Text('含子标签', style: TextStyle(fontSize: 12)),
-            selected: filter.includeDescendants,
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onSelected: notifier.setIncludeDescendants,
-          ),
-          FilterChip(
-            label: const Text('含已删除', style: TextStyle(fontSize: 12)),
-            selected: filter.includeDeleted,
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onSelected: notifier.setIncludeDeleted,
-          ),
-          if (active)
-            TextButton(
-              onPressed: notifier.reset,
-              style: TextButton.styleFrom(
+              if (filter.tagIds.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                FilterChip(
+                  label: const Text('含子标签', style: TextStyle(fontSize: 12)),
+                  selected: filter.includeDescendants,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onSelected: notifier.setIncludeDescendants,
+                ),
+              ],
+              const SizedBox(width: 6),
+              FilterChip(
+                label: const Text('含已删除', style: TextStyle(fontSize: 12)),
+                selected: filter.includeDeleted,
                 visualDensity: VisualDensity.compact,
-                minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onSelected: notifier.setIncludeDeleted,
               ),
-              child: const Text('清空', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 8),
+              Text(
+                total == null ? '加载中…' : '共 $total 项',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              if (active) ...[
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: notifier.reset,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('清空', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        // 第二行: 已选标签（可单个移除）
+        if (filter.tagIds.isNotEmpty)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+            child: Row(
+              children: [
+                const Icon(Icons.filter_alt, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                for (final id in filter.tagIds) ...[
+                  Tooltip(
+                    message: byId[id]?.fullPath ?? '',
+                    child: InputChip(
+                      label: Text(
+                        byId[id]?.name ?? '未知标签',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onDeleted: () => notifier.toggleTag(id),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ],
             ),
-        ],
-      ),
+          ),
+
+        // 第三行: 快捷标签一键筛选
+        if (favorites.isNotEmpty)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
+            child: Row(
+              children: [
+                Icon(Icons.star, size: 14, color: Colors.amber[700]),
+                const SizedBox(width: 4),
+                for (final tag in favorites) ...[
+                  FilterChip(
+                    label: Text(tag.name, style: const TextStyle(fontSize: 12)),
+                    selected: filter.tagIds.contains(tag.id),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onSelected: (_) => notifier.toggleTag(tag.id),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ],
+            ),
+          ),
+      ],
     );
   }
 

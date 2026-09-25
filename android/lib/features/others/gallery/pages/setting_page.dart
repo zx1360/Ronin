@@ -178,8 +178,8 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                           error: (e, _) => Text("错误: $e", style: const TextStyle(fontSize: 12)),
                           data: (stats) {
                             return Text(
-                              "待处理: ${stats.mediaCount} 条 (已删除: ${stats.deletedCount} 条)\n"
-                              "标记后从本地缓存移除, 服务端数据已同步",
+                              "待标记: ${stats.mediaCount} 条 (含已删除 ${stats.deletedCount} 条)\n"
+                              "标记队列前段为已处理并从本地移除(数据已实时同步)",
                               style: const TextStyle(fontSize: 12),
                             );
                           },
@@ -729,7 +729,8 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   Future<void> _handleMarkProcessed() async {
     final confirmed = await _showConfirmDialog(
       title: '标记已处理',
-      content: '将把这些媒体标记为已处理并从本地缓存删除（含缩略图/预览图），确定继续？',
+      content: '将把队列前段（含当前浏览位置与最后操作位置）的媒体在服务端标记为已处理，'
+          '并从本地缓存删除其记录与缩略图/预览图，确定继续？',
     );
 
     if (confirmed) {
