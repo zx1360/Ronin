@@ -6,6 +6,7 @@ import 'package:northstar/ui/ops/pages/task_manager_page.dart';
 import 'package:northstar/ui/ops/pages/logs_page.dart';
 import 'package:northstar/ui/ops/pages/settings_page.dart';
 import 'package:northstar/features/help/pages/help_page.dart';
+import 'package:northstar/ui/ai/pages/ai_page.dart';
 import 'package:northstar/ui/comix/pages/comix_page.dart';
 
 // 定义路由数据模型
@@ -50,6 +51,13 @@ final List<AppRoute> routes = [
     name: 'tasks',
     icon: Icons.task_alt_rounded,
     builder: (context, state) => const TaskManagerPage(),
+  ),
+
+  AppRoute(
+    path: '/ai',
+    name: 'ai',
+    icon: Icons.auto_awesome_motion_rounded,
+    builder: (context, state) => const AiPage(),
   ),
 
   AppRoute(

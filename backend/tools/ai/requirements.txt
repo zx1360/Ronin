@@ -1,0 +1,24 @@
+# 侧车依赖（CPU 版；不引入 torch，全部走 ONNX Runtime）
+#
+# 说明：
+#   - 本机 python 为 3.13，numpy 1.x 无对应 wheel，故使用 numpy 2.x；
+#   - 不依赖 insightface 包（其 sdist 需本地编译）：人脸检测/识别直接在
+#     onnxruntime 上实现，只需 buffalo_l 的两个 ONNX 文件；
+#   - OCR 使用 rapidocr（3.x，python<4 通用 wheel，模型自动从 ModelScope 下载）。
+
+# ONNX 推理运行时（CPU）
+onnxruntime>=1.20,<2
+
+numpy>=2.1,<3
+
+# 图像读写与缩放。
+# 用 opencv-python（非 headless）：rapidocr 硬依赖 opencv_python，
+# 同时装两个发行版会互相覆盖 cv2 包，只保留这一个。
+Pillow>=10.0
+opencv-python>=4.10,<5
+
+# SigLIP 分词器（Rust 实现，无需 torch）
+tokenizers>=0.20,<1
+
+# OCR（PP-OCR 检测/识别/方向分类，ONNX 模型按需下载到用户缓存）
+rapidocr>=3.0,<4
