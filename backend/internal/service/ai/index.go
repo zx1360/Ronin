@@ -34,11 +34,18 @@ type Index struct {
 	lastCheck  time.Time
 	phashes    map[uuid.UUID]int64
 	phashReady bool
+	// ignores 人工标记为"非重复"的媒体，分组时直接排除
+	ignores      map[uuid.UUID]struct{}
+	ignoresReady bool
 }
 
 // NewIndex 创建索引容器（懒加载）。
 func NewIndex(model string) *Index {
-	return &Index{model: model, phashes: map[uuid.UUID]int64{}}
+	return &Index{
+		model:   model,
+		phashes: map[uuid.UUID]int64{},
+		ignores: map[uuid.UUID]struct{}{},
+	}
 }
 
 // VectorCount 返回当前已缓存的向量数。
@@ -61,6 +68,13 @@ func (ix *Index) Invalidate() {
 	ix.loaded = false
 	ix.phashReady = false
 	ix.ids, ix.vecs, ix.scales = nil, nil, nil
+	ix.mu.Unlock()
+}
+
+// InvalidateIgnores 丢弃"非重复"标记缓存（标记变更后调用）。
+func (ix *Index) InvalidateIgnores() {
+	ix.mu.Lock()
+	ix.ignoresReady = false
 	ix.mu.Unlock()
 }
 
@@ -248,13 +262,44 @@ func (ix *Index) EnsurePHashes() error {
 	return nil
 }
 
+// EnsureIgnores 载入"非重复"标记集合。
+func (ix *Index) EnsureIgnores() error {
+	ix.mu.RLock()
+	ready := ix.ignoresReady
+	ix.mu.RUnlock()
+	if ready {
+		return nil
+	}
+
+	ignores, err := ai_repo.LoadDuplicateIgnores()
+	if err != nil {
+		return err
+	}
+	ix.mu.Lock()
+	ix.ignores = ignores
+	ix.ignoresReady = true
+	ix.mu.Unlock()
+	return nil
+}
+
+// IgnoreCount 返回当前缓存中的"非重复"标记数量（未加载时为 0）。
+func (ix *Index) IgnoreCount() int {
+	ix.mu.RLock()
+	defer ix.mu.RUnlock()
+	return len(ix.ignores)
+}
+
 // DuplicateGroups 用感知哈希找出近重复分组。
 //
 // 采用鸽巢原理分桶：把 64 位哈希切成 5 段，汉明距离 ≤ 4 的两张图必然有至少
 // 一段完全相同，因此只需比对同段同桶的候选，避免 O(n²) 全量比较。
 // 超过 4 位差异的相似图不会被此法发现（属可接受的取舍）。
+// 被人工标记为"非重复"的媒体不参与分组。
 func (ix *Index) DuplicateGroups(maxDistance, minGroupSize int) ([]model.DuplicateGroup, error) {
 	if err := ix.EnsurePHashes(); err != nil {
+		return nil, err
+	}
+	if err := ix.EnsureIgnores(); err != nil {
 		return nil, err
 	}
 	if maxDistance <= 0 || maxDistance > 4 {
@@ -267,9 +312,13 @@ func (ix *Index) DuplicateGroups(maxDistance, minGroupSize int) ([]model.Duplica
 	ix.mu.RLock()
 	hashes := make(map[uuid.UUID]int64, len(ix.phashes))
 	for id, h := range ix.phashes {
-		if h >= 0 { // 跳过无法解码的占位值
-			hashes[id] = h
+		if h < 0 { // 跳过无法解码的占位值
+			continue
 		}
+		if _, ignored := ix.ignores[id]; ignored {
+			continue
+		}
+		hashes[id] = h
 	}
 	ix.mu.RUnlock()
 
@@ -319,51 +368,58 @@ func (ix *Index) DuplicateGroups(maxDistance, minGroupSize int) ([]model.Duplica
 	// 连通分量可能链式膨胀：A~B、B~C 但 A 与 C 相差很远（实测出现过组内最大差异
 	// 14 位、成员 12 张的"重复组"）。这里把每个分量切成若干"星形"簇——簇内每张图
 	// 都必须与簇代表在 maxDistance 以内，代表取邻域最大的成员。
-	type groupInfo struct {
-		distance int
-		ids      []uuid.UUID
-	}
-	var groups []groupInfo
+	var groups [][]uuid.UUID
 	for _, members := range grouped {
 		for _, cluster := range splitByRepresentative(members, hashes, maxDistance) {
 			if len(cluster) < minGroupSize {
 				continue
 			}
-			worst := 0
-			for i := 0; i < len(cluster); i++ {
-				for j := i + 1; j < len(cluster); j++ {
-					if d := HammingDistance(hashes[cluster[i]], hashes[cluster[j]]); d > worst {
-						worst = d
-					}
-				}
-			}
-			groups = append(groups, groupInfo{distance: worst, ids: cluster})
+			groups = append(groups, cluster)
 		}
 	}
 
-	sort.Slice(groups, func(i, j int) bool { return len(groups[i].ids) > len(groups[j].ids) })
+	sort.Slice(groups, func(i, j int) bool { return len(groups[i]) > len(groups[j]) })
 
-	// 附带文件名便于直接确认
+	// 附带文件名便于直接确认；顺带剔除已软删除的媒体——桌面端"标记删除"后
+	// 该文件应立即从分组里消失，否则用户会反复看到已经处理过的重复。
 	all := []uuid.UUID{}
 	for _, g := range groups {
-		all = append(all, g.ids...)
+		all = append(all, g...)
 	}
 	files := map[uuid.UUID]string{}
+	deleted := map[uuid.UUID]bool{}
 	if assets, err := fetchAssets(all); err == nil {
 		for _, a := range assets {
 			files[a.ID] = a.FilePath
+			if a.IsDeleted {
+				deleted[a.ID] = true
+			}
 		}
 	}
 
 	result := make([]model.DuplicateGroup, 0, len(groups))
 	for _, g := range groups {
-		names := make([]string, 0, len(g.ids))
-		for _, id := range g.ids {
+		ids := make([]uuid.UUID, 0, len(g))
+		names := make([]string, 0, len(g))
+		worst := 0
+		for _, id := range g {
+			if deleted[id] {
+				continue
+			}
+			for _, kept := range ids {
+				if d := HammingDistance(hashes[kept], hashes[id]); d > worst {
+					worst = d
+				}
+			}
+			ids = append(ids, id)
 			names = append(names, files[id])
 		}
+		if len(ids) < minGroupSize {
+			continue
+		}
 		result = append(result, model.DuplicateGroup{
-			Distance: g.distance,
-			MediaIDs: g.ids,
+			Distance: worst,
+			MediaIDs: ids,
 			Files:    names,
 		})
 	}

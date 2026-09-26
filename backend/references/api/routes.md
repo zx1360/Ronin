@@ -1,13 +1,17 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-09-26T06:34:42Z
-- TotalRoutes: 64
+- GeneratedAt: 2026-09-26T11:20:47Z
+- TotalRoutes: 68
 
 | Method | Path |
 | --- | --- |
 | GET | / |
 | POST | /API/ai/cancel |
+| POST | /API/ai/chat |
 | GET | /API/ai/duplicates |
+| POST | /API/ai/duplicates/ignore |
+| GET | /API/ai/duplicates/ignored |
+| POST | /API/ai/duplicates/unignore |
 | POST | /API/ai/enqueue |
 | POST | /API/ai/faces/assign |
 | POST | /API/ai/index/rebuild |

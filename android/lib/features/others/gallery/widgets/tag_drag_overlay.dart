@@ -17,11 +17,23 @@ import 'package:torrid/features/others/gallery/providers/gallery_providers.dart'
 ///
 /// 浮层所有几何信息(面板、取消区、行位置)均在需要时实时读取, 因此设备旋转、
 /// 媒体旋转或任何尺寸变化后都不会出现命中错位.
+///
+/// 浮层会随 [quarterTurns]（媒体查看时的旋转方向）一起旋转：媒体转成横向后，
+/// 打标签的面板也贴在"媒体的底边"、文字方向与媒体一致，不必来回转手机。
+/// 旋转后一切坐标以浮层自身坐标系为准（手指的屏幕坐标先换算进来），
+/// 因此命中判定与拖拽指示器在两种方向下都准确。
 class TagDragOverlay extends ConsumerStatefulWidget {
   /// 面板底部需要避让的高度（底部标签栏 + 导航栏 + 安全区），由 GalleryPage 传入
   final double bottomInset;
 
-  const TagDragOverlay({super.key, required this.bottomInset});
+  /// 媒体当前旋转的四分之一圈数（0 = 未旋转）
+  final int quarterTurns;
+
+  const TagDragOverlay({
+    super.key,
+    required this.bottomInset,
+    this.quarterTurns = 0,
+  });
 
   @override
   ConsumerState<TagDragOverlay> createState() => TagDragOverlayState();
@@ -67,8 +79,14 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
   final GlobalKey _panelKey = GlobalKey();
   final GlobalKey _favoriteColumnKey = GlobalKey();
 
+  /// 浮层根节点：旋转后它自己的坐标系与屏幕坐标系不同，一切换算都经它进行
+  final GlobalKey _rootKey = GlobalKey();
+
   /// 自动滚动触发边缘宽度
   static const double _edge = 56;
+
+  /// 旋转帧内左上角的避让高度（旋转后屏幕矩形不再是"上面那一条"）
+  static const double _rotatedTopInset = 12;
 
   @override
   void dispose() {
@@ -79,24 +97,56 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     super.dispose();
   }
 
+  // 坐标换算（旋转后屏幕坐标 ≠ 浮层坐标）
+
+  /// 浮层根节点；尚未完成布局时返回 null（构建期读它的大小会触发 hasSize 断言）。
+  RenderBox? get _rootBox {
+    final box = _rootKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    return box;
+  }
+
+  bool get _isRotated => widget.quarterTurns % 4 != 0;
+
+  /// 浮层坐标系尺寸：优先用本帧布局结果（[LayoutBuilder] 已给），其次根节点。
+  Size get _frameSize =>
+      _frameSizeOverride ?? _rootBox?.size ?? MediaQuery.sizeOf(context);
+
+  /// 本帧的浮层尺寸，由 [_buildStack] 在布局时写入（构建期根节点可能还没有尺寸）。
+  Size? _frameSizeOverride;
+
+  double get _frameTopInset =>
+      _isRotated ? _rotatedTopInset : MediaQuery.paddingOf(context).top;
+
+  /// 屏幕坐标 → 浮层坐标系。
+  Offset _toLocal(Offset global) => _rootBox?.globalToLocal(global) ?? global;
+
+  /// 取消区中心（浮层坐标系内，与绘制位置一致）
+  Offset _cancelCenter(Size size) => Offset(size.width - 48, _frameTopInset + 48);
+
   // 对外入口（GalleryPage 调用）
 
-  /// 按下并拖动开始（先不激活，等待确认向上）
+  /// 按下并拖动开始（先不激活，等待确认方向）
   void startDrag(Offset globalPos) {
     if (_pinned) return;
     _pending = true;
-    _pendingStart = globalPos;
+    _pendingStart = _toLocal(globalPos);
   }
 
   /// 拖动更新
   void updateDrag(Offset globalPos) {
     if (_pinned) return;
+    final local = _toLocal(globalPos);
     if (!_visible) {
-      // 尚未激活：仅当明显向上拖动时激活，否则静默丢弃（防误触）
+      // 尚未激活：仅当明显朝面板方向拖动时激活，否则静默丢弃（防误触）
       final start = _pendingStart;
       if (_pending && start != null) {
-        final d = globalPos - start;
-        if (d.dy <= -14) {
+        final d = local - start;
+        if (_isRotated) {
+          // 旋转后屏幕上的"上"不再对应面板方向（面板跟着媒体转到了侧边），
+          // 只要位移足够明确就激活——松手没落到标签上不会有任何副作用。
+          if (d.distance >= 14) _activate(globalPos);
+        } else if (d.dy <= -14) {
           _activate(globalPos);
         } else if (d.dy >= 14 || (d.dx.abs() > 48 && d.dy > -14)) {
           _pending = false;
@@ -104,10 +154,10 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
       }
       return;
     }
-    _dragPos = globalPos;
-    _dragPosNotifier.value = globalPos;
-    _updateHover(globalPos);
-    _updateAutoScroll(globalPos);
+    _dragPos = local;
+    _dragPosNotifier.value = local;
+    _updateHover(local);
+    _updateAutoScroll(local);
   }
 
   /// 松手：命中标签则切换，命中取消区则放弃
@@ -118,10 +168,10 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     }
     _stopAutoScroll();
 
-    final inCancel = _cancelZoneRect.contains(globalPos);
-    final targetId = inCancel
-        ? null
-        : (_hitFavorite(globalPos) ?? _hitRow(globalPos));
+    final local = _toLocal(globalPos);
+    final inCancel = _cancelZoneRect.contains(local);
+    final targetId =
+        inCancel ? null : (_hitFavorite(local) ?? _hitRow(local));
 
     setState(() {
       _visible = false;
@@ -179,17 +229,18 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     _pending = false;
     _stopAutoScroll();
     HapticFeedback.selectionClick();
+    final local = _toLocal(globalPos);
     setState(() {
       _visible = true;
       _pinned = false;
-      _dragPos = globalPos;
+      _dragPos = local;
       _hoveredTagId = null;
       _hoveredFavoriteId = null;
       _expandedIds.clear();
       _rowKeys.clear();
     });
-    _dragPosNotifier.value = globalPos;
-    _updateHover(globalPos);
+    _dragPosNotifier.value = local;
+    _updateHover(local);
   }
 
   List<Tag> get _allTags => ref.read(tagTreeProvider).valueOrNull ?? const [];
@@ -239,23 +290,22 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
 
   // 几何（全部实时读取，避免布局变化后失效）
 
+  /// 命中区域换算到浮层坐标系：旋转后子节点与根节点共用同一变换，
+  /// 用根节点做 globalToLocal 即可得到轴向对齐的矩形。
   Rect? _rectOf(GlobalKey key) {
+    final root = _rootBox;
     final box = key.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) return null;
-    return box.localToGlobal(Offset.zero) & box.size;
+    if (root == null || box == null || !box.attached) return null;
+    return root.globalToLocal(box.localToGlobal(Offset.zero)) & box.size;
   }
 
   Rect? get _panelRect => _rectOf(_panelKey);
 
-  /// 右上角取消区
-  Rect get _cancelZoneRect {
-    final size = MediaQuery.sizeOf(context);
-    final topPad = MediaQuery.paddingOf(context).top;
-    return Rect.fromCircle(
-      center: Offset(size.width - 62, topPad + 62),
-      radius: 48,
-    );
-  }
+  /// 右上角取消区（浮层坐标系内；与绘制位置一致，半径略放大以便命中）
+  Rect get _cancelZoneRect => Rect.fromCircle(
+        center: _cancelCenter(_frameSize),
+        radius: 48,
+      );
 
   /// 命中测试：返回手指下的标签 id
   String? _hitRow(Offset globalPos) => _hitIn(_rowKeys, globalPos);
@@ -381,12 +431,51 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     final roots = allTags.where((t) => t.parentId == null).toList()
       ..sort(_byName);
 
-    final size = MediaQuery.sizeOf(context);
-    final topPad = MediaQuery.paddingOf(context).top;
-    final panelHeight = (size.height * 0.58).clamp(200.0, 460).toDouble();
-    final favoriteWidth = (size.width * 0.32).clamp(104.0, 176.0).toDouble();
+    return RotatedBox(
+      quarterTurns: widget.quarterTurns % 4,
+      // 面板/取消区尺寸必须按"换轴后这一帧"的尺寸算：直接用 MediaQuery 会拿到
+      // 未换轴的屏幕尺寸，旋转时面板高度会超出视口。
+      child: LayoutBuilder(
+        builder: (context, constraints) => _buildStack(
+          constraints,
+          allTags: allTags,
+          appliedIds: appliedIds,
+          favorites: favorites,
+          childrenMap: childrenMap,
+          roots: roots,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStack(
+    BoxConstraints constraints, {
+    required List<Tag> allTags,
+    required Set<String> appliedIds,
+    required List<Tag> favorites,
+    required Map<String, List<Tag>> childrenMap,
+    required List<Tag> roots,
+  }) {
+    final bounded =
+        constraints.hasBoundedWidth && constraints.hasBoundedHeight;
+    final size = bounded ? constraints.biggest : MediaQuery.sizeOf(context);
+    // 手势回调发生在布局之后，缓存本帧尺寸让它们无需再问根节点
+    _frameSizeOverride = size;
+    final topPad = _frameTopInset;
+    // 面板不高于这一帧，避免极窄可用空间下面板溢出
+    final maxPanelHeight = (size.height - 24).clamp(120.0, 460.0);
+    final panelHeight =
+        (size.height * 0.58).clamp(120.0, maxPanelHeight).toDouble();
+    final maxFavoriteWidth = (size.width * 0.6).clamp(60.0, 176.0);
+    final favoriteWidth =
+        (size.width * 0.32).clamp(60.0, maxFavoriteWidth).toDouble();
+    // 旋转后面板贴住"媒体底边"；此时物理底栏落在该帧的右侧，改为右侧避让
+    final panelBottom = _isRotated ? 8.0 : widget.bottomInset;
+    final panelRight = _isRotated ? widget.bottomInset : 0.0;
+    final cancelCenter = _cancelCenter(size);
 
     return Stack(
+      key: _rootKey,
       children: [
         // 遮罩：拖动期间吸收误触；固定模式下点击空白关闭
         Positioned.fill(
@@ -400,12 +489,12 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
         // 右上角取消区（仅拖拽模式）
         if (!_pinned)
           Positioned(
-            top: topPad + 12,
-            right: 12,
+            top: cancelCenter.dy - 36,
+            right: size.width - cancelCenter.dx - 36,
             child: ValueListenableBuilder<Offset>(
               valueListenable: _dragPosNotifier,
               builder: (context, pos, _) {
-                final inCancel = _cancelZoneRect.contains(pos);
+                final inCancel = (pos - cancelCenter).distance <= 48;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   width: 72,
@@ -433,8 +522,8 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
         // 浮层面板
         Positioned(
           left: 0,
-          right: 0,
-          bottom: widget.bottomInset,
+          right: panelRight,
+          bottom: panelBottom,
           height: panelHeight,
           child: Container(
             key: _panelKey,

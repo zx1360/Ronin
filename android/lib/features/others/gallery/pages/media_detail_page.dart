@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/storage/public_storage_service.dart';
+import 'package:torrid/features/chat/chat_entry.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
@@ -81,6 +82,15 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       appBar: AppBar(
         title: Text(_getFileName(_currentAsset.filePath), style: const TextStyle(fontSize: 14)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome, size: 20),
+            tooltip: '问问AI',
+            onPressed: () => askAiAboutMedia(
+              context,
+              mediaId: _currentAsset.id,
+              fileName: _getFileName(_currentAsset.filePath),
+            ),
+          ),
           IconButton(
             icon: _isDownloading
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))

@@ -184,6 +184,29 @@ class ApiClient {
     );
   }
 
+  /// POST 流式请求（逐块返回响应体，用于 NDJSON/SSE 类增量接口）。
+  ///
+  /// 刻意不按状态码抛错：调用方需要读取错误响应体，给出服务端的具体原因。
+  /// [receiveTimeout] 只作用于"响应头到达前"，模型冷启动可能等待数十秒。
+  Future<Response<ResponseBody>> postStream(
+    String path, {
+    required Map<String, dynamic> data,
+    CancelToken? cancelToken,
+    Duration receiveTimeout = const Duration(minutes: 5),
+  }) {
+    return _dio.post(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+      options: Options(
+        contentType: 'application/json',
+        responseType: ResponseType.stream,
+        receiveTimeout: receiveTimeout,
+        validateStatus: (_) => true,
+      ),
+    );
+  }
+
   // POST请求, 可以上传json数据和文件.
   Future<Response> post(
     String path, {
