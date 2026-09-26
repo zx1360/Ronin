@@ -5,6 +5,7 @@ import 'package:northstar/app/theme.dart';
 import 'package:northstar/core/providers/ai/ai_providers.dart';
 import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/domain/ai/models/ai_models.dart';
+import 'package:northstar/infrastructure/ai/ai_api_client.dart';
 import 'package:northstar/ui/ai/widgets/ai_widgets.dart';
 
 /// AI 概览：能力就绪状态、处理进度、模型进程启停、自动处理开关。
@@ -492,6 +493,8 @@ class _RuntimeCard extends ConsumerWidget {
               value: '推理设备 ${status.device} · 并发 ${status.workers} · 批大小 ${status.batchSize} · '
                   '批次超时 ${status.jobTimeoutSeconds}s · 重试上限 ${status.maxAttempts}',
             ),
+            const SizedBox(height: AppDimens.spacingS),
+            _ModelSelector(status: status, notifier: notifier, client: client),
           ],
         ),
       ),
@@ -499,6 +502,93 @@ class _RuntimeCard extends ConsumerWidget {
   }
 
   String _mib(int bytes) => '${(bytes / 1024 / 1024).toStringAsFixed(0)} MiB';
+}
+
+/// VLM 标注模型选择（标准版 / 无审查版）。
+///
+/// 本机只有一块 GPU：两端选用不同模型时，前台对话会抢占后台标注并释放显存，
+/// 被中断的批次会退回队列（不计失败），下一次自动重排。
+class _ModelSelector extends ConsumerWidget {
+  const _ModelSelector({
+    required this.status,
+    required this.notifier,
+    required this.client,
+  });
+
+  final AiStatus status;
+  final AiBoardNotifier notifier;
+  final AiApiClient client;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ollama = status.ollama;
+    final options = <({String label, String model})>[
+      if (ollama.modelDefault.isNotEmpty)
+        (label: '标准版', model: ollama.modelDefault),
+      if (ollama.modelAlt.isNotEmpty)
+        (label: '无审查版', model: ollama.modelAlt),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('VLM 标注模型', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(width: AppDimens.spacingS),
+            Text(
+              ollama.activeModel.isEmpty
+                  ? '当前空闲'
+                  : '正在推理：${ollama.activeModel}',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        if (ollama.lastSwitch.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '最近模型切换：${ollama.lastSwitch}',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelSmall
+                  ?.copyWith(color: AppColors.warning),
+            ),
+          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final option in options)
+              Tooltip(
+                message: ollama.isInstalled(option.model)
+                    ? option.model
+                    : '未安装：请先执行 ollama pull ${option.model}',
+                child: FilterChip(
+                  label: Text(
+                    ollama.isInstalled(option.model)
+                        ? option.label
+                        : '${option.label}（未安装）',
+                  ),
+                  selected: ollama.model == option.model,
+                  // 未安装的模型不允许选中：写进设置只会让标注批次报错
+                  onSelected: ollama.isInstalled(option.model)
+                      ? (_) => notifier.run(
+                            '已切换 VLM 标注模型：${option.model}',
+                            () => client.updateVlmModel(
+                              ref.read(opsSettingsControllerProvider),
+                              option.model,
+                            ),
+                          )
+                      : null,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _AutoCapabilityCard extends ConsumerWidget {

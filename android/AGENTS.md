@@ -10,7 +10,7 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 | 首页 | `/home` | - |
 | 积微(打卡) | `/booklet` | `user-data` sync `/API/user-data/*` |
 | 随笔(笔记) | `/essay` | `user-data` sync `/API/user-data/*` |
-| 图书馆(待办) | `/library` | - |
+| 对话(本地 AI) | `/chat`（二级页 `/chat/settings`） | `POST /API/ai/chat`（NDJSON 流） |
 | 阅读(RSS) | `/news` | 独立第三方接口 |
 | 漫画 | 由 `/others` 页 `Navigator.push` 打开 | `/API/comic/*` |
 | 画廊 / 相册(immich) / 智能相册 | 由 `/others` 页 `Navigator.push` 打开 | `/API/gallery/*`、`/API/ai/*` |
@@ -27,6 +27,7 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 - 媒体播放：chewie, video_player, photo_view
 - 代码生成：json_serializable + build_runner + hive_generator
 - 静态检查：`flutter analyze` 必须零告警；`analysis_options.yaml` 已排除 `*.g.dart`
+- 全应用锁定竖屏（`main.dart`）；画廊内媒体的旋转由页面自身处理（`quarterTurns`）
 
 ### 与后端协同
 
@@ -40,6 +41,24 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
   - 交互流畅性：`services/gallery_write_buffer.dart` + `providers/write_buffer_provider.dart` 提供「本地立即生效 → 后台合并推送 → 退避重试 → 最终失败回滚」，批量/低频操作走 `retryServerWrite`。
   - 批次处理游标：设置页「标记已处理」= 服务端 `sync_count + 1`（PATCH `/media` 的 `mark_processed`）+ 清理本地已处理记录与文件。
 - mDNS 自动发现：`/profile` → 网络设置页点击“发现”可扫描局域网内的 Monarch 服务，发现的新地址会自动添加到配置列表。
+
+### 对话页 (本地 AI)
+
+- 会话与消息只存本机（Hive `chatConversations`，模型见 `features/chat/models/`）：一次会话整体读写，
+  流式增量只更新内存，一轮结束（或失败）才落库。
+- 请求经 `features/chat/services/chat_api_service.dart`（`POST /API/ai/chat`，逐行解析 NDJSON）；
+  对话设置（模型/上下文/思考/温度/自定义卸载超时）存 SharedPreferences，随每次请求下发。
+- 流式事件里 `notice` 用 SnackBar 提示、`aborted`（被另一个模型抢占）标为"已中断 + 继续"而不是
+  错误；气泡文本不可选中（长按复制），避免文本选择器抢走上下拖动。
+- 消息列表只有处于"贴底"状态才跟随流式输出，用户上滑翻阅历史时不强拉，并给出"回到最新"按钮。
+- 图片附件：库内媒体只传 `media_id`（后端就地取预览图，手机端无需下载）；手机相册图片压到长边 1280
+  后拷入 `img_storage/chat/`，以 base64 内联发送。删除会话会一并清理这些本地图片。
+- "问问AI"入口统一走 `features/chat/chat_entry.dart`（藏品详情页 / 相册 / 智能相册的查看页）。
+- 画廊快速打标签浮层（`widgets/tag_drag_overlay.dart`）随媒体旋转方向（`quarterTurns`）旋转；
+  浮层内所有几何与命中判定都在其自身坐标系内完成（手指屏幕坐标经根节点 `globalToLocal` 换算），
+  构建期只使用 [LayoutBuilder] 给出的换轴尺寸——直接读根节点 `size` 会触发 `hasSize` 断言。
+- 相册页(immich)的 AI 标签筛选走 `widgets/immich_ai_tag_sheet.dart`（可搜索、按次数排序、
+  点击切换），筛选栏只留入口与已选条件，避免几十个标签挤占横向空间。
 
 ### 数据安全约定
 

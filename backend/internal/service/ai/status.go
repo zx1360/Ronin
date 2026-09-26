@@ -41,7 +41,7 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 		return true, "" // 纯 Go 实现，无外部依赖
 	}
 	if capability == model.CapVLM {
-		if ok, reason := e.ollama.Ready(ctx); !ok {
+		if ok, reason := e.ollama.Ready(ctx, e.VLMModel()); !ok {
 			return false, reason
 		}
 		return true, ""
@@ -153,7 +153,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		MaxAttempts:  e.cfg.MaxAttempts,
 		Paused:       e.paused.Load(),
 		LastRun:      e.LastRun(),
-		Ollama:       e.ollama.State(ctx),
+		Ollama:       e.ollamaState(ctx),
 		Cluster:      e.cluster.State(),
 		Index: IndexState{
 			Model:   e.cfg.EmbedModel,
@@ -206,6 +206,14 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		status.Capabilities = append(status.Capabilities, item)
 	}
 	return status
+}
+
+// ollamaState 采集 Ollama 状态，并补上"当前正在推理的模型"这一运行时信息。
+func (e *Engine) ollamaState(ctx context.Context) OllamaState {
+	state := e.ollama.State(ctx, e.VLMModel(), e.VLMAltModel())
+	state.ActiveModel = e.ActiveModel()
+	state.LastSwitch = e.LastSwitchNotice()
+	return state
 }
 
 // missingCountsTTL "尚无产物"统计的缓存时长。

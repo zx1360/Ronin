@@ -239,7 +239,7 @@ func StartModel(c *gin.Context) {
 
 	switch capability {
 	case model.CapVLM:
-		if err := e.OllamaProvider().EnsureReady(ctx); err != nil {
+		if err := e.OllamaProvider().EnsureReady(ctx, e.VLMModel()); err != nil {
 			fail(c, err)
 			return
 		}
@@ -417,7 +417,101 @@ func Duplicates(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"groups": groups, "total": len(groups)})
+	c.JSON(http.StatusOK, gin.H{
+		"groups":        groups,
+		"total":         len(groups),
+		"ignored_total": e.Index().IgnoreCount(),
+	})
+}
+
+// duplicateIgnoreRequest 标记/取消"非重复"的请求体。
+type duplicateIgnoreRequest struct {
+	MediaIDs []string `json:"media_ids"`
+}
+
+// IgnoreDuplicates 处理 POST /API/ai/duplicates/ignore：把选中媒体标记为"非重复"。
+//
+// 语义是"人工否决"：这些媒体之后的近重复分组中不再出现，随时可恢复。
+func IgnoreDuplicates(c *gin.Context) {
+	e := engine(c)
+	if e == nil || !schemaGuard(c) {
+		return
+	}
+	ids, ok := parseMediaIDBody(c)
+	if !ok {
+		return
+	}
+	n, err := ai_repo.IgnoreDuplicates(ids)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	e.Index().InvalidateIgnores()
+	if err := e.Index().EnsureIgnores(); err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ignored": n, "total": e.Index().IgnoreCount()})
+}
+
+// UnignoreDuplicates 处理 POST /API/ai/duplicates/unignore：恢复被标记的媒体。
+func UnignoreDuplicates(c *gin.Context) {
+	e := engine(c)
+	if e == nil || !schemaGuard(c) {
+		return
+	}
+	ids, ok := parseMediaIDBody(c)
+	if !ok {
+		return
+	}
+	n, err := ai_repo.UnignoreDuplicates(ids)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	e.Index().InvalidateIgnores()
+	if err := e.Index().EnsureIgnores(); err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"restored": n, "total": e.Index().IgnoreCount()})
+}
+
+// ListIgnoredDuplicates 处理 GET /API/ai/duplicates/ignored：已标记"非重复"的媒体。
+func ListIgnoredDuplicates(c *gin.Context) {
+	e := engine(c)
+	if e == nil || !schemaGuard(c) {
+		return
+	}
+	assets, err := e.IgnoredDuplicates()
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"media_assets": assets, "total": len(assets)})
+}
+
+// parseMediaIDBody 解析请求体中的 media_ids 并校验为合法 UUID；失败时已写回响应。
+func parseMediaIDBody(c *gin.Context) ([]uuid.UUID, bool) {
+	var req duplicateIgnoreRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体解析失败: " + err.Error()})
+		return nil, false
+	}
+	if len(req.MediaIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "media_ids 不能为空"})
+		return nil, false
+	}
+	ids := make([]uuid.UUID, 0, len(req.MediaIDs))
+	for _, raw := range req.MediaIDs {
+		id, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "媒体 ID 非法: " + raw})
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
 }
 
 // ListVLMTags 处理 GET /API/ai/tags：AI 标签清单（只读，与人工标签无关）。
@@ -651,6 +745,9 @@ func GetSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"auto_capabilities": ai_repo.AutoCapabilities(ai.Default.Config().AutoCaps),
 		"all_capabilities":  model.AllCapabilities,
+		"vlm_model":         ai.Default.VLMModel(),
+		"vlm_model_default": ai.Default.Config().OllamaVLM,
+		"vlm_model_alt":     ai.Default.VLMAltModel(),
 	})
 }
 
@@ -662,6 +759,7 @@ func UpdateSettings(c *gin.Context) {
 	}
 	var req struct {
 		AutoCapabilities []string `json:"auto_capabilities"`
+		VLMModel         *string  `json:"vlm_model"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体解析失败: " + err.Error()})
@@ -677,8 +775,23 @@ func UpdateSettings(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	if req.VLMModel != nil {
+		selected := strings.TrimSpace(*req.VLMModel)
+		// 只接受两个候选：默认模型（可用空串恢复）与备选的无审查版
+		if selected != "" && selected != e.Config().OllamaVLM && selected != e.VLMAltModel() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "未知模型: " + selected})
+			return
+		}
+		if err := e.SetVLMModel(selected); err != nil {
+			fail(c, err)
+			return
+		}
+	}
 	e.Wake()
-	c.JSON(http.StatusOK, gin.H{"auto_capabilities": req.AutoCapabilities})
+	c.JSON(http.StatusOK, gin.H{
+		"auto_capabilities": req.AutoCapabilities,
+		"vlm_model":         e.VLMModel(),
+	})
 }
 
 // ---------- 辅助 ----------

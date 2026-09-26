@@ -134,6 +134,19 @@ CREATE INDEX IF NOT EXISTS idx_jobs_media   ON ai.jobs (media_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_updated ON ai.jobs (updated_at);
 
 -- =====================================================
+-- 去重的人工判定："非重复"标记
+--
+-- 被标记的媒体不再参与 pHash 近重复分组。只记录人工否决，不动任何 AI 产物，
+-- 删除本表记录即可完全恢复原有分组结果。
+-- =====================================================
+CREATE TABLE IF NOT EXISTS ai.duplicate_ignores (
+    media_id   UUID PRIMARY KEY REFERENCES gallery.media_assets(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_duplicate_ignores_created ON ai.duplicate_ignores (created_at);
+
+-- =====================================================
 -- 运行时设置（能力开关等）
 --
 -- 刻意不在此处预置数据：未设置时由服务端 .env 的 AI_AUTO_CAPS 兜底，

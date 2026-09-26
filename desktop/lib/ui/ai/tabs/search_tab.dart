@@ -6,6 +6,7 @@ import 'package:northstar/core/providers/ai/ai_providers.dart';
 import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/domain/ai/models/ai_models.dart';
 import 'package:northstar/ui/ai/widgets/ai_widgets.dart';
+import 'package:northstar/ui/ai/widgets/media_tile.dart';
 
 /// 智能检索：文本搜图（语义/关键词/混合）与以图搜图。
 class AiSearchTab extends ConsumerStatefulWidget {
@@ -133,6 +134,8 @@ class _AiSearchTabState extends ConsumerState<AiSearchTab> {
                               hit: hit,
                               thumbUrl: client.thumbUrl(settings, hit.id),
                               onSimilar: () => notifier.similarTo(hit.id),
+                              onReveal: () =>
+                                  revealMediaFile(context, ref, hit.filePath),
                             );
                           },
                         ),
@@ -150,11 +153,13 @@ class _HitCard extends StatelessWidget {
   final AiSearchHit hit;
   final String thumbUrl;
   final VoidCallback onSimilar;
+  final VoidCallback onReveal;
 
   const _HitCard({
     required this.hit,
     required this.thumbUrl,
     required this.onSimilar,
+    required this.onReveal,
   });
 
   @override
@@ -222,6 +227,15 @@ class _HitCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.labelSmall,
                       ),
                     const Spacer(),
+                    IconButton(
+                      onPressed: onReveal,
+                      icon: const Icon(Icons.folder_open_rounded, size: 14),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(minWidth: 24, minHeight: 24),
+                      tooltip: '打开所在目录',
+                    ),
                     IconButton(
                       onPressed: onSimilar,
                       icon: const Icon(Icons.image_search_rounded, size: 14),

@@ -314,7 +314,9 @@ func FetchMediaAssetsByQuery(params model.MediaQueryParams) ([]model.MediaAsset,
 	conditions := []string{}
 	args := []any{}
 
-	if !params.IncludeDeleted {
+	if params.OnlyDeleted {
+		conditions = append(conditions, "m.is_deleted = true")
+	} else if !params.IncludeDeleted {
 		conditions = append(conditions, "m.is_deleted = false")
 	}
 	if params.MimeType != "" {

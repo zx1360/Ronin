@@ -160,12 +160,6 @@ final aiJobsProvider =
       );
 });
 
-/// 近重复分组（pHash）。
-final aiDuplicatesProvider = FutureProvider<List<AiDuplicateGroup>>((ref) {
-  final settings = ref.watch(opsSettingsControllerProvider);
-  return ref.watch(aiApiClientProvider).fetchDuplicates(settings);
-});
-
 /// 检索状态。
 class AiSearchState {
   final String query;

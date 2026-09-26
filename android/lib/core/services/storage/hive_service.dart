@@ -14,6 +14,7 @@ import 'package:torrid/features/others/comic/models/comic_info.dart';
 // gallery库
 // comic漫画
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
+import 'package:torrid/features/chat/models/chat_models.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {
@@ -25,6 +26,8 @@ class HiveService {
   static const String yearSummaryBoxName = 'yearSummaries';
   static const String labelBoxName = 'labels';
   static const String essayBoxName = 'essays';
+  // chat对话(仅本地)
+  static const String chatBoxName = 'chatConversations';
   // 非常用
   // comic漫画
   static const String comicPrefBoxName = "comicPreference";
@@ -52,6 +55,11 @@ class HiveService {
     Hive.registerAdapter(ChapterInfoAdapter());
     Hive.registerAdapter(ComicPreferenceAdapter());
 
+    // chat对话
+    Hive.registerAdapter(ChatConversationAdapter());
+    Hive.registerAdapter(ChatMessageAdapter());
+    Hive.registerAdapter(ChatAttachmentAdapter());
+
     // 打开(创建)箱
     await Hive.openBox<Style>(styleBoxName);
     await Hive.openBox<Record>(recordBoxName);
@@ -59,6 +67,8 @@ class HiveService {
     await Hive.openBox<YearSummary>(yearSummaryBoxName);
     await Hive.openBox<Label>(labelBoxName);
     await Hive.openBox<Essay>(essayBoxName);
+
+    await Hive.openBox<ChatConversation>(chatBoxName);
   }
 
   // 非常用Box

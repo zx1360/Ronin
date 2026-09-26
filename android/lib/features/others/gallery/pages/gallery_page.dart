@@ -177,6 +177,8 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
             child: TagDragOverlay(
               key: _tagDragKey,
               bottomInset: _barsVisible ? bottomBarHeight : 8,
+              // 浮层跟随媒体旋转方向，横向看图时打标签不必再转手机
+              quarterTurns: _quarterTurns,
             ),
           ),
         ],

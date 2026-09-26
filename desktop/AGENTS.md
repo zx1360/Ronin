@@ -7,7 +7,7 @@ Flutter Windows 桌面运维应用，Monarch 服务器的图形化管理面板�
 | 页面 | 路由 | 功能 |
 |------|------|------|
 | 仪表盘 | `/dashboard` | 调用 `/API/ops/overview` 展示运行状态；服务启停后自动重取 |
-| AI 媒体处理 | `/ai` | 调用 `/API/ai/*`：能力就绪状态与进度、模型/侧车进程启停、失败重试、暂停/继续处理、人物分组（改名/合并/删除/重聚类）、文本搜图（智能/文字/文件名）与以图搜图、pHash 近重复分组 |
+| AI 媒体处理 | `/ai` | 调用 `/API/ai/*` 与 `/API/gallery/media`：能力就绪状态与进度、模型/侧车进程启停、VLM 标注模型切换（标准版/无审查版）、失败重试、暂停/继续处理、人物分组（改名/合并/删除/重聚类）、文本搜图（智能/文字/文件名）与以图搜图、pHash 近重复分组的处理（查看/标记软删除/标记「非重复」/打开所在目录）、已软删除媒体清单与取消软删除 |
 | 漫画资源 | `/comix` | 网址下载（URL 直连）、漫画库（下载进度 + 公开/已读/封面/删除）、任务面板（生命周期/日志/中断）。 |
 | 日志 | `/logs` | 查看任务实时输出 |
 | 任务管理 | `/tasks` | 启停 Monarch、执行 Gallery CLI 任务 |
@@ -34,7 +34,9 @@ Riverpod + GoRouter + SharedPreferences + `dart:io` HttpClient（自签证书信
   - 结果缩略图直接 `Image.network(.../API/gallery/{id}/thumb)`：`CertTrust` 的全局 HttpOverrides 已负责自签证书与 API Key 注入。
   - 增量聚类（保留现有人物命名）是默认操作；"重新聚类"会清空分组，必须二次确认。
   - "暂停处理"= `POST /api/ai/cancel`（中断当前批次**并暂停认领新任务**），"继续处理" = `POST /api/ai/resume`；只中断不暂停没有意义（worker 会立刻认领下一批）。
-- 两个 HTTP 客户端共用的 URL 规范化/请求头/URI 构建/错误解码在 `infrastructure/api_http_helper.dart`，新增客户端请复用它而不是复制一份。
+- 两个 HTTP 客户端共用的 URL 规范化/请求头/URI 构建/错误解码在 `infrastructure/api_http_helper.dart`，新增客户端请复用它而不是复制一份。画廊媒体（软删除清单、软删除标记）走 `GalleryApiClient`（`infrastructure/gallery/`）。
+- "打开所在目录"用服务端 `/API/ops/overview` 里的 `storage.galleryMedia.path` 与库内相对路径拼绝对路径（`FileRevealService`），再调 `explorer /select`；取不到目录时如实提示重试，不猜路径。桌面端不做媒体预览/播放，预览一律回画廊。
+- VLM 标注模型（标准版 / 无审查版）在 AI 页"运行时"卡片切换，写服务端 `PUT /API/ai/settings` 的 `vlm_model`；候选名单与"当前正在推理的模型"由 `/API/ai/status` 的 `ollama` 段给出。本机只有一块 GPU：手机端对话会抢占后台标注（中断批次、退回队列并卸载旧模型），后台标注则只等待对话结束。
 - `X-API-Key` 只注入到"当前配置的 Monarch 主机"，不会随 `HttpOverrides` 泄漏给第三方站点（如漫画封面源站）。
 - 任务模板 (`default_task_templates.dart`) 需对照 `../backend/gizmos/` 的 CLI 参数（`-mode`/`-gallery-root`/`-concurrency`/`-batch`/`-resize*`），任何 CLI 参数变更须同步模板。`-gallery-root` 现在是**必填**项。
 - 自签证书：`assets/cert/server.crt`。

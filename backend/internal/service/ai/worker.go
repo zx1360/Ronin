@@ -221,8 +221,8 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 	if err := ai_repo.FinishDone(doneJobIDs); err != nil {
 		log.Printf("[AI] 标记任务完成失败: %v", err)
 	}
-	if e.cancelRequested.Load() {
-		// 用户主动中断：未完成的任务退回队列，不计失败
+	// 用户主动中断 / 模型被切换抢占：未完成的任务退回队列，不计失败
+	if e.cancelRequested.Load() || e.TakeSwitchAbort() {
 		if err := ai_repo.ReleaseRunning(failedJobIDs); err != nil {
 			log.Printf("[AI] 释放任务失败: %v", err)
 		}
@@ -439,8 +439,17 @@ func (e *Engine) runOCR(ctx context.Context, items []MediaItem, failed map[strin
 
 // runVLM 通过 Ollama 逐张生成描述与关键词。
 //
-// 逐张串行是刻意的：单张 7B VLM 推理已接近本机算力上限，并发只会互相拖慢。
+// 逐张串行是刻意的：单张 4B VLM 推理已接近本机算力上限，并发只会互相拖慢。
+// 模型由人工选择（默认 / 无审查版），并受模型仲裁保护：后台工作不抢占前台对话。
 func (e *Engine) runVLM(ctx context.Context, items []MediaItem, failed map[string]string) {
+	modelName := e.VLMModel()
+	lease := e.UseModel(ctx, modelName, "VLM 自动标注", ModelBackground)
+	defer lease.Release()
+	if lease.Notice != "" {
+		log.Printf("[AI] %s", lease.Notice)
+	}
+	ctx = lease.Context()
+
 	for _, item := range items {
 		if ctx.Err() != nil {
 			for _, rest := range items {
@@ -455,7 +464,7 @@ func (e *Engine) runVLM(ctx context.Context, items []MediaItem, failed map[strin
 			failed[item.MediaID] = "媒体 ID 非法"
 			continue
 		}
-		result, err := e.ollama.Generate(ctx, item.Path)
+		result, err := e.ollama.Generate(ctx, modelName, item.Path)
 		if err != nil {
 			failed[item.MediaID] = err.Error()
 			continue

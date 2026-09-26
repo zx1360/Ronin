@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-26T06:34:42Z",
+  "generated_at": "2026-09-26T11:20:47Z",
   "routes": [
     {
       "method": "GET",
@@ -10,8 +10,24 @@
       "path": "/API/ai/cancel"
     },
     {
+      "method": "POST",
+      "path": "/API/ai/chat"
+    },
+    {
       "method": "GET",
       "path": "/API/ai/duplicates"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/duplicates/ignore"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/duplicates/ignored"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/duplicates/unignore"
     },
     {
       "method": "POST",

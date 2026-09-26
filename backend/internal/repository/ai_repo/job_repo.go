@@ -2,6 +2,7 @@ package ai_repo
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -345,6 +346,45 @@ func SetAutoCapabilities(caps []string) error {
 		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, joined)
 	if err != nil {
 		return fmt.Errorf("保存自动处理能力失败: %w", err)
+	}
+	return nil
+}
+
+// VLMModel 返回运行时的 VLM 模型选择（未设置时返回空串，由调用方回落到配置默认值）。
+func VLMModel() string {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	if !SchemaReady(ctx) {
+		return ""
+	}
+	var value string
+	if err := db.GetPool().QueryRow(ctx,
+		`SELECT value FROM ai.settings WHERE key = 'ollama_vlm_model'`).Scan(&value); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+// SetVLMModel 持久化 VLM 模型选择；model 为空表示恢复 .env 默认值。
+func SetVLMModel(model string) error {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	if err := ensureSchema(ctx); err != nil {
+		return err
+	}
+	model = strings.TrimSpace(model)
+	if model == "" {
+		if _, err := db.GetPool().Exec(ctx,
+			`DELETE FROM ai.settings WHERE key = 'ollama_vlm_model'`); err != nil {
+			return fmt.Errorf("清除模型设置失败: %w", err)
+		}
+		return nil
+	}
+	_, err := db.GetPool().Exec(ctx, `
+		INSERT INTO ai.settings (key, value) VALUES ('ollama_vlm_model', $1)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, model)
+	if err != nil {
+		return fmt.Errorf("保存模型设置失败: %w", err)
 	}
 	return nil
 }

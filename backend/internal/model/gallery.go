@@ -143,6 +143,7 @@ type MediaQueryParams struct {
 	Untagged           bool   `form:"untagged"`            // 仅返回未打标签的媒体
 	VLMTags            string `form:"vlm_tags"`            // 逗号分隔的 AI 标签, 任一命中（只读, 与人工标签无关）
 	IncludeDeleted     bool   `form:"include_deleted"`     // 是否包含已软删除的媒体
+	OnlyDeleted        bool   `form:"only_deleted"`        // 仅返回已软删除的媒体（优先级高于 include_deleted）
 	MimeType           string `form:"mime_type"`           // image / video / image/jpeg
 	IDs                string `form:"ids"`                 // 逗号分隔的媒体 ID, 指定则只查这些
 	SortBy             string `form:"sort_by"`             // captured_at(默认) / sync_count / size_bytes / file_path

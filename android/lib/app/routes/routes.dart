@@ -4,10 +4,12 @@ import 'package:torrid/features/home/back_handler.dart';
 import 'package:torrid/features/home/pages/home_page.dart';
 
 import 'package:torrid/features/booklet/pages/booklet_page.dart';
+import 'package:torrid/features/chat/models/chat_models.dart';
+import 'package:torrid/features/chat/pages/chat_page.dart';
+import 'package:torrid/features/chat/pages/chat_settings_page.dart';
 import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
 import 'package:torrid/features/read/pages/read_page.dart';
-import 'package:torrid/features/library/pages/library_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
@@ -52,11 +54,22 @@ final List<RouteBase> routes = [
     builder: (context, state) => const EssayBrowsePage(),
   ),
 
-  // 库存页,
+  // 对话页（本地 AI 聊天）
   GoRoute(
-    path: "/library",
-    name: "library",
-    builder: (context, state) => const LibraryPage(),
+    path: "/chat",
+    name: "chat",
+    builder: (context, state) {
+      final extra = state.extra;
+      return ChatPage(args: extra is ChatLaunchArgs ? extra : null);
+    },
+    routes: [
+      // 对话设置（二级页）
+      GoRoute(
+        path: "settings",
+        name: "chat_settings",
+        builder: (context, state) => const ChatSettingsPage(),
+      ),
+    ],
   ),
 
   // 阅读页,

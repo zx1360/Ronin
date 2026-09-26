@@ -10,6 +10,7 @@ package ai
 
 import (
 	"context"
+	"encoding/base64"
 	"log"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"monarch/internal/config"
+	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
 )
 
@@ -44,6 +46,9 @@ type Engine struct {
 
 	index   *Index
 	cluster *Clusterer
+
+	// arbiter 串行化本地模型（同一时刻只跑一个，见 models.go）
+	arbiter modelArbiter
 
 	wake     chan struct{}
 	cancel   context.CancelFunc
@@ -222,10 +227,68 @@ func (e *Engine) resolveItems(mediaIDs []string) ([]MediaItem, []string, error) 
 	return items, missing, nil
 }
 
+// VLMModel 返回当前生效的 VLM 模型（数据库设置优先，其次 .env 默认值）。
+//
+// 数据库不可用时退回进程配置：模型选择不应让整个 AI 层不可用。
+func (e *Engine) VLMModel() string {
+	if model := ai_repo.VLMModel(); model != "" {
+		return model
+	}
+	return e.cfg.OllamaVLM
+}
+
+// VLMAltModel 返回备选（无审查版）模型名，供两端做模型切换。
+func (e *Engine) VLMAltModel() string { return e.cfg.OllamaVLMAlt }
+
+// SetVLMModel 持久化 VLM 模型选择。
+func (e *Engine) SetVLMModel(model string) error {
+	if err := ai_repo.SetVLMModel(model); err != nil {
+		return err
+	}
+	e.Wake()
+	return nil
+}
+
+// ResolveChatImages 把媒体 ID 批量解析为 base64 图片，供对话请求内联发送。//
+// 复用推理用路径解析（优先预览图）：手机端因此无需把原图下载再上传。
+// 返回的 missing 为不可用的媒体 ID（不存在或文件读取失败），调用方应据此报错
+// 而不是静默丢图——用户会疑惑"为什么 AI 看不到这张图"。
+func (e *Engine) ResolveChatImages(mediaIDs []string) (map[string]string, []string, error) {
+	items, _, err := e.resolveItems(mediaIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	images := make(map[string]string, len(items))
+	for _, item := range items {
+		raw, err := os.ReadFile(item.Path)
+		if err != nil {
+			continue
+		}
+		images[item.MediaID] = base64.StdEncoding.EncodeToString(raw)
+	}
+	var missing []string
+	for _, raw := range mediaIDs {
+		if id := strings.TrimSpace(raw); id != "" {
+			if _, ok := images[id]; !ok {
+				missing = append(missing, id)
+			}
+		}
+	}
+	return images, missing, nil
+}
+
+// IgnoredDuplicates 返回被人工标记为"非重复"的媒体资产。
+func (e *Engine) IgnoredDuplicates() ([]model.MediaAsset, error) {
+	ids, err := ai_repo.ListDuplicateIgnoreIDs()
+	if err != nil {
+		return nil, err
+	}
+	return fetchAssets(ids)
+}
+
 // ---------------------------------------------------------------------------
 // 运行信息
 // ---------------------------------------------------------------------------
-
 func (e *Engine) setRun(info *RunInfo) {
 	e.runMu.Lock()
 	e.lastRun = info

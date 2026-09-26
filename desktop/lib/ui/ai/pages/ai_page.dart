@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:northstar/shared/widgets/heading/heading.dart';
+import 'package:northstar/ui/ai/tabs/deleted_tab.dart';
 import 'package:northstar/ui/ai/tabs/duplicates_tab.dart';
 import 'package:northstar/ui/ai/tabs/jobs_tab.dart';
 import 'package:northstar/ui/ai/tabs/overview_tab.dart';
@@ -21,7 +22,7 @@ class AiPage extends ConsumerStatefulWidget {
 
 class _AiPageState extends ConsumerState<AiPage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabController = TabController(length: 5, vsync: this);
+  late final TabController _tabController = TabController(length: 6, vsync: this);
 
   @override
   void dispose() {
@@ -47,6 +48,7 @@ class _AiPageState extends ConsumerState<AiPage>
               Tab(text: '人物'),
               Tab(text: '检索'),
               Tab(text: '去重'),
+              Tab(text: '已删除'),
             ],
           ),
         ),
@@ -59,6 +61,7 @@ class _AiPageState extends ConsumerState<AiPage>
               AiPersonsTab(),
               AiSearchTab(),
               AiDuplicatesTab(),
+              AiDeletedTab(),
             ],
           ),
         ),

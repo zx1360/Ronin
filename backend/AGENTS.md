@@ -20,11 +20,25 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
     （`priority_windows.go`）。`AI_DEVICE=auto` 时 `face`/`ocr` 走 DirectML，向量编码
     固定 CPU——换执行提供者会改变向量数值、使既有 `ai.embeddings` 失效
     （`ronin_ai/providers.py`）。
-  - `vlm`：调用本机 Ollama（`OLLAMA_VLM_MODEL`，默认 `qwen3.5:4b`）。请求必须带
+  - `vlm`：调用本机 Ollama（`OLLAMA_VLM_MODEL`，默认 `qwen3.5:4b`；备选
+    `OLLAMA_VLM_MODEL_ALT` = 社区 abliteration 的无审查版，同样保留视觉能力）。请求必须带
     `think=false` 与显式 `num_ctx`（`OLLAMA_VLM_CTX`）：思考型模型会把 `num_predict`
     全用在推理上，JSON 输出为空。不传 `keep_alive`，沿用 Ollama 默认（无请求 5 分钟后
     卸载模型）；用户已运行的 Ollama 直接复用，未运行时才自拉 `ollama serve`（靠
     `OLLAMA_MODELS` 指向同一模型库，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收）。
+  - 模型可切换：桌面端选择**标注**用哪个候选（`ai.settings.ollama_vlm_model`），
+    对话请求可用 `model` 字段逐次指定；两个候选名由 `/API/ai/status` 的 `ollama` 段下发。
+    备选模型可用社区 GGUF 本地构建：`ollama create -f Modelfile` 里必须有**两条 FROM**
+    （文本 GGUF + `mmproj`），否则丢失视觉能力；`SupportsThinking` 会剥掉 `命名空间/`
+    前缀再判断，社区重打包的 Qwen 模型同样能开"深度思考"。
+  - 模型仲裁（`models.go`）：本地只有一块 GPU，同一时刻只跑一个模型。**前台对话抢占**
+    后台标注（中断批次 + 卸载旧模型，任务退回队列不计失败），**后台标注等前台**结束
+    （超时才接管），避免边聊天边被反复打断。
+  - `chat`（`/API/ai/chat`）：同一模型承接的交互式对话，NDJSON 流式返回
+    `notice`/`thinking`/`delta`/`done`/`aborted`/`error`。每轮显式下发 `keep_alive`
+    （默认 `OLLAMA_KEEP_ALIVE`，客户端可覆盖，0 = 立即卸载）；客户端要求更长的驻留时间时，
+    自拉服务的空闲回收阈值同步放宽。图片可用 `media_ids` 引用库内媒体（服务端就地取
+    预览图）或内联 base64，不读写 `ai` schema。
   - 任务队列持久化在 `ai.jobs`，支持失败重试、批次超时、暂停/继续与进度查询；
     入库自动触发由 reconcile 循环（`EnqueueMissing`）实现，幂等自愈。
   - 检索不需要 pgvector：向量 int8 量化存 `ai.embeddings`，Go 侧内存精确扫描。
@@ -48,7 +62,8 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR_DIR`, `AI_IDLE_TIMEOUT`,
 `AI_BATCH_SIZE`, `AI_JOB_TIMEOUT`, `AI_MAX_ATTEMPTS`, `AI_WORKERS`, `AI_EMBED_MODEL`, `AI_AUTO_CAPS`
 (`none`/`off` = 关闭入库自动处理), `AI_DEVICE` (`cpu` = 侧车全部回退 CPU), `OLLAMA_URL`,
-`OLLAMA_VLM_MODEL`, `OLLAMA_VLM_CTX`, `OLLAMA_MODELS`, `OLLAMA_EXE`, `OLLAMA_IDLE_TIMEOUT`
+`OLLAMA_VLM_MODEL`, `OLLAMA_VLM_MODEL_ALT`, `OLLAMA_VLM_CTX`, `OLLAMA_KEEP_ALIVE`（对话请求的模型驻留秒数，默认 300）,
+`OLLAMA_MODELS`, `OLLAMA_EXE`, `OLLAMA_IDLE_TIMEOUT`
 （自拉 ollama serve 的空闲回收秒数，默认 360，需大于模型的 keep_alive）。
 
 ### API 概览
@@ -60,10 +75,11 @@ AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR
 | `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Desktop 端主用） |
 | `/API/gallery` | `GET /batch`, `GET /overview`, `GET /:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
 | `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
-| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）——**不传该参数时完全不触及 `ai` schema**，未初始化 AI 层的部署不受影响 |
+| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）与 `only_deleted`（仅软删除项）；**不传 `vlm_tags` 时完全不触及 `ai` schema**，未初始化 AI 层的部署不受影响 |
 | `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
 | `/API/ai` | `GET /status`, `GET /jobs`, `POST /enqueue\|retry\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态、队列与进度、入队/重试、暂停与继续、模型进程启停、自动处理开关（`cancel` 会中断当前批次并暂停队列，`resume` 恢复） |
-| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `GET /tags` | 检索：文本搜图、以图搜图、组合筛选、近重复分组、AI 标签清单（含出现次数） |
+| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `POST /duplicates/ignore\|unignore`, `GET /duplicates/ignored`, `GET /tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组（`ignore` = 人工判定「非重复」，之后不再参与分组，可随时恢复）、AI 标签清单（含出现次数） |
+| `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式（`notice`/`thinking`/`delta`/`done`/`aborted`/`error`），图片可用 `media_ids` 引用库内媒体或内联 base64；`model`/`num_ctx`/`think`/`temperature`/`keep_alive_seconds` 逐次可调 |
 | `/API/ai` | `GET /persons`, `GET /persons/:id/faces`, `PATCH/DELETE /persons/:id`, `POST /persons/merge\|faces/assign\|recluster` | 人物分组：改名/删除/合并/人工纠正/重新聚类 |
 
 `GET /API/ai/search` 的检索方式（`mode`）：`auto`（默认，有文本走语义并对关键词命中加权）、

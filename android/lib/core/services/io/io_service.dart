@@ -19,6 +19,8 @@ class IoService {
     final dirs = [
       "img_storage/booklet",
       "img_storage/essay",
+      // 对话中上传的图片: 选图后拷入应用私有目录, 避免系统清理缓存后失效
+      "img_storage/chat",
       "comics",
       "preferences/background",
       "preferences/sidebar",
