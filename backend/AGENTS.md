@@ -16,10 +16,15 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
   （`references/db/ai.sql`，回滚见 `ai_rollback.sql`），不修改其它 schema。
   - `phash`：纯 Go 感知哈希（对预览图算 DCT pHash），无外部进程。
   - `embed` / `face` / `ocr`：Python 侧车（`tools/ai/`）批量处理，一个能力一个进程，
-    空闲 `AI_IDLE_TIMEOUT` 秒后自动退出释放内存。侧车进程降为 **BelowNormal** 优先级
-    （`priority_windows.go`）：批处理与前台 UI 争抢 CPU 时让出调度优先权。
-  - `vlm`：调用本机 Ollama，**不传 `keep_alive`**（沿用 Ollama 默认：无请求 5 分钟后卸载模型）；用户已在运行的 Ollama 应用直接复用，只有服务未启动时才由本服务自拉 `ollama serve`（自拉的实例同样降到 BelowNormal，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收；此时靠 `OLLAMA_MODELS` 指向同一个模型库，
-    否则实例会去找空目录）。
+    空闲 `AI_IDLE_TIMEOUT` 秒后自动退出释放内存，进程降为 BelowNormal 优先级
+    （`priority_windows.go`）。`AI_DEVICE=auto` 时 `face`/`ocr` 走 DirectML，向量编码
+    固定 CPU——换执行提供者会改变向量数值、使既有 `ai.embeddings` 失效
+    （`ronin_ai/providers.py`）。
+  - `vlm`：调用本机 Ollama（`OLLAMA_VLM_MODEL`，默认 `qwen3.5:4b`）。请求必须带
+    `think=false` 与显式 `num_ctx`（`OLLAMA_VLM_CTX`）：思考型模型会把 `num_predict`
+    全用在推理上，JSON 输出为空。不传 `keep_alive`，沿用 Ollama 默认（无请求 5 分钟后
+    卸载模型）；用户已运行的 Ollama 直接复用，未运行时才自拉 `ollama serve`（靠
+    `OLLAMA_MODELS` 指向同一模型库，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收）。
   - 任务队列持久化在 `ai.jobs`，支持失败重试、批次超时、暂停/继续与进度查询；
     入库自动触发由 reconcile 循环（`EnqueueMissing`）实现，幂等自愈。
   - 检索不需要 pgvector：向量 int8 量化存 `ai.embeddings`，Go 侧内存精确扫描。
@@ -42,8 +47,9 @@ go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 `API_KEY_SERVER`；comix 集成可选 `COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`。
 AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR_DIR`, `AI_IDLE_TIMEOUT`,
 `AI_BATCH_SIZE`, `AI_JOB_TIMEOUT`, `AI_MAX_ATTEMPTS`, `AI_WORKERS`, `AI_EMBED_MODEL`, `AI_AUTO_CAPS`
-(`none`/`off` = 关闭入库自动处理), `OLLAMA_URL`, `OLLAMA_VLM_MODEL`, `OLLAMA_MODELS`, `OLLAMA_EXE`,
-`OLLAMA_IDLE_TIMEOUT`（自拉 ollama serve 的空闲回收秒数，默认 360，需大于模型的 keep_alive）。
+(`none`/`off` = 关闭入库自动处理), `AI_DEVICE` (`cpu` = 侧车全部回退 CPU), `OLLAMA_URL`,
+`OLLAMA_VLM_MODEL`, `OLLAMA_VLM_CTX`, `OLLAMA_MODELS`, `OLLAMA_EXE`, `OLLAMA_IDLE_TIMEOUT`
+（自拉 ollama serve 的空闲回收秒数，默认 360，需大于模型的 keep_alive）。
 
 ### API 概览
 

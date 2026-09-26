@@ -116,6 +116,7 @@ type Status struct {
 	SchemaReady      bool                     `json:"schema_ready"`
 	Started          bool                     `json:"started"`
 	EmbedModel       string                   `json:"embed_model"`
+	Device           string                   `json:"device"`
 	Workers          int                      `json:"workers"`
 	BatchSize        int                      `json:"batch_size"`
 	IdleTimeoutS     int                      `json:"idle_timeout_seconds"`
@@ -144,6 +145,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		SchemaReady:  ai_repo.SchemaReady(ctx),
 		Started:      e.started,
 		EmbedModel:   e.cfg.EmbedModel,
+		Device:       e.cfg.Device,
 		Workers:      e.cfg.Workers,
 		BatchSize:    e.cfg.BatchSize,
 		IdleTimeoutS: int(e.cfg.IdleTimeout.Seconds()),

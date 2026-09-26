@@ -221,11 +221,16 @@ func (o *Ollama) Generate(ctx context.Context, imagePath string) (*vlmResult, er
 		"images": []string{base64.StdEncoding.EncodeToString(raw)},
 		"stream": false,
 		"format": "json",
+		// 关闭思考链：qwen3.5 默认 think=true，会把 num_predict 全用在推理上，
+		// 实测 256 token 耗尽后 response 为空 → 每张图都解析失败且慢 10 倍以上。
+		// 标注只要求"看到什么"，不需要推理。
+		"think": false,
 		// 不传 keep_alive，沿用 Ollama 自身的默认（5 分钟无请求再卸载）：
 		// 批量标注之外还要承接后续的交互式视觉问答，每次都卸载会让模型反复重载。
 		"options": map[string]any{
 			"temperature": 0.2,
 			"num_predict": 256,
+			"num_ctx":     o.cfg.OllamaVLMCTX,
 		},
 	})
 	if err != nil {
@@ -354,6 +359,7 @@ func (o *Ollama) Shutdown() {
 type OllamaState struct {
 	URL         string   `json:"url"`
 	Model       string   `json:"model"`
+	NumCtx      int      `json:"num_ctx"`
 	Reachable   bool     `json:"reachable"`
 	ModelReady  bool     `json:"model_ready"`
 	Error       string   `json:"error,omitempty"`
@@ -370,6 +376,7 @@ func (o *Ollama) State(ctx context.Context) OllamaState {
 	state := OllamaState{
 		URL:       o.cfg.OllamaURL,
 		Model:     o.cfg.OllamaVLM,
+		NumCtx:    o.cfg.OllamaVLMCTX,
 		KeepAlive: "Ollama 默认（无请求 5 分钟后卸载模型）",
 	}
 
