@@ -96,6 +96,16 @@
 唯一约束：`(capability, media_id)` —— 入队天然幂等。
 认领使用 `FOR UPDATE SKIP LOCKED`，多 worker 安全。
 
+## duplicate_ignores
+
+去重的人工判定：被标记的媒体不再参与近重复分组（分组时直接排除）。
+只记录"人工否决"，不改动任何 AI 产物，删除记录即可恢复原分组结果。
+
+| 列 | 类型 | 说明 |
+| -- | ---- | ---- |
+| media_id | UUID PRIMARY KEY FK→media_assets ON DELETE CASCADE | |
+| created_at | TIMESTAMPTZ | 标记时间 |
+
 ## settings
 
 | 列 | 类型 | 说明 |

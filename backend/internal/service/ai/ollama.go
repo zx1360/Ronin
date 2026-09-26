@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -39,6 +40,8 @@ type Ollama struct {
 	mu       sync.Mutex
 	proc     *exec.Cmd // 仅当我们自己拉起了 ollama serve 时非空
 	lastUsed time.Time
+	// keepAlive 最近一次对话请求要求的模型驻留时长，用于放宽自拉服务的空闲回收
+	keepAlive time.Duration
 }
 
 // NewOllama 创建 Ollama 客户端。
@@ -49,16 +52,16 @@ func NewOllama(cfg config.AiConfig) *Ollama {
 	}
 }
 
-// Available 报告服务是否可达且目标模型已安装。
-func (o *Ollama) Available(ctx context.Context) (bool, string) {
+// Available 报告服务是否可达且指定模型已安装。
+func (o *Ollama) Available(ctx context.Context, model string) (bool, string) {
 	tags, err := o.ListModels(ctx)
 	if err != nil {
 		return false, err.Error()
 	}
-	if o.modelInList(tags) {
+	if o.modelInList(tags, model) {
 		return true, ""
 	}
-	return false, fmt.Sprintf("模型 %s 未安装（ollama pull %s）", o.cfg.OllamaVLM, o.cfg.OllamaVLM)
+	return false, fmt.Sprintf("模型 %s 未安装（ollama pull %s）", model, model)
 }
 
 // Ready 报告该能力是否**具备执行条件**（不一定已在运行）。
@@ -66,8 +69,8 @@ func (o *Ollama) Available(ctx context.Context) (bool, string) {
 // 与侧车的就绪语义保持一致：检查的是"依赖是否齐备"，而不是"进程是否已启动"。
 // 服务未运行时，只要能找到 ollama 可执行文件就算就绪——真正执行时
 // Generate 会经 EnsureReady 按需拉起；连可执行文件都没有才算不可用。
-func (o *Ollama) Ready(ctx context.Context) (bool, string) {
-	if ok, reason := o.Available(ctx); ok {
+func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
+	if ok, reason := o.Available(ctx, model); ok {
 		return true, ""
 	} else if o.resolveExe() == "" {
 		return false, reason
@@ -122,7 +125,7 @@ func (o *Ollama) resolveExe() string {
 
 // EnsureReady 确保 Ollama 可用：已运行则直接复用（不接管用户自启的实例），
 // 未运行且能找到可执行文件时按需拉起，并在空闲后由 supervise 回收。
-func (o *Ollama) EnsureReady(ctx context.Context) error {
+func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 	if _, err := o.ListModels(ctx); err == nil {
 		return nil
 	}
@@ -162,13 +165,13 @@ func (o *Ollama) EnsureReady(ctx context.Context) error {
 	for time.Now().Before(deadline) {
 		tags, err := o.ListModels(ctx)
 		if err == nil {
-			if o.modelInList(tags) {
+			if o.modelInList(tags, model) {
 				return nil
 			}
 			return fmt.Errorf(
 				"ollama 已启动但看不到模型 %s：自拉的 ollama serve 使用的模型目录是 %q，"+
 					"请在 backend/.env 里把 OLLAMA_MODELS 指向 Ollama 应用实际使用的模型目录",
-				o.cfg.OllamaVLM, o.modelRoot())
+				model, o.modelRoot())
 		}
 		lastErr = err
 		select {
@@ -178,6 +181,32 @@ func (o *Ollama) EnsureReady(ctx context.Context) error {
 		}
 	}
 	return fmt.Errorf("ollama serve 启动后仍未就绪: %v", lastErr)
+}
+
+// Unload 立即卸载指定模型（释放显存）；模型本来就没加载时同样返回成功。
+func (o *Ollama) Unload(ctx context.Context, model string) error {
+	body, err := json.Marshal(map[string]any{
+		"model":      model,
+		"keep_alive": 0,
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/generate", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("卸载模型失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("卸载模型失败: Ollama 返回 %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // modelRoot 返回自拉的 ollama serve 实际会使用的模型目录（仅用于错误提示）。
@@ -193,18 +222,30 @@ func (o *Ollama) modelRoot() string {
 }
 
 // modelInList 判断目标模型是否在已安装列表中（容忍 tag 差异）。
-func (o *Ollama) modelInList(tags []string) bool {
+func (o *Ollama) modelInList(tags []string, model string) bool {
 	for _, name := range tags {
-		if name == o.cfg.OllamaVLM || strings.HasPrefix(name, o.cfg.OllamaVLM+":") {
+		if name == model || strings.HasPrefix(name, model+":") {
 			return true
 		}
 	}
 	return false
 }
 
+// SupportsThinking 粗略判断模型是否支持思考链，决定客户端是否展示"深度思考"开关。
+// 去掉命名空间前缀后再判断，否则 huihui_ai/qwen3.5-abliterated:4b 这类社区模型会被漏判。
+func SupportsThinking(model string) bool {
+	name := strings.ToLower(model)
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	return strings.HasPrefix(name, "qwen3") ||
+		strings.HasPrefix(name, "deepseek-r1") ||
+		strings.Contains(name, "thinking")
+}
+
 // Generate 对单张图片执行一次 VLM 标注。
-func (o *Ollama) Generate(ctx context.Context, imagePath string) (*vlmResult, error) {
-	if err := o.EnsureReady(ctx); err != nil {
+func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmResult, error) {
+	if err := o.EnsureReady(ctx, model); err != nil {
 		return nil, err
 	}
 	// 推理可能要几分钟：开始就刷新时间戳，避免空闲回收在推理过程中把服务杀掉
@@ -216,7 +257,7 @@ func (o *Ollama) Generate(ctx context.Context, imagePath string) (*vlmResult, er
 	}
 
 	body, err := json.Marshal(map[string]any{
-		"model":  o.cfg.OllamaVLM,
+		"model":  model,
 		"prompt": vlmPrompt,
 		"images": []string{base64.StdEncoding.EncodeToString(raw)},
 		"stream": false,
@@ -292,6 +333,172 @@ func (o *Ollama) Generate(ctx context.Context, imagePath string) (*vlmResult, er
 	return &result, nil
 }
 
+// ---------------------------------------------------------------------------
+// 交互式对话（流式）
+// ---------------------------------------------------------------------------
+
+// ChatMessage 一条对话消息。图片以 base64 内联（与 Ollama 协议一致，不含 data: 前缀）。
+type ChatMessage struct {
+	Role    string   `json:"role"`
+	Content string   `json:"content"`
+	Images  []string `json:"images,omitempty"`
+}
+
+// ChatOptions 单次对话的可调项。Temperature 为负表示沿用默认值。
+type ChatOptions struct {
+	NumCtx      int
+	Think       bool
+	Temperature float64
+	// KeepAliveSeconds 模型驻留秒数：负数 = 沿用服务端默认（OLLAMA_KEEP_ALIVE），
+	// 0 = 回答完立即卸载，正数 = 显式驻留时长。
+	KeepAliveSeconds int
+}
+
+// ChatEvent 流式事件，逐行以 JSON 下发。
+type ChatEvent struct {
+	Type      string `json:"type"` // delta / thinking / done / error
+	Content   string `json:"content,omitempty"`
+	Error     string `json:"error,omitempty"`
+	EvalCount int    `json:"eval_count,omitempty"`
+	TotalMs   int64  `json:"total_duration_ms,omitempty"`
+}
+
+// defaultTemperature 未指定时的采样温度。
+const defaultTemperature = 0.7
+
+// Chat 执行一次多轮对话并把增量结果推给 onEvent（nil 表示只消费不回调）。
+//
+// 流式而非一次性返回：思考链与回答都要逐字出现，否则首字节要等几十秒。
+func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage, opt ChatOptions, onEvent func(ChatEvent) error) error {
+	if err := o.EnsureReady(ctx, model); err != nil {
+		return err
+	}
+	// 推理可能要几分钟：开始就刷新时间戳，避免空闲回收在推理过程中把服务杀掉
+	o.touch()
+	o.setKeepAlive(opt.KeepAliveSeconds)
+
+	numCtx := opt.NumCtx
+	if numCtx < 2048 {
+		numCtx = o.cfg.OllamaVLMCTX
+	}
+	temperature := opt.Temperature
+	if temperature < 0 {
+		temperature = defaultTemperature
+	}
+
+	body, err := json.Marshal(map[string]any{
+		"model":      model,
+		"messages":   messages,
+		"stream":     true,
+		"think":      opt.Think,
+		"keep_alive": o.keepAliveSeconds(opt.KeepAliveSeconds),
+		"options": map[string]any{
+			"temperature": temperature,
+			"num_ctx":     numCtx,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/chat", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("调用 Ollama 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("Ollama 返回 %d: %s", resp.StatusCode, strings.TrimSpace(string(detail)))
+	}
+
+	emit := func(event ChatEvent) error {
+		if onEvent == nil {
+			return nil
+		}
+		return onEvent(event)
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	for {
+		var chunk struct {
+			Message struct {
+				Content  string `json:"content"`
+				Thinking string `json:"thinking"`
+			} `json:"message"`
+			Done          bool   `json:"done"`
+			Error         string `json:"error"`
+			EvalCount     int    `json:"eval_count"`
+			TotalDuration int64  `json:"total_duration"`
+		}
+		if err := decoder.Decode(&chunk); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return fmt.Errorf("读取对话流失败: %w", err)
+		}
+		if chunk.Error != "" {
+			_ = emit(ChatEvent{Type: "error", Error: chunk.Error})
+			return errors.New(chunk.Error)
+		}
+		o.touch()
+		if chunk.Message.Thinking != "" {
+			if err := emit(ChatEvent{Type: "thinking", Content: chunk.Message.Thinking}); err != nil {
+				return err
+			}
+		}
+		if chunk.Message.Content != "" {
+			if err := emit(ChatEvent{Type: "delta", Content: chunk.Message.Content}); err != nil {
+				return err
+			}
+		}
+		if chunk.Done {
+			return emit(ChatEvent{
+				Type:      "done",
+				EvalCount: chunk.EvalCount,
+				TotalMs:   chunk.TotalDuration / int64(time.Millisecond),
+			})
+		}
+	}
+}
+
+// setKeepAlive 记录本次请求要求的模型驻留时长（忽略非正值）。
+func (o *Ollama) setKeepAlive(seconds int) {
+	if seconds <= 0 {
+		return
+	}
+	o.mu.Lock()
+	o.keepAlive = time.Duration(seconds) * time.Second
+	o.mu.Unlock()
+}
+
+// keepAliveSeconds 返回本次请求下发的 keep_alive（秒）。
+//
+// 0 是合法值（回答完立即卸载），因此只有负数才回落到服务端默认值。
+func (o *Ollama) keepAliveSeconds(override int) int {
+	if override >= 0 {
+		return override
+	}
+	return int(o.cfg.OllamaKeepAlive.Seconds())
+}
+
+// idleLimit 返回自拉 ollama serve 的回收阈值：不小于配置值，且覆盖用户要求的驻留时长
+// （否则用户把驻留调到 30 分钟，服务却在 6 分钟时被回收，设置形同虚设）。
+func (o *Ollama) idleLimit(base time.Duration) time.Duration {
+	o.mu.Lock()
+	keepAlive := o.keepAlive
+	o.mu.Unlock()
+	if keepAlive > base {
+		return keepAlive
+	}
+	return base
+}
+
 // extractJSONObject 从模型输出中截取第一个完整的 JSON 对象。
 func extractJSONObject(raw string) string {
 	start := strings.Index(raw, "{")
@@ -330,7 +537,7 @@ func (o *Ollama) supervise(ctx context.Context, idle time.Duration) {
 				continue
 			}
 			idleFor := time.Since(lastUsed)
-			if idleFor < idle {
+			if idleFor < o.idleLimit(idle) {
 				continue
 			}
 			log.Printf("[AI:ollama] 空闲 %s，回收按需拉起的 ollama serve", idleFor.Truncate(time.Second))
@@ -357,8 +564,14 @@ func (o *Ollama) Shutdown() {
 
 // OllamaState Ollama 运行状态快照。
 type OllamaState struct {
-	URL         string   `json:"url"`
-	Model       string   `json:"model"`
+	URL string `json:"url"`
+	// Model 当前生效的 VLM 标注模型；ModelDefault/ModelAlt 为两个候选（默认 / 无审查版）
+	Model        string `json:"model"`
+	ModelDefault string `json:"model_default"`
+	ModelAlt     string `json:"model_alt"`
+	ActiveModel  string `json:"active_model"` // 当前正在推理的模型（空 = 空闲）
+	// LastSwitch 最近一次"后台批次被前台对话抢占"的说明（空 = 无）
+	LastSwitch  string   `json:"last_switch,omitempty"`
 	NumCtx      int      `json:"num_ctx"`
 	Reachable   bool     `json:"reachable"`
 	ModelReady  bool     `json:"model_ready"`
@@ -369,15 +582,23 @@ type OllamaState struct {
 	Models      []string `json:"models,omitempty"`
 	// KeepAlive 说明模型驻留策略（沿用 Ollama 默认，不再逐次卸载）
 	KeepAlive string `json:"keep_alive"`
+	// KeepAliveDefaultSeconds 对话请求未指定时的模型驻留时长（"后端默认值"）
+	KeepAliveDefaultSeconds int `json:"keep_alive_default_seconds"`
+	// Thinking 模型是否支持思考链（决定客户端是否显示"深度思考"开关）
+	Thinking bool `json:"thinking"`
 }
 
-// State 返回 Ollama 状态快照。
-func (o *Ollama) State(ctx context.Context) OllamaState {
+// State 返回 Ollama 状态快照；model 为当前生效的 VLM 模型。
+func (o *Ollama) State(ctx context.Context, model, modelAlt string) OllamaState {
 	state := OllamaState{
-		URL:       o.cfg.OllamaURL,
-		Model:     o.cfg.OllamaVLM,
-		NumCtx:    o.cfg.OllamaVLMCTX,
-		KeepAlive: "Ollama 默认（无请求 5 分钟后卸载模型）",
+		URL:                     o.cfg.OllamaURL,
+		Model:                   model,
+		ModelDefault:            o.cfg.OllamaVLM,
+		ModelAlt:                modelAlt,
+		NumCtx:                  o.cfg.OllamaVLMCTX,
+		KeepAlive:               fmt.Sprintf("对话请求下发 %ds；批量标注沿用 Ollama 默认（无请求 5 分钟后卸载模型）", int(o.cfg.OllamaKeepAlive.Seconds())),
+		KeepAliveDefaultSeconds: int(o.cfg.OllamaKeepAlive.Seconds()),
+		Thinking:                SupportsThinking(model),
 	}
 
 	o.mu.Lock()
@@ -397,9 +618,9 @@ func (o *Ollama) State(ctx context.Context) OllamaState {
 	}
 	state.Reachable = true
 	state.Models = models
-	state.ModelReady = o.modelInList(models)
+	state.ModelReady = o.modelInList(models, model)
 	if !state.ModelReady {
-		state.Error = fmt.Sprintf("模型 %s 未安装", o.cfg.OllamaVLM)
+		state.Error = fmt.Sprintf("模型 %s 未安装", model)
 	}
 	return state
 }

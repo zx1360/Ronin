@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/ai/models/ai_search_models.dart';
+import 'package:torrid/features/chat/chat_entry.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
+import 'package:torrid/features/others/immich/widgets/immich_ai_tag_sheet.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_ops_sheet.dart';
@@ -239,57 +240,54 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     );
   }
 
-  /// AI 标签筛选行；没有可用 AI 标签时整行不出现。
+  /// AI 标签筛选入口；没有可用 AI 标签时整行不出现。
+  ///
+  /// 只保留一个入口按钮 + 已选条件，完整列表（可搜索、带次数）在弹出面板里，
+  /// 避免把几十个标签塞进筛选栏挤占空间。
   Widget _buildAiTagRow(ImmichFilter filter, ImmichFilterNotifier notifier) {
     final aiTags = ref.watch(immichAiTagsProvider).valueOrNull;
     if (aiTags == null || aiTags.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-          child: Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              const Icon(Icons.auto_awesome, size: 14, color: Colors.teal),
-              const SizedBox(width: 4),
+              IconButton(
+                onPressed: () => showImmichAiTagSheet(context),
+                icon: const Icon(Icons.auto_awesome, size: 18, color: Colors.teal),
+                tooltip: 'AI 标签筛选',
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+              ),
+              const SizedBox(width: 2),
               Text(
                 'AI 标签',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
-              const SizedBox(width: 2),
-              Text(
-                '只读',
-                style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+              const SizedBox(width: 6),
+              TextButton(
+                onPressed: () => showImmichAiTagSheet(context),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: Text(
+                  filter.vlmTags.isEmpty
+                      ? '筛选（${aiTags.length} 个）'
+                      : '已选 ${filter.vlmTags.length} 个 · 修改',
+                  style: const TextStyle(fontSize: 12),
+                ),
               ),
-              const SizedBox(width: 8),
-              for (final item in aiTags) ...[
-                _AiTagChip(
-                  item: item,
-                  selected: filter.vlmTags.contains(item.tag),
-                  onSelected: () => notifier.toggleVlmTag(item.tag),
-                ),
-                const SizedBox(width: 6),
-              ],
-              if (filter.vlmTags.isNotEmpty)
-                TextButton(
-                  onPressed: notifier.clearVlmTags,
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    minimumSize: Size.zero,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  child: const Text('清空 AI 标签', style: TextStyle(fontSize: 12)),
-                ),
             ],
           ),
-        ),
-        // 已选 AI 标签单独一行，明确它们与人工标签筛选互不影响
-        if (filter.vlmTags.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-            child: Wrap(
+          // 已选 AI 标签单独一行，明确它们与人工标签筛选互不影响
+          if (filter.vlmTags.isNotEmpty)
+            Wrap(
               spacing: 6,
               runSpacing: 4,
               children: [
@@ -303,8 +301,8 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
                   ),
               ],
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -445,6 +443,18 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
           assets: assets,
           initialIndex: index,
           actions: (viewerContext, asset) => [
+            IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: '问问AI',
+              onPressed: () {
+                Navigator.of(viewerContext).pop();
+                askAiAboutMedia(
+                  context,
+                  mediaId: asset.id,
+                  fileName: asset.filePath.split(RegExp(r'[/\\]')).last,
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.tune),
               tooltip: '详情与标签',
@@ -633,43 +643,6 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
-  }
-}
-
-/// AI 标签筛选块：用独立配色与"只读"标注，避免与人工标签混淆。
-class _AiTagChip extends StatelessWidget {
-  final AiTagCount item;
-  final bool selected;
-  final VoidCallback onSelected;
-
-  const _AiTagChip({
-    required this.item,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const accent = Colors.teal;
-    return FilterChip(
-      label: Text(
-        '${item.tag} ${item.count}',
-        style: TextStyle(fontSize: 12, color: selected ? accent : null),
-      ),
-      selected: selected,
-      showCheckmark: false,
-      avatar: Icon(
-        Icons.auto_awesome,
-        size: 14,
-        color: selected ? accent : Colors.grey,
-      ),
-      side: BorderSide(
-        color: selected ? accent : Colors.grey.withValues(alpha: 0.4),
-      ),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      onSelected: (_) => onSelected(),
     );
   }
 }

@@ -54,9 +54,9 @@ class _HomePageState extends ConsumerState<HomePage>
     const ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
     const ButtonInfo(name: "随笔", icon: Icons.description, route: "essay"),
     const ButtonInfo(
-      name: "库存",
-      icon: IconData(0xf0ac, fontFamily: "iconfont"),
-      route: "library",
+      name: "对话",
+      icon: Icons.chat_bubble_outline,
+      route: "chat",
     ),
     const ButtonInfo(name: "阅读", icon: Icons.newspaper, route: "news"),
     const ButtonInfo(

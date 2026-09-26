@@ -198,7 +198,19 @@ class AiIndexState {
 /// Ollama 服务状态。
 class AiOllamaState {
   final String url;
+
+  /// 当前生效的 VLM 标注模型（标准版或备选的无审查版）。
   final String model;
+
+  /// 两个候选：标准版 / 无审查版。
+  final String modelDefault;
+  final String modelAlt;
+
+  /// 当前正在推理的模型（空 = 空闲）。
+  final String activeModel;
+
+  /// 最近一次后台标注被前台对话抢占的说明（空 = 无）。
+  final String lastSwitch;
   final int numCtx;
   final bool reachable;
   final bool modelReady;
@@ -211,6 +223,10 @@ class AiOllamaState {
   const AiOllamaState({
     required this.url,
     required this.model,
+    required this.modelDefault,
+    required this.modelAlt,
+    required this.activeModel,
+    this.lastSwitch = '',
     required this.numCtx,
     required this.reachable,
     required this.modelReady,
@@ -225,6 +241,10 @@ class AiOllamaState {
     return AiOllamaState(
       url: _string(json['url']),
       model: _string(json['model']),
+      modelDefault: _string(json['model_default']),
+      modelAlt: _string(json['model_alt']),
+      activeModel: _string(json['active_model']),
+      lastSwitch: _string(json['last_switch']),
       numCtx: _int(json['num_ctx']),
       reachable: _bool(json['reachable']),
       modelReady: _bool(json['model_ready']),
@@ -234,6 +254,14 @@ class AiOllamaState {
       idleSeconds: _int(json['idle_seconds']),
       models: _stringList(json['models']),
     );
+  }
+
+  /// 模型是否已安装（容忍 tag 差异）。
+  bool isInstalled(String model) {
+    for (final item in models) {
+      if (item == model || item.startsWith('$model:')) return true;
+    }
+    return false;
   }
 }
 

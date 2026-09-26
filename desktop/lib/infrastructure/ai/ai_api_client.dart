@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:northstar/domain/ai/models/ai_models.dart';
+import 'package:northstar/domain/gallery/models/gallery_media.dart';
 import 'package:northstar/domain/ops/models/ops_settings.dart';
 import 'package:northstar/infrastructure/api_http_helper.dart';
 
@@ -123,6 +124,13 @@ class AiApiClient {
         .toList();
   }
 
+  /// 切换 VLM 自动标注使用的模型（传空串恢复 .env 默认）。
+  Future<String> updateVlmModel(OpsSettings settings, String model) async {
+    final json = await _request(settings, 'PUT', '/API/ai/settings',
+        body: {'vlm_model': model});
+    return (json['vlm_model'] ?? '').toString();
+  }
+
   // ---------- 检索 ----------
 
   Future<AiSearchResult> search(
@@ -157,15 +165,52 @@ class AiApiClient {
     return AiSearchResult.fromJson(json);
   }
 
-  Future<List<AiDuplicateGroup>> fetchDuplicates(
+  /// 近重复分组（pHash）；[ignoredTotal] 为已标记「非重复」的数量。
+  Future<({List<AiDuplicateGroup> groups, int ignoredTotal})> fetchDuplicates(
     OpsSettings settings, {
     int maxDistance = 4,
   }) async {
     final json = await _request(settings, 'GET', '/API/ai/duplicates',
         query: {'max_distance': '$maxDistance'}, timeout: _longTimeout);
-    return (json['groups'] as List? ?? const [])
+    final groups = (json['groups'] as List? ?? const [])
         .whereType<Map>()
         .map((e) => AiDuplicateGroup.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    return (
+      groups: groups,
+      ignoredTotal: (json['ignored_total'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// 把媒体标记为「非重复」：之后不再参与近重复分组。
+  Future<int> ignoreDuplicates(
+    OpsSettings settings,
+    List<String> mediaIds,
+  ) async {
+    final json = await _request(settings, 'POST', '/API/ai/duplicates/ignore',
+        body: {'media_ids': mediaIds});
+    return (json['total'] as num?)?.toInt() ?? 0;
+  }
+
+  /// 取消「非重复」标记。
+  Future<int> unignoreDuplicates(
+    OpsSettings settings,
+    List<String> mediaIds,
+  ) async {
+    final json = await _request(settings, 'POST', '/API/ai/duplicates/unignore',
+        body: {'media_ids': mediaIds});
+    return (json['total'] as num?)?.toInt() ?? 0;
+  }
+
+  /// 已标记「非重复」的媒体（恢复入口用）。
+  Future<List<GalleryMedia>> fetchIgnoredDuplicates(
+    OpsSettings settings,
+  ) async {
+    final json = await _request(settings, 'GET', '/API/ai/duplicates/ignored',
+        timeout: _longTimeout);
+    return (json['media_assets'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => GalleryMedia.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
@@ -212,6 +257,10 @@ class AiApiClient {
   /// 媒体缩略图地址（复用 gallery 文件流接口）。
   String thumbUrl(OpsSettings settings, String mediaId) =>
       buildApiUri(settings.apiBaseUrl, '/API/gallery/$mediaId/thumb').toString();
+
+  /// 画廊媒体接口前缀（自行拼接 `/{id}/thumb`、`/{id}/file`）。
+  String galleryBaseUrl(OpsSettings settings) =>
+      buildApiUri(settings.apiBaseUrl, '/API/gallery').toString();
 
   // ---------- 内部 ----------
 

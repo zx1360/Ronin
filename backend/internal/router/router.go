@@ -138,12 +138,18 @@ func SetupRouter() *gin.Engine {
 			aiGroup.GET("/settings", ai_handler.GetSettings)
 			aiGroup.PUT("/settings", ai_handler.UpdateSettings)
 
+			// 交互式对话（NDJSON 流；Android 端聊天页使用）
+			aiGroup.POST("/chat", ai_handler.Chat)
+
 			// 检索：文本搜图 / 以图搜图 / 组合筛选
 			aiGroup.GET("/search", ai_handler.Search)
 			aiGroup.POST("/search/image", ai_handler.SearchByImage)
 			aiGroup.GET("/similar/:id", ai_handler.Similar)
 			aiGroup.GET("/media/:id", ai_handler.MediaDetail)
 			aiGroup.GET("/duplicates", ai_handler.Duplicates)
+			aiGroup.POST("/duplicates/ignore", ai_handler.IgnoreDuplicates)
+			aiGroup.POST("/duplicates/unignore", ai_handler.UnignoreDuplicates)
+			aiGroup.GET("/duplicates/ignored", ai_handler.ListIgnoredDuplicates)
 			aiGroup.GET("/tags", ai_handler.ListVLMTags)
 
 			// 组织：人物分组
