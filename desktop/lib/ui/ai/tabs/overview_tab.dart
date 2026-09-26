@@ -482,14 +482,14 @@ class _RuntimeCard extends ConsumerWidget {
               label: 'Ollama',
               value: status.ollama.reachable
                   ? (status.ollama.modelReady
-                      ? '${status.ollama.model} 已安装（请求后立即卸载模型）'
+                      ? '${status.ollama.model} 已安装（上下文 ${status.ollama.numCtx}，闲置 5 分钟卸载）'
                       : '${status.ollama.model} 未安装')
                   : '不可达${status.ollama.error == null ? '' : '：${status.ollama.error}'}',
               valueColor: status.ollama.modelReady ? null : AppColors.warning,
             ),
             AiInfoRow(
               label: 'worker 配置',
-              value: '并发 ${status.workers} · 批大小 ${status.batchSize} · '
+              value: '推理设备 ${status.device} · 并发 ${status.workers} · 批大小 ${status.batchSize} · '
                   '批次超时 ${status.jobTimeoutSeconds}s · 重试上限 ${status.maxAttempts}',
             ),
           ],

@@ -199,6 +199,7 @@ class AiIndexState {
 class AiOllamaState {
   final String url;
   final String model;
+  final int numCtx;
   final bool reachable;
   final bool modelReady;
   final String? error;
@@ -210,6 +211,7 @@ class AiOllamaState {
   const AiOllamaState({
     required this.url,
     required this.model,
+    required this.numCtx,
     required this.reachable,
     required this.modelReady,
     this.error,
@@ -223,6 +225,7 @@ class AiOllamaState {
     return AiOllamaState(
       url: _string(json['url']),
       model: _string(json['model']),
+      numCtx: _int(json['num_ctx']),
       reachable: _bool(json['reachable']),
       modelReady: _bool(json['model_ready']),
       error: json['error'] as String?,
@@ -264,6 +267,7 @@ class AiStatus {
   final bool schemaReady;
   final bool started;
   final String embedModel;
+  final String device;
   final int workers;
   final int batchSize;
   final int idleTimeoutSeconds;
@@ -286,6 +290,7 @@ class AiStatus {
     required this.schemaReady,
     required this.started,
     required this.embedModel,
+    required this.device,
     required this.workers,
     required this.batchSize,
     required this.idleTimeoutSeconds,
@@ -310,6 +315,7 @@ class AiStatus {
       schemaReady: _bool(json['schema_ready']),
       started: _bool(json['started']),
       embedModel: _string(json['embed_model']),
+      device: _string(json['device']),
       workers: _int(json['workers']),
       batchSize: _int(json['batch_size']),
       idleTimeoutSeconds: _int(json['idle_timeout_seconds']),
