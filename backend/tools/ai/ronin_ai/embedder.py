@@ -1,4 +1,4 @@
-"""SigLIP 图像/文本向量编码（ONNX Runtime，CPU）。
+"""SigLIP 图像/文本向量编码（ONNX Runtime）。
 
 产出与 Go 侧约定一致：L2 归一化后按 per-vector 最大绝对值量化为 int8，
 返回 {"dim", "scale", "vec"(base64)}。Go 侧存入 ai.embeddings.vec。
@@ -33,6 +33,7 @@ class SiglipEmbedder:
         self._vision = None
         self._text = None
         self._tokenizer = None
+        self._device = "auto"
         self._image_size = DEFAULT_IMAGE_SIZE
         self._mean = 0.5
         self._std = 0.5
@@ -41,6 +42,7 @@ class SiglipEmbedder:
     # ---------- 加载 ----------
 
     def ensure_loaded(self, params: Dict[str, Any] | None = None) -> None:
+        self._device = str((params or {}).get("device", "auto"))
         if self._vision is None:
             self._load_vision()
         if self._text is None:
@@ -59,14 +61,16 @@ class SiglipEmbedder:
     def _session(self, path: Path):
         import onnxruntime as ort
 
+        from .providers import providers_for
         from .threads import intra_op_threads
 
         options = ort.SessionOptions()
         options.intra_op_num_threads = intra_op_threads()
         options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        log(f"加载 ONNX 模型: {path.name}")
-        return ort.InferenceSession(str(path), sess_options=options,
-                                    providers=["CPUExecutionProvider"])
+        # 向量编码固定 CPU：切 DirectML 会让向量空间偏移，详见 providers.py
+        chosen = providers_for("embed", self._device)
+        log(f"加载 ONNX 模型: {path.name}（{chosen[0]}）")
+        return ort.InferenceSession(str(path), sess_options=options, providers=chosen)
 
     def _load_vision(self) -> None:
         directory = siglip_dir()

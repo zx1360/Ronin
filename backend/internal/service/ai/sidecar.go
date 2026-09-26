@@ -334,6 +334,9 @@ func (s *Sidecar) writeRequest(params map[string]any, items []SidecarItem) error
 	if params == nil {
 		params = map[string]any{}
 	}
+	// 推理设备随请求下发：侧车在建 session 时才知道自己该用哪个 provider，
+	// 而它只在批处理期间存在，没有别的配置通道。
+	params["device"] = s.cfg.Device
 	if err := encoder.Encode(sidecarHeader{
 		V:          sidecarProtocolVersion,
 		Capability: s.capability,

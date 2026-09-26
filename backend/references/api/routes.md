@@ -1,7 +1,7 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-09-25T23:01:51Z
-- TotalRoutes: 78
+- GeneratedAt: 2026-09-26T06:34:42Z
+- TotalRoutes: 64
 
 | Method | Path |
 | --- | --- |
@@ -67,19 +67,5 @@
 | POST | /API/user-data/backup/:module |
 | POST | /API/user-data/check-images/:module |
 | GET | /API/user-data/sync/:module |
-| DELETE | /api |
-| GET | /api |
-| HEAD | /api |
-| OPTIONS | /api |
-| PATCH | /api |
-| POST | /api |
-| PUT | /api |
-| DELETE | /api/*proxyPath |
-| GET | /api/*proxyPath |
-| HEAD | /api/*proxyPath |
-| OPTIONS | /api/*proxyPath |
-| PATCH | /api/*proxyPath |
-| POST | /api/*proxyPath |
-| PUT | /api/*proxyPath |
 | GET | /static/*filepath |
 | HEAD | /static/*filepath |

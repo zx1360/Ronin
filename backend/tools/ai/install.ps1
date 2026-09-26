@@ -83,19 +83,27 @@ Write-Step "使用解释器: $Python"
 
 # ---------- 2. python 依赖 ----------
 
-# 先清理早期版本遗留的 opencv-python-headless：它与 rapidocr 依赖的 opencv-python
-# 共用同一个 cv2 目录，卸载任一个都会连带删掉另一份的文件，必须在安装前清掉。
+# 互斥发行版必须"成对卸载再重装"：它们共用同一个包目录（cv2 / onnxruntime），
+# 卸载任一个都会连带走掉另一份的文件；而 pip 只看 dist-info，之后仍认为剩下的
+# 那个"已满足"而拒绝补文件，模块就残废了。所以两个一起卸，交给下面的 install 重装。
 $ErrorActionPreference = "Continue"
 & $Python -m pip show opencv-python-headless *> $null
 $hasHeadless = ($LASTEXITCODE -eq 0)
+& $Python -m pip show onnxruntime *> $null
+$hasCpuOrt = ($LASTEXITCODE -eq 0)
 $ErrorActionPreference = "Stop"
 
 if ($hasHeadless) {
     Write-Step "清理与 opencv-python 冲突的 opencv-python-headless"
-    [void](Invoke-Python @("-m", "pip", "uninstall", "-y", "opencv-python-headless"))
+    [void](Invoke-Python @("-m", "pip", "uninstall", "-y", "opencv-python-headless", "opencv-python"))
 }
 
-Write-Step "安装依赖（onnxruntime / opencv / tokenizers / rapidocr，约 250MB 下载）"
+if ($hasCpuOrt) {
+    Write-Step "清理与 onnxruntime-directml 冲突的 CPU 版 onnxruntime"
+    [void](Invoke-Python @("-m", "pip", "uninstall", "-y", "onnxruntime", "onnxruntime-directml"))
+}
+
+Write-Step "安装依赖（onnxruntime-directml / opencv / tokenizers / rapidocr，约 250MB 下载）"
 $pipExit = Invoke-Python @("-m", "pip", "install", "-r", (Join-Path $Root "requirements.txt"), "--index-url", $PipIndex)
 if ($pipExit -ne 0) {
     throw "pip 安装依赖失败（exit $pipExit）"

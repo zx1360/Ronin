@@ -33,14 +33,21 @@ class OcrEngine:
             return
         from rapidocr import RapidOCR
 
+        from .providers import use_gpu as use_gpu_provider
         from .threads import intra_op_threads
 
-        log("加载 RapidOCR（PP-OCR ONNX）")
-        self._engine = RapidOCR(params={
+        settings: Dict[str, Any] = {
             "Det.limit_side_len": OCR_DET_SIDE_LIMIT,
             # 默认 -1 会吃满所有核心，长时间批量识别会明显影响日常使用
             "EngineConfig.onnxruntime.intra_op_num_threads": intra_op_threads(),
-        })
+        }
+        # rapidocr 自己拼 provider 列表：开了 use_dml 仍是 DML 优先、CPU 兜底
+        use_gpu = use_gpu_provider("ocr", str((params or {}).get("device", "auto")))
+        if use_gpu:
+            settings["EngineConfig.onnxruntime.use_dml"] = True
+
+        log(f"加载 RapidOCR（PP-OCR ONNX，{'DmlExecutionProvider' if use_gpu else 'CPUExecutionProvider'}）")
+        self._engine = RapidOCR(params=settings)
 
     def loaded_models(self) -> List[str]:
         return ["rapidocr_ppocr"] if self._engine is not None else []

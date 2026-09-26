@@ -22,6 +22,10 @@ PACKAGE_KEYS = [
     ("rapidocr", "rapidocr"),
 ]
 
+# onnxruntime 有多个发行版（CPU / directml / gpu），模块名相同而 dist 名不同，
+# 按此顺序取第一个已安装的版本号，否则 /status 只会显示 "installed"。
+ORT_DISTRIBUTIONS = ["onnxruntime-directml", "onnxruntime-gpu", "onnxruntime"]
+
 SIGLIP_MODELS = {
     "siglip_vision": "vision_model_quantized.onnx",
     "siglip_text": "text_model_quantized.onnx",
@@ -38,12 +42,26 @@ def _package_version(dist_name: str) -> str:
         return "unknown"
 
 
+def _onnxruntime_version() -> str:
+    for dist_name in ORT_DISTRIBUTIONS:
+        try:
+            return importlib.metadata.version(dist_name)
+        except importlib.metadata.PackageNotFoundError:
+            continue
+        except Exception:
+            return "unknown"
+    return "installed"
+
+
 def collect_packages() -> Dict[str, str]:
     packages: Dict[str, str] = {}
     for module_name, dist_name in PACKAGE_KEYS:
         if importlib.util.find_spec(module_name) is None:
             continue
-        packages[module_name] = _package_version(dist_name)
+        packages[module_name] = (
+            _onnxruntime_version() if module_name == "onnxruntime"
+            else _package_version(dist_name)
+        )
     return packages
 
 

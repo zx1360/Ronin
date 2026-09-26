@@ -8,7 +8,7 @@
 | 路径 | 说明 |
 | ---- | ---- |
 | `ronin_ai/` | 侧车源码（协议循环 + 三个能力实现） |
-| `requirements.txt` | python 依赖（onnxruntime / numpy / opencv / tokenizers / rapidocr） |
+| `requirements.txt` | python 依赖（onnxruntime-directml / numpy / opencv / tokenizers / rapidocr） |
 | `install.ps1` | 一键创建 venv、安装依赖、下载模型 |
 | `.venv/` | 虚拟环境（install.ps1 生成，已 gitignore） |
 | `models/` | 模型文件（install.ps1 生成，已 gitignore） |
@@ -43,6 +43,9 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 - 自拉的实例必须通过 `OLLAMA_MODELS` 指向用户实际的模型库（Ollama 应用自身设置的
   模型目录不一定在系统环境变量里）。配置见 `backend/.env`；指错目录时任务会失败并
   在错误信息里给出实际使用的目录。
+- 每次请求显式下发 `think=false` 与 `num_ctx`（`OLLAMA_VLM_CTX`）：思考型模型
+  （qwen3.5 默认开启）会把 `num_predict` 全用在推理上，实测 256 token 耗尽后
+  `response` 为空，每张图都会解析失败且慢十倍以上。
 
 ## 通信协议（NDJSON）
 
@@ -88,6 +91,13 @@ stdin 关闭则进程退出——空闲回收完全由 Go 侧的进程监管驱�
   也回避 HEIC/WebP 等格式在侧车里额外解码。
 - 图片读取统一走 `image_io.load_bgr`（numpy + `cv2.imdecode`）：Windows 上
   `cv2.imread` 遇到中文路径会直接返回 None，而媒体库里中文文件名非常普遍。
+- **推理设备**（`ronin_ai/providers.py`，由 `AI_DEVICE` 控制）：`auto` 时 `face` / `ocr`
+  走 DirectML（实测比 CPU 快 63 倍 / 约 1.8 倍），DirectML 未实现的算子自动回退 CPU；
+  `cpu` 时全部走 CPU。
+  **向量编码（`embed` / `embed_text`）固定 CPU**：DirectML 会让 SigLIP 的输出向量偏移
+  （同图余弦中位 0.9898、top-10 近邻重合度降到 80%），而提速只有 1.8 倍——既有
+  `ai.embeddings` 会与新的查询向量不在同一空间，检索质量反而下降。若将来改用
+  CUDA EP，注意换 EP 同样会改变向量数值，需要重算 `ai.embeddings`。
 - **CPU 占用**：三个引擎统一只使用一半核心（`threads.intra_op_threads`，上限 8），
   长时间批量处理时给日常使用留出余量。OCR 的检测输入边长限制为 320——预览图本身
   只有 256px，rapidocr 默认放大到 736 既费时又不提升识别率（实测 4.92s/张→2.72s/张，

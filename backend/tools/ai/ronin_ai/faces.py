@@ -66,20 +66,20 @@ class FaceEngine:
 
         import onnxruntime as ort
 
+        from .providers import providers_for
         from .threads import intra_op_threads
 
         options = ort.SessionOptions()
         options.intra_op_num_threads = intra_op_threads()
         options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        chosen = providers_for("face", str((params or {}).get("device", "auto")))
 
-        log(f"加载 SCRFD 检测模型: {det_path.name}")
-        self._det = ort.InferenceSession(str(det_path), sess_options=options,
-                                         providers=["CPUExecutionProvider"])
+        log(f"加载 SCRFD 检测模型: {det_path.name}（{chosen[0]}）")
+        self._det = ort.InferenceSession(str(det_path), sess_options=options, providers=chosen)
         self._det_input = self._det.get_inputs()[0].name
 
-        log(f"加载 ArcFace 识别模型: {rec_path.name}")
-        self._rec = ort.InferenceSession(str(rec_path), sess_options=options,
-                                         providers=["CPUExecutionProvider"])
+        log(f"加载 ArcFace 识别模型: {rec_path.name}（{chosen[0]}）")
+        self._rec = ort.InferenceSession(str(rec_path), sess_options=options, providers=chosen)
 
     def loaded_models(self) -> List[str]:
         return ["face_buffalo_l"] if (self._det is not None and self._rec is not None) else []

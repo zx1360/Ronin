@@ -33,6 +33,7 @@
 *.exe~
 *.test
 *.out
+*.vbs
 
 # Go 构建缓存（本地沙箱构建时使用）
 .gocache/

@@ -43,20 +43,22 @@ type ComixConfig struct {
 // AI 能力以外部进程（Python 侧车 / Ollama）方式接入：只在有任务时拉起，
 // 空闲超时后自动退出，不常驻占用内存。
 type AiConfig struct {
-	Enabled     bool          // 总开关；false 时不启动 worker（API 仍可查看状态）
-	Python      string        // 侧车解释器；留空则自动探测 tools/ai/.venv
-	SidecarDir  string        // 侧车项目目录（含 ronin_ai 包）
-	IdleTimeout time.Duration // 侧车空闲多久后退出
-	BatchSize   int           // 单批媒体数（一次进程调用摊薄模型加载成本）
-	JobTimeout  time.Duration // 单批处理超时
-	MaxAttempts int           // 单条任务最大尝试次数
-	Workers     int           // 并发批次上限
-	EmbedModel  string        // SigLIP 模型标识
-	OllamaURL   string
-	OllamaVLM   string        // VLM 模型名
-	OllamaIdle  time.Duration // 自拉的 ollama serve 空闲多久后回收（应大于模型 keep_alive）
-	OllamaExe   string        // 留空则从 PATH 探测；用于按需拉起 ollama serve
-	AutoCaps    []string      // 入库后自动入队的能力（数据库 ai.settings 可覆盖）
+	Enabled      bool          // 总开关；false 时不启动 worker（API 仍可查看状态）
+	Python       string        // 侧车解释器；留空则自动探测 tools/ai/.venv
+	SidecarDir   string        // 侧车项目目录（含 ronin_ai 包）
+	IdleTimeout  time.Duration // 侧车空闲多久后退出
+	BatchSize    int           // 单批媒体数（一次进程调用摊薄模型加载成本）
+	JobTimeout   time.Duration // 单批处理超时
+	MaxAttempts  int           // 单条任务最大尝试次数
+	Workers      int           // 并发批次上限
+	EmbedModel   string        // SigLIP 模型标识
+	OllamaURL    string
+	OllamaVLM    string        // VLM 模型名
+	OllamaVLMCTX int           // VLM 请求的上下文长度（token）
+	OllamaIdle   time.Duration // 自拉的 ollama serve 空闲多久后回收（应大于模型 keep_alive）
+	OllamaExe    string        // 留空则从 PATH 探测；用于按需拉起 ollama serve
+	Device       string        // 侧车推理设备：auto=Windows 上启用 DirectML，cpu=全部回退 CPU
+	AutoCaps     []string      // 入库后自动入队的能力（数据库 ai.settings 可覆盖）
 }
 
 // IsLocalMode 运行模式：true=本地开发(HTTP+免鉴权)
@@ -119,12 +121,24 @@ func loadAiConfig() {
 	AiConf.Workers = envInt("AI_WORKERS", 1, 1, 4)
 	AiConf.EmbedModel = envString("AI_EMBED_MODEL", "siglip2-base-patch16-224")
 	AiConf.OllamaURL = strings.TrimRight(envString("OLLAMA_URL", "http://127.0.0.1:11434"), "/")
-	AiConf.OllamaVLM = envString("OLLAMA_VLM_MODEL", "qwen2.5vl:7b")
+	AiConf.OllamaVLM = envString("OLLAMA_VLM_MODEL", "qwen3.5:4b")
+	// 每次请求显式下发上下文窗口，使行为不受 Ollama 应用默认值影响。
+	// 缺省 8192 对批量标注（实测每张约 220 token）已是数十倍余量。
+	AiConf.OllamaVLMCTX = envInt("OLLAMA_VLM_CTX", 8192, 2048, 262144)
 	// 默认 6 分钟：略大于 Ollama 自身的 5 分钟模型 keep_alive，
 	// 避免"模型还没卸载我们就先把服务杀了"导致反复重载。
 	AiConf.OllamaIdle = envSeconds("OLLAMA_IDLE_TIMEOUT", 360)
 	AiConf.OllamaExe = strings.TrimSpace(os.Getenv("OLLAMA_EXE"))
+	AiConf.Device = parseDevice(envString("AI_DEVICE", "auto"))
 	AiConf.AutoCaps = parseAutoCaps(envString("AI_AUTO_CAPS", "phash,embed,face,ocr"))
+}
+
+// parseDevice 解析侧车推理设备；只认 cpu，其余一律按 auto 处理。
+func parseDevice(raw string) string {
+	if strings.EqualFold(strings.TrimSpace(raw), "cpu") {
+		return "cpu"
+	}
+	return "auto"
 }
 
 // parseAutoCaps 解析入库自动处理能力列表；`none`/`off` 表示完全关闭自动入队
