@@ -1,0 +1,722 @@
+import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
+
+/// Gallery 模块数据库服务 - 单例模式
+/// 管理 media_assets, tags, media_tag_links 三张表
+class GalleryDatabaseService {
+  static final GalleryDatabaseService _instance =
+      GalleryDatabaseService._internal();
+  factory GalleryDatabaseService() => _instance;
+  GalleryDatabaseService._internal();
+
+  static Database? _database;
+  static const String _dbName = 'gallery.db';
+  static const int _dbVersion = 3;
+
+  Future<Database> get database async {
+    _database ??= await _initDatabase();
+    return _database!;
+  }
+
+  Future<Database> _initDatabase() async {
+    // 数据库落在 sqflite 的默认库目录(应用私有目录下的 databases/).
+    final path = p.join(await getDatabasesPath(), _dbName);
+
+    return await openDatabase(
+      path,
+      version: _dbVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+      onConfigure: _onConfigure,
+      onOpen: _ensureTablesExist,
+    );
+  }
+
+  /// 启用外键约束
+  Future<void> _onConfigure(Database db) async {
+    await db.execute('PRAGMA foreign_keys = ON');
+  }
+
+  /// 确保表存在 (防止数据库文件存在但表不存在的情况)
+  Future<void> _ensureTablesExist(Database db) async {
+    // 检查 media_assets 表是否存在
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='media_assets'"
+    );
+    if (tables.isEmpty) {
+      AppLogger().info('Gallery 表不存在，重新创建...');
+      await _onCreate(db, _dbVersion);
+    }
+  }
+
+  /// 数据库升级
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    AppLogger().info('Gallery 数据库升级: $oldVersion -> $newVersion');
+    if (oldVersion < 2) {
+      await db.execute(
+          'ALTER TABLE media_assets ADD COLUMN edit_params TEXT DEFAULT NULL');
+    }
+    if (oldVersion < 3) {
+      // 标签收藏标记: 服务端权威, 本地仅为缓存
+      await db.execute(
+          'ALTER TABLE tags ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0');
+    }
+  }
+
+  /// 创建表结构 - 与服务端 PostgreSQL 保持一致
+  Future<void> _onCreate(Database db, int version) async {
+    // 媒体文件表
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS media_assets (
+        id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        captured_at TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        thumb_path TEXT,
+        preview_path TEXT,
+        hash TEXT NOT NULL UNIQUE,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        mime_type TEXT,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        sync_count INTEGER NOT NULL DEFAULT 0,
+        group_id TEXT DEFAULT NULL,
+        message TEXT DEFAULT NULL,
+        edit_params TEXT DEFAULT NULL,
+        FOREIGN KEY (group_id) REFERENCES media_assets(id) ON DELETE SET NULL
+      )
+    ''');
+
+    // 标签表 - 树状结构
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS tags (
+        id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        name TEXT NOT NULL,
+        parent_id TEXT,
+        full_path TEXT,
+        is_favorite INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (parent_id) REFERENCES tags(id) ON DELETE CASCADE,
+        UNIQUE (name, parent_id)
+      )
+    ''');
+
+    // 媒体-标签关联表
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS media_tag_links (
+        media_id TEXT NOT NULL,
+        tag_id TEXT NOT NULL,
+        PRIMARY KEY (tag_id, media_id),
+        FOREIGN KEY (media_id) REFERENCES media_assets(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // 创建索引
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_media_assets_captured_at ON media_assets(captured_at)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_media_assets_group_id ON media_assets(group_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_tags_parent_id ON tags(parent_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_media_tag_links_media_id ON media_tag_links(media_id)');
+
+    AppLogger().info('Gallery 数据库初始化完成');
+  }
+
+  // MediaAsset CRUD
+
+  /// 插入或更新媒体文件记录 (批量)
+  Future<void> upsertMediaAssets(List<MediaAsset> assets) async {
+    final db = await database;
+    final batch = db.batch();
+
+    for (final asset in assets) {
+      batch.insert(
+        'media_assets',
+        asset.toDbMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  /// 获取所有媒体文件 (按 captured_at 升序)
+  /// - includeGroupMembers: 是否包含组成员文件
+  /// - excludeDeleted: 是否排除已删除的文件
+  Future<List<MediaAsset>> getMediaAssets({
+    bool includeGroupMembers = false,
+    bool excludeDeleted = false,
+  }) async {
+    final db = await database;
+    final conditions = <String>[];
+    if (!includeGroupMembers) conditions.add('group_id IS NULL');
+    if (excludeDeleted) conditions.add('is_deleted = 0');
+    final String where = conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}';
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT * FROM media_assets $where ORDER BY captured_at ASC
+    ''');
+    return maps.map((m) => MediaAsset.fromDbMap(m)).toList();
+  }
+
+  /// 获取媒体文件总数
+  Future<int> getMediaAssetCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM media_assets');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// 更新媒体文件
+  Future<int> updateMediaAsset(MediaAsset asset) async {
+    final db = await database;
+    return await db.update(
+      'media_assets',
+      asset.toDbMap(),
+      where: 'id = ?',
+      whereArgs: [asset.id],
+    );
+  }
+
+  /// 批量写入服务端返回的媒体行（仅更新已存在的缓存行）
+  Future<void> updateMediaAssetsLocal(List<MediaAsset> assets) async {
+    if (assets.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+    for (final asset in assets) {
+      batch.update(
+        'media_assets',
+        asset.toDbMap(),
+        where: 'id = ?',
+        whereArgs: [asset.id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// 只更新本地已缓存媒体的某个字段（用于批量标注写入后的缓存同步）
+  Future<void> updateMediaAssetsField(
+    List<String> ids,
+    Map<String, Object?> values,
+  ) async {
+    if (ids.isEmpty || values.isEmpty) return;
+    final db = await database;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    await db.update(
+      'media_assets',
+      values,
+      where: 'id IN ($placeholders)',
+      whereArgs: ids,
+    );
+  }
+
+  /// 标记媒体文件为已删除 (软删除)
+  Future<void> markMediaAssetDeleted(String id, {bool deleted = true}) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+
+    await db.transaction((txn) async {
+      // 如果是主文件，同时标记所有组成员
+      await txn.rawUpdate('''
+        UPDATE media_assets 
+        SET is_deleted = ?, updated_at = ? 
+        WHERE id = ? OR group_id = ?
+      ''', [deleted ? 1 : 0, now, id, id]);
+    });
+  }
+
+  /// 批量标记媒体文件删除/恢复（单次事务，避免逐条操作）
+  Future<void> batchMarkMediaAssetDeleted(List<String> ids, {bool deleted = true}) async {
+    if (ids.isEmpty) return;
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    final placeholders = List.filled(ids.length, '?').join(',');
+
+    await db.transaction((txn) async {
+      // 标记主文件自己
+      await txn.rawUpdate(
+        'UPDATE media_assets SET is_deleted = ?, updated_at = ? WHERE id IN ($placeholders)',
+        [deleted ? 1 : 0, now, ...ids],
+      );
+      // 标记所有以这些 id 为 group_id 的组成员
+      await txn.rawUpdate(
+        'UPDATE media_assets SET is_deleted = ?, updated_at = ? WHERE group_id IN ($placeholders)',
+        [deleted ? 1 : 0, now, ...ids],
+      );
+    });
+  }
+
+  /// 设置媒体文件的 group_id (捆绑)
+  Future<void> setMediaGroupId(List<String> memberIds, String? leadId) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+
+    final batch = db.batch();
+    for (final memberId in memberIds) {
+      batch.update(
+        'media_assets',
+        {'group_id': leadId, 'updated_at': now},
+        where: 'id = ?',
+        whereArgs: [memberId],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// 获取某主文件的所有组成员
+  Future<List<MediaAsset>> getGroupMembers(String leadId) async {
+    final db = await database;
+    final maps = await db.query(
+      'media_assets',
+      where: 'group_id = ?',
+      whereArgs: [leadId],
+    );
+    return maps.map((m) => MediaAsset.fromDbMap(m)).toList();
+  }
+
+  // Tag CRUD
+
+  /// 用服务端标签表镜像本地缓存（服务端权威）
+  ///
+  /// 先按父先子顺序写入/更新服务端返回的标签, 再删除本地多出来的标签
+  /// （其标签关联随外键级联清除）. 标签表很小, 因此每次同步都做整表镜像.
+  /// 被删除的标签会记入日志, 便于需要时人工恢复.
+  Future<void> syncTagsCache(List<Tag> serverTags) async {
+    final db = await database;
+    final ordered = sortTagsByHierarchy(serverTags);
+    final serverIds = {for (final tag in serverTags) tag.id};
+
+    final localOnly = [
+      for (final tag in await getAllTags())
+        if (!serverIds.contains(tag.id)) tag,
+    ];
+    if (localOnly.isNotEmpty) {
+      AppLogger().info(
+        '标签镜像: 移除服务端不存在的本地标签 ${localOnly.map((t) => t.fullPath ?? t.name).join(', ')}',
+      );
+    }
+
+    await db.transaction((txn) async {
+      for (final tag in ordered) {
+        await _writeTag(txn, tag);
+      }
+      if (localOnly.isEmpty) return;
+      final placeholders = List.filled(localOnly.length, '?').join(',');
+      final removedIds = [for (final tag in localOnly) tag.id];
+      await txn.delete('media_tag_links',
+          where: 'tag_id IN ($placeholders)', whereArgs: removedIds);
+      await txn.delete('tags',
+          where: 'id IN ($placeholders)', whereArgs: removedIds);
+    });
+  }
+
+  /// 按层级排序标签, 保证父标签先于子标签 (环状数据不会死循环)
+  static List<Tag> sortTagsByHierarchy(List<Tag> tags) {
+    final byId = {for (final t in tags) t.id: t};
+    final result = <Tag>[];
+    final visited = <String>{};
+
+    void visit(Tag tag) {
+      if (!visited.add(tag.id)) return;
+      final parentId = tag.parentId;
+      if (parentId != null) {
+        final parent = byId[parentId];
+        if (parent != null) visit(parent);
+      }
+      result.add(tag);
+    }
+
+    for (final tag in tags) {
+      visit(tag);
+    }
+    return result;
+  }
+
+  /// 写入单个标签（本地缓存更新, 已存在则覆盖字段）
+  Future<void> upsertTagLocal(Tag tag) async {
+    final db = await database;
+    await db.transaction((txn) => _writeTag(txn, tag));
+  }
+
+  /// 写入标签行（INSERT OR IGNORE + UPDATE, 避免 REPLACE 级联删除子标签）
+  Future<void> _writeTag(DatabaseExecutor txn, Tag tag) async {
+    await txn.insert(
+      'tags',
+      tag.toDbMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+    await txn.update(
+      'tags',
+      tag.toDbMap(),
+      where: 'id = ?',
+      whereArgs: [tag.id],
+    );
+  }
+
+  /// 从本地缓存删除标签（含子孙与关联）
+  Future<List<String>> deleteTagLocal(String tagId) async {
+    final db = await database;
+    return await db.transaction((txn) async {
+      final allTagIds = await _collectDescendantTagIds(txn, tagId);
+      allTagIds.add(tagId);
+      for (final tid in allTagIds) {
+        await txn.delete('media_tag_links',
+            where: 'tag_id = ?', whereArgs: [tid]);
+      }
+      for (final tid in allTagIds) {
+        await txn.delete('tags', where: 'id = ?', whereArgs: [tid]);
+      }
+      return allTagIds;
+    });
+  }
+
+  /// 获取所有标签
+  Future<List<Tag>> getAllTags() async {
+    final db = await database;
+    final maps = await db.query('tags', orderBy: 'full_path ASC');
+    return maps.map((m) => Tag.fromDbMap(m)).toList();
+  }
+
+  /// 获取根标签
+  Future<List<Tag>> getRootTags() async {
+    final db = await database;
+    final maps = await db.query(
+      'tags',
+      where: 'parent_id IS NULL',
+      orderBy: 'name ASC',
+    );
+    return maps.map((m) => Tag.fromDbMap(m)).toList();
+  }
+
+  /// 获取子标签
+  Future<List<Tag>> getChildTags(String parentId) async {
+    final db = await database;
+    final maps = await db.query(
+      'tags',
+      where: 'parent_id = ?',
+      whereArgs: [parentId],
+      orderBy: 'name ASC',
+    );
+    return maps.map((m) => Tag.fromDbMap(m)).toList();
+  }
+
+  /// 获取标签总数
+  Future<int> getTagCount() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM tags');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// 获取所有有关联标签的媒体 ID 集合（用于浏览页网格指示器）
+  Future<Set<String>> getMediaIdsWithTags() async {
+    final db = await database;
+    final maps = await db.rawQuery('SELECT DISTINCT media_id FROM media_tag_links');
+    return maps.map((m) => m['media_id'] as String).toSet();
+  }
+
+  /// 递归收集标签的所有子孙 ID（不包含自身）
+  Future<List<String>> _collectDescendantTagIds(Transaction txn, String parentId) async {
+    final result = <String>[];
+    final children = await txn.query('tags', where: 'parent_id = ?', whereArgs: [parentId]);
+    for (final child in children) {
+      final childId = child['id'] as String;
+      result.add(childId);
+      final grandChildren = await _collectDescendantTagIds(txn, childId);
+      result.addAll(grandChildren);
+    }
+    return result;
+  }
+
+  // MediaTagLink CRUD
+
+  /// 插入媒体-标签关联 (批量)
+  Future<void> upsertMediaTagLinks(List<MediaTagLink> links) async {
+    if (links.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+
+    for (final link in links) {
+      batch.insert(
+        'media_tag_links',
+        link.toDbMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  /// 获取媒体文件关联的所有标签 ID
+  Future<List<String>> getTagIdsForMedia(String mediaId) async {
+    final db = await database;
+    final maps = await db.query(
+      'media_tag_links',
+      columns: ['tag_id'],
+      where: 'media_id = ?',
+      whereArgs: [mediaId],
+    );
+    return maps.map((m) => m['tag_id'] as String).toList();
+  }
+
+  /// 获取媒体文件关联的所有标签
+  Future<List<Tag>> getTagsForMedia(String mediaId) async {
+    final db = await database;
+    final maps = await db.rawQuery('''
+      SELECT t.* FROM tags t
+      INNER JOIN media_tag_links mtl ON t.id = mtl.tag_id
+      WHERE mtl.media_id = ?
+      ORDER BY t.full_path ASC
+    ''', [mediaId]);
+    return maps.map((m) => Tag.fromDbMap(m)).toList();
+  }
+
+  /// 设置媒体文件的标签 (全量替换)
+  Future<void> setTagsForMedia(String mediaId, List<String> tagIds) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // 删除旧关联
+      await txn.delete('media_tag_links', where: 'media_id = ?', whereArgs: [mediaId]);
+      // 插入新关联
+      for (final tagId in tagIds) {
+        await txn.insert('media_tag_links', {
+          'media_id': mediaId,
+          'tag_id': tagId,
+        });
+      }
+    });
+  }
+
+  /// 批量增删媒体的标签关联（与服务端批量操作保持一致）
+  Future<void> addRemoveMediaTagLinks(    List<String> mediaIds, {
+    List<String> addTagIds = const [],
+    List<String> removeTagIds = const [],
+  }) async {
+    if (mediaIds.isEmpty) return;
+    // 未缓存的媒体写关联会触发外键约束
+    final cached = await getCachedMediaIds(mediaIds);
+    if (cached.isEmpty) return;
+
+    final db = await database;
+    final placeholders = List.filled(cached.length, '?').join(',');
+    await db.transaction((txn) async {
+      if (removeTagIds.isNotEmpty) {
+        final tagPlaceholders = List.filled(removeTagIds.length, '?').join(',');
+        await txn.rawDelete(
+          'DELETE FROM media_tag_links WHERE media_id IN ($placeholders) AND tag_id IN ($tagPlaceholders)',
+          [...cached, ...removeTagIds],
+        );
+      }
+      for (final mediaId in cached) {
+        for (final tagId in addTagIds) {
+          await txn.insert(
+            'media_tag_links',
+            {'media_id': mediaId, 'tag_id': tagId},
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+      }
+    });
+  }
+
+  /// 获取所有媒体-标签关联
+  Future<List<MediaTagLink>> getAllMediaTagLinks() async {
+    final db = await database;
+    final maps = await db.query('media_tag_links');
+    return maps.map((m) => MediaTagLink.fromDbMap(m)).toList();
+  }
+
+  /// 用服务端结果整批覆盖若干媒体的标签关联（仅处理本地已缓存的媒体）
+  Future<void> replaceTagsForMediaBatch(
+    Map<String, List<String>> tagIdsByMedia,
+  ) async {
+    if (tagIdsByMedia.isEmpty) return;
+    final db = await database;
+    final mediaIds = tagIdsByMedia.keys.toList();
+    final cached = await getCachedMediaIds(mediaIds);
+    if (cached.isEmpty) return;
+
+    await db.transaction((txn) async {
+      for (final mediaId in cached) {
+        await txn.delete('media_tag_links',
+            where: 'media_id = ?', whereArgs: [mediaId]);
+        for (final tagId in tagIdsByMedia[mediaId] ?? const <String>[]) {
+          await txn.insert(
+            'media_tag_links',
+            {'media_id': mediaId, 'tag_id': tagId},
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+      }
+    });
+  }
+
+  /// 过滤出本地已缓存的媒体 ID（避免写关联时触发外键约束）
+  Future<List<String>> getCachedMediaIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final db = await database;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    final maps = await db.rawQuery(
+      'SELECT id FROM media_assets WHERE id IN ($placeholders)',
+      ids,
+    );
+    return [for (final m in maps) m['id'] as String];
+  }
+
+  /// 获取关联记录总数
+  Future<int> getMediaTagLinkCount() async {
+    final db = await database;
+    final result =
+        await db.rawQuery('SELECT COUNT(*) as count FROM media_tag_links');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+  
+  /// 获取需要上传的 media_assets 记录数 (按队列位置计算: 0..modifiedCount 的主文件)
+  Future<int> getModifiedMediaAssetCount(int modifiedCount) async {
+    if (modifiedCount < 0) return 0;
+    final db = await database;
+    // 按 captured_at 升序取前 modifiedCount+1 条主文件
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM (SELECT id FROM media_assets WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?)',
+      [modifiedCount + 1],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+  
+  /// 获取需要上传的 media_assets 的 ID 列表 (按队列位置: 0..modifiedCount 的主文件)
+  Future<List<String>> getModifiedMediaAssetIds(int modifiedCount) async {
+    if (modifiedCount < 0) return [];
+    final db = await database;
+    final maps = await db.rawQuery(
+      'SELECT id FROM media_assets WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?',
+      [modifiedCount + 1],
+    );
+    return maps.map((m) => m['id'] as String).toList();
+  }
+
+  /// 获取修改范围内标记为删除的 media_assets 数量
+  Future<int> getModifiedDeletedMediaAssetCount(int modifiedCount) async {
+    if (modifiedCount < 0) return 0;
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM (SELECT is_deleted FROM media_assets WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?) WHERE is_deleted = 1',
+      [modifiedCount + 1],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+  
+  /// 获取与指定 media_ids 关联的 media_tag_links 记录数
+  Future<int> getMediaTagLinkCountForMediaIds(List<String> mediaIds) async {
+    if (mediaIds.isEmpty) return 0;
+    final db = await database;
+    final placeholders = List.filled(mediaIds.length, '?').join(',');
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM media_tag_links WHERE media_id IN ($placeholders)',
+      mediaIds,
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // 批量操作 / 同步相关
+
+  /// 清空所有表数据
+  Future<void> clearAllData() async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('media_tag_links');
+      await txn.delete('tags');
+      await txn.delete('media_assets');
+    });
+    AppLogger().info('Gallery 数据库已清空');
+  }
+
+  /// 获取待上传的部分数据包 (基于当前索引位置)
+  /// - assets: 获取队列中 0 到 currentIndex 位置的媒体文件及其组成员
+  /// - tags: 获取全量标签
+  /// - links: 仅获取与涉及媒体文件相关的关联记录
+  /// 注意：上传时包含所有文件（包括已删除的），因为服务端需要知道删除状态
+  Future<({List<MediaAsset> assets, List<Tag> tags, List<MediaTagLink> links})>
+      getPartialDataForUpload(int currentIndex) async {
+    final db = await database;
+    
+    // 1. 获取队列中主文件列表 (0 到 currentIndex)，不排除已删除的
+    final mainAssetMaps = await db.rawQuery('''
+      SELECT * FROM media_assets 
+      WHERE group_id IS NULL 
+      ORDER BY captured_at ASC 
+      LIMIT ?
+    ''', [currentIndex + 1]);
+    
+    final mainAssets = mainAssetMaps.map((m) => MediaAsset.fromDbMap(m)).toList();
+    final mainIds = mainAssets.map((a) => a.id).toList();
+    
+    if (mainIds.isEmpty) {
+      return (assets: <MediaAsset>[], tags: <Tag>[], links: <MediaTagLink>[]);
+    }
+    
+    // 2. 获取这些主文件的所有组成员
+    final placeholders = List.filled(mainIds.length, '?').join(',');
+    final memberMaps = await db.rawQuery('''
+      SELECT * FROM media_assets 
+      WHERE group_id IN ($placeholders)
+    ''', mainIds);
+    
+    final memberAssets = memberMaps.map((m) => MediaAsset.fromDbMap(m)).toList();
+    
+    // 3. 合并所有媒体文件
+    final allAssets = [...mainAssets, ...memberAssets];
+    final allMediaIds = allAssets.map((a) => a.id).toList();
+    
+    // 4. 获取全量标签
+    final tags = await getAllTags();
+    
+    // 5. 获取相关的 media_tag_links
+    final linkPlaceholders = List.filled(allMediaIds.length, '?').join(',');
+    final linkMaps = await db.rawQuery('''
+      SELECT * FROM media_tag_links 
+      WHERE media_id IN ($linkPlaceholders)
+    ''', allMediaIds);
+    
+    final links = linkMaps.map((m) => MediaTagLink.fromDbMap(m)).toList();
+    
+    return (assets: allAssets, tags: tags, links: links);
+  }
+
+  /// 删除已上传的媒体数据 (部分删除)
+  /// - 删除指定的 media_assets 记录
+  /// - 删除相关的 media_tag_links 记录
+  Future<void> deleteUploadedData(List<String> mediaIds) async {
+    if (mediaIds.isEmpty) return;
+    final db = await database;
+    final placeholders = List.filled(mediaIds.length, '?').join(',');
+    
+    await db.transaction((txn) async {
+      // 先删除关联记录
+      await txn.delete(
+        'media_tag_links',
+        where: 'media_id IN ($placeholders)',
+        whereArgs: mediaIds,
+      );
+      // 再删除媒体文件记录
+      await txn.delete(
+        'media_assets',
+        where: 'id IN ($placeholders)',
+        whereArgs: mediaIds,
+      );
+    });
+    
+    AppLogger().info('Gallery 已删除 ${mediaIds.length} 条媒体记录');
+  }
+
+  /// 关闭数据库
+  Future<void> close() async {
+    final db = await database;
+    await db.close();
+    _database = null;
+  }
+}

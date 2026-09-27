@@ -82,14 +82,26 @@ function Capture-HelpSnapshot {
 
 $apiDir = Join-Path $Root "references\api"
 $cliDir = Join-Path $Root "references\cli"
+$dbDir = Join-Path $Root "references\db"
 
 Ensure-Directory -Path $apiDir
 Ensure-Directory -Path $cliDir
+Ensure-Directory -Path $dbDir
 
 Push-Location $Root
 try {
-    Write-Host "[refs] exporting router snapshot..."
-    go run ./cmd/route_export -json references/api/routes.json -md references/api/routes.md
+    # 契约由生成而非手工同步：routes.json/routes.md + contract.json + 两端客户端代码。
+    Write-Host "[refs] exporting router snapshot and client contract..."
+    go run ./cmd/route_export `
+        -json references/api/routes.json `
+        -md references/api/routes.md `
+        -contract references/api/contract.json `
+        -dart ..\frontend\lib\core\api\generated\api_contract.dart `
+        -js ..\ops\js\generated\endpoints.js
+
+    # SQLite 表定义以 internal/service/db/schema.sql 为唯一真相源，这里只拷一份供浏览。
+    Write-Host "[refs] copied sqlite schema"
+    Copy-Item -LiteralPath (Join-Path $Root "internal\service\db\schema.sql") -Destination (Join-Path $dbDir "schema.sql") -Force
 
     Write-Host "[refs] capturing CLI snapshots..."
     Capture-HelpSnapshot -WorkingDir $Root -OutPath (Join-Path $cliDir "monarch-main.md") -Command "go" -Args @("run", "./cmd/main.go", "-h")

@@ -102,7 +102,6 @@ func backupBooklet(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.R
 
 	// 构建 DB 模型
 	styles := make([]model.BookletStyle, 0, len(stylesRaw))
-	styleIDs := make([]uuid.UUID, 0, len(stylesRaw))
 	for _, s := range stylesRaw {
 		style, err := parseBookletStyle(s)
 		if err != nil {
@@ -110,11 +109,9 @@ func backupBooklet(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.R
 			return
 		}
 		styles = append(styles, style)
-		styleIDs = append(styleIDs, style.ID)
 	}
 
 	records := make([]model.BookletRecord, 0, len(recordsRaw))
-	recordIDs := make([]uuid.UUID, 0, len(recordsRaw))
 	for _, r := range recordsRaw {
 		record, err := parseBookletRecord(r)
 		if err != nil {
@@ -122,15 +119,12 @@ func backupBooklet(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.R
 			return
 		}
 		records = append(records, record)
-		recordIDs = append(recordIDs, record.ID)
 	}
 
-	// 事务性替换数据
-	err := data_repo.ReplaceBookletData(data_repo.BookletBackupData{
-		Styles:    styles,
-		Records:   records,
-		StyleIDs:  styleIDs,
-		RecordIDs: recordIDs,
+	// 事务内逐行合并（按 updated_at 覆盖，缺行不动，删除走墓碑）
+	mergeRes, err := data_repo.MergeBookletData(data_repo.BookletBackupData{
+		Styles:  styles,
+		Records: records,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存打卡数据失败: " + err.Error()})
@@ -143,7 +137,12 @@ func backupBooklet(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.R
 	// 清理孤儿图片
 	backupCleanOrphanImages(cfg, "booklet")
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "打卡数据备份完成"})
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "打卡数据备份完成",
+		"applied": mergeRes.Applied,
+		"skipped": mergeRes.Skipped,
+	})
 }
 
 func backupEssay(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.RawMessage) {
@@ -176,7 +175,6 @@ func backupEssay(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.Raw
 
 	// 构建 DB 模型
 	articles := make([]model.EssayArticle, 0, len(essaysRaw))
-	articleIDs := make([]uuid.UUID, 0, len(essaysRaw))
 	for _, e := range essaysRaw {
 		article, err := parseEssayArticle(e)
 		if err != nil {
@@ -184,11 +182,9 @@ func backupEssay(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.Raw
 			return
 		}
 		articles = append(articles, article)
-		articleIDs = append(articleIDs, article.ID)
 	}
 
 	labels := make([]model.EssayLabel, 0, len(labelsRaw))
-	labelIDs := make([]uuid.UUID, 0, len(labelsRaw))
 	for _, l := range labelsRaw {
 		label, err := parseEssayLabel(l)
 		if err != nil {
@@ -196,11 +192,9 @@ func backupEssay(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.Raw
 			return
 		}
 		labels = append(labels, label)
-		labelIDs = append(labelIDs, label.ID)
 	}
 
 	summaries := make([]model.EssayYearSummary, 0, len(summariesRaw))
-	yearIDs := make([]int, 0, len(summariesRaw))
 	for _, s := range summariesRaw {
 		summary, err := parseEssayYearSummary(s)
 		if err != nil {
@@ -208,17 +202,13 @@ func backupEssay(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.Raw
 			return
 		}
 		summaries = append(summaries, summary)
-		yearIDs = append(yearIDs, int(summary.Year))
 	}
 
-	// 事务性替换数据
-	err := data_repo.ReplaceEssayData(data_repo.EssayBackupData{
+	// 事务内逐行合并（按 updated_at 覆盖，缺行不动，删除走墓碑）
+	mergeRes, err := data_repo.MergeEssayData(data_repo.EssayBackupData{
 		Articles:      articles,
 		Labels:        labels,
 		YearSummaries: summaries,
-		ArticleIDs:    articleIDs,
-		LabelIDs:      labelIDs,
-		YearIDs:       yearIDs,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存随笔数据失败: " + err.Error()})
@@ -231,7 +221,12 @@ func backupEssay(c *gin.Context, cfg *ModuleConfig, jsonData map[string]json.Raw
 	// 清理孤儿图片
 	backupCleanOrphanImages(cfg, "essay")
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "随笔数据备份完成"})
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "随笔数据备份完成",
+		"applied": mergeRes.Applied,
+		"skipped": mergeRes.Skipped,
+	})
 }
 
 // 图片文件处理
@@ -412,6 +407,42 @@ func getOptionalString(m map[string]interface{}, key string) *string {
 	return nil
 }
 
+// getTime 从 map 中获取可选时间字段：缺失/空/null 返回零值。
+func getTime(m map[string]interface{}, key string) (time.Time, error) {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return time.Time{}, nil
+	}
+	s, ok := v.(string)
+	if !ok || s == "" {
+		return time.Time{}, nil
+	}
+	t, err := parseFlexTime(s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("无效的 %s: %w", key, err)
+	}
+	return t, nil
+}
+
+// parseMergeMeta 解析合并所需的时间字段：updated_at 决定覆盖顺序，
+// deleted_at 非空即墓碑（客户端不传视为未删除）。
+func parseMergeMeta(m map[string]interface{}) (created, updated time.Time, deleted *time.Time, err error) {
+	if created, err = getTime(m, "created_at"); err != nil {
+		return
+	}
+	if updated, err = getTime(m, "updated_at"); err != nil {
+		return
+	}
+	var d time.Time
+	if d, err = getTime(m, "deleted_at"); err != nil {
+		return
+	}
+	if !d.IsZero() {
+		deleted = &d
+	}
+	return
+}
+
 // toJSONRaw 将 map 值序列化为 json.RawMessage
 func toJSONRaw(v interface{}) json.RawMessage {
 	if v == nil {
@@ -437,6 +468,11 @@ func parseBookletStyle(m map[string]interface{}) (model.BookletStyle, error) {
 		return model.BookletStyle{}, fmt.Errorf("无效的 start_date: %w", err)
 	}
 
+	createdAt, updatedAt, deletedAt, err := parseMergeMeta(m)
+	if err != nil {
+		return model.BookletStyle{}, err
+	}
+
 	return model.BookletStyle{
 		ID:                 id,
 		StartDate:          dateOnly(startDate),
@@ -445,6 +481,9 @@ func parseBookletStyle(m map[string]interface{}) (model.BookletStyle, error) {
 		LongestStreak:      getInt(m, "longest_streak"),
 		LongestFullyStreak: getInt(m, "longest_fully_streak"),
 		Tasks:              toJSONRaw(m["tasks"]),
+		DeletedAt:          deletedAt,
+		CreatedAt:          createdAt,
+		UpdatedAt:          updatedAt,
 	}, nil
 }
 
@@ -464,6 +503,11 @@ func parseBookletRecord(m map[string]interface{}) (model.BookletRecord, error) {
 		return model.BookletRecord{}, fmt.Errorf("无效的 date: %w", err)
 	}
 
+	createdAt, updatedAt, deletedAt, err := parseMergeMeta(m)
+	if err != nil {
+		return model.BookletRecord{}, err
+	}
+
 	return model.BookletRecord{
 		ID:             id,
 		StyleID:        styleID,
@@ -471,6 +515,9 @@ func parseBookletRecord(m map[string]interface{}) (model.BookletRecord, error) {
 		Message:        getString(m, "message"),
 		TaskCompletion: toJSONRaw(m["task_completion"]),
 		Mood:           getOptionalString(m, "mood"),
+		DeletedAt:      deletedAt,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
 	}, nil
 }
 
@@ -487,6 +534,11 @@ func parseEssayArticle(m map[string]interface{}) (model.EssayArticle, error) {
 		return model.EssayArticle{}, fmt.Errorf("无效的 date: %w", err)
 	}
 
+	createdAt, updatedAt, deletedAt, err := parseMergeMeta(m)
+	if err != nil {
+		return model.EssayArticle{}, err
+	}
+
 	return model.EssayArticle{
 		ID:        id,
 		Date:      date,
@@ -496,6 +548,9 @@ func parseEssayArticle(m map[string]interface{}) (model.EssayArticle, error) {
 		Labels:    getStringSlice(m, "labels"),
 		Messages:  toJSONRaw(m["messages"]),
 		Mood:      getOptionalString(m, "mood"),
+		DeletedAt: deletedAt,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	}, nil
 }
 
@@ -505,10 +560,18 @@ func parseEssayLabel(m map[string]interface{}) (model.EssayLabel, error) {
 		return model.EssayLabel{}, fmt.Errorf("无效的 label id: %w", err)
 	}
 
+	createdAt, updatedAt, deletedAt, err := parseMergeMeta(m)
+	if err != nil {
+		return model.EssayLabel{}, err
+	}
+
 	return model.EssayLabel{
 		ID:         id,
 		Name:       getString(m, "name"),
 		EssayCount: getInt(m, "essay_count"),
+		DeletedAt:  deletedAt,
+		CreatedAt:  createdAt,
+		UpdatedAt:  updatedAt,
 	}, nil
 }
 
@@ -525,10 +588,17 @@ func parseEssayYearSummary(m map[string]interface{}) (model.EssayYearSummary, er
 		return model.EssayYearSummary{}, fmt.Errorf("无效的 year: %w", err)
 	}
 
+	_, updatedAt, deletedAt, err := parseMergeMeta(m)
+	if err != nil {
+		return model.EssayYearSummary{}, err
+	}
+
 	return model.EssayYearSummary{
 		Year:           year,
 		EssayCount:     getInt(m, "essay_count"),
 		WordCount:      getInt(m, "word_count"),
 		MonthSummaries: toJSONRaw(m["month_summaries"]),
+		DeletedAt:      deletedAt,
+		UpdatedAt:      updatedAt,
 	}, nil
 }

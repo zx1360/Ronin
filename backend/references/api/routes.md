@@ -1,12 +1,13 @@
 # Route Snapshot
 
-- GeneratedAt: 2026-09-26T11:20:47Z
-- TotalRoutes: 68
+- GeneratedAt: 2026-09-27T13:26:46Z
+- TotalRoutes: 86
 
 | Method | Path |
 | --- | --- |
 | GET | / |
 | POST | /API/ai/cancel |
+| GET | /API/ai/capabilities |
 | POST | /API/ai/chat |
 | GET | /API/ai/duplicates |
 | POST | /API/ai/duplicates/ignore |
@@ -27,10 +28,12 @@
 | POST | /API/ai/recluster |
 | POST | /API/ai/resume |
 | POST | /API/ai/retry |
+| POST | /API/ai/review |
+| GET | /API/ai/review/presets |
+| POST | /API/ai/review/presets |
+| DELETE | /API/ai/review/presets/:id |
 | GET | /API/ai/search |
 | POST | /API/ai/search/image |
-| GET | /API/ai/settings |
-| PUT | /API/ai/settings |
 | GET | /API/ai/similar/:id |
 | GET | /API/ai/status |
 | GET | /API/ai/tags |
@@ -66,10 +69,25 @@
 | POST | /API/gallery/tags |
 | DELETE | /API/gallery/tags/:id |
 | PUT | /API/gallery/tags/:id |
+| GET | /API/ops/capabilities |
+| GET | /API/ops/dependencies |
+| GET | /API/ops/fs |
+| GET | /API/ops/gallery/tasks |
+| POST | /API/ops/gallery/tasks |
+| GET | /API/ops/gallery/tasks/:task-id |
+| POST | /API/ops/gallery/tasks/:task-id/stop |
 | GET | /API/ops/overview |
+| GET | /API/ops/preferences |
+| PUT | /API/ops/preferences |
+| POST | /API/ops/reveal |
+| GET | /API/settings |
+| PUT | /API/settings |
 | GET | /API/test |
 | POST | /API/user-data/backup/:module |
 | POST | /API/user-data/check-images/:module |
 | GET | /API/user-data/sync/:module |
+| GET | /ops |
+| GET | /ops/*filepath |
+| HEAD | /ops/*filepath |
 | GET | /static/*filepath |
 | HEAD | /static/*filepath |

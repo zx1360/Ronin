@@ -40,10 +40,11 @@ var capabilityPriority = map[string]int{
 
 // ---------- 入库自动触发 ----------
 
-// reconcileLoop 周期性把"尚无任务行"的媒体补进队列。
+// reconcileLoop 周期性把"结果规格已失配或尚无结果"的媒体补进队列。
 //
 // 这是"媒体入库后自动触发处理流水线"的唯一实现：不依赖入库方的任何配合，
 // 幂等且自愈——无论媒体是何时、由哪个工具写入的，最终都会被覆盖到。
+// 能力实现或输入档位变更后，既有结果会因溯源不符而自动重排。
 func (e *Engine) reconcileLoop(ctx context.Context) {
 	next := reconcileInitialDelay
 	for {
@@ -54,17 +55,28 @@ func (e *Engine) reconcileLoop(ctx context.Context) {
 		}
 
 		autoCaps := ai_repo.AutoCapabilities(e.cfg.AutoCaps)
-		inserted := int64(0)
+		changed := int64(0)
 		for _, capability := range autoCaps {
-			n, err := ai_repo.EnqueueMissing(capability, reconcileBatch, capabilityPriority[capability])
+			tier := e.InputTier(capability)
+			executor := e.Executor(capability)
+			if executor == "" {
+				continue
+			}
+			stale, err := ai_repo.ListStaleMediaIDs(capability, tier, executor, reconcileBatch)
+			if err != nil {
+				log.Printf("[AI] 查询 %s 待处理媒体失败: %v", capability, err)
+				continue
+			}
+			n, err := ai_repo.EnqueueStale(capability, tier, executor, stale,
+				capabilityPriority[capability], e.cfg.MaxAttempts)
 			if err != nil {
 				log.Printf("[AI] 补充入队 %s 失败: %v", capability, err)
 				continue
 			}
-			inserted += n
+			changed += n
 		}
-		if inserted > 0 {
-			log.Printf("[AI] 入库自动入队 %d 条任务（能力: %v）", inserted, autoCaps)
+		if changed > 0 {
+			log.Printf("[AI] 自动入队 %d 条任务（能力: %v）", changed, autoCaps)
 			e.Wake()
 			next = reconcileActiveInterval
 		} else {
@@ -175,16 +187,11 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		jobByMedia[key] = job.JobID
 	}
 
-	items, missing, err := e.resolveItems(mediaIDs)
+	items, failed, err := e.resolveItems(capability, mediaIDs)
 	if err != nil {
 		e.failJobs(claimed, fmt.Sprintf("解析媒体失败: %v", err))
 		info.Failed = len(claimed)
 		return
-	}
-
-	failed := map[string]string{}
-	for _, id := range missing {
-		failed[id] = "媒体文件缺失或未生成派生图"
 	}
 
 	switch capability {
@@ -260,7 +267,7 @@ func (e *Engine) runPHash(items []MediaItem, failed map[string]string) {
 			continue
 		}
 		hash := ComputePHash(item.Path)
-		if err := ai_repo.SavePHash(mediaID, hash); err != nil {
+		if err := ai_repo.SavePHash(mediaID, hash, item.Tier, e.Executor(model.CapPHash)); err != nil {
 			failed[item.MediaID] = err.Error()
 			continue
 		}
@@ -313,7 +320,7 @@ func (e *Engine) runEmbed(ctx context.Context, items []MediaItem, failed map[str
 		})
 	}
 
-	if err := ai_repo.SaveEmbeddings(writes); err != nil {
+	if err := ai_repo.SaveEmbeddings(writes, e.InputTier(model.CapEmbed), e.Executor(model.CapEmbed)); err != nil {
 		for _, w := range writes {
 			failed[w.MediaID.String()] = err.Error()
 		}
@@ -336,6 +343,7 @@ type facePayload struct {
 
 // runFace 通过侧车做人脸检测与特征提取，随后增量归并到人物分组。
 func (e *Engine) runFace(ctx context.Context, items []MediaItem, failed map[string]string) {
+	tiers := tierByMediaID(items)
 	results, err := e.face.RunBatch(ctx, nil, toSidecarItems(items))
 	if err != nil {
 		failAllItems(items, failed, err)
@@ -387,7 +395,7 @@ func (e *Engine) runFace(ctx context.Context, items []MediaItem, failed map[stri
 			})
 		}
 
-		if err := ai_repo.ReplaceFaces(mediaID, writes); err != nil {
+		if err := ai_repo.ReplaceFaces(mediaID, writes, tierOf(tiers, res.ID, model.CapFace), e.Executor(model.CapFace)); err != nil {
 			failed[res.ID] = err.Error()
 			continue
 		}
@@ -411,6 +419,7 @@ type ocrPayload struct {
 
 // runOCR 通过侧车做文字识别。
 func (e *Engine) runOCR(ctx context.Context, items []MediaItem, failed map[string]string) {
+	tiers := tierByMediaID(items)
 	results, err := e.ocr.RunBatch(ctx, nil, toSidecarItems(items))
 	if err != nil {
 		failAllItems(items, failed, err)
@@ -431,7 +440,7 @@ func (e *Engine) runOCR(ctx context.Context, items []MediaItem, failed map[strin
 		if err != nil {
 			continue
 		}
-		if err := ai_repo.SaveOCR(mediaID, payload.Text); err != nil {
+		if err := ai_repo.SaveOCR(mediaID, payload.Text, tierOf(tiers, res.ID, model.CapOCR), e.Executor(model.CapOCR)); err != nil {
 			failed[res.ID] = err.Error()
 		}
 	}
@@ -469,7 +478,8 @@ func (e *Engine) runVLM(ctx context.Context, items []MediaItem, failed map[strin
 			failed[item.MediaID] = err.Error()
 			continue
 		}
-		if err := ai_repo.SaveVLM(mediaID, result.Caption, result.Tags); err != nil {
+		if err := ai_repo.SaveVLM(mediaID, result.Caption, result.Tags,
+			item.Tier, e.Executor(model.CapVLM)); err != nil {
 			failed[item.MediaID] = err.Error()
 		}
 	}

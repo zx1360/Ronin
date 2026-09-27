@@ -28,6 +28,66 @@ func IsValidCapability(capability string) bool {
 	return false
 }
 
+// AI 能力的输入档位。phash/embed 用 256 预览图；face/ocr/vlm 需要更大分辨率。
+// AI 专用派生档只有这一个新增档位，PreviewSize 的语义与用途不变。
+const (
+	TierPreview256 = "preview256"
+	TierAI1024     = "ai1024"
+)
+
+// AIInputTier 返回能力对应的输入档位。
+func AIInputTier(capability string) string {
+	switch capability {
+	case CapPHash, CapEmbed:
+		return TierPreview256
+	default:
+		return TierAI1024
+	}
+}
+
+// 固定能力实现的稳定标识（写入 ai_results.executor，作为结果溯源的执行者）。
+// 标识一旦变更，既有结果会被判定为失配并自动重排。
+const (
+	ImplPHashGoDCT  = "go-dct-phash-v1"
+	ImplFaceSidecar = "buffalo_l"
+	ImplOCRSidecar  = "rapidocr"
+)
+
+// LegacyInputTier 是迁移前所有 AI 结果实际使用的输入档位：旧代码统一喂 256 预览图。
+// 迁移按此如实登记溯源，face/ocr/vlm 因此会被判定为失配并自动改用 ai1024 重排。
+const LegacyInputTier = TierPreview256
+
+// AiResultSpec 一条 AI 结果的溯源信息：用了哪个输入档位、哪个执行者（实现或模型）。
+// 与期望规格不一致时由 reconcile 循环自动重排。
+type AiResultSpec struct {
+	MediaID    uuid.UUID `json:"media_id"`
+	Capability string    `json:"capability"`
+	InputTier  string    `json:"input_tier"`
+	Executor   string    `json:"executor"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// AiImplementation 一个能力实现或模型候选。
+type AiImplementation struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Note  string `json:"note,omitempty"`
+}
+
+// AiCapabilityInfo 一个能力的输入档位、当前选择与候选清单；由后端下发，消费端只渲染。
+type AiCapabilityInfo struct {
+	Capability string             `json:"capability"`
+	Label      string             `json:"label"`
+	InputTier  string             `json:"input_tier"`
+	Selected   string             `json:"selected"`
+	Ready      bool               `json:"ready"`
+	Reason     string             `json:"reason,omitempty"`
+	Candidates []AiImplementation `json:"candidates"`
+	// SettingKey 是切换该能力执行者时要写入的配置键；为空表示不可切换。
+	// 有了它，消费端不必自己维护"能力 → 配置键"的对照表。
+	SettingKey string `json:"setting_key,omitempty"`
+}
+
 // AiJob 一条 AI 处理任务（能力 × 媒体）。
 type AiJob struct {
 	ID         int64      `json:"id"`

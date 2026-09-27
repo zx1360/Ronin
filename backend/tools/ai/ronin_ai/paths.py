@@ -27,12 +27,3 @@ def siglip_dir() -> Path:
     base = models_dir() / "siglip"
     base.mkdir(parents=True, exist_ok=True)
     return base
-
-
-def insightface_root() -> Path:
-    """insightface 的 root 参数。
-
-    insightface 会在 <root>/models/<name> 下查找模型，因此 root 取 tools/ai，
-    实际模型位于 tools/ai/models/buffalo_l。
-    """
-    return ROOT_DIR

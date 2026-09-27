@@ -3,18 +3,15 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
 )
 
-// 数据库配置
+// DbConfig 数据库配置：单文件 SQLite（与 monarch 共用同一库）。
 type DbConfig struct {
-	DbIP       string
-	DbPort     string
-	DbUser     string
-	DbPassword string
-	DbName     string
+	DbPath string
 }
 
 var (
@@ -24,33 +21,39 @@ var (
 func init() {
 	_ = godotenv.Load()
 
-	DbConf.DbIP = os.Getenv("DB_IP")
-	DbConf.DbPort = os.Getenv("DB_PORT")
-	DbConf.DbUser = os.Getenv("DB_USER")
-	DbConf.DbPassword = os.Getenv("DB_PASSWORD")
-	DbConf.DbName = os.Getenv("DB_NAME")
+	DbConf.DbPath = resolveDbPath()
 }
 
-// Validate 校验必要配置项，返回缺失项列表
-func Validate() error {
-	required := map[string]string{
-		"DB_IP":       DbConf.DbIP,
-		"DB_PORT":     DbConf.DbPort,
-		"DB_USER":     DbConf.DbUser,
-		"DB_PASSWORD": DbConf.DbPassword,
-		"DB_NAME":     DbConf.DbName,
+// resolveDbPath 解析 SQLite 库路径：DB_PATH 优先（相对当前工作目录）；
+// 否则优先 backend/data/monarch.db，回退 ../data/monarch.db（gallery CLI 在 gizmos/ 下独立运行）。
+func resolveDbPath() string {
+	if path := strings.TrimSpace(os.Getenv("DB_PATH")); path != "" {
+		return path
 	}
-
-	var missing []string
-	for key, val := range required {
-		if strings.TrimSpace(val) == "" {
-			missing = append(missing, key)
+	for _, candidate := range []string{
+		filepath.Join("data", "monarch.db"),
+		filepath.Join("..", "data", "monarch.db"),
+	} {
+		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+			return candidate
 		}
 	}
+	return filepath.Join("data", "monarch.db")
+}
 
-	if len(missing) > 0 {
-		return fmt.Errorf("缺少必要的环境变量: %s", strings.Join(missing, ", "))
+// Validate 校验必要配置项：数据库文件必须已存在，
+// gallery CLI 不得在自身目录旁静默新建空库。
+func Validate() error {
+	path := strings.TrimSpace(DbConf.DbPath)
+	if path == "" {
+		return fmt.Errorf("DB_PATH 未配置")
 	}
-
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("数据库文件不可用: %s (%v)", path, err)
+	}
+	if fi.IsDir() {
+		return fmt.Errorf("数据库路径是目录: %s", path)
+	}
 	return nil
 }

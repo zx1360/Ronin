@@ -58,7 +58,7 @@ func GetConfig(c *gin.Context) {
 		"data": gin.H{
 			"python":            comix.PythonExecutable(),
 			"configured_python": config.ComixConf.Python,
-			"root":              config.ComixConf.Root,
+			"root":              config.ResolveComixRoot(),
 			"available":         available,
 			"message":           message,
 		},
@@ -274,10 +274,14 @@ func ListTasks(c *gin.Context) {
 	}
 	out := make([]summary, 0, len(tasks))
 	for _, t := range tasks {
+		var result *comix.Result
+		if t.Result != nil {
+			result, _ = t.Result.(*comix.Result)
+		}
 		out = append(out, summary{
 			ID: t.ID, Name: t.Name, Command: t.Command, Status: t.Status,
 			PID: t.PID, StartedAt: t.StartedAt, FinishedAt: t.FinishedAt,
-			ExitCode: t.ExitCode, Error: t.Error, Result: t.Result,
+			ExitCode: t.ExitCode, Error: t.Error, Result: result,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"tasks": out}})

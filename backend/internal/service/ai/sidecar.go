@@ -275,10 +275,24 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 	var readErr error
 	done := make(chan struct{})
 
+	// 读取器要先取到局部变量：取消分支会调用 killLocked() 把 s.stdout 置空，
+	// 协程若继续读字段就会在 nil 上解引用（曾因此在"批次运行中点暂停"时打挂整个进程）。
+	reader := s.stdout
+	if reader == nil {
+		s.killLocked()
+		return nil, fmt.Errorf("%s 侧车输出管道不可用", s.capability)
+	}
+
 	go func() {
 		defer close(done)
+		// 侧车交互里的任何缺陷都只应让本批次失败，绝不能带走整个 HTTP 服务。
+		defer func() {
+			if r := recover(); r != nil {
+				readErr = fmt.Errorf("%s 侧车读取协程异常: %v", s.capability, r)
+			}
+		}()
 		for len(results) < expected {
-			line, err := s.stdout.ReadBytes('\n')
+			line, err := reader.ReadBytes('\n')
 			if err != nil {
 				readErr = err
 				return

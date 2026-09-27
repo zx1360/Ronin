@@ -1,8 +1,12 @@
 package ai_repo
 
 import (
+	"database/sql"
+	"fmt"
+
 	"github.com/google/uuid"
 
+	"monarch/internal/model"
 	"monarch/internal/service/db"
 )
 
@@ -13,10 +17,10 @@ func ListDuplicateIgnoreIDs() ([]uuid.UUID, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx,
-		`SELECT media_id FROM ai.duplicate_ignores ORDER BY created_at DESC`)
+	rows, err := db.R().QueryContext(ctx,
+		`SELECT media_id FROM ai_duplicate_ignores ORDER BY created_at DESC`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("查询非重复标记失败: %w", err)
 	}
 	defer rows.Close()
 
@@ -52,14 +56,29 @@ func IgnoreDuplicates(ids []uuid.UUID) (int64, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tag, err := db.GetPool().Exec(ctx, `
-		INSERT INTO ai.duplicate_ignores (media_id)
-		SELECT unnest($1::uuid[])
-		ON CONFLICT (media_id) DO NOTHING`, ids)
+	var inserted int64
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		inserted = 0
+		now := model.Now()
+		for _, id := range ids {
+			res, err := tx.ExecContext(ctx, `
+				INSERT INTO ai_duplicate_ignores (media_id, created_at) VALUES (?, ?)
+				ON CONFLICT (media_id) DO NOTHING`, id, now)
+			if err != nil {
+				return fmt.Errorf("标记非重复失败: %w", err)
+			}
+			n, err := res.RowsAffected()
+			if err != nil {
+				return err
+			}
+			inserted += n
+		}
+		return nil
+	})
 	if err != nil {
 		return 0, err
 	}
-	return tag.RowsAffected(), nil
+	return inserted, nil
 }
 
 // UnignoreDuplicates 取消"非重复"标记，返回恢复条数。
@@ -70,10 +89,11 @@ func UnignoreDuplicates(ids []uuid.UUID) (int64, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tag, err := db.GetPool().Exec(ctx,
-		`DELETE FROM ai.duplicate_ignores WHERE media_id = ANY($1)`, ids)
+	res, err := db.W().ExecContext(ctx,
+		`DELETE FROM ai_duplicate_ignores WHERE media_id IN (`+placeholders(len(ids))+`)`,
+		anyArgs(ids)...)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("取消非重复标记失败: %w", err)
 	}
-	return tag.RowsAffected(), nil
+	return res.RowsAffected()
 }

@@ -1,91 +1,98 @@
 ## 项目说明 (Monarch)
 
-Ronin 三端架构的"唯一真理"层，Go 语言开发。
+Ronin 三端架构的"唯一真理"层，Go 语言开发。数据为**单文件 SQLite**，不依赖任何外部数据库服务。
 
 ### 模块
 
-- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器，为 Torrid (Android) 和 Northstar (Desktop) 提供 REST API。
+- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器。生产模式开两个监听：
+  LAN 侧 HTTPS + `X-API-Key`（供 frontend 使用），回环侧 HTTP（ops 网页端与本机能力接口）。
 - **Gizmos CLI**（`gizmos/`，独立 Go module）：命令行批处理媒体库（`ingest`/`execute`/`refresh`）。
-- **comix 爬虫集成**（`internal/service/comix/` + `internal/handler/comix_handler/`）：以子进程方式调用
-  外部 comix 项目（`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
-  提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
-  `comix` schema 的表由 comix 项目自行建表与维护，本项目只读写。
-- **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长，供画廊剪辑页使用。
+- **comix 爬虫**（`gizmos/comix/`，已内置）：Python 项目，以子进程方式调用
+  （`python -m comix.cli --json <cmd>`，协议见其 `docs/协议文档.md`），
+  提供 `/API/comix/*` 接口。`comix_*` 表由它自己建表与维护，与其余表共用同一个 SQLite 文件。
+- **外部命令任务引擎**（`internal/service/proctask/`）：comix 爬虫与 gallery CLI
+  共用同一套生命周期管理（内存任务表 + 子进程输出入日志 + 进程树中断），
+  差别只在"stdout 是 JSON 结果还是要展示的日志"，由 Spec 参数化。
+- **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长。
 - **AI 媒体处理层**（`internal/service/ai/` + `internal/repository/ai_repo/` + `handler/ai_handler/`）：
-  按需拉起、空闲退出的本地 AI 能力。数据全部落在独立的 `ai` schema
-  （`references/db/ai.sql`，回滚见 `ai_rollback.sql`），不修改其它 schema。
-  - `phash`：纯 Go 感知哈希（对预览图算 DCT pHash），无外部进程。
-  - `embed` / `face` / `ocr`：Python 侧车（`tools/ai/`）批量处理，一个能力一个进程，
-    空闲 `AI_IDLE_TIMEOUT` 秒后自动退出释放内存，进程降为 BelowNormal 优先级
-    （`priority_windows.go`）。`AI_DEVICE=auto` 时 `face`/`ocr` 走 DirectML，向量编码
-    固定 CPU——换执行提供者会改变向量数值、使既有 `ai.embeddings` 失效
-    （`ronin_ai/providers.py`）。
-  - `vlm`：调用本机 Ollama（`OLLAMA_VLM_MODEL`，默认 `qwen3.5:4b`；备选
-    `OLLAMA_VLM_MODEL_ALT` = 社区 abliteration 的无审查版，同样保留视觉能力）。请求必须带
-    `think=false` 与显式 `num_ctx`（`OLLAMA_VLM_CTX`）：思考型模型会把 `num_predict`
-    全用在推理上，JSON 输出为空。不传 `keep_alive`，沿用 Ollama 默认（无请求 5 分钟后
-    卸载模型）；用户已运行的 Ollama 直接复用，未运行时才自拉 `ollama serve`（靠
-    `OLLAMA_MODELS` 指向同一模型库，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收）。
-  - 模型可切换：桌面端选择**标注**用哪个候选（`ai.settings.ollama_vlm_model`），
-    对话请求可用 `model` 字段逐次指定；两个候选名由 `/API/ai/status` 的 `ollama` 段下发。
-    备选模型可用社区 GGUF 本地构建：`ollama create -f Modelfile` 里必须有**两条 FROM**
-    （文本 GGUF + `mmproj`），否则丢失视觉能力；`SupportsThinking` 会剥掉 `命名空间/`
-    前缀再判断，社区重打包的 Qwen 模型同样能开"深度思考"。
-  - 模型仲裁（`models.go`）：本地只有一块 GPU，同一时刻只跑一个模型。**前台对话抢占**
-    后台标注（中断批次 + 卸载旧模型，任务退回队列不计失败），**后台标注等前台**结束
-    （超时才接管），避免边聊天边被反复打断。
-  - `chat`（`/API/ai/chat`）：同一模型承接的交互式对话，NDJSON 流式返回
-    `notice`/`thinking`/`delta`/`done`/`aborted`/`error`。每轮显式下发 `keep_alive`
-    （默认 `OLLAMA_KEEP_ALIVE`，客户端可覆盖，0 = 立即卸载）；客户端要求更长的驻留时间时，
-    自拉服务的空闲回收阈值同步放宽。图片可用 `media_ids` 引用库内媒体（服务端就地取
-    预览图）或内联 base64，不读写 `ai` schema。
-  - 任务队列持久化在 `ai.jobs`，支持失败重试、批次超时、暂停/继续与进度查询；
-    入库自动触发由 reconcile 循环（`EnqueueMissing`）实现，幂等自愈。
-  - 检索不需要 pgvector：向量 int8 量化存 `ai.embeddings`，Go 侧内存精确扫描。
-  - 向量模型必须是**多语种分词器**版本（默认 SigLIP 2）。
+  按需拉起、空闲退出的本地 AI 能力。
+  - `phash`：纯 Go 感知哈希，无外部进程；`embed` / `face` / `ocr`：Python 侧车（`tools/ai/`），
+    一个能力一个进程，空闲 `ai.idle_timeout` 秒后退出并降为 BelowNormal 优先级。
+    `ai.device=auto` 时 `face`/`ocr` 走 DirectML，向量编码固定 CPU——换执行提供者会改变向量数值。
+  - `vlm`：调用本机 Ollama。请求必须带 `think=false` 与显式 `num_ctx`（思考型模型会把
+    `num_predict` 全用在推理上，JSON 输出为空）。用户已运行的 Ollama 直接复用，未运行时才自拉。
+  - **输入档位**：phash/embed 用 256 预览图（`preview256`）；face/ocr/vlm 用长边 1024 的
+    AI 专用派生档（`ai1024`，按需生成并缓存在 `<GALLERY_DIR>/AI/`）。只有这两档。
+  - **结果溯源与自动重排**：`ai_results` 记录每条 (媒体, 能力) 的 `input_tier` 与 `executor`；
+    reconcile 循环比对期望规格，不符即自动重排（`EnqueueStale`）。改模型/换档位无需人工清库。
+  - 检索不需要向量扩展：向量 int8 量化存 `ai_embeddings`，Go 侧内存精确扫描；
+    文本模糊检索用 SQLite `LIKE`，数组检索用 `json_each`。
+  - 任务队列持久化在 `ai_jobs`（写池单连接，认领天然串行，不需要 `SKIP LOCKED`），
+    支持失败重试、批次超时、暂停/继续与进度查询。
+  - 模型仲裁（`models.go`）：本机只有一块 GPU。前台对话抢占后台标注（中断批次 + 卸载旧模型，
+    任务退回队列不计失败），后台标注等前台结束（超时才接管）。
+  - `chat`（`/API/ai/chat`）：NDJSON 流式对话，事件 `notice`/`thinking`/`delta`/`done`/`aborted`/`error`；
+    图片可用 `media_ids` 引用库内媒体或内联 base64。
+  - `review`（`/API/ai/review`）：近期回顾。**统计由后端算出**（`internal/service/review`），
+    模型只负责把给定事实写成叙述；结果按"统计指纹 + 预设 + 模型"缓存，语气/角色是可编辑预设。
+    模型不可用时仍返回统计（完整降级）。
 
 ### 技术栈
 
-Go + Gin + pgx + PostgreSQL 18.0。支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
+Go + Gin + modernc.org/sqlite（纯 Go，CGO_ENABLED=0 可用）。支持 HTTP/HTTPS（自签证书），
+`X-API-Key` 鉴权。启动时通过 mDNS (`_monarch._tcp`) 注册服务。
 
 ### 快速启动
 
 ```bash
-go run ./cmd -mode local    # 开发模式 (HTTP, 无鉴权)
-go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
+go run ./cmd -mode local    # 开发模式 (HTTP, 无鉴权, 调试端口即主服务)
+go run ./cmd                # 生产模式 (LAN HTTPS+鉴权；另开回环 HTTP 供 ops)
 ```
 
 ### 环境变量 (.env)
 
-`LOCAL_PORT`, `LOCAL_DEBUG_PORT`, `STATIC_DIR`, `GALLERY_DIR`, `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`,
-`API_KEY_SERVER`；comix 集成可选 `COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`。
-AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR_DIR`, `AI_IDLE_TIMEOUT`,
-`AI_BATCH_SIZE`, `AI_JOB_TIMEOUT`, `AI_MAX_ATTEMPTS`, `AI_WORKERS`, `AI_EMBED_MODEL`, `AI_AUTO_CAPS`
-(`none`/`off` = 关闭入库自动处理), `AI_DEVICE` (`cpu` = 侧车全部回退 CPU), `OLLAMA_URL`,
-`OLLAMA_VLM_MODEL`, `OLLAMA_VLM_MODEL_ALT`, `OLLAMA_VLM_CTX`, `OLLAMA_KEEP_ALIVE`（对话请求的模型驻留秒数，默认 300）,
-`OLLAMA_MODELS`, `OLLAMA_EXE`, `OLLAMA_IDLE_TIMEOUT`
-（自拉 ollama serve 的空闲回收秒数，默认 360，需大于模型的 keep_alive）。
+**只保留连库之前就必须知道的项**：`DB_PATH`、`LOCAL_PORT`、`LOCAL_DEBUG_PORT`、`API_KEY_SERVER`。
+其余配置（目录、comix/AI/Ollama 参数）全部落在 `app_settings` 表，由 ops 网页端读写：
+
+- 读取：`GET /API/settings` 返回 `{values, schema}`，`schema` 描述每个配置项的控件类型、
+  取值范围与候选项——**消费端只渲染，不硬编码配置键**。
+- 写入：`PUT /API/settings`（仅回环），校验后立即 `config.ApplySettings` 生效。
 
 ### API 概览
 
 | 路由组 | 关键端点 | 用途 |
 |--------|---------|------|
-| `/API/user-data` | `GET /sync/:module`, `POST /backup/:module`, `POST /check-images/:module` | 用户数据同步/备份（提交完整数据集，服务端事务内全量替换） |
-| `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download`, `/sync-readed` | 漫画浏览与离线下载（Android 端主用） |
-| `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Desktop 端主用） |
-| `/API/gallery` | `GET /batch`, `GET /overview`, `GET /:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
-| `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
-| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）与 `only_deleted`（仅软删除项）；**不传 `vlm_tags` 时完全不触及 `ai` schema**，未初始化 AI 层的部署不受影响 |
-| `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
-| `/API/ai` | `GET /status`, `GET /jobs`, `POST /enqueue\|retry\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态、队列与进度、入队/重试、暂停与继续、模型进程启停、自动处理开关（`cancel` 会中断当前批次并暂停队列，`resume` 恢复） |
-| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `POST /duplicates/ignore\|unignore`, `GET /duplicates/ignored`, `GET /tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组（`ignore` = 人工判定「非重复」，之后不再参与分组，可随时恢复）、AI 标签清单（含出现次数） |
-| `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式（`notice`/`thinking`/`delta`/`done`/`aborted`/`error`），图片可用 `media_ids` 引用库内媒体或内联 base64；`model`/`num_ctx`/`think`/`temperature`/`keep_alive_seconds` 逐次可调 |
-| `/API/ai` | `GET /persons`, `GET /persons/:id/faces`, `PATCH/DELETE /persons/:id`, `POST /persons/merge\|faces/assign\|recluster` | 人物分组：改名/删除/合并/人工纠正/重新聚类 |
+| `/API/user-data` | `GET /sync/:module`, `POST /backup/:module`, `POST /check-images/:module` | 用户数据同步/备份（**按 `updated_at` 逐行合并，删除用 `deleted_at` 墓碑**） |
+| `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download`, `/sync-readed` | 漫画浏览与离线下载（frontend 端主用） |
+| `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询 + 爬虫任务生命周期（ops 端主用） |
+| `/API/gallery` | `GET /batch`, `/overview`, `/:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
+| `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（`full_path` 级联由 Go 维护，服务端权威） |
+| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询与标注（软删除/备注/捆绑/编辑参数/处理游标）。`vlm_tags` 为 AI 标签（只读，物理隔离）；**不传 `vlm_tags` 时完全不触及 `ai_` 表** |
+| `/API/settings` | `GET`, `PUT` | 运行时配置读写（`schema` 驱动 UI，仅回环可写） |
+| `/API/ops` | `GET /overview` | 系统概览：服务信息、**SQLite 文件路径与体积**、各存储目录用量、依赖探测 |
+| `/API/ops` | `GET /capabilities`, `/dependencies`, `/fs`, `POST /reveal` | 本机能力：固定任务清单与参数范围、外部命令探测、目录选择、在文件管理器中定位 |
+| `/API/ops` | `GET/PUT /preferences` | ops 页面轻量偏好（后端管理 json） |
+| `/API/ops` | `GET/POST /gallery/tasks`, `GET /gallery/tasks/:id`, `POST /gallery/tasks/:id/stop` | 内置 gallery CLI 的任务生命周期（与 comix 共用 `proctask` 引擎） |
+| `/API/ai` | `GET /status`, `/capabilities`, `/jobs`, `POST /enqueue\|retry\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild` | 运维：能力就绪状态、队列与进度、入队/重试、暂停与继续、模型进程启停。`/capabilities` 下发每个能力的**输入档位、当前执行者与候选清单** |
+| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `/media/:id`, `/duplicates*`, `/tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组、AI 标签清单 |
+| `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式 |
+| `/API/ai` | `GET/PATCH/DELETE /persons*`, `POST /persons/merge\|faces/assign\|recluster` | 人物分组 |
+| `/API/ai` | `GET/POST /review/presets`, `DELETE /review/presets/:id`, `POST /review` | 近期回顾：确定性统计 + 本地模型叙述 + 缓存 + 可编辑预设 |
 
-`GET /API/ai/search` 的检索方式（`mode`）：`auto`（默认，有文本走语义并对关键词命中加权）、
-`semantic`、`keyword`（只匹配 OCR/描述/AI 关键词）、`filename`（只匹配文件路径，可用扩展名过滤）。
-结构筛选：`tag_ids`（人工标签）、`vlm_tags`（AI 标签，只读，与人工标签物理隔离）、
-`person_ids`、`mime_type`、`from`/`to`。非法的 `tag_ids`/`person_ids` 返回 400 而不是 500。
+`GET /API/ai/search` 的 `mode`：`auto`（默认）、`semantic`、`keyword`、`filename`。
+结构筛选：`tag_ids`、`vlm_tags`（只读）、`person_ids`、`mime_type`、`from`/`to`。
+非法的 `tag_ids`/`person_ids` 返回 400 而不是 500。
+
+**未启用 AI 能力时**（`ai.enabled=false` 或缺模型/侧车）：`/API/ai/capabilities` 如实报告
+不可用原因（含"服务可达但模型未安装"）；入队/重试/启动模型返回 409，不会拉起任何进程；
+检索退化为关键词模式，只读接口照常可用；`/API/ai/review` 仍返回确定性统计；其余接口不受影响。
+
+### 运维网页端 (ops)
+
+构建期无产物：`ops/` 是纯静态 HTML/CSS/ES 模块，由后端挂在 `/ops`。
+访问方式：启动 Monarch 后打开 `http://127.0.0.1:<LOCAL_DEBUG_PORT>/ops/`（生产模式同样提供该回环监听）。
+页面本身与 `/API/ops/*`、`/API/settings` 都只对本机回环开放：页面不具备本机权限，
+进程与任务生命周期、路径定位、配置读写一律经这些回环接口完成。
 
 ### 验收
 
@@ -95,23 +102,22 @@ go build ./... && go vet ./... && go test ./...   # 在 backend/ 与 backend/giz
 
 ### 跨项目契约
 
-修改 Go 接口、路由或 CLI 参数后运行（会同步 `references/api/` 与 `references/cli/`）：
+修改 Go 接口、路由或 CLI 参数后运行（同步 `references/api/` 契约与 CLI 快照）：
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
 ```
+产物：`references/api/{routes.json,routes.md,contract.json}`、`references/db/schema.sql`，
+以及由契约生成的客户端文件（frontend 的 Dart、ops 的 JS 端点模块）。**契约由生成而非手工同步**。
 
 ### 数据库
 
-表定义及触发器见 `references/db/init.sql`（gallery 与 user_data，幂等可重复执行）；
-索引见 `AGENTS_DB.md`，分模块明细见 `references/db/`。
-AI 层单独执行 `references/db/ai.sql`（只新增 `ai` schema，幂等）；
-整体回滚执行 `references/db/ai_rollback.sql`（`DROP SCHEMA ai CASCADE`，不动其它数据）。
-AI 侧车依赖安装：`powershell -File tools/ai/install.ps1`（详见 `tools/ai/README.md`）。
+见 `AGENTS_DB.md`（索引与约定）。表结构：`internal/service/db/schema.sql`。
+一次性迁移：`cmd/migrate_pg`（独立 module，须进其目录 `go run .`）；AI 侧车依赖安装：`powershell -File tools/ai/install.ps1`。
 
 ### 硬性要求
 
 - 考虑边界情况, 做好异常防护.
 - 除非明确要求, 不对已有功能引入破坏性修改.
-- 更新数据库记录时显式更新所有字段值.
+- 更新数据库记录时显式更新所有字段值（含 `updated_at`：没有触发器兜底）.
 - 涉及用户数据的写入必须走事务, 保证失败可回滚.
 - 注意代码可维护性.

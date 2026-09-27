@@ -1,0 +1,78 @@
+/// Essay 模块的 Hive Box 提供者
+///
+/// 提供对 [YearSummary]、[Essay]、[Label] 三种数据的 Box 访问和响应式流。
+library;
+
+import 'package:hive/hive.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import 'package:torrid/core/api/user_data_sync.dart';
+import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:torrid/features/essay/models/essay.dart';
+import 'package:torrid/features/essay/models/label.dart';
+import 'package:torrid/features/essay/models/year_summary.dart';
+
+part 'box_provider.g.dart';
+
+/// 供 UI / 派生统计消费的"活"行：墓碑行只在同步时使用，必须过滤掉。
+///
+/// Box 里保留墓碑（而不是物理删除）是为了让删除动作能上传到服务端；
+/// 一旦在这里漏过滤，已删除的随笔/标签/年度汇总会重新出现在界面上。
+List<T> _live<T extends SyncRow>(Box<T> box) =>
+    liveSyncRows(box.values).toList();
+
+/// 年度统计信息的 Hive Box
+@riverpod
+Box<YearSummary> summaryBox(SummaryBoxRef ref) {
+  return Hive.box<YearSummary>(HiveService.yearSummaryBoxName);
+}
+
+/// 年度统计信息的响应式流（已过滤墓碑）
+/// 
+/// 使用 yield 手动触发一次以读取初始数据，之后监听 box 变化。
+@riverpod
+Stream<List<YearSummary>> summaryStream(SummaryStreamRef ref) async* {
+  final box = ref.read(summaryBoxProvider);
+  yield _live(box);
+  await for (final event in box.watch()) {
+    if (event.deleted || event.value != null) {
+      yield _live(box);
+    }
+  }
+}
+
+/// 随笔数据的 Hive Box
+@riverpod
+Box<Essay> essayBox(EssayBoxRef ref) {
+  return Hive.box<Essay>(HiveService.essayBoxName);
+}
+
+/// 随笔数据的响应式流（已过滤墓碑）
+@riverpod
+Stream<List<Essay>> essayStream(EssayStreamRef ref) async* {
+  final box = ref.read(essayBoxProvider);
+  yield _live(box);
+  await for (final event in box.watch()) {
+    if (event.deleted || event.value != null) {
+      yield _live(box);
+    }
+  }
+}
+
+/// 标签数据的 Hive Box
+@riverpod
+Box<Label> labelBox(LabelBoxRef ref) {
+  return Hive.box<Label>(HiveService.labelBoxName);
+}
+
+/// 标签数据的响应式流（已过滤墓碑）
+@riverpod
+Stream<List<Label>> labelStream(LabelStreamRef ref) async* {
+  final box = ref.read(labelBoxProvider);
+  yield _live(box);
+  await for (final event in box.watch()) {
+    if (event.deleted || event.value != null) {
+      yield _live(box);
+    }
+  }
+}

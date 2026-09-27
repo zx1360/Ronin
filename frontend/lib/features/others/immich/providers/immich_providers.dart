@@ -1,0 +1,371 @@
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:torrid/core/constants/paging.dart';
+import 'package:torrid/features/others/ai/models/ai_search_models.dart';
+import 'package:torrid/features/others/ai/services/ai_api_service.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
+import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/others/gallery/services/gallery_write_buffer.dart';
+
+part 'immich_providers.g.dart';
+
+/// 相册页(immich)数据层
+///
+/// 该页始终在线: 媒体/标签/关联均直接从服务端读取, 同时把结果写回本地缓存,
+/// 使画廊页的离线缓存与服务端保持一致。写操作同样走服务端权威接口。
+
+/// 媒体筛选条件
+///
+/// [tagIds] 为人工标签（可写），[vlmTags] 为服务端 AI 标签（只读）。
+/// 两者物理隔离、互不覆盖，同时在筛选条件里出现时取交集。
+class ImmichFilter {
+  final List<String> tagIds;
+  final bool includeDescendants;
+  final bool untagged;
+  final bool includeDeleted;
+  final List<String> vlmTags;
+
+  const ImmichFilter({
+    this.tagIds = const [],
+    this.includeDescendants = true,
+    this.untagged = false,
+    this.includeDeleted = false,
+    this.vlmTags = const [],
+  });
+
+  ImmichFilter copyWith({
+    List<String>? tagIds,
+    bool? includeDescendants,
+    bool? untagged,
+    bool? includeDeleted,
+    List<String>? vlmTags,
+  }) {
+    return ImmichFilter(
+      tagIds: tagIds ?? this.tagIds,
+      includeDescendants: includeDescendants ?? this.includeDescendants,
+      untagged: untagged ?? this.untagged,
+      includeDeleted: includeDeleted ?? this.includeDeleted,
+      vlmTags: vlmTags ?? this.vlmTags,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ImmichFilter &&
+      other.untagged == untagged &&
+      other.includeDeleted == includeDeleted &&
+      other.includeDescendants == includeDescendants &&
+      other.tagIds.length == tagIds.length &&
+      other.tagIds.every(tagIds.contains) &&
+      other.vlmTags.length == vlmTags.length &&
+      other.vlmTags.every(vlmTags.contains);
+
+  @override
+  int get hashCode => Object.hash(
+        Object.hashAll(tagIds),
+        includeDescendants,
+        untagged,
+        includeDeleted,
+        Object.hashAll(vlmTags),
+      );
+}
+
+/// 筛选条件 Provider
+@riverpod
+class ImmichFilterNotifier extends _$ImmichFilterNotifier {
+  @override
+  ImmichFilter build() => const ImmichFilter();
+
+  /// 选中/取消单个标签（多选累积）
+  void toggleTag(String tagId) {
+    final next = [...state.tagIds];
+    if (!next.remove(tagId)) next.add(tagId);
+    state = state.copyWith(tagIds: next, untagged: false);
+  }
+
+  /// 只查看未打标签的媒体
+  void toggleUntagged() {
+    state = state.copyWith(untagged: !state.untagged, tagIds: const []);
+  }
+
+  void setIncludeDescendants(bool value) =>
+      state = state.copyWith(includeDescendants: value);
+
+  void setIncludeDeleted(bool value) =>
+      state = state.copyWith(includeDeleted: value);
+
+  /// 选中/取消单个 AI 标签（只读数据，仅参与筛选）
+  void toggleVlmTag(String tag) {
+    final next = [...state.vlmTags];
+    if (!next.remove(tag)) next.add(tag);
+    state = state.copyWith(vlmTags: next);
+  }
+
+  void clearVlmTags() => state = state.copyWith(vlmTags: const []);
+
+  void reset() => state = const ImmichFilter();
+}
+
+/// 媒体分页数据
+class ImmichMediaPage {
+  final List<MediaAsset> assets;
+
+  /// media_id → tag ids
+  final Map<String, List<String>> tagIdsByMedia;
+  final int total;
+  final bool loadingMore;
+
+  const ImmichMediaPage({
+    required this.assets,
+    required this.tagIdsByMedia,
+    required this.total,
+    this.loadingMore = false,
+  });
+
+  bool get hasMore => assets.length < total;
+
+  ImmichMediaPage copyWith({
+    List<MediaAsset>? assets,
+    Map<String, List<String>>? tagIdsByMedia,
+    int? total,
+    bool? loadingMore,
+  }) {
+    return ImmichMediaPage(
+      assets: assets ?? this.assets,
+      tagIdsByMedia: tagIdsByMedia ?? this.tagIdsByMedia,
+      total: total ?? this.total,
+      loadingMore: loadingMore ?? this.loadingMore,
+    );
+  }
+}
+
+/// 媒体列表分页大小
+const int _kPageSize = mediaPageSize;
+
+/// AI 标签清单（只读，用于筛选）。
+///
+/// 依赖稳定，故用普通 Provider 而非代码生成。AI 层未初始化、未连接或尚未产出
+/// VLM 标签时返回空列表——页面据此隐藏 AI 标签入口，而不是抛错打断整个相册页。
+final immichAiTagsProvider = FutureProvider<List<AiTagCount>>((ref) async {
+  try {
+    return await ref.watch(aiApiProvider).fetchTags();
+  } catch (_) {
+    return const <AiTagCount>[];
+  }
+});
+
+/// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
+@riverpod
+class ImmichMedia extends _$ImmichMedia {
+  @override
+  Future<ImmichMediaPage> build() async {
+    final filter = ref.watch(immichFilterNotifierProvider);
+    return _fetch(filter, 0);
+  }
+
+  Future<void> loadMore() async {
+    final current = state.valueOrNull;
+    if (current == null || !current.hasMore || current.loadingMore) return;
+
+    state = AsyncData(current.copyWith(loadingMore: true));
+    try {
+      final next = await _fetch(
+        ref.read(immichFilterNotifierProvider),
+        current.assets.length,
+        previous: current,
+      );
+      state = AsyncData(next);
+    } catch (e) {
+      state = AsyncData(current.copyWith(loadingMore: false));
+      rethrow;
+    }
+  }
+
+  Future<void> refresh() async {
+    ref.invalidateSelf();
+    await future;
+  }
+
+  /// 重新拉取并保持已加载条数（批量操作后刷新, 不退回第一页）
+  Future<void> reloadKeepingLength() async {
+    final loaded = state.valueOrNull?.assets.length ?? _kPageSize;
+    final filter = ref.read(immichFilterNotifierProvider);
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+      () => _fetch(filter, 0, limit: loaded.clamp(_kPageSize, 1000)),
+    );
+  }
+
+  Future<ImmichMediaPage> _fetch(
+    ImmichFilter filter,
+    int offset, {
+    ImmichMediaPage? previous,
+    int? limit,
+  }) async {
+    // 默认值不能在参数上写成 const(页大小现在来自平台能力), 因此在这里兜底.
+    limit ??= _kPageSize;
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+
+    final result = await api.queryMedia(
+      tagIds: filter.tagIds,
+      includeDescendants: filter.includeDescendants,
+      untagged: filter.untagged,
+      includeDeleted: filter.includeDeleted,
+      vlmTags: filter.vlmTags,
+      limit: limit,
+      offset: offset,
+    );
+
+    // 写回本地缓存（仅更新已缓存的行, 保持画廊页一致）
+    await db.updateMediaAssetsLocal(result.mediaAssets);
+    final tagIdsByMedia = <String, List<String>>{
+      ...?previous?.tagIdsByMedia,
+    };
+    for (final link in result.mediaTagLinks) {
+      tagIdsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
+    }
+    await db.replaceTagsForMediaBatch(tagIdsByMedia);
+
+    final assets = [...?previous?.assets, ...result.mediaAssets];
+    return ImmichMediaPage(
+      assets: assets,
+      tagIdsByMedia: tagIdsByMedia,
+      total: result.total,
+    );
+  }
+}
+
+/// 选中集合
+@riverpod
+class ImmichSelection extends _$ImmichSelection {
+  @override
+  Set<String> build() => {};
+
+  void toggle(String mediaId) {
+    final next = {...state};
+    if (!next.remove(mediaId)) next.add(mediaId);
+    state = next;
+  }
+
+  void clear() => state = {};
+}
+
+/// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
+@riverpod
+class ImmichActions extends _$ImmichActions {
+  @override
+  bool build() => false;
+
+  Future<T> _run<T>(Future<T> Function() action) async {
+    state = true;
+    try {
+      final result = await action();
+      // 保持已加载条数, 避免操作后跳回第一页
+      await ref.read(immichMediaProvider.notifier).reloadKeepingLength();
+      ref.read(immichSelectionProvider.notifier).clear();
+      ref.invalidate(mediaIdsWithTagsProvider);
+      // 标签计数需要服务端重算（失败不影响已完成的写操作）
+      try {
+        await ref.read(tagTreeProvider.notifier).syncFromServer();
+      } catch (_) {}
+      return result;
+    } finally {
+      state = false;
+    }
+  }
+
+  /// 批量加标签
+  Future<void> addTags(List<String> mediaIds, List<String> tagIds) async {
+    if (mediaIds.isEmpty || tagIds.isEmpty) return;
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    await _run(() async {
+      await retryServerWrite(
+        () => api.batchMediaTags(mediaIds: mediaIds, addTagIds: tagIds),
+      );
+      await db.addRemoveMediaTagLinks(mediaIds, addTagIds: tagIds);
+    });
+  }
+
+  /// 批量移除标签
+  Future<void> removeTags(List<String> mediaIds, List<String> tagIds) async {
+    if (mediaIds.isEmpty || tagIds.isEmpty) return;
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    await _run(() async {
+      await retryServerWrite(
+        () => api.batchMediaTags(mediaIds: mediaIds, removeTagIds: tagIds),
+      );
+      await db.addRemoveMediaTagLinks(mediaIds, removeTagIds: tagIds);
+    });
+  }
+
+  /// 软删除/恢复
+  Future<void> setDeleted(List<String> mediaIds, bool deleted) async {
+    if (mediaIds.isEmpty) return;
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    await _run(() async {
+      final updated = await retryServerWrite(
+        () => api.patchMedia(
+          mediaIds: mediaIds,
+          intent: MediaPatchIntent(isDeleted: deleted),
+        ),
+      );
+      await db.updateMediaAssetsLocal(updated);
+      await db.updateMediaAssetsField(
+        mediaIds,
+        {'is_deleted': deleted ? 1 : 0},
+      );
+    });
+  }
+
+  /// 设置备注（空串清空）
+  Future<void> setMessage(List<String> mediaIds, String message) async {
+    if (mediaIds.isEmpty) return;
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    await _run(() async {
+      final updated = await retryServerWrite(
+        () => api.patchMedia(
+          mediaIds: mediaIds,
+          intent: MediaPatchIntent(message: message),
+        ),
+      );
+      await db.updateMediaAssetsLocal(updated);
+    });
+  }
+
+  /// 捆绑到主文件
+  Future<void> bundle(String leadId, List<String> memberIds) async {
+    if (memberIds.isEmpty) return;
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    await _run(() async {
+      final updated = await retryServerWrite(
+        () => api.patchMedia(
+          mediaIds: memberIds,
+          intent: MediaPatchIntent(groupId: leadId),
+        ),
+      );
+      await db.updateMediaAssetsLocal(updated);
+    });
+  }
+
+  /// 解绑
+  Future<void> unbundle(List<String> memberIds) async {
+    if (memberIds.isEmpty) return;
+    final api = ref.read(galleryApiProvider);
+    final db = ref.read(galleryDatabaseProvider);
+    await _run(() async {
+      final updated = await retryServerWrite(
+        () => api.patchMedia(
+          mediaIds: memberIds,
+          intent: const MediaPatchIntent(clearGroup: true),
+        ),
+      );
+      await db.updateMediaAssetsLocal(updated);
+    });
+  }
+}

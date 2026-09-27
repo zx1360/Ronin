@@ -28,6 +28,12 @@
 **/.dart_tool/
 **/.pub/
 
+# Android
+android/.gradle
+android/build
+android/app/build
+android/app/src/main/assets/android_manifest.xml
+
 # Go 编译产物
 *.exe
 *.exe~

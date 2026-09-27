@@ -82,7 +82,7 @@ func DownloadComic(c *gin.Context) {
 	c.JSON(http.StatusOK, manifest)
 }
 
-// UpdateComic 更新漫画元数据（is_public / readed / cover_image）。
+// UpdateComic 更新漫画元数据（is_public / readed）。
 func UpdateComic(c *gin.Context) {
 	var req model.UpdateComicRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -3,14 +3,15 @@
 // 设计要点：
 //   - 每类 AI 能力对应一个外部进程（Python 侧车）或外部服务（Ollama），
 //     只在有任务时拉起，空闲超时后自动退出，不常驻占用内存；
-//   - 处理单元持久化在 ai.jobs（PostgreSQL），支持失败重试、超时中断与进度查询；
+//   - 处理单元持久化在 ai_jobs（SQLite），支持失败重试、超时中断与进度查询；
 //   - pHash 由 Go 进程内完成，不依赖任何外部工具；
-//   - 向量检索在 Go 侧对 int8 量化向量做精确扫描，无需 pgvector。
+//   - 向量检索在 Go 侧对 int8 量化向量做精确扫描，不依赖任何向量扩展。
 package ai
 
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -30,7 +31,8 @@ var Default *Engine
 // MediaItem 一个待处理的媒体文件。
 type MediaItem struct {
 	MediaID string
-	Path    string // 用于 AI 推理的绝对路径（优先预览图）
+	Path    string // 用于 AI 推理的绝对路径（按能力的输入档位解析）
+	Tier    string // 实际使用的输入档位，写入 ai_results 供溯源
 }
 
 // Engine AI 处理层门面：进程监管 + 任务队列 + 检索索引 + 分组。
@@ -107,7 +109,7 @@ func (e *Engine) Start() {
 		return
 	}
 	if !ai_repo.SchemaReady(context.Background()) {
-		log.Println("[AI] ai schema 未初始化，AI 能力停用（执行 references/db/ai.sql 后重启）")
+		log.Println("[AI] AI 数据表缺失，AI 能力停用（检查 DB_PATH 指向的库是否正确）")
 		return
 	}
 
@@ -129,8 +131,8 @@ func (e *Engine) Start() {
 	}
 	go e.ollama.supervise(ctx, e.cfg.OllamaIdle)
 
-	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s）",
-		e.cfg.Workers, e.cfg.BatchSize, e.cfg.IdleTimeout, e.cfg.OllamaIdle)
+	log.Printf("[AI] 处理层已启动（批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s）",
+		e.cfg.BatchSize, e.cfg.IdleTimeout, e.cfg.OllamaIdle)
 }
 
 // Stop 停止全部后台循环并回收外部进程（服务退出时调用）。
@@ -196,11 +198,17 @@ func firstExisting(paths ...string) string {
 	return ""
 }
 
-// resolveItems 把媒体 ID 解析为可推理的文件项，并跳过文件缺失的媒体。
+// resolveItems 按能力准备输入文件项，并跳过无法准备输入的媒体。
 //
-// 推理优先使用预览图：体积小、统一 JPEG、且已由入库流程生成，
-// 可避免 HEIC/WebP 等格式在侧车里额外解码，也避免读取 GB 级原图。
-func (e *Engine) resolveItems(mediaIDs []string) ([]MediaItem, []string, error) {
+// 输入档位由能力决定（见 model.AIInputTier）：
+//   - phash / embed 用 256 预览图：体积小、统一 JPEG，判据本身也不需要更高分辨率；
+//     预览缺失时退回缩略图/原图，档位仍记为 preview256（同一档位族，不构成规格失配）；
+//   - face / ocr / vlm 用长边 1024 的 AI 专用派生档（按需生成并缓存），
+//     256 图上的小字与人脸细节不足以支撑检测与识别。派生档生成失败即视为该媒体
+//     处理失败（原因一并返回），否则"登记低档 + 期望高档"会让它被无限重排。
+//
+// 每项都带上**实际使用**的档位，供结果溯源如实登记。
+func (e *Engine) resolveItems(capability string, mediaIDs []string) ([]MediaItem, map[string]string, error) {
 	ids, err := parseUUIDs(mediaIDs)
 	if err != nil {
 		return nil, nil, err
@@ -210,24 +218,36 @@ func (e *Engine) resolveItems(mediaIDs []string) ([]MediaItem, []string, error) 
 		return nil, nil, err
 	}
 
+	useAITier := model.AIInputTier(capability) == model.TierAI1024
+
 	items := make([]MediaItem, 0, len(assets))
-	var missing []string
+	failed := map[string]string{}
 	for _, asset := range assets {
-		path := firstExisting(
-			PreviewAbsPath(asset.PreviewPath),
-			ThumbAbsPath(asset.ThumbPath),
-			MediaAbsPath(asset.FilePath),
-		)
+		path, tier := "", ""
+		if useAITier {
+			path, tier, err = e.ensureAITier(asset)
+			if err != nil {
+				failed[asset.ID.String()] = fmt.Sprintf("生成 %s 派生档失败: %v", capability, err)
+				continue
+			}
+		} else {
+			path = firstExisting(
+				PreviewAbsPath(asset.PreviewPath),
+				ThumbAbsPath(asset.ThumbPath),
+				MediaAbsPath(asset.FilePath),
+			)
+			tier = model.TierPreview256
+		}
 		if path == "" {
-			missing = append(missing, asset.ID.String())
+			failed[asset.ID.String()] = "媒体文件缺失"
 			continue
 		}
-		items = append(items, MediaItem{MediaID: asset.ID.String(), Path: path})
+		items = append(items, MediaItem{MediaID: asset.ID.String(), Path: path, Tier: tier})
 	}
-	return items, missing, nil
+	return items, failed, nil
 }
 
-// VLMModel 返回当前生效的 VLM 模型（数据库设置优先，其次 .env 默认值）。
+// VLMModel 返回当前生效的 VLM 模型（数据库设置优先，其次进程配置）。
 //
 // 数据库不可用时退回进程配置：模型选择不应让整个 AI 层不可用。
 func (e *Engine) VLMModel() string {
@@ -240,21 +260,14 @@ func (e *Engine) VLMModel() string {
 // VLMAltModel 返回备选（无审查版）模型名，供两端做模型切换。
 func (e *Engine) VLMAltModel() string { return e.cfg.OllamaVLMAlt }
 
-// SetVLMModel 持久化 VLM 模型选择。
-func (e *Engine) SetVLMModel(model string) error {
-	if err := ai_repo.SetVLMModel(model); err != nil {
-		return err
-	}
-	e.Wake()
-	return nil
-}
-
-// ResolveChatImages 把媒体 ID 批量解析为 base64 图片，供对话请求内联发送。//
-// 复用推理用路径解析（优先预览图）：手机端因此无需把原图下载再上传。
+// ResolveChatImages 把媒体 ID 批量解析为 base64 图片，供对话请求内联发送。
+//
+// 与 vlm 标注走同一套路径解析（即 ai1024 派生档），手机端因此无需把原图下载再上传；
+// 派生档生成失败时会退回预览图。
 // 返回的 missing 为不可用的媒体 ID（不存在或文件读取失败），调用方应据此报错
 // 而不是静默丢图——用户会疑惑"为什么 AI 看不到这张图"。
 func (e *Engine) ResolveChatImages(mediaIDs []string) (map[string]string, []string, error) {
-	items, _, err := e.resolveItems(mediaIDs)
+	items, _, err := e.resolveItems(model.CapVLM, mediaIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -266,6 +279,7 @@ func (e *Engine) ResolveChatImages(mediaIDs []string) (map[string]string, []stri
 		}
 		images[item.MediaID] = base64.StdEncoding.EncodeToString(raw)
 	}
+
 	var missing []string
 	for _, raw := range mediaIDs {
 		if id := strings.TrimSpace(raw); id != "" {

@@ -1,0 +1,9 @@
+# comix 漫画下载管理系统依赖
+# 数据库为 Ronin 后端的单文件 SQLite（stdlib sqlite3），无需任何数据库驱动。
+# psycopg 只在一次性迁移脚本 scripts/import_from_pg.py 中用到，按需另装：
+#     pip install "psycopg[binary]>=3.1"
+requests>=2.31
+lxml>=5.0
+fake-useragent>=1.5
+playwright>=1.40          # 漫画鱼/奈斯漫画需要（并需执行: python -m playwright install chromium）
+python-dotenv>=1.0
