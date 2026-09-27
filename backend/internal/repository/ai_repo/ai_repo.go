@@ -1,56 +1,46 @@
-// Package ai_repo 提供 ai schema 的数据访问。
+// Package ai_repo 提供 AI 处理层（ai_* 表）的数据访问。
 //
-// 只读写 ai schema 内自有对象；对 gallery.media_assets 仅做只读筛选与外键引用，
+// 只读写 ai_* 自有表；对 gallery_media_assets 仅做只读筛选与外键引用，
 // 不修改其任何列或语义。
 package ai_repo
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"strings"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"monarch/internal/service/db"
 )
 
 // 可识别的业务错误。
 var (
-	ErrSchemaMissing = errors.New("ai schema 未初始化，请先执行 references/db/ai.sql")
+	ErrSchemaMissing = errors.New("AI 数据表未就绪")
 	ErrPersonMissing = errors.New("人物不存在")
 )
 
-// querier 抽象 *pgxpool.Pool 与 pgx.Tx。
-type querier interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+// execer 抽象 *sql.DB 与 *sql.Tx 的执行能力。
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-// schemaReadyOnce 仅用于把"schema 缺失"这一确定性事实缓存下来，避免每次请求都探测。
-var schemaKnownMissing bool
-
-// SchemaReady 报告 ai schema 是否已初始化（未初始化时全部 AI 接口返回可读错误）。
+// SchemaReady 报告 AI 数据表是否已就绪（未就绪时全部 AI 接口返回可读错误）。
+//
+// ApplySchema 在启动时建表，因此这里只做一次廉价探测；刻意不缓存否定结果，
+// 以免重建数据库后必须重启进程才能恢复。
 func SchemaReady(ctx context.Context) bool {
-	if db.GetPool() == nil {
+	if db.R() == nil {
 		return false
 	}
-	if schemaKnownMissing {
-		return false
-	}
-	var ok bool
-	err := db.GetPool().QueryRow(ctx, `SELECT to_regclass('ai.jobs') IS NOT NULL`).Scan(&ok)
-	if err != nil || !ok {
-		schemaKnownMissing = true
-		return false
-	}
-	return true
+	var one int
+	err := db.R().QueryRowContext(ctx,
+		`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ai_jobs'`).Scan(&one)
+	return err == nil
 }
 
-// ensureSchema 在每个写入口做一次轻量校验，给出明确错误而不是裸 SQL 报错。
+// ensureSchema 在写入口做一次轻量校验，给出明确错误而不是裸 SQL 报错。
 func ensureSchema(ctx context.Context) error {
 	if !SchemaReady(ctx) {
 		return ErrSchemaMissing
@@ -69,28 +59,52 @@ func SplitAndTrim(raw string) []string {
 	return out
 }
 
-// joinCSV 以逗号拼接（写入 ai.settings 用）。
-func joinCSV(items []string) string {
-	return strings.Join(items, ",")
+// placeholders 生成 n 个 "?" 占位符；n <= 0 返回空串，调用方需自行跳过该条件。
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
 }
 
-// withTx 在事务内执行 fn，失败自动回滚。
-func withTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
-	tx, err := db.GetPool().Begin(ctx)
+// anyArgs 把切片展开成 IN 子句参数。
+func anyArgs[T any](items []T) []any {
+	out := make([]any, len(items))
+	for i, v := range items {
+		out[i] = v
+	}
+	return out
+}
+
+// encodeJSONArray 序列化 JSON 数组列；nil 切片写成 []，
+// 避免 SQLite 侧的 json_each 读到 null 而报错。
+func encodeJSONArray[T any](items []T) (string, error) {
+	if items == nil {
+		return "[]", nil
+	}
+	raw, err := json.Marshal(items)
 	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
+		return "", err
 	}
-	defer tx.Rollback(ctx)
-	if err := fn(tx); err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-	return nil
+	return string(raw), nil
 }
 
-// DecodeFloat32 把 bytea 还原为 float32 切片（小端，与 Python 侧约定一致）。
+// decodeJSONArray 解析 JSON 数组列；空文本与 null 都视为空数组。
+func decodeJSONArray[T any](raw string) ([]T, error) {
+	if strings.TrimSpace(raw) == "" || strings.TrimSpace(raw) == "null" {
+		return []T{}, nil
+	}
+	var out []T
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []T{}
+	}
+	return out, nil
+}
+
+// DecodeFloat32 把 BLOB 还原为 float32 切片（小端，与 Python 侧约定一致）。
 func DecodeFloat32(raw []byte) []float32 {
 	if len(raw)%4 != 0 {
 		return nil

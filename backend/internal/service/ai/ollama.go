@@ -52,30 +52,27 @@ func NewOllama(cfg config.AiConfig) *Ollama {
 	}
 }
 
-// Available 报告服务是否可达且指定模型已安装。
-func (o *Ollama) Available(ctx context.Context, model string) (bool, string) {
-	tags, err := o.ListModels(ctx)
-	if err != nil {
-		return false, err.Error()
-	}
-	if o.modelInList(tags, model) {
-		return true, ""
-	}
-	return false, fmt.Sprintf("模型 %s 未安装（ollama pull %s）", model, model)
-}
-
 // Ready 报告该能力是否**具备执行条件**（不一定已在运行）。
 //
 // 与侧车的就绪语义保持一致：检查的是"依赖是否齐备"，而不是"进程是否已启动"。
-// 服务未运行时，只要能找到 ollama 可执行文件就算就绪——真正执行时
-// Generate 会经 EnsureReady 按需拉起；连可执行文件都没有才算不可用。
+// 三种情形必须分开：模型已装 → 就绪；服务可达但模型缺失 → 不可用（可按需拉起
+// 也补不齐缺失的模型，谎报就绪只会让前端发起注定失败的推理）；服务未运行但
+// 找得到可执行文件 → 就绪，真正执行时 EnsureReady 会按需拉起。
 func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
-	if ok, reason := o.Available(ctx, model); ok {
-		return true, ""
-	} else if o.resolveExe() == "" {
-		return false, reason
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return false, "未配置 VLM 模型（可在设置里填写 ai.vlm_model）"
 	}
-	// 可达但模型缺失的情况已在上面拦下；此处是"服务未启动但可按需拉起"
+	tags, err := o.ListModels(ctx)
+	if err == nil {
+		if o.modelInList(tags, model) {
+			return true, ""
+		}
+		return false, fmt.Sprintf("模型 %s 未安装（ollama pull %s）", model, model)
+	}
+	if o.resolveExe() == "" {
+		return false, err.Error()
+	}
 	return true, ""
 }
 
@@ -125,22 +122,31 @@ func (o *Ollama) resolveExe() string {
 
 // EnsureReady 确保 Ollama 可用：已运行则直接复用（不接管用户自启的实例），
 // 未运行且能找到可执行文件时按需拉起，并在空闲后由 supervise 回收。
+//
+// 服务已在运行时也必须核对模型是否安装：拉得起服务不等于拉得起缺失的模型。
 func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
-	if _, err := o.ListModels(ctx); err == nil {
-		return nil
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return fmt.Errorf("未配置 VLM 模型（可在设置里填写 ai.vlm_model）")
+	}
+	if tags, err := o.ListModels(ctx); err == nil {
+		if o.modelInList(tags, model) {
+			return nil
+		}
+		return fmt.Errorf("Ollama 已运行但未安装模型 %s（ollama pull %s）", model, model)
 	}
 
 	exe := o.resolveExe()
 	if exe == "" {
-		return fmt.Errorf("Ollama 不可达且未找到 ollama 可执行文件（可配置 OLLAMA_EXE）")
+		return fmt.Errorf("Ollama 不可达且未找到 ollama 可执行文件（可在设置里填写 ai.ollama.exe）")
 	}
 
 	o.mu.Lock()
 	if o.proc == nil {
 		cmd := exec.Command(exe, "serve")
-		// 继承本进程环境：若 backend/.env 里配置了 OLLAMA_MODELS（godotenv 会写入
-		// 本进程环境），自拉的 serve 才能看到用户已有的模型库。
-		cmd.Env = os.Environ()
+		// 继承本进程环境后覆盖 OLLAMA_MODELS：该设置由 ops 页面写入 app_settings，
+		// 是模型库位置的唯一真相源（见 settings 的 ai.ollama.models）。
+		cmd.Env = o.childEnv()
 		if err := cmd.Start(); err != nil {
 			o.mu.Unlock()
 			return fmt.Errorf("启动 ollama serve 失败: %w", err)
@@ -154,12 +160,12 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 		// 在新进程刚起来的第一个 tick 就把它回收掉。
 		o.lastUsed = time.Now()
 		log.Printf("[AI:ollama] 已按需启动 ollama serve (pid=%d, OLLAMA_MODELS=%q)",
-			cmd.Process.Pid, os.Getenv("OLLAMA_MODELS"))
+			cmd.Process.Pid, o.modelRoot())
 	}
 	o.mu.Unlock()
 
 	// 等待就绪（首次启动通常 1-3s）。区分"服务没起来"和"服务起来了但看不到模型"：
-	// 后者几乎总是 OLLAMA_MODELS 指向了另一个（空的）模型目录。
+	// 后者几乎总是模型库目录指向了另一个（空的）目录。
 	deadline := time.Now().Add(30 * time.Second)
 	var lastErr error
 	for time.Now().Before(deadline) {
@@ -169,8 +175,8 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 				return nil
 			}
 			return fmt.Errorf(
-				"ollama 已启动但看不到模型 %s：自拉的 ollama serve 使用的模型目录是 %q，"+
-					"请在 backend/.env 里把 OLLAMA_MODELS 指向 Ollama 应用实际使用的模型目录",
+				"ollama 已启动但看不到模型 %s：自拉的 ollama serve 使用的模型库目录是 %q，"+
+					"请在 ops 设置页把 ai.ollama.models 指向 Ollama 应用实际使用的模型目录",
 				model, o.modelRoot())
 		}
 		lastErr = err
@@ -209,8 +215,13 @@ func (o *Ollama) Unload(ctx context.Context, model string) error {
 	return nil
 }
 
-// modelRoot 返回自拉的 ollama serve 实际会使用的模型目录（仅用于错误提示）。
+// modelRoot 返回自拉的 ollama serve 实际会使用的模型库目录。
+//
+// 配置项优先（app_settings 的 ai.ollama.models），其次环境变量，最后 Ollama 默认目录。
 func (o *Ollama) modelRoot() string {
+	if root := strings.TrimSpace(o.cfg.OllamaModels); root != "" {
+		return root
+	}
 	if root := strings.TrimSpace(os.Getenv("OLLAMA_MODELS")); root != "" {
 		return root
 	}
@@ -219,6 +230,23 @@ func (o *Ollama) modelRoot() string {
 		return "(默认目录)"
 	}
 	return filepath.Join(home, ".ollama", "models")
+}
+
+// childEnv 返回自拉 ollama serve 的环境：继承本进程后固定 OLLAMA_MODELS。
+func (o *Ollama) childEnv() []string {
+	root := strings.TrimSpace(o.modelRoot())
+	if root == "" {
+		return os.Environ()
+	}
+	env := os.Environ()
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "OLLAMA_MODELS=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "OLLAMA_MODELS="+root)
 }
 
 // modelInList 判断目标模型是否在已安装列表中（容忍 tag 差异）。

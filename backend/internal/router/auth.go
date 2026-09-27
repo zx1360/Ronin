@@ -12,6 +12,9 @@ import (
 //
 //	免鉴权：/API/test、/API/comic/*、/static/comics/*
 //	需鉴权：其余所有路由
+//
+// 回环请求由 util_handler.APIKeyAuth 直接放行，ops 网页应用因此无需携带密钥；
+// /API/ops 与 /API/settings 另有 RequireLoopback 兜底，只对本机开放。
 func selectiveAuth() gin.HandlerFunc {
 	auth := util_handler.APIKeyAuth()
 	return func(c *gin.Context) {

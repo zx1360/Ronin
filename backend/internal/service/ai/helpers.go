@@ -30,3 +30,22 @@ func fetchAssets(ids []uuid.UUID) ([]model.MediaAsset, error) {
 	}
 	return gallery_repo.FetchMediaAssetsByIDs(ids)
 }
+
+// tierByMediaID 把输入项的实际档位按媒体 ID 索引。
+//
+// 侧车按 ID 返回结果，逐条回写结果时需要回查该条实际喂进去的档位。
+func tierByMediaID(items []MediaItem) map[string]string {
+	out := make(map[string]string, len(items))
+	for _, item := range items {
+		out[item.MediaID] = item.Tier
+	}
+	return out
+}
+
+// tierOf 取某媒体实际使用的档位；查不到时退回能力的期望档位。
+func tierOf(tiers map[string]string, mediaID, capability string) string {
+	if tier, ok := tiers[mediaID]; ok && tier != "" {
+		return tier
+	}
+	return model.AIInputTier(capability)
+}

@@ -37,6 +37,10 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 	if !model.IsValidCapability(capability) {
 		return false, "未知能力"
 	}
+	// 总开关关闭时没有任何能力可执行：这里如实返回不可用，避免界面显示一片就绪却什么也做不了。
+	if !e.cfg.Enabled {
+		return false, "AI 处理层未启用（可在设置里打开 ai.enabled）"
+	}
 	if capability == model.CapPHash {
 		return true, "" // 纯 Go 实现，无外部依赖
 	}
@@ -117,7 +121,6 @@ type Status struct {
 	Started          bool                     `json:"started"`
 	EmbedModel       string                   `json:"embed_model"`
 	Device           string                   `json:"device"`
-	Workers          int                      `json:"workers"`
 	BatchSize        int                      `json:"batch_size"`
 	IdleTimeoutS     int                      `json:"idle_timeout_seconds"`
 	JobTimeoutS      int                      `json:"job_timeout_seconds"`
@@ -146,7 +149,6 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		Started:      e.started,
 		EmbedModel:   e.cfg.EmbedModel,
 		Device:       e.cfg.Device,
-		Workers:      e.cfg.Workers,
 		BatchSize:    e.cfg.BatchSize,
 		IdleTimeoutS: int(e.cfg.IdleTimeout.Seconds()),
 		JobTimeoutS:  int(e.cfg.JobTimeout.Seconds()),

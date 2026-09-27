@@ -51,9 +51,11 @@ type SyncReadedResponse struct {
 	NewChapters  map[string]int `json:"new_chapters"` // comic_id → 服务器章节总数
 }
 
-// UpdateComicRequest 更新漫画元数据请求
+// UpdateComicRequest 更新漫画元数据请求。
+//
+// 刻意不含 cover_image：封面由爬虫侧维护（下载/同步/回填脚本），
+// Monarch 侧不提供"替换封面"能力。
 type UpdateComicRequest struct {
-	IsPublic   *bool   `json:"is_public,omitempty"`
-	Readed     *bool   `json:"readed,omitempty"`
-	CoverImage *string `json:"cover_image,omitempty"`
+	IsPublic *bool `json:"is_public,omitempty"`
+	Readed   *bool `json:"readed,omitempty"`
 }

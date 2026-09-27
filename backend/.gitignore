@@ -5,6 +5,12 @@ static/
 # 证书和私钥
 cert/
 
+# SQLite 单文件数据库（含 WAL 附属文件）
+data/
+*.db
+*.db-wal
+*.db-shm
+
 # 构建产物与临时目录
 tmp/
 *.exe

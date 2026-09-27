@@ -3,7 +3,7 @@
 模型在首次使用时由 rapidocr 自动从 ModelScope 下载到用户缓存目录；
 安装脚本会预热一次，避免第一次处理任务时卡在下载上。
 
-返回 {"text": 合并文本, "lines": [...]}。text 为空串表示"已识别但无文字"，
+返回 {"text": 合并文本}。text 为空串表示"已识别但无文字"，
 与"尚未处理"（无记录）区分开。
 """
 
@@ -18,10 +18,10 @@ MIN_SCORE = 0.5
 
 # 检测网络的输入边长上限。
 #
-# 侧车只喂 256px 的预览图（见 backend/internal/service/ai/engine.go），而 rapidocr
-# 默认会把输入放大到 736，在已经模糊的小图上既费时又不提升识别率：实测 24 张
-# 随机预览图，默认 4.92s/张 识别 33 行；限到 320 后 2.72s/张 且识别 37 行。
-OCR_DET_SIDE_LIMIT = 320
+# 侧车喂的是长边 1024 的 AI 派生档（见 backend/internal/service/ai/tier.go），
+# 上限必须与之匹配：再往下限到几百像素等于把档位升级的收益又丢回去。
+# rapidocr 默认 736 比这更小，因此这里取 1024 就够，不必再放大。
+OCR_DET_SIDE_LIMIT = 1024
 
 
 class OcrEngine:
@@ -63,60 +63,44 @@ class OcrEngine:
         if image is None:
             raise ValueError("无法解码图片")
 
-        lines = _normalise(self._engine(image))
-        texts = [line["text"] for line in lines if line["text"]]
-        return {"text": "\n".join(texts), "lines": lines}
+        return {"text": "\n".join(_texts(self._engine(image)))}
 
 
-def _normalise(raw: Any) -> List[Dict[str, Any]]:
-    """兼容 rapidocr 3.x 的输出对象与旧版的 (result, elapse) 元组。"""
-    texts, scores, boxes = _extract(raw)
-    lines: List[Dict[str, Any]] = []
+def _texts(raw: Any) -> List[str]:
+    """取出通过置信度阈值的文本行（兼容 rapidocr 3.x 输出对象与旧版元组）。"""
+    texts, scores = _extract(raw)
+    out: List[str] = []
     for index, text in enumerate(texts):
         text = str(text).strip()
         score = _as_float(scores[index]) if index < len(scores) else 0.0
-        if not text or score < MIN_SCORE:
-            continue
-        box = boxes[index] if index < len(boxes) else []
-        lines.append({
-            "text": text,
-            "score": score,
-            "box": _as_box(box),
-        })
-    return lines
+        if text and score >= MIN_SCORE:
+            out.append(text)
+    return out
 
 
 def _extract(raw: Any):
-    """统一取出 (texts, scores, boxes) 三个序列。
+    """统一取出 (texts, scores) 两个序列。
 
     注意：这些字段可能是 numpy 数组，绝不能写 `value or []`
     （数组的真值判断会抛 ValueError），只能显式判 None。
     """
-    # rapidocr 3.x：RapidOCROutput 带 txts / scores / boxes 属性
+    # rapidocr 3.x：RapidOCROutput 带 txts / scores 属性
     for attr in ("txts", "texts"):
         if hasattr(raw, attr):
-            texts = getattr(raw, attr)
-            scores = getattr(raw, "scores", None)
-            boxes = getattr(raw, "boxes", None)
-            return (
-                _as_list(texts),
-                _as_list(scores),
-                _as_list(boxes),
-            )
+            return _as_list(getattr(raw, attr)), _as_list(getattr(raw, "scores", None))
 
     # 旧版：([box, text, score], ...) 列表，可能包在 (result, elapse) 里
     result = raw[0] if isinstance(raw, tuple) else raw
     if result is None:
-        return [], [], []
+        return [], []
 
-    texts, scores, boxes = [], [], []
+    texts, scores = [], []
     for entry in result:
         if not isinstance(entry, (list, tuple)) or len(entry) < 3:
             continue
-        boxes.append(entry[0])
         texts.append(entry[1])
         scores.append(entry[2])
-    return texts, scores, boxes
+    return texts, scores
 
 
 def _as_list(value: Any) -> List[Any]:
@@ -136,15 +120,6 @@ def _as_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
-
-
-def _as_box(box: Any) -> List[List[int]]:
-    if box is None:
-        return []
-    try:
-        return [[int(x), int(y)] for x, y in box]
-    except (TypeError, ValueError):
-        return []
 
 
 _engine: OcrEngine | None = None

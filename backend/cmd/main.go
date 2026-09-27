@@ -25,10 +25,17 @@ func main() {
 		log.Fatalf("配置加载失败: %v", err)
 	}
 
-	db.Init(config.DbConf)
+	if err := db.Open(config.DBPath); err != nil {
+		log.Fatalf("数据库初始化失败: %v", err)
+	}
 	defer db.Close()
 
-	// AI 处理层：未启用或 ai schema 缺失时自行降级，不影响主服务启动
+	// 运行时配置在连库之后从 app_settings 读取（.env 只留 Bootstrap 项）。
+	if err := config.LoadSettings(); err != nil {
+		log.Fatalf("运行时配置加载失败: %v", err)
+	}
+
+	// AI 处理层：未启用时自行降级，不影响主服务启动
 	ai.Default = ai.New(config.AiConf)
 	ai.Default.Start()
 	defer ai.Default.Stop()
