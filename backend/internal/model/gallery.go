@@ -2,76 +2,11 @@ package model
 
 import (
 	"encoding/json"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 )
 
-// FlexTime 包装 time.Time，JSON 侧兼容多种时间格式（客户端序列化格式不统一）。
-type FlexTime time.Time
-
-// UnmarshalJSON 实现 JSON 反序列化，支持多种时间格式
-func (ft *FlexTime) UnmarshalJSON(data []byte) error {
-	s := strings.Trim(string(data), "\"")
-	if s == "null" || s == "" {
-		return nil
-	}
-
-	// 尝试多种时间格式
-	formats := []string{
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02T15:04:05.999999999",
-		"2006-01-02T15:04:05.999999",
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05",
-	}
-
-	var err error
-	var t time.Time
-	for _, format := range formats {
-		t, err = time.Parse(format, s)
-		if err == nil {
-			*ft = FlexTime(t)
-			return nil
-		}
-	}
-	return err
-}
-
-// MarshalJSON 实现 JSON 序列化
-func (ft FlexTime) MarshalJSON() ([]byte, error) {
-	t := time.Time(ft)
-	if t.IsZero() {
-		return []byte("null"), nil
-	}
-	return []byte("\"" + t.Format(time.RFC3339Nano) + "\""), nil
-}
-
-// Scan 实现 sql.Scanner 接口，用于从数据库读取
-func (ft *FlexTime) Scan(value interface{}) error {
-	if value == nil {
-		*ft = FlexTime(time.Time{})
-		return nil
-	}
-	if t, ok := value.(time.Time); ok {
-		*ft = FlexTime(t)
-		return nil
-	}
-	return nil
-}
-
-// Value 实现 driver.Valuer 接口，用于写入数据库
-func (ft FlexTime) Value() (interface{}, error) {
-	t := time.Time(ft)
-	if t.IsZero() {
-		return nil, nil
-	}
-	return t, nil
-}
-
-// MediaAsset 对应数据库的 media_assets 表
+// MediaAsset 对应数据库的 gallery_media_assets 表
 type MediaAsset struct {
 	ID          uuid.UUID  `json:"id"`
 	CreatedAt   FlexTime   `json:"created_at"`

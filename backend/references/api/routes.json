@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-26T11:20:47Z",
+  "generated_at": "2026-09-27T13:26:46Z",
   "routes": [
     {
       "method": "GET",
@@ -8,6 +8,10 @@
     {
       "method": "POST",
       "path": "/API/ai/cancel"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/capabilities"
     },
     {
       "method": "POST",
@@ -90,20 +94,28 @@
       "path": "/API/ai/retry"
     },
     {
+      "method": "POST",
+      "path": "/API/ai/review"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ai/review/presets"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ai/review/presets"
+    },
+    {
+      "method": "DELETE",
+      "path": "/API/ai/review/presets/:id"
+    },
+    {
       "method": "GET",
       "path": "/API/ai/search"
     },
     {
       "method": "POST",
       "path": "/API/ai/search/image"
-    },
-    {
-      "method": "GET",
-      "path": "/API/ai/settings"
-    },
-    {
-      "method": "PUT",
-      "path": "/API/ai/settings"
     },
     {
       "method": "GET",
@@ -247,7 +259,55 @@
     },
     {
       "method": "GET",
+      "path": "/API/ops/capabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ops/dependencies"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ops/fs"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ops/gallery/tasks"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ops/gallery/tasks"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ops/gallery/tasks/:task-id"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ops/gallery/tasks/:task-id/stop"
+    },
+    {
+      "method": "GET",
       "path": "/API/ops/overview"
+    },
+    {
+      "method": "GET",
+      "path": "/API/ops/preferences"
+    },
+    {
+      "method": "PUT",
+      "path": "/API/ops/preferences"
+    },
+    {
+      "method": "POST",
+      "path": "/API/ops/reveal"
+    },
+    {
+      "method": "GET",
+      "path": "/API/settings"
+    },
+    {
+      "method": "PUT",
+      "path": "/API/settings"
     },
     {
       "method": "GET",
@@ -264,6 +324,18 @@
     {
       "method": "GET",
       "path": "/API/user-data/sync/:module"
+    },
+    {
+      "method": "GET",
+      "path": "/ops"
+    },
+    {
+      "method": "GET",
+      "path": "/ops/*filepath"
+    },
+    {
+      "method": "HEAD",
+      "path": "/ops/*filepath"
     },
     {
       "method": "GET",

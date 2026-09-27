@@ -38,7 +38,21 @@ func schemaGuard(c *gin.Context) bool {
 		return true
 	}
 	c.JSON(http.StatusServiceUnavailable, gin.H{
-		"error": "ai schema 未初始化，请先执行 references/db/ai.sql",
+		"error": "AI 数据表缺失（数据库可能不是 Monarch 建的表或文件已损坏）",
+	})
+	return false
+}
+
+// enabledGuard 拦住"需要 worker 才会生效"的操作。
+//
+// 关闭 AI 后入队只会写进一张没人消费的队列表，启动模型更会真的拉起侧车进程——
+// 两者都必须明确失败，而不是给用户一个"已入队/已启动"的假象。
+func enabledGuard(c *gin.Context, e *ai.Engine) bool {
+	if e.Config().Enabled {
+		return true
+	}
+	c.JSON(http.StatusConflict, gin.H{
+		"error": "AI 处理层未启用（可在设置里打开 ai.enabled）",
 	})
 	return false
 }
@@ -104,6 +118,10 @@ func Enqueue(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "未知能力: " + capability})
 			return
 		}
+	}
+	// 入队前才拦"未启用"：先把请求本身校验干净，才能对畸形请求如实报 400。
+	if !enabledGuard(c, e) {
+		return
 	}
 
 	scope := strings.TrimSpace(req.Scope)
@@ -189,6 +207,9 @@ func Retry(c *gin.Context) {
 			ids = append(ids, id)
 		}
 	}
+	if !enabledGuard(c, e) {
+		return
+	}
 
 	n, err := ai_repo.RetryFailed(capability, ids)
 	if err != nil {
@@ -229,7 +250,7 @@ func Resume(c *gin.Context) {
 // StartModel 处理 POST /API/ai/process/:capability/start：预热（拉起进程/模型）。
 func StartModel(c *gin.Context) {
 	e := engine(c)
-	if e == nil {
+	if e == nil || !enabledGuard(c, e) {
 		return
 	}
 	capability := c.Param("capability")
@@ -737,60 +758,19 @@ func Recluster(c *gin.Context) {
 	})
 }
 
-// GetSettings 处理 GET /API/ai/settings
-func GetSettings(c *gin.Context) {
-	if !schemaGuard(c) {
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"auto_capabilities": ai_repo.AutoCapabilities(ai.Default.Config().AutoCaps),
-		"all_capabilities":  model.AllCapabilities,
-		"vlm_model":         ai.Default.VLMModel(),
-		"vlm_model_default": ai.Default.Config().OllamaVLM,
-		"vlm_model_alt":     ai.Default.VLMAltModel(),
-	})
-}
-
-// UpdateSettings 处理 PUT /API/ai/settings
-func UpdateSettings(c *gin.Context) {
+// Capabilities 处理 GET /API/ai/capabilities
+//
+// 下发每个能力的输入档位、当前执行者与候选清单。消费端只渲染这份清单，
+// 不在端上硬编码能力名或模型名；改配置走 /API/settings（仅本机回环可写）。
+func Capabilities(c *gin.Context) {
 	e := engine(c)
-	if e == nil || !schemaGuard(c) {
+	if e == nil {
 		return
 	}
-	var req struct {
-		AutoCapabilities []string `json:"auto_capabilities"`
-		VLMModel         *string  `json:"vlm_model"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体解析失败: " + err.Error()})
-		return
-	}
-	for _, capability := range req.AutoCapabilities {
-		if !model.IsValidCapability(capability) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "未知能力: " + capability})
-			return
-		}
-	}
-	if err := ai_repo.SetAutoCapabilities(req.AutoCapabilities); err != nil {
-		fail(c, err)
-		return
-	}
-	if req.VLMModel != nil {
-		selected := strings.TrimSpace(*req.VLMModel)
-		// 只接受两个候选：默认模型（可用空串恢复）与备选的无审查版
-		if selected != "" && selected != e.Config().OllamaVLM && selected != e.VLMAltModel() {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "未知模型: " + selected})
-			return
-		}
-		if err := e.SetVLMModel(selected); err != nil {
-			fail(c, err)
-			return
-		}
-	}
-	e.Wake()
 	c.JSON(http.StatusOK, gin.H{
-		"auto_capabilities": req.AutoCapabilities,
-		"vlm_model":         e.VLMModel(),
+		"enabled":      e.Config().Enabled,
+		"capabilities": e.CapabilityInfos(c.Request.Context()),
+		"auto":         ai_repo.AutoCapabilities(e.Config().AutoCaps),
 	})
 }
 

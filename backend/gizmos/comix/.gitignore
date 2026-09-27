@@ -1,0 +1,29 @@
+# 资源目录
+comics/
+comics_/
+
+# 产物程序
+*.exe
+
+# 环境变量
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# SQLite（共享库在 backend/data/monarch.db；此处拦截临时/探测库）
+*.db
+*.db-wal
+*.db-shm
+
+# 临时探测/检查文件与目录
+tmp/
+_probe*.py
+_probe*.json
+_db*.py
+_db*.json
+_list.json
+_search.json
+_colcheck.py
+_envcheck.py

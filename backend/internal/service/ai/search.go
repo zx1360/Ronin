@@ -133,7 +133,7 @@ func (e *Engine) queryVector(ctx context.Context, query, mediaID, imagePath stri
 			return dequantize(row, row.Dim), nil
 		}
 		// 该媒体尚无向量：用它的文件现算一次
-		items, _, err := e.resolveItems([]string{mediaID})
+		items, _, err := e.resolveItems(model.CapEmbed, []string{mediaID})
 		if err != nil || len(items) == 0 {
 			return nil, fmt.Errorf("该媒体尚未生成向量，可先对其执行 embed 处理")
 		}

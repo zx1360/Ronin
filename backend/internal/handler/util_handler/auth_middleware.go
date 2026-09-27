@@ -4,18 +4,25 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"monarch/internal/config"
 )
 
 // APIKeyAuth API 密钥验证中间件（含 IP 频控）。
 //
-// 同一 IP 短时间内鉴权失败达到阈值即封禁数天，封禁记录持久化到封禁日志文件；
-// 未设置 API_KEY_SERVER 时视为未启用鉴权，直接放行（本地开发场景）。
+// 回环请求直接放行：ops 网页应用走 `http://127.0.0.1:<debug port>`，浏览器无法
+// 静默携带自定义请求头；能连上回环的进程本来就已经在本机执行，信任边界没有降低。
+// 其余来源必须带 X-API-Key；同一 IP 短时间鉴权失败达到阈值即封禁数天。
 func APIKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if isLoopbackRequest(c) {
+			c.Next()
+			return
+		}
+
 		clientIP := extractIP(c)
 
 		if limiter.IsBanned(clientIP) {
@@ -23,7 +30,7 @@ func APIKeyAuth() gin.HandlerFunc {
 			return
 		}
 
-		expectedKey := os.Getenv("API_KEY_SERVER")
+		expectedKey := config.NetConf.APIKeyServer
 		if expectedKey == "" {
 			c.Next()
 			return
@@ -49,6 +56,38 @@ func APIKeyAuth() gin.HandlerFunc {
 		}
 		c.Abort()
 	}
+}
+
+// RequireLoopback 只放行本机回环请求，用于 ops 的本机能力接口
+// （进程与任务生命周期、路径定位、配置读写等）。
+func RequireLoopback() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if isLoopbackRequest(c) {
+			c.Next()
+			return
+		}
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "loopback_only",
+			"message": "该接口只能从本机回环地址访问",
+		})
+		c.Abort()
+	}
+}
+
+// isLoopbackRequest 报告请求是否直连自回环。
+//
+// 只认 TCP 直连地址：X-Forwarded-For 可被局域网客户端随意伪造，
+// 一旦参与判定就等于把本机能力开放给了整个网络。
+func isLoopbackRequest(c *gin.Context) bool {
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err != nil {
+		host = c.Request.RemoteAddr
+	}
+	ip := net.ParseIP(strings.TrimSpace(host))
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback()
 }
 
 // respondBanned 写出封禁响应并终止请求链

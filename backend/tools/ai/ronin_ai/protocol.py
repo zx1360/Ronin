@@ -8,7 +8,6 @@ import sys
 import traceback
 from typing import Any, Dict, List
 
-from .paths import siglip_dir
 from .probe import run_probe
 
 PROTOCOL_VERSION = 1
@@ -136,9 +135,6 @@ def main(argv: List[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--probe" in argv:
         emit(run_probe())
-        return 0
-    if "--models-dir" in argv:
-        emit({"models_dir": str(siglip_dir())})
         return 0
     os.environ.setdefault("OMP_NUM_THREADS", str(max(1, (os.cpu_count() or 4) // 2)))
     return run_loop()

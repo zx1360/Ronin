@@ -2,13 +2,12 @@ package gallery_repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"monarch/internal/model"
 	"monarch/internal/service/db"
@@ -52,7 +51,7 @@ func IsValidSortField(field string) bool {
 }
 
 // scanMediaAssets 扫描媒体资产结果集（列顺序必须与 [mediaAssetColumnList] 一致）。
-func scanMediaAssets(rows pgx.Rows) ([]model.MediaAsset, error) {
+func scanMediaAssets(rows *sql.Rows) ([]model.MediaAsset, error) {
 	assets := []model.MediaAsset{}
 	for rows.Next() {
 		var asset model.MediaAsset
@@ -73,15 +72,33 @@ func scanMediaAssets(rows pgx.Rows) ([]model.MediaAsset, error) {
 	return assets, nil
 }
 
-// setBuilder 累积 UPDATE 的 SET 片段与参数，避免手工维护占位符下标。
+// placeholders 生成 n 个 `?`，用于 IN 列表。
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
+}
+
+// uuidArgs 把 UUID 列表摊平成 Exec/Query 的可变参数。
+func uuidArgs(ids []uuid.UUID) []any {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return args
+}
+
+// setBuilder 累积 UPDATE 的 SET 片段与参数。
+// 占位符统一为 `?` 且按出现顺序绑定，因此无需维护任何下标。
 type setBuilder struct {
 	sets []string
 	args []any
 }
 
-// add 追加 `expr`（其中 %d 表示占位符序号）。
+// add 追加一条带参数的赋值。
 func (b *setBuilder) add(expr string, value any) {
-	b.sets = append(b.sets, fmt.Sprintf(expr, len(b.args)+1))
+	b.sets = append(b.sets, expr)
 	b.args = append(b.args, value)
 }
 
@@ -95,24 +112,35 @@ func (b *setBuilder) isEmpty() bool {
 	return len(b.sets) == 0
 }
 
-// build 生成完整 UPDATE 语句与参数（where 中的 %d 为主查询参数之后的占位符序号）。
+// build 生成完整 UPDATE 语句与参数：SET 的参数在前，WHERE 的参数在后。
 func (b *setBuilder) build(table, where string, whereArgs ...any) (string, []any) {
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s",
-		table, strings.Join(b.sets, ", "), fmt.Sprintf(where, len(b.args)+1))
+		table, strings.Join(b.sets, ", "), where)
 	return query, append(b.args, whereArgs...)
 }
 
-// rowQuerier 抽象 pgx.Tx 与 *pgxpool.Pool，使校验逻辑在事务内外均可复用。
-type rowQuerier interface {
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+// querier 抽象 *sql.DB 与 *sql.Tx，使校验逻辑在事务内外均可复用。
+type querier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// rowsQuerier 抽象多行查询（子孙标签遍历用）。
+type rowsQuerier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 // mimeCondition 生成 MIME 过滤条件：含 "/" 视为精确匹配，否则按大类前缀匹配。
-func mimeCondition(column, mimeType string, argIdx int) (string, any) {
+func mimeCondition(column, mimeType string) (string, any) {
 	if strings.Contains(mimeType, "/") {
-		return fmt.Sprintf("%s = $%d", column, argIdx), mimeType
+		return column + " = ?", mimeType
 	}
-	return fmt.Sprintf("%s LIKE $%d", column, argIdx), mimeType + "/%"
+	return column + ` LIKE ? ESCAPE '\'`, escapeLike(mimeType) + "/%"
+}
+
+// escapeLike 转义 LIKE 通配符，使用户输入退化为字面前缀。
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
 // ============ 媒体资产查询 ============
@@ -123,24 +151,25 @@ func buildBatchWhereClause(params model.BatchQueryParams) (string, []any) {
 	args := []any{}
 
 	if params.MimeType != "" {
-		cond, value := mimeCondition("mime_type", params.MimeType, len(args)+1)
+		cond, value := mimeCondition("mime_type", params.MimeType)
 		conditions = append(conditions, cond)
 		args = append(args, value)
 	}
 
 	if params.Year > 0 {
+		// captured_at 是定宽 TEXT，substr 切片即可取出年/月/日；
+		// 切片结果是 TEXT，比较值也必须是定宽字符串，不能传 int。
 		switch {
 		case params.Month > 0 && params.Day > 0:
-			conditions = append(conditions, fmt.Sprintf("DATE(captured_at) = $%d", len(args)+1))
+			conditions = append(conditions, "substr(captured_at, 1, 10) = ?")
 			args = append(args, fmt.Sprintf("%04d-%02d-%02d", params.Year, params.Month, params.Day))
 		case params.Month > 0:
 			conditions = append(conditions,
-				fmt.Sprintf("EXTRACT(YEAR FROM captured_at) = $%d AND EXTRACT(MONTH FROM captured_at) = $%d",
-					len(args)+1, len(args)+2))
-			args = append(args, params.Year, params.Month)
+				"substr(captured_at, 1, 4) = ? AND substr(captured_at, 6, 2) = ?")
+			args = append(args, fmt.Sprintf("%04d", params.Year), fmt.Sprintf("%02d", params.Month))
 		default:
-			conditions = append(conditions, fmt.Sprintf("EXTRACT(YEAR FROM captured_at) = $%d", len(args)+1))
-			args = append(args, params.Year)
+			conditions = append(conditions, "substr(captured_at, 1, 4) = ?")
+			args = append(args, fmt.Sprintf("%04d", params.Year))
 		}
 	}
 
@@ -184,13 +213,13 @@ func FetchMediaAssetsWithParams(params model.BatchQueryParams) ([]model.MediaAss
 	whereClause, args := buildBatchWhereClause(params)
 	query := fmt.Sprintf(`
 		SELECT %s
-		FROM gallery.media_assets
+		FROM gallery_media_assets
 		WHERE %s
 		ORDER BY %s
-		LIMIT $%d OFFSET $%d
-	`, mediaAssetColumns(""), whereClause, buildBatchOrderClause(params), len(args)+1, len(args)+2)
+		LIMIT ? OFFSET ?
+	`, mediaAssetColumns(""), whereClause, buildBatchOrderClause(params))
 
-	rows, err := db.GetPool().Query(ctx, query, append(args, params.Limit, params.Offset)...)
+	rows, err := db.R().QueryContext(ctx, query, append(args, params.Limit, params.Offset)...)
 	if err != nil {
 		return nil, fmt.Errorf("查询媒体资产失败: %w", err)
 	}
@@ -204,10 +233,11 @@ func FetchGalleryOverview() (*model.GalleryOverview, error) {
 	defer cancel()
 
 	overview := &model.GalleryOverview{}
-	pool := db.GetPool()
+	readDB := db.R()
 
-	// 类型分布 / 总大小 / sync_count 统计 / 年份极值：单次扫描得出
-	err := pool.QueryRow(ctx, `
+	// 类型分布 / 总大小 / sync_count 统计 / 年份极值：单次扫描得出。
+	// captured_at 定宽且字典序即时序，故 MIN/MAX 直接取极值再切出年份。
+	err := readDB.QueryRowContext(ctx, `
 		SELECT
 			COUNT(*),
 			COALESCE(SUM(CASE WHEN mime_type LIKE 'image/%' THEN 1 ELSE 0 END), 0),
@@ -216,9 +246,9 @@ func FetchGalleryOverview() (*model.GalleryOverview, error) {
 			COALESCE(MIN(sync_count), 0),
 			COALESCE(MAX(sync_count), 0),
 			COALESCE(AVG(sync_count), 0),
-			COALESCE(EXTRACT(YEAR FROM MIN(captured_at))::int, 0),
-			COALESCE(EXTRACT(YEAR FROM MAX(captured_at))::int, 0)
-		FROM gallery.media_assets
+			COALESCE(CAST(substr(MIN(captured_at), 1, 4) AS INTEGER), 0),
+			COALESCE(CAST(substr(MAX(captured_at), 1, 4) AS INTEGER), 0)
+		FROM gallery_media_assets
 		WHERE is_deleted = false
 	`).Scan(
 		&overview.TotalMedia, &overview.ImageCount, &overview.VideoCount, &overview.TotalSize,
@@ -234,19 +264,19 @@ func FetchGalleryOverview() (*model.GalleryOverview, error) {
 		overview.VideoRatio = float64(overview.VideoCount) / float64(overview.TotalMedia)
 	}
 
-	if err := pool.QueryRow(ctx, `
+	if err := readDB.QueryRowContext(ctx, `
 		SELECT
-			(SELECT COUNT(*) FROM gallery.tags),
-			(SELECT COUNT(*) FROM gallery.tags WHERE parent_id IS NULL),
-			(SELECT COUNT(*) FROM gallery.media_tag_links)
+			(SELECT COUNT(*) FROM gallery_tags),
+			(SELECT COUNT(*) FROM gallery_tags WHERE parent_id IS NULL),
+			(SELECT COUNT(*) FROM gallery_media_tag_links)
 	`).Scan(&overview.TotalTags, &overview.RootTags, &overview.TotalLinks); err != nil {
 		return nil, fmt.Errorf("查询标签统计失败: %w", err)
 	}
 
-	rows, err := pool.Query(ctx, `
-		SELECT EXTRACT(YEAR FROM captured_at)::int AS year, COUNT(*)
-		FROM gallery.media_assets
-		WHERE is_deleted = false AND captured_at IS NOT NULL
+	rows, err := readDB.QueryContext(ctx, `
+		SELECT CAST(substr(captured_at, 1, 4) AS INTEGER) AS year, COUNT(*)
+		FROM gallery_media_assets
+		WHERE is_deleted = false AND captured_at <> ''
 		GROUP BY year
 		ORDER BY year DESC
 	`)
@@ -286,9 +316,9 @@ func FetchMediaAssetsByIDs(ids []uuid.UUID) ([]model.MediaAsset, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx, fmt.Sprintf(
-		`SELECT %s FROM gallery.media_assets WHERE id = ANY($1) ORDER BY captured_at ASC, id ASC`,
-		mediaAssetColumns("")), ids)
+	rows, err := db.R().QueryContext(ctx, fmt.Sprintf(
+		`SELECT %s FROM gallery_media_assets WHERE id IN (%s) ORDER BY captured_at ASC, id ASC`,
+		mediaAssetColumns(""), placeholders(len(ids))), uuidArgs(ids)...)
 	if err != nil {
 		return nil, fmt.Errorf("查询媒体资产失败: %w", err)
 	}
@@ -320,45 +350,49 @@ func FetchMediaAssetsByQuery(params model.MediaQueryParams) ([]model.MediaAsset,
 		conditions = append(conditions, "m.is_deleted = false")
 	}
 	if params.MimeType != "" {
-		cond, value := mimeCondition("m.mime_type", params.MimeType, len(args)+1)
+		cond, value := mimeCondition("m.mime_type", params.MimeType)
 		conditions = append(conditions, cond)
 		args = append(args, value)
 	}
 	if ids := parseUUIDList(params.IDs); len(ids) > 0 {
-		conditions = append(conditions, fmt.Sprintf("m.id = ANY($%d)", len(args)+1))
-		args = append(args, ids)
+		conditions = append(conditions, "m.id IN ("+placeholders(len(ids))+")")
+		args = append(args, uuidArgs(ids)...)
 	}
 	if tagIDs := parseUUIDList(params.TagIDs); len(tagIDs) > 0 {
 		if params.IncludeDescendants {
 			conditions = append(conditions, fmt.Sprintf(
-				`EXISTS (SELECT 1 FROM gallery.media_tag_links l
+				`EXISTS (SELECT 1 FROM gallery_media_tag_links l
 					WHERE l.media_id = m.id AND l.tag_id IN (
 						WITH RECURSIVE sub AS (
-							SELECT id FROM gallery.tags WHERE id = ANY($%d)
+							SELECT id FROM gallery_tags WHERE id IN (%s)
 							UNION ALL
-							SELECT t.id FROM gallery.tags t JOIN sub ON t.parent_id = sub.id
-						) SELECT id FROM sub))`, len(args)+1))
+							SELECT t.id FROM gallery_tags t JOIN sub ON t.parent_id = sub.id
+						) SELECT id FROM sub))`, placeholders(len(tagIDs))))
 		} else {
 			conditions = append(conditions, fmt.Sprintf(
-				`EXISTS (SELECT 1 FROM gallery.media_tag_links l WHERE l.media_id = m.id AND l.tag_id = ANY($%d))`,
-				len(args)+1))
+				`EXISTS (SELECT 1 FROM gallery_media_tag_links l WHERE l.media_id = m.id AND l.tag_id IN (%s))`,
+				placeholders(len(tagIDs))))
 		}
-		args = append(args, tagIDs)
+		args = append(args, uuidArgs(tagIDs)...)
 	}
 	if params.Untagged {
 		conditions = append(conditions,
-			"NOT EXISTS (SELECT 1 FROM gallery.media_tag_links l WHERE l.media_id = m.id)")
+			"NOT EXISTS (SELECT 1 FROM gallery_media_tag_links l WHERE l.media_id = m.id)")
 	}
-	// AI 标签筛选为可选路径：不传 vlm_tags 时完全不触及 ai schema，
+	// AI 标签筛选为可选路径：不传 vlm_tags 时完全不触及 ai 表，
 	// 未初始化 AI 层的部署不会因此查询报错。
 	if tags := parseTextList(params.VLMTags); len(tags) > 0 {
+		// vlm_tags 是 JSON 文本，按元素命中即可（任一命中）
 		conditions = append(conditions, fmt.Sprintf(
-			`EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id AND a.vlm_tags && $%d)`,
-			len(args)+1))
-		args = append(args, tags)
+			`EXISTS (SELECT 1 FROM ai_media a WHERE a.media_id = m.id
+				AND EXISTS (SELECT 1 FROM json_each(a.vlm_tags) v WHERE v.value IN (%s)))`,
+			placeholders(len(tags))))
+		for _, tag := range tags {
+			args = append(args, tag)
+		}
 	}
 
-	where := "TRUE"
+	where := "1"
 	if len(conditions) > 0 {
 		where = strings.Join(conditions, " AND ")
 	}
@@ -367,20 +401,20 @@ func FetchMediaAssetsByQuery(params model.MediaQueryParams) ([]model.MediaAsset,
 	defer cancel()
 
 	var total int
-	if err := db.GetPool().QueryRow(ctx,
-		fmt.Sprintf(`SELECT COUNT(*) FROM gallery.media_assets m WHERE %s`, where), args...).Scan(&total); err != nil {
+	if err := db.R().QueryRowContext(ctx,
+		fmt.Sprintf(`SELECT COUNT(*) FROM gallery_media_assets m WHERE %s`, where), args...).Scan(&total); err != nil {
 		return nil, nil, 0, fmt.Errorf("统计媒体资产失败: %w", err)
 	}
 
 	listQuery := fmt.Sprintf(`
 		SELECT %s
-		FROM gallery.media_assets m
+		FROM gallery_media_assets m
 		WHERE %s
 		ORDER BY %s
-		LIMIT $%d OFFSET $%d`,
-		mediaAssetColumns("m"), where, buildMediaOrderClause(params), len(args)+1, len(args)+2)
+		LIMIT ? OFFSET ?`,
+		mediaAssetColumns("m"), where, buildMediaOrderClause(params))
 
-	rows, err := db.GetPool().Query(ctx, listQuery, append(args, params.Limit, params.Offset)...)
+	rows, err := db.R().QueryContext(ctx, listQuery, append(args, params.Limit, params.Offset)...)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("查询媒体资产失败: %w", err)
 	}
@@ -456,12 +490,12 @@ func FetchAllTags() ([]model.Tag, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx, `
+	rows, err := db.R().QueryContext(ctx, `
 		SELECT t.id, t.created_at, t.updated_at, t.name, t.parent_id, t.full_path, t.is_favorite,
 			COUNT(m.id) AS media_count
-		FROM gallery.tags t
-		LEFT JOIN gallery.media_tag_links l ON l.tag_id = t.id
-		LEFT JOIN gallery.media_assets m ON m.id = l.media_id AND m.is_deleted = false
+		FROM gallery_tags t
+		LEFT JOIN gallery_media_tag_links l ON l.tag_id = t.id
+		LEFT JOIN gallery_media_assets m ON m.id = l.media_id AND m.is_deleted = false
 		GROUP BY t.id
 		ORDER BY t.full_path ASC
 	`)
@@ -495,8 +529,9 @@ func FetchMediaTagLinks(mediaIDs []uuid.UUID) ([]model.MediaTagLink, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx,
-		`SELECT media_id, tag_id FROM gallery.media_tag_links WHERE media_id = ANY($1)`, mediaIDs)
+	rows, err := db.R().QueryContext(ctx,
+		`SELECT media_id, tag_id FROM gallery_media_tag_links WHERE media_id IN (`+placeholders(len(mediaIDs))+`)`,
+		uuidArgs(mediaIDs)...)
 	if err != nil {
 		return nil, fmt.Errorf("查询媒体标签关联失败: %w", err)
 	}
@@ -522,14 +557,14 @@ func FetchTagByID(id uuid.UUID) (*model.Tag, error) {
 	defer cancel()
 
 	var tag model.Tag
-	err := db.GetPool().QueryRow(ctx, `
+	err := db.R().QueryRowContext(ctx, `
 		SELECT id, created_at, updated_at, name, parent_id, full_path, is_favorite
-		FROM gallery.tags WHERE id = $1`, id).Scan(
+		FROM gallery_tags WHERE id = ?`, id).Scan(
 		&tag.ID, &tag.CreatedAt, &tag.UpdatedAt, &tag.Name,
 		&tag.ParentID, &tag.FullPath, &tag.IsFavorite,
 	)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("查询标签失败: %w", err)
@@ -541,18 +576,16 @@ func FetchTagByID(id uuid.UUID) (*model.Tag, error) {
 func FetchDescendantTagIDs(id uuid.UUID) ([]uuid.UUID, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
-	return descendantIDs(ctx, db.GetPool(), id)
+	return descendantIDs(ctx, db.R(), id)
 }
 
 // descendantIDs 递归查询子孙标签 ID（parentID 起点由参数决定）。
-func descendantIDs(ctx context.Context, q interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-}, rootID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.Query(ctx, `
+func descendantIDs(ctx context.Context, q rowsQuerier, rootID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.QueryContext(ctx, `
 		WITH RECURSIVE sub AS (
-			SELECT id FROM gallery.tags WHERE parent_id = $1
+			SELECT id FROM gallery_tags WHERE parent_id = ?
 			UNION ALL
-			SELECT t.id FROM gallery.tags t JOIN sub ON t.parent_id = sub.id
+			SELECT t.id FROM gallery_tags t JOIN sub ON t.parent_id = sub.id
 		) SELECT id FROM sub`, rootID)
 	if err != nil {
 		return nil, fmt.Errorf("查询子孙标签失败: %w", err)
@@ -594,7 +627,85 @@ type TagPatch struct {
 	IsFavorite *bool
 }
 
-// CreateTag 创建标签（full_path 由数据库触发器维护）
+// joinTagPath 拼接标签全路径：无父级时 full_path 即自身名称。
+func joinTagPath(parentPath, name string) string {
+	if parentPath == "" {
+		return name
+	}
+	return parentPath + "/" + name
+}
+
+// tagFullPath 读取父标签的 full_path（parentID 为 nil 时返回空串）。
+func tagFullPath(ctx context.Context, q querier, parentID *uuid.UUID) (string, error) {
+	if parentID == nil {
+		return "", nil
+	}
+	var path string
+	if err := q.QueryRowContext(ctx,
+		`SELECT full_path FROM gallery_tags WHERE id = ?`, *parentID).Scan(&path); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrTagParentNotFound
+		}
+		return "", fmt.Errorf("查询标签路径失败: %w", err)
+	}
+	return path, nil
+}
+
+// tagNode 子树节点（full_path 级联重算用）。
+type tagNode struct {
+	id       uuid.UUID
+	name     string
+	parentID *uuid.UUID
+}
+
+// refreshSubtreePaths 重算 rootID 全部子孙的 full_path。
+// paths 必须已含 rootID 自身的新路径；按层级升序处理，父的路径总是先于子落定。
+func refreshSubtreePaths(ctx context.Context, tx *sql.Tx, rootID uuid.UUID, paths map[uuid.UUID]string) error {
+	// 一次递归 CTE 取出整棵子树（depth 仅用于排序）
+	rows, err := tx.QueryContext(ctx, `
+		WITH RECURSIVE sub(id, name, parent_id, depth) AS (
+			SELECT id, name, parent_id, 1 FROM gallery_tags WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id, t.name, t.parent_id, sub.depth + 1
+			FROM gallery_tags t JOIN sub ON t.parent_id = sub.id
+		)
+		SELECT id, name, parent_id FROM sub ORDER BY depth ASC`, rootID)
+	if err != nil {
+		return fmt.Errorf("查询子孙标签失败: %w", err)
+	}
+	defer rows.Close()
+
+	nodes := []tagNode{}
+	for rows.Next() {
+		var n tagNode
+		if err := rows.Scan(&n.id, &n.name, &n.parentID); err != nil {
+			return fmt.Errorf("扫描子孙标签失败: %w", err)
+		}
+		nodes = append(nodes, n)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历子孙标签失败: %w", err)
+	}
+
+	now := model.Now()
+	for _, n := range nodes {
+		parentPath := ""
+		if n.parentID != nil {
+			parentPath = paths[*n.parentID]
+		}
+		path := joinTagPath(parentPath, n.name)
+		// updated_at 由 Go 显式维护；full_path 变了就算一次真实更新
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE gallery_tags SET full_path = ?, updated_at = ? WHERE id = ?`,
+			path, now, n.id); err != nil {
+			return fmt.Errorf("更新子孙标签路径失败: %w", err)
+		}
+		paths[n.id] = path
+	}
+	return nil
+}
+
+// CreateTag 创建标签（full_path 与 updated_at 由本仓库维护）
 func CreateTag(name string, parentID *uuid.UUID) (*model.Tag, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -604,27 +715,29 @@ func CreateTag(name string, parentID *uuid.UUID) (*model.Tag, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	if err := ensureParentExist(ctx, tx, parentID); err != nil {
-		return nil, err
-	}
-	if err := ensureSiblingNameFree(ctx, tx, name, parentID, nil); err != nil {
-		return nil, err
-	}
-
 	id := uuid.New()
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO gallery.tags (id, name, parent_id) VALUES ($1, $2, $3)`,
-		id, name, parentID); err != nil {
-		return nil, classifyTagWriteError(err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("提交事务失败: %w", err)
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		if err := ensureParentExist(ctx, tx, parentID); err != nil {
+			return err
+		}
+		if err := ensureSiblingNameFree(ctx, tx, name, parentID, nil); err != nil {
+			return err
+		}
+		parentPath, err := tagFullPath(ctx, tx, parentID)
+		if err != nil {
+			return err
+		}
+		now := model.Now()
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO gallery_tags (id, created_at, updated_at, name, parent_id, full_path, is_favorite)
+			VALUES (?, ?, ?, ?, ?, ?, 0)`,
+			id, now, now, name, parentID, joinTagPath(parentPath, name)); err != nil {
+			return classifyTagWriteError(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return FetchTagByID(id)
 }
@@ -634,80 +747,110 @@ func UpdateTag(id uuid.UUID, patch TagPatch) (*model.Tag, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	var currentName string
-	var currentParent *uuid.UUID
-	err = tx.QueryRow(ctx,
-		`SELECT name, parent_id FROM gallery.tags WHERE id = $1 FOR UPDATE`, id).
-		Scan(&currentName, &currentParent)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrTagNotFound
-		}
-		return nil, fmt.Errorf("查询标签失败: %w", err)
-	}
-
-	var b setBuilder
-	effectiveName := currentName
-	if patch.Name != nil {
-		effectiveName = strings.TrimSpace(*patch.Name)
-		if effectiveName == "" {
-			return nil, ErrTagEmptyName
-		}
-		b.add("name = $%d", effectiveName)
-	}
-
-	effectiveParent := currentParent
-	if patch.MoveToRoot || patch.ParentID != nil {
-		effectiveParent = nil
-		if patch.ParentID != nil {
-			if *patch.ParentID == id {
-				return nil, ErrTagCycle
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var currentName string
+		var currentParent *uuid.UUID
+		// 单写者模型下无需行锁
+		err := tx.QueryRowContext(ctx,
+			`SELECT name, parent_id FROM gallery_tags WHERE id = ?`, id).
+			Scan(&currentName, &currentParent)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrTagNotFound
 			}
-			descendants, err := FetchDescendantTagIDs(id)
-			if err != nil {
-				return nil, err
+			return fmt.Errorf("查询标签失败: %w", err)
+		}
+
+		var b setBuilder
+		effectiveName := currentName
+		if patch.Name != nil {
+			effectiveName = strings.TrimSpace(*patch.Name)
+			if effectiveName == "" {
+				return ErrTagEmptyName
 			}
-			for _, descendant := range descendants {
-				if descendant == *patch.ParentID {
-					return nil, ErrTagCycle
+			b.add("name = ?", effectiveName)
+		}
+
+		effectiveParent := currentParent
+		if patch.MoveToRoot || patch.ParentID != nil {
+			effectiveParent = nil
+			if patch.ParentID != nil {
+				if *patch.ParentID == id {
+					return ErrTagCycle
 				}
+				descendants, err := descendantIDs(ctx, tx, id)
+				if err != nil {
+					return err
+				}
+				for _, descendant := range descendants {
+					if descendant == *patch.ParentID {
+						return ErrTagCycle
+					}
+				}
+				effectiveParent = patch.ParentID
 			}
-			effectiveParent = patch.ParentID
+			if err := ensureParentExist(ctx, tx, effectiveParent); err != nil {
+				return err
+			}
+			b.add("parent_id = ?", effectiveParent)
 		}
-		if err := ensureParentExist(ctx, tx, effectiveParent); err != nil {
-			return nil, err
+
+		// (name, parent_id) 唯一索引对 parent_id IS NULL 不生效（NULL 互不相等），这里显式校验
+		if patch.Name != nil || patch.MoveToRoot || patch.ParentID != nil {
+			if err := ensureSiblingNameFree(ctx, tx, effectiveName, effectiveParent, &id); err != nil {
+				return err
+			}
 		}
-		b.add("parent_id = $%d", effectiveParent)
-	}
 
-	// (name, parent_id) 唯一性：数据库 UNIQUE 约束不覆盖 parent_id IS NULL，这里显式校验
-	if patch.Name != nil || patch.MoveToRoot || patch.ParentID != nil {
-		if err := ensureSiblingNameFree(ctx, tx, effectiveName, effectiveParent, &id); err != nil {
-			return nil, err
+		if patch.IsFavorite != nil {
+			b.add("is_favorite = ?", *patch.IsFavorite)
 		}
-	}
 
-	if patch.IsFavorite != nil {
-		b.add("is_favorite = $%d", *patch.IsFavorite)
-	}
-
-	if !b.isEmpty() {
-		query, args := b.build("gallery.tags", "id = $%d", id)
-		if _, err := tx.Exec(ctx, query, args...); err != nil {
-			return nil, classifyTagWriteError(err)
+		if b.isEmpty() {
+			return nil
 		}
-	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("提交事务失败: %w", err)
+		// 改名或换父级都会改变自身 full_path，需要连同子孙一起重算
+		pathChanged := (patch.Name != nil && effectiveName != currentName) ||
+			!sameUUIDPtr(effectiveParent, currentParent)
+
+		now := model.Now()
+		newPath := ""
+		if pathChanged {
+			parentPath, err := tagFullPath(ctx, tx, effectiveParent)
+			if err != nil {
+				return err
+			}
+			newPath = joinTagPath(parentPath, effectiveName)
+			b.add("full_path = ?", newPath)
+		}
+		b.add("updated_at = ?", now)
+
+		query, args := b.build("gallery_tags", "id = ?", id)
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			return classifyTagWriteError(err)
+		}
+
+		if pathChanged {
+			paths := map[uuid.UUID]string{id: newPath}
+			if err := refreshSubtreePaths(ctx, tx, id, paths); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return FetchTagByID(id)
+}
+
+// sameUUIDPtr 比较两个可空 UUID 是否等值。
+func sameUUIDPtr(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // DeleteTag 删除标签，返回被删除的全部 ID（含级联删除的子孙）
@@ -715,32 +858,31 @@ func DeleteTag(id uuid.UUID) ([]uuid.UUID, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
+	descendants := []uuid.UUID{}
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var exists bool
+		if err := tx.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM gallery_tags WHERE id = ?)`, id).Scan(&exists); err != nil {
+			return fmt.Errorf("查询标签失败: %w", err)
+		}
+		if !exists {
+			return ErrTagNotFound
+		}
 
-	var exists bool
-	if err := tx.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM gallery.tags WHERE id = $1)`, id).Scan(&exists); err != nil {
-		return nil, fmt.Errorf("查询标签失败: %w", err)
-	}
-	if !exists {
-		return nil, ErrTagNotFound
-	}
+		var err error
+		descendants, err = descendantIDs(ctx, tx, id)
+		if err != nil {
+			return err
+		}
 
-	descendants, err := descendantIDs(ctx, tx, id)
+		// 子标签与标签关联由外键 ON DELETE CASCADE 清理
+		if _, err := tx.ExecContext(ctx, `DELETE FROM gallery_tags WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("删除标签失败: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-
-	// 子标签与标签关联由外键 ON DELETE CASCADE 清理
-	if _, err := tx.Exec(ctx, `DELETE FROM gallery.tags WHERE id = $1`, id); err != nil {
-		return nil, fmt.Errorf("删除标签失败: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("提交事务失败: %w", err)
 	}
 
 	return append(descendants, id), nil
@@ -748,26 +890,23 @@ func DeleteTag(id uuid.UUID) ([]uuid.UUID, error) {
 
 // classifyTagWriteError 把数据库约束错误归一化为可识别的业务错误
 func classifyTagWriteError(err error) error {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		switch pgErr.Code {
-		case "23505": // unique_violation
-			return ErrTagNameConflict
-		case "23503": // foreign_key_violation
-			return ErrTagParentNotFound
-		}
+	switch {
+	case db.IsUniqueViolation(err):
+		return ErrTagNameConflict
+	case db.IsForeignKeyViolation(err):
+		return ErrTagParentNotFound
 	}
 	return fmt.Errorf("写入标签失败: %w", err)
 }
 
 // ensureParentExist 校验父标签存在
-func ensureParentExist(ctx context.Context, q rowQuerier, parentID *uuid.UUID) error {
+func ensureParentExist(ctx context.Context, q querier, parentID *uuid.UUID) error {
 	if parentID == nil {
 		return nil
 	}
 	var exists bool
-	if err := q.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM gallery.tags WHERE id = $1)`, *parentID).Scan(&exists); err != nil {
+	if err := q.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM gallery_tags WHERE id = ?)`, *parentID).Scan(&exists); err != nil {
 		return fmt.Errorf("校验父标签失败: %w", err)
 	}
 	if !exists {
@@ -777,16 +916,18 @@ func ensureParentExist(ctx context.Context, q rowQuerier, parentID *uuid.UUID) e
 }
 
 // ensureSiblingNameFree 校验同级同名（NULL 父级也参与比较）
-func ensureSiblingNameFree(ctx context.Context, q rowQuerier, name string, parentID, excludeID *uuid.UUID) error {
+func ensureSiblingNameFree(ctx context.Context, q querier, name string, parentID, excludeID *uuid.UUID) error {
+	// `IS` 在 SQLite 中是 NULL 安全的等值比较，可直接替换 IS NOT DISTINCT FROM
+	query := `SELECT EXISTS(SELECT 1 FROM gallery_tags WHERE name = ? AND parent_id IS ?`
+	args := []any{name, parentID}
+	if excludeID != nil {
+		query += ` AND id <> ?`
+		args = append(args, *excludeID)
+	}
+	query += `)`
+
 	var exists bool
-	err := q.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM gallery.tags
-			WHERE name = $1
-				AND parent_id IS NOT DISTINCT FROM $2
-				AND ($3::uuid IS NULL OR id <> $3)
-		)`, name, parentID, excludeID).Scan(&exists)
-	if err != nil {
+	if err := q.QueryRowContext(ctx, query, args...).Scan(&exists); err != nil {
 		return fmt.Errorf("校验同级同名失败: %w", err)
 	}
 	if exists {
@@ -804,33 +945,37 @@ func ReplaceMediaTags(mediaID uuid.UUID, tagIDs []uuid.UUID) ([]uuid.UUID, error
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	if err := ensureMediaExist(ctx, tx, []uuid.UUID{mediaID}); err != nil {
-		return nil, err
-	}
-	if err := ensureTagsExist(ctx, tx, unique); err != nil {
-		return nil, err
-	}
-
-	if _, err := tx.Exec(ctx,
-		`DELETE FROM gallery.media_tag_links WHERE media_id = $1`, mediaID); err != nil {
-		return nil, fmt.Errorf("清除旧标签关联失败: %w", err)
-	}
-	if len(unique) > 0 {
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO gallery.media_tag_links (media_id, tag_id)
-			SELECT $1, unnest($2::uuid[])
-			ON CONFLICT DO NOTHING`, mediaID, unique); err != nil {
-			return nil, fmt.Errorf("写入标签关联失败: %w", err)
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		if err := ensureMediaExist(ctx, tx, []uuid.UUID{mediaID}); err != nil {
+			return err
 		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("提交事务失败: %w", err)
+		if err := ensureTagsExist(ctx, tx, unique); err != nil {
+			return err
+		}
+
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM gallery_media_tag_links WHERE media_id = ?`, mediaID); err != nil {
+			return fmt.Errorf("清除旧标签关联失败: %w", err)
+		}
+		if len(unique) == 0 {
+			return nil
+		}
+
+		values := make([]string, 0, len(unique))
+		args := make([]any, 0, len(unique)*2)
+		for _, tagID := range unique {
+			values = append(values, "(?, ?)")
+			args = append(args, mediaID, tagID)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO gallery_media_tag_links (media_id, tag_id) VALUES `+
+				strings.Join(values, ", ")+` ON CONFLICT DO NOTHING`, args...); err != nil {
+			return fmt.Errorf("写入标签关联失败: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return unique, nil
 }
@@ -847,63 +992,87 @@ func AddRemoveMediaTags(mediaIDs, addTagIDs, removeTagIDs []uuid.UUID) (int64, e
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	if err := ensureMediaExist(ctx, tx, mediaIDs); err != nil {
-		return 0, err
-	}
-	if err := ensureTagsExist(ctx, tx, addTagIDs); err != nil {
-		return 0, err
-	}
-
 	var affected int64
-	if len(removeTagIDs) > 0 {
-		tag, err := tx.Exec(ctx, `
-			DELETE FROM gallery.media_tag_links
-			WHERE media_id = ANY($1) AND tag_id = ANY($2)`, mediaIDs, removeTagIDs)
-		if err != nil {
-			return 0, fmt.Errorf("移除标签关联失败: %w", err)
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		// 事务层会重试整个闭包，计数必须在闭包内重算
+		var count int64
+
+		if err := ensureMediaExist(ctx, tx, mediaIDs); err != nil {
+			return err
 		}
-		affected += tag.RowsAffected()
-	}
-	if len(addTagIDs) > 0 {
-		tag, err := tx.Exec(ctx, `
-			INSERT INTO gallery.media_tag_links (media_id, tag_id)
-			SELECT m.id, t.id FROM unnest($1::uuid[]) AS m(id) CROSS JOIN unnest($2::uuid[]) AS t(id)
-			ON CONFLICT DO NOTHING`, mediaIDs, addTagIDs)
-		if err != nil {
-			return 0, fmt.Errorf("添加标签关联失败: %w", err)
+		if err := ensureTagsExist(ctx, tx, addTagIDs); err != nil {
+			return err
 		}
-		affected += tag.RowsAffected()
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return 0, fmt.Errorf("提交事务失败: %w", err)
+
+		// 逐个媒体执行：IN 列表长度受控，不会触碰 SQLite 的参数上限
+		if len(removeTagIDs) > 0 {
+			query := `DELETE FROM gallery_media_tag_links WHERE media_id = ? AND tag_id IN (` +
+				placeholders(len(removeTagIDs)) + `)`
+			for _, mediaID := range mediaIDs {
+				args := append([]any{mediaID}, uuidArgs(removeTagIDs)...)
+				res, err := tx.ExecContext(ctx, query, args...)
+				if err != nil {
+					return fmt.Errorf("移除标签关联失败: %w", err)
+				}
+				n, err := res.RowsAffected()
+				if err != nil {
+					return fmt.Errorf("移除标签关联失败: %w", err)
+				}
+				count += n
+			}
+		}
+		if len(addTagIDs) > 0 {
+			values := make([]string, 0, len(addTagIDs))
+			for range addTagIDs {
+				values = append(values, "(?, ?)")
+			}
+			query := `INSERT INTO gallery_media_tag_links (media_id, tag_id) VALUES ` +
+				strings.Join(values, ", ") + ` ON CONFLICT DO NOTHING`
+			for _, mediaID := range mediaIDs {
+				args := make([]any, 0, len(addTagIDs)*2)
+				for _, tagID := range addTagIDs {
+					args = append(args, mediaID, tagID)
+				}
+				res, err := tx.ExecContext(ctx, query, args...)
+				if err != nil {
+					return fmt.Errorf("添加标签关联失败: %w", err)
+				}
+				n, err := res.RowsAffected()
+				if err != nil {
+					return fmt.Errorf("添加标签关联失败: %w", err)
+				}
+				count += n
+			}
+		}
+
+		affected = count
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
 	return affected, nil
 }
 
 // ensureMediaExist 校验媒体 ID 全部存在
-func ensureMediaExist(ctx context.Context, q rowQuerier, ids []uuid.UUID) error {
-	return ensureAllExist(ctx, q, "gallery.media_assets", ids, ErrMediaNotFound, "校验媒体失败")
+func ensureMediaExist(ctx context.Context, q querier, ids []uuid.UUID) error {
+	return ensureAllExist(ctx, q, "gallery_media_assets", ids, ErrMediaNotFound, "校验媒体失败")
 }
 
 // ensureTagsExist 校验标签 ID 全部存在
-func ensureTagsExist(ctx context.Context, q rowQuerier, ids []uuid.UUID) error {
-	return ensureAllExist(ctx, q, "gallery.tags", ids, ErrTagNotFound, "校验标签失败")
+func ensureTagsExist(ctx context.Context, q querier, ids []uuid.UUID) error {
+	return ensureAllExist(ctx, q, "gallery_tags", ids, ErrTagNotFound, "校验标签失败")
 }
 
 // ensureAllExist 校验 ids 在 table 中全部存在（空集合视为通过）；table 仅接受本包字面量。
-func ensureAllExist(ctx context.Context, q rowQuerier, table string, ids []uuid.UUID, notFound error, errPrefix string) error {
+func ensureAllExist(ctx context.Context, q querier, table string, ids []uuid.UUID, notFound error, errPrefix string) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	var count int
-	if err := q.QueryRow(ctx,
-		"SELECT COUNT(*) FROM "+table+" WHERE id = ANY($1)", ids).Scan(&count); err != nil {
+	if err := q.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM "+table+" WHERE id IN ("+placeholders(len(ids))+")",
+		uuidArgs(ids)...).Scan(&count); err != nil {
 		return fmt.Errorf("%s: %w", errPrefix, err)
 	}
 	if count != len(ids) {
@@ -931,9 +1100,11 @@ func expandWithGroupMembers(ids []uuid.UUID) ([]uuid.UUID, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx, `
-		SELECT id FROM gallery.media_assets
-		WHERE id = ANY($1) OR group_id = ANY($1)`, ids)
+	ph := placeholders(len(ids))
+	args := append(uuidArgs(ids), uuidArgs(ids)...)
+	rows, err := db.R().QueryContext(ctx, `
+		SELECT id FROM gallery_media_assets
+		WHERE id IN (`+ph+`) OR group_id IN (`+ph+`)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("展开捆绑组成员失败: %w", err)
 	}
@@ -964,7 +1135,7 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 	defer cancel()
 
 	// 先校验目标媒体存在：后续展开组成员会掩盖"ID 不存在"的情况
-	if err := ensureMediaExist(ctx, db.GetPool(), ids); err != nil {
+	if err := ensureMediaExist(ctx, db.R(), ids); err != nil {
 		return nil, err
 	}
 
@@ -976,14 +1147,14 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 			return nil, err
 		}
 		ids = expanded
-		b.add("is_deleted = $%d", *patch.IsDeleted)
+		b.add("is_deleted = ?", *patch.IsDeleted)
 	}
 	if patch.Message != nil {
 		var message *string
 		if trimmed := strings.TrimSpace(*patch.Message); trimmed != "" {
 			message = &trimmed
 		}
-		b.add("message = $%d", message)
+		b.add("message = ?", message)
 	}
 	if patch.GroupID != nil {
 		for _, id := range ids {
@@ -991,13 +1162,12 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 				return nil, ErrMediaSelfGroup
 			}
 		}
-		b.add("group_id = $%d", *patch.GroupID)
+		b.add("group_id = ?", *patch.GroupID)
 	} else if patch.ClearGroup {
 		b.raw("group_id = NULL")
 	}
 	if patch.SetEditParams != nil {
-		// jsonb 列需显式转换，避免驱动按 text 编码
-		b.add("edit_params = $%d::jsonb", *patch.SetEditParams)
+		b.add("edit_params = ?", *patch.SetEditParams)
 	} else if patch.ClearEditParams {
 		b.raw("edit_params = NULL")
 	}
@@ -1008,13 +1178,19 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 	if b.isEmpty() {
 		return FetchMediaAssetsByIDs(ids)
 	}
+	// updated_at 由 Go 显式维护（触发器已移除）
+	b.add("updated_at = ?", model.Now())
 
-	query, args := b.build("gallery.media_assets", "id = ANY($%d)", ids)
-	res, err := db.GetPool().Exec(ctx, query, args...)
+	query, args := b.build("gallery_media_assets", "id IN ("+placeholders(len(ids))+")", uuidArgs(ids)...)
+	res, err := db.W().ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("更新媒体标注失败: %w", err)
 	}
-	if int(res.RowsAffected()) != len(ids) {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("更新媒体标注失败: %w", err)
+	}
+	if int(n) != len(ids) {
 		return nil, ErrMediaNotFound
 	}
 	return FetchMediaAssetsByIDs(ids)

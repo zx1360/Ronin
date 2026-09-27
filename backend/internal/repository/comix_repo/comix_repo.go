@@ -3,10 +3,12 @@
 // 职责边界：Go 端负责**所有查询 + 删除**（桌面端数据直查库），
 // Python 端只保留爬虫操作（search/add/add-url/download/update-check/clean/init）。
 // 数据模型与 comix CLI 的 JSON 输出保持一致，客户端（桌面端）无需感知数据来源变化。
+//
+// 表名已扁平化为 comix_*（SQLite 无 schema）；comix_comic_books 等视图只读。
 package comix_repo
 
 import (
-	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -15,9 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"monarch/internal/service/comix"
 	"monarch/internal/service/db"
@@ -51,7 +50,7 @@ type Comic struct {
 	CoverImage string `json:"cover_image"`
 	// IsLegacy：legacy 站点的本地历史资源，不参与追更（Python 端同样跳过）。
 	IsLegacy bool `json:"is_legacy"`
-	// 书库管理字段（comix.comic_books 视图）；记录缺失时给出默认值，
+	// 书库管理字段（comix_comic_books 视图）；记录缺失时给出默认值，
 	// 使客户端无需再请求 /API/comic/comic-info 即可完成管理操作。
 	IsPublic     bool `json:"is_public"`
 	Readed       bool `json:"readed"`
@@ -73,14 +72,7 @@ type Chapter struct {
 // ErrComicNotFound 漫画不存在。
 var ErrComicNotFound = errors.New("漫画不存在")
 
-// withPool 以默认超时的上下文执行查询，并传入全局连接池。
-func withPool[T any](fn func(ctx context.Context, pool *pgxpool.Pool) (T, error)) (T, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return fn(ctx, db.GetPool())
-}
-
-// MatchSiteByURL 根据详情页 URL 的 host 匹配已注册站点（comix.site.base_url）。
+// MatchSiteByURL 根据详情页 URL 的 host 匹配已注册站点（comix_site.base_url）。
 // 比较时忽略协议与 "www." 前缀；匹配失败返回不支持站点的明确错误。
 func MatchSiteByURL(rawURL string, sites []Site) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
@@ -127,30 +119,31 @@ func supportedSiteNames(sites []Site) string {
 
 // ListSites 列出全部站点。
 func ListSites() ([]Site, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]Site, error) {
-		rows, err := pool.Query(ctx, `
-			SELECT code, name, base_url, enabled
-			FROM comix.site
-			ORDER BY id
-		`)
-		if err != nil {
-			return nil, fmt.Errorf("查询 comix 站点失败: %w", err)
-		}
-		defer rows.Close()
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
 
-		var sites []Site
-		for rows.Next() {
-			var s Site
-			if err := rows.Scan(&s.Code, &s.Name, &s.BaseURL, &s.Enabled); err != nil {
-				return nil, fmt.Errorf("扫描站点数据失败: %w", err)
-			}
-			sites = append(sites, s)
+	rows, err := db.R().QueryContext(ctx, `
+		SELECT code, name, base_url, enabled
+		FROM comix_site
+		ORDER BY id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("查询 comix 站点失败: %w", err)
+	}
+	defer rows.Close()
+
+	var sites []Site
+	for rows.Next() {
+		var s Site
+		if err := rows.Scan(&s.Code, &s.Name, &s.BaseURL, &s.Enabled); err != nil {
+			return nil, fmt.Errorf("扫描站点数据失败: %w", err)
 		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("迭代站点结果集失败: %w", err)
-		}
-		return sites, nil
-	})
+		sites = append(sites, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代站点结果集失败: %w", err)
+	}
+	return sites, nil
 }
 
 // ListComics 列出全部已登记漫画（单条 SQL 聚合，替代 Python 端 N+1 查询）。
@@ -159,97 +152,99 @@ func ListSites() ([]Site, error) {
 // 图片数取 chapter.page_count 汇总：与爬虫写入的页数一致，且避免 COUNT 图片表
 // （12 万行）带来的数量级开销。
 func ListComics() ([]Comic, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]Comic, error) {
-		rows, err := pool.Query(ctx, `
-			SELECT
-				c.id,
-				c.title,
-				s.code,
-				s.name,
-				c.detail_url,
-				c.rel_dir,
-				COUNT(ch.id)                                            AS total_chapters,
-				COUNT(ch.id) FILTER (WHERE ch.status = 'done')          AS downloaded,
-				COUNT(ch.id) FILTER (WHERE ch.status = 'failed')        AS failed,
-				COUNT(ch.id) FILTER (WHERE ch.status = 'pending')       AS pending,
-				COALESCE(MAX(ch.chapter_no), 0)                         AS max_chapter_no,
-				c.cover_url,
-				c.cover_image,
-				(s.code = 'legacy')                                     AS is_legacy,
-				COALESCE(b.is_public, TRUE)                             AS is_public,
-				COALESCE(b.readed, FALSE)                               AS readed,
-				COUNT(ch.id)                                            AS chapter_count,
-				COALESCE(SUM(ch.page_count), 0)                         AS image_count
-			FROM comix.comic c
-			JOIN comix.site s ON s.id = c.site_id
-			LEFT JOIN comix.comic_books b ON b.id = c.id::text
-			LEFT JOIN comix.chapter ch ON ch.comic_id = c.id
-			GROUP BY c.id, c.title, s.code, s.name, c.detail_url, c.rel_dir,
-			         c.cover_url, c.cover_image, b.is_public, b.readed
-			ORDER BY c.id
-		`)
-		if err != nil {
-			return nil, fmt.Errorf("查询 comix 漫画列表失败: %w", err)
-		}
-		defer rows.Close()
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
 
-		var comics []Comic
-		for rows.Next() {
-			var c Comic
-			if err := rows.Scan(&c.ComicID, &c.Title, &c.Site, &c.SiteName,
-				&c.DetailURL, &c.RelDir, &c.TotalChapters,
-				&c.Downloaded, &c.Failed, &c.Pending, &c.MaxChapterNo,
-				&c.CoverURL, &c.CoverImage, &c.IsLegacy,
-				&c.IsPublic, &c.Readed, &c.ChapterCount, &c.ImageCount); err != nil {
-				return nil, fmt.Errorf("扫描漫画数据失败: %w", err)
-			}
-			comics = append(comics, c)
+	rows, err := db.R().QueryContext(ctx, `
+		SELECT
+			c.id,
+			c.title,
+			s.code,
+			s.name,
+			c.detail_url,
+			c.rel_dir,
+			COUNT(ch.id)                                            AS total_chapters,
+			COALESCE(SUM(CASE WHEN ch.status = 'done'    THEN 1 ELSE 0 END), 0) AS downloaded,
+			COALESCE(SUM(CASE WHEN ch.status = 'failed'  THEN 1 ELSE 0 END), 0) AS failed,
+			COALESCE(SUM(CASE WHEN ch.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending,
+			COALESCE(MAX(ch.chapter_no), 0)                         AS max_chapter_no,
+			c.cover_url,
+			c.cover_image,
+			(s.code = 'legacy')                                     AS is_legacy,
+			COALESCE(b.is_public, 1)                                AS is_public,
+			COALESCE(b.readed, 0)                                   AS readed,
+			COUNT(ch.id)                                            AS chapter_count,
+			COALESCE(SUM(ch.page_count), 0)                         AS image_count
+		FROM comix_comic c
+		JOIN comix_site s ON s.id = c.site_id
+		LEFT JOIN comix_comic_books b ON b.id = CAST(c.id AS TEXT)
+		LEFT JOIN comix_chapter ch ON ch.comic_id = c.id
+		GROUP BY c.id, c.title, s.code, s.name, c.detail_url, c.rel_dir,
+		         c.cover_url, c.cover_image, b.is_public, b.readed
+		ORDER BY c.id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("查询 comix 漫画列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var comics []Comic
+	for rows.Next() {
+		var c Comic
+		if err := rows.Scan(&c.ComicID, &c.Title, &c.Site, &c.SiteName,
+			&c.DetailURL, &c.RelDir, &c.TotalChapters,
+			&c.Downloaded, &c.Failed, &c.Pending, &c.MaxChapterNo,
+			&c.CoverURL, &c.CoverImage, &c.IsLegacy,
+			&c.IsPublic, &c.Readed, &c.ChapterCount, &c.ImageCount); err != nil {
+			return nil, fmt.Errorf("扫描漫画数据失败: %w", err)
 		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("迭代漫画结果集失败: %w", err)
-		}
-		return comics, nil
-	})
+		comics = append(comics, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代漫画结果集失败: %w", err)
+	}
+	return comics, nil
 }
 
 // ListChapters 列出指定漫画的章节（精简列，避免大 payload）。
 func ListChapters(comicID int) ([]Chapter, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]Chapter, error) {
-		// 与 CLI 语义一致：漫画不存在时返回业务错误
-		var exists bool
-		if err := pool.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM comix.comic WHERE id = $1)`, comicID).Scan(&exists); err != nil {
-			return nil, fmt.Errorf("查询漫画存在性失败: %w", err)
-		}
-		if !exists {
-			return nil, fmt.Errorf("%w: %d", ErrComicNotFound, comicID)
-		}
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
 
-		rows, err := pool.Query(ctx, `
-			SELECT id, chapter_no, title, status, page_count, rel_dir, error
-			FROM comix.chapter
-			WHERE comic_id = $1
-			ORDER BY chapter_no
-		`, comicID)
-		if err != nil {
-			return nil, fmt.Errorf("查询 comix 章节失败: %w", err)
-		}
-		defer rows.Close()
+	// 与 CLI 语义一致：漫画不存在时返回业务错误
+	var exists bool
+	if err := db.R().QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM comix_comic WHERE id = ?)`, comicID).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("查询漫画存在性失败: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("%w: %d", ErrComicNotFound, comicID)
+	}
 
-		var chapters []Chapter
-		for rows.Next() {
-			var c Chapter
-			if err := rows.Scan(&c.ID, &c.ChapterNo, &c.Title, &c.Status,
-				&c.PageCount, &c.RelDir, &c.Error); err != nil {
-				return nil, fmt.Errorf("扫描章节数据失败: %w", err)
-			}
-			chapters = append(chapters, c)
+	rows, err := db.R().QueryContext(ctx, `
+		SELECT id, chapter_no, title, status, page_count, rel_dir, error
+		FROM comix_chapter
+		WHERE comic_id = ?
+		ORDER BY chapter_no
+	`, comicID)
+	if err != nil {
+		return nil, fmt.Errorf("查询 comix 章节失败: %w", err)
+	}
+	defer rows.Close()
+
+	var chapters []Chapter
+	for rows.Next() {
+		var c Chapter
+		if err := rows.Scan(&c.ID, &c.ChapterNo, &c.Title, &c.Status,
+			&c.PageCount, &c.RelDir, &c.Error); err != nil {
+			return nil, fmt.Errorf("扫描章节数据失败: %w", err)
 		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("迭代章节结果集失败: %w", err)
-		}
-		return chapters, nil
-	})
+		chapters = append(chapters, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代章节结果集失败: %w", err)
+	}
+	return chapters, nil
 }
 
 // DeletedComic 删除结果。
@@ -267,53 +262,54 @@ type DeletedComic struct {
 // ⑤ 成功后移除改名目录（尽力而为，失败时报告残留路径）。
 // keepFiles=true 时只删 DB 记录，文件原样保留（便于可回退验收）。
 func DeleteComic(comicID int, keepFiles bool) (*DeletedComic, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) (*DeletedComic, error) {
-		var title, relDir string
-		err := pool.QueryRow(ctx,
-			`SELECT title, rel_dir FROM comix.comic WHERE id = $1`, comicID,
-		).Scan(&title, &relDir)
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+
+	var title, relDir string
+	err := db.R().QueryRowContext(ctx,
+		`SELECT title, rel_dir FROM comix_comic WHERE id = ?`, comicID,
+	).Scan(&title, &relDir)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %d", ErrComicNotFound, comicID)
+		}
+		return nil, fmt.Errorf("查询漫画失败: %w", err)
+	}
+
+	result := &DeletedComic{ComicID: comicID, Title: title}
+
+	// ① 文件目录改名（先于 DB 删除，保证可回滚；keep_files 跳过）
+	renamed := ""
+	absDir := ""
+	if !keepFiles && relDir != "" {
+		absDir, err = comix.StoragePath(relDir)
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, fmt.Errorf("%w: %d", ErrComicNotFound, comicID)
-			}
-			return nil, fmt.Errorf("查询漫画失败: %w", err)
+			return nil, err
 		}
-
-		result := &DeletedComic{ComicID: comicID, Title: title}
-
-		// ① 文件目录改名（先于 DB 删除，保证可回滚；keep_files 跳过）
-		renamed := ""
-		absDir := ""
-		if !keepFiles && relDir != "" {
-			absDir, err = comix.StoragePath(relDir)
-			if err != nil {
-				return nil, err
+		if fi, statErr := os.Stat(absDir); statErr == nil && fi.IsDir() {
+			renamed = absDir + ".deleting_" + strconv.FormatInt(time.Now().Unix(), 10)
+			if renameErr := os.Rename(absDir, renamed); renameErr != nil {
+				return nil, fmt.Errorf("重命名漫画目录失败: %w", renameErr)
 			}
-			if fi, statErr := os.Stat(absDir); statErr == nil && fi.IsDir() {
-				renamed = absDir + ".deleting_" + strconv.FormatInt(time.Now().Unix(), 10)
-				if renameErr := os.Rename(absDir, renamed); renameErr != nil {
-					return nil, fmt.Errorf("重命名漫画目录失败: %w", renameErr)
-				}
-			}
-			result.FilesRemoved = true // 目录不存在时视为已清理
 		}
+		result.FilesRemoved = true // 目录不存在时视为已清理
+	}
 
-		// ② 删除 DB 记录（外键级联）
-		if _, err := pool.Exec(ctx,
-			`DELETE FROM comix.comic WHERE id = $1`, comicID); err != nil {
-			if renamed != "" {
-				_ = os.Rename(renamed, absDir) // 回滚改名
-			}
-			return nil, fmt.Errorf("删除漫画记录失败(已回滚目录改名): %w", err)
-		}
-
-		// ③ 移除改名目录（尽力而为）
+	// ② 删除 DB 记录（外键级联）
+	if _, err := db.W().ExecContext(ctx,
+		`DELETE FROM comix_comic WHERE id = ?`, comicID); err != nil {
 		if renamed != "" {
-			if removeErr := comix.RemoveDirSafely(renamed); removeErr != nil {
-				result.FilesRemoved = false
-				result.LeftoverPath = renamed
-			}
+			_ = os.Rename(renamed, absDir) // 回滚改名
 		}
-		return result, nil
-	})
+		return nil, fmt.Errorf("删除漫画记录失败(已回滚目录改名): %w", err)
+	}
+
+	// ③ 移除改名目录（尽力而为）
+	if renamed != "" {
+		if removeErr := comix.RemoveDirSafely(renamed); removeErr != nil {
+			result.FilesRemoved = false
+			result.LeftoverPath = renamed
+		}
+	}
+	return result, nil
 }

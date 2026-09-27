@@ -1,143 +1,265 @@
+// Package config 负责两件事：
+//
+//  1. Bootstrap：从 .env / 环境变量读取"连库之前就必须知道"的项（数据库路径、端口、API Key）。
+//  2. 把 settings 包里的运行时配置解释成类型化的全局对象（AppConf / AiConf / ComixConf）。
+//
+// 除 Bootstrap 之外的配置一律入库，见 internal/settings 与 /API/settings。
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
+
+	"monarch/internal/settings"
 )
 
-// AppConfig 应用配置数据类
+// AppConfig 应用路径配置。
 type AppConfig struct {
 	StaticDir  string
 	GalleryDir string
+	// OpsDir 是 ops 网页应用目录；为空时由 resolve 逻辑定位仓库中的 ops/。
+	OpsDir string
+	// GalleryCLI 是 gallery CLI 可执行文件；为空时由 resolve 逻辑定位 gizmos/gallery(.exe)。
+	GalleryCLI string
 }
 
-// NetConfig 网络配置
+// NetConfig 网络配置（Bootstrap 项）。
 type NetConfig struct {
 	LocalPort      string
 	LocalDebugPort string
+	APIKeyServer   string
 }
 
-// DbConfig 数据库配置
-type DbConfig struct {
-	DbIP       string
-	DbPort     string
-	DbUser     string
-	DbPassword string
-	DbName     string
-}
-
-// ComixConfig comix 爬虫集成配置（子进程调用 python -m comix.cli）
+// ComixConfig comix 爬虫集成配置（内置在 gizmos/comix，以子进程调用）。
 type ComixConfig struct {
-	Python string // python 可执行文件（默认 "python"）
-	Root   string // comix 项目根目录（依赖 .env 与 util 包，必须设置）
+	Python      string // python 可执行文件
+	StorageRoot string // 漫画图片落盘根目录
+	MaxWorkers  int    // 下载并发
 }
 
 // AiConfig 本地 AI 媒体处理配置。
-//
-// AI 能力以外部进程（Python 侧车 / Ollama）方式接入：只在有任务时拉起，
-// 空闲超时后自动退出，不常驻占用内存。
 type AiConfig struct {
-	Enabled         bool          // 总开关；false 时不启动 worker（API 仍可查看状态）
-	Python          string        // 侧车解释器；留空则自动探测 tools/ai/.venv
-	SidecarDir      string        // 侧车项目目录（含 ronin_ai 包）
-	IdleTimeout     time.Duration // 侧车空闲多久后退出
-	BatchSize       int           // 单批媒体数（一次进程调用摊薄模型加载成本）
-	JobTimeout      time.Duration // 单批处理超时
-	MaxAttempts     int           // 单条任务最大尝试次数
-	Workers         int           // 并发批次上限
-	EmbedModel      string        // SigLIP 模型标识
+	Enabled         bool
+	Python          string
+	SidecarDir      string
+	IdleTimeout     time.Duration
+	BatchSize       int
+	JobTimeout      time.Duration
+	MaxAttempts     int
+	EmbedModel      string
+	AutoCaps        []string
+	Device          string
 	OllamaURL       string
-	OllamaVLM       string        // VLM 模型名（默认）
-	OllamaVLMAlt    string        // 备选 VLM 模型（无审查版），两端可在设置里切换
-	OllamaVLMCTX    int           // VLM 请求的上下文长度（token）
-	OllamaKeepAlive time.Duration // 对话请求显式下发的模型驻留时长（前端"后端默认值"即此项）
-	OllamaIdle      time.Duration // 自拉的 ollama serve 空闲多久后回收（应大于模型 keep_alive）
-	OllamaExe       string        // 留空则从 PATH 探测；用于按需拉起 ollama serve
-	Device          string        // 侧车推理设备：auto=Windows 上启用 DirectML，cpu=全部回退 CPU
-	AutoCaps        []string      // 入库后自动入队的能力（数据库 ai.settings 可覆盖）
+	OllamaVLM       string
+	OllamaVLMAlt    string
+	OllamaVLMCTX    int
+	OllamaKeepAlive time.Duration
+	OllamaIdle      time.Duration
+	OllamaExe       string
+	OllamaModels    string
 }
 
-// IsLocalMode 运行模式：true=本地开发(HTTP+免鉴权)
+// IsLocalMode 运行模式：true=本地开发(HTTP+免鉴权+ops 页面)。
 var IsLocalMode bool
 
-// 向外暴露数据对象
+// DBPath 是 SQLite 单文件路径（Bootstrap 项）。
+var DBPath string
+
+// 向外暴露数据对象。
 var (
 	AppConf   AppConfig
 	NetConf   NetConfig
-	DbConf    DbConfig
 	ComixConf ComixConfig
 	AiConf    AiConfig
 )
 
-// Load 从 .env 与环境变量加载配置，并校验必要项。
+// defaultDBPath 相对工作目录解析；应用目录即 backend/。
+const defaultDBPath = "data/monarch.db"
+
+// Load 读取 Bootstrap 配置（.env 文件不存在时只依赖真实环境变量）。
 func Load() error {
-	// 尝试从 .env 文件加载环境变量（文件不存在时不报错）
 	_ = godotenv.Load()
 
-	AppConf.StaticDir = os.Getenv("STATIC_DIR")
-	AppConf.GalleryDir = os.Getenv("GALLERY_DIR")
-
+	DBPath = envString("DB_PATH", defaultDBPath)
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")
 	NetConf.LocalDebugPort = os.Getenv("LOCAL_DEBUG_PORT")
+	NetConf.APIKeyServer = os.Getenv("API_KEY_SERVER")
 
-	DbConf.DbIP = os.Getenv("DB_IP")
-	DbConf.DbPort = os.Getenv("DB_PORT")
-	DbConf.DbUser = os.Getenv("DB_USER")
-	DbConf.DbPassword = os.Getenv("DB_PASSWORD")
-	DbConf.DbName = os.Getenv("DB_NAME")
-
-	// comix 爬虫集成配置（可选；未配置时相关 API 返回明确错误）
-	ComixConf.Python = os.Getenv("COMIX_PYTHON")
-	if strings.TrimSpace(ComixConf.Python) == "" {
-		ComixConf.Python = "python"
-	}
-	ComixConf.Root = os.Getenv("COMIX_ROOT")
-
-	loadAiConfig()
-
-	return Validate()
+	return ValidateBootstrap()
 }
 
-// loadAiConfig 装载 AI 处理层配置（全部可选，缺省即可用）。
-func loadAiConfig() {
-	AiConf.Enabled = os.Getenv("AI_ENABLED") != "false"
-	AiConf.Python = strings.TrimSpace(os.Getenv("AI_PYTHON"))
-	AiConf.SidecarDir = strings.TrimSpace(os.Getenv("AI_SIDECAR_DIR"))
+// ValidateBootstrap 校验 Bootstrap 必要项。
+func ValidateBootstrap() error {
+	required := map[string]string{
+		"LOCAL_PORT":     NetConf.LocalPort,
+		"API_KEY_SERVER": NetConf.APIKeyServer,
+	}
+	if IsLocalMode {
+		required["LOCAL_DEBUG_PORT"] = NetConf.LocalDebugPort
+	} else if strings.TrimSpace(NetConf.LocalDebugPort) == "" {
+		// ops 页面走回环调试端口，生产模式同样需要它。
+		required["LOCAL_DEBUG_PORT"] = NetConf.LocalDebugPort
+	}
+
+	var missing []string
+	for key, val := range required {
+		if strings.TrimSpace(val) == "" {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("缺少必要的环境变量: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+// ApplySettings 用运行时配置刷新类型化全局对象；服务启动时与每次写入配置后调用。
+func ApplySettings(vals map[string]string) {
+	get := func(key string) string { return vals[key] }
+
+	AppConf.StaticDir = strings.TrimSpace(get("app.static_dir"))
+	if AppConf.StaticDir == "" {
+		AppConf.StaticDir = "./static"
+	}
+	AppConf.GalleryDir = strings.TrimSpace(get("app.gallery_dir"))
+	AppConf.OpsDir = strings.TrimSpace(get("app.ops_dir"))
+	AppConf.GalleryCLI = strings.TrimSpace(get("app.gallery_cli"))
+
+	applyComixSettings(get)
+	applyAiSettings(get)
+}
+
+// ResolveOpsDir 定位 ops 网页应用目录：配置优先，其次按常见相对位置查找。
+func ResolveOpsDir() string {
+	if AppConf.OpsDir != "" {
+		if abs, err := filepath.Abs(AppConf.OpsDir); err == nil {
+			return abs
+		}
+		return AppConf.OpsDir
+	}
+	// findUpwards 以"文件存在"为命中判据，这里定位的是入口文件，返回其所在目录。
+	if entry := findUpwards(filepath.Join("ops", "index.html")); entry != "" {
+		return filepath.Dir(entry)
+	}
+	return ""
+}
+
+// ResolveGalleryCLI 定位 gallery CLI：配置优先，其次按常见相对位置查找。
+func ResolveGalleryCLI() string {
+	if AppConf.GalleryCLI != "" {
+		if abs, err := filepath.Abs(AppConf.GalleryCLI); err == nil {
+			return abs
+		}
+		return AppConf.GalleryCLI
+	}
+	name := "gallery"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return findUpwards(filepath.Join("gizmos", name))
+}
+
+// ResolveComixRoot 定位内置的 comix 项目根目录（backend/gizmos/comix）。
+func ResolveComixRoot() string {
+	entry := findUpwards(filepath.Join("gizmos", "comix", "comix", "cli.py"))
+	if entry == "" {
+		return ""
+	}
+	return filepath.Dir(filepath.Dir(entry))
+}
+
+// findUpwards 从工作目录与可执行文件目录向上查找相对路径 rel，返回首个存在的绝对路径。
+//
+// 存在的意义：服务既可能用 `go run ./cmd` 在 backend/ 下启动，也可能以编译好的
+// exe 放在 backend/ 下运行，两种情形下仓库根的相对深度不同。
+func findUpwards(rel string) string {
+	starts := []string{}
+	if wd, err := os.Getwd(); err == nil {
+		starts = append(starts, wd)
+	}
+	if exe, err := os.Executable(); err == nil {
+		starts = append(starts, filepath.Dir(exe))
+	}
+	for _, start := range starts {
+		dir := start
+		for depth := 0; depth < 3; depth++ {
+			candidate := filepath.Join(dir, rel)
+			if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+				return candidate
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	return ""
+}
+
+func applyComixSettings(get func(string) string) {
+	ComixConf.Python = strings.TrimSpace(get("comix.python"))
+	if ComixConf.Python == "" {
+		ComixConf.Python = "python"
+	}
+	ComixConf.StorageRoot = strings.TrimSpace(get("comix.storage_root"))
+	if ComixConf.StorageRoot == "" {
+		ComixConf.StorageRoot = filepath.Join(AppConf.StaticDir, "comics")
+	}
+	// 必须是绝对路径：该值会下发给 comix 子进程（相对路径会按 comix 自己的工作目录解析），
+	// 也要与 Go 侧的删除/定位保持同一目录。
+	if abs, err := filepath.Abs(ComixConf.StorageRoot); err == nil {
+		ComixConf.StorageRoot = abs
+	}
+	ComixConf.MaxWorkers = atoiDefault(get("comix.max_workers"), 2)
+}
+
+func applyAiSettings(get func(string) string) {
+	AiConf.Enabled = strings.EqualFold(get("ai.enabled"), "true") || get("ai.enabled") == "1"
+	AiConf.Python = strings.TrimSpace(get("ai.python"))
+	AiConf.SidecarDir = strings.TrimSpace(get("ai.sidecar_dir"))
 	if AiConf.SidecarDir == "" {
 		AiConf.SidecarDir = filepath.Join("tools", "ai")
 	}
-	// 解析为绝对路径：子进程的启动目录由服务端进程决定，相对路径很容易踩空
+	// 解析为绝对路径：子进程的启动目录由服务端进程决定，相对路径很容易踩空。
 	if abs, err := filepath.Abs(AiConf.SidecarDir); err == nil {
 		AiConf.SidecarDir = abs
 	}
-	AiConf.IdleTimeout = envSeconds("AI_IDLE_TIMEOUT", 120)
-	AiConf.JobTimeout = envSeconds("AI_JOB_TIMEOUT", 900)
-	AiConf.BatchSize = envInt("AI_BATCH_SIZE", 16, 1, 512)
-	AiConf.MaxAttempts = envInt("AI_MAX_ATTEMPTS", 3, 1, 20)
-	AiConf.Workers = envInt("AI_WORKERS", 1, 1, 4)
-	AiConf.EmbedModel = envString("AI_EMBED_MODEL", "siglip2-base-patch16-224")
-	AiConf.OllamaURL = strings.TrimRight(envString("OLLAMA_URL", "http://127.0.0.1:11434"), "/")
-	AiConf.OllamaVLM = envString("OLLAMA_VLM_MODEL", "qwen3.5:4b")
-	// 备选模型：社区对 Qwen3.5-4B 的无审查（abliteration）版本，保留视觉能力
-	AiConf.OllamaVLMAlt = envString("OLLAMA_VLM_MODEL_ALT", "huihui_ai/qwen3.5-abliterated:4B")
-	// 每次请求显式下发上下文窗口，使行为不受 Ollama 应用默认值影响。
-	// 缺省 8192 对批量标注（实测每张约 220 token）已是数十倍余量。
-	AiConf.OllamaVLMCTX = envInt("OLLAMA_VLM_CTX", 8192, 2048, 262144)
-	// 对话请求的模型驻留时长（keep_alive）。Ollama 自身默认也是 5 分钟，这里显式
-	// 下发是为了让"后端默认值"可被客户端读取并展示，而不是靠隐式约定。
-	AiConf.OllamaKeepAlive = envSeconds("OLLAMA_KEEP_ALIVE", 300)
-	// 默认 6 分钟：略大于 Ollama 自身的 5 分钟模型 keep_alive，
-	// 避免"模型还没卸载我们就先把服务杀了"导致反复重载。
-	AiConf.OllamaIdle = envSeconds("OLLAMA_IDLE_TIMEOUT", 360)
-	AiConf.OllamaExe = strings.TrimSpace(os.Getenv("OLLAMA_EXE"))
-	AiConf.Device = parseDevice(envString("AI_DEVICE", "auto"))
-	AiConf.AutoCaps = parseAutoCaps(envString("AI_AUTO_CAPS", "phash,embed,face,ocr"))
+	AiConf.IdleTimeout = seconds(get("ai.idle_timeout"), 120)
+	AiConf.JobTimeout = seconds(get("ai.job_timeout"), 900)
+	AiConf.BatchSize = atoiDefault(get("ai.batch_size"), 16)
+	AiConf.MaxAttempts = atoiDefault(get("ai.max_attempts"), 3)
+	AiConf.EmbedModel = strings.TrimSpace(get("ai.embed_model"))
+	AiConf.Device = parseDevice(get("ai.device"))
+	AiConf.AutoCaps = splitCSV(get("ai.auto_capabilities"))
+
+	AiConf.OllamaURL = strings.TrimRight(strings.TrimSpace(get("ai.ollama.url")), "/")
+	AiConf.OllamaVLM = strings.TrimSpace(get("ai.vlm_model"))
+	AiConf.OllamaVLMAlt = strings.TrimSpace(get("ai.ollama.vlm_model_alt"))
+	AiConf.OllamaVLMCTX = atoiDefault(get("ai.ollama.vlm_ctx"), 65536)
+	AiConf.OllamaKeepAlive = seconds(get("ai.ollama.keep_alive"), 300)
+	AiConf.OllamaIdle = seconds(get("ai.ollama.idle_timeout"), 360)
+	AiConf.OllamaExe = strings.TrimSpace(get("ai.ollama.exe"))
+	AiConf.OllamaModels = strings.TrimSpace(get("ai.ollama.models"))
+}
+
+// LoadSettings 读取数据库配置并应用到全局对象。
+func LoadSettings() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := settings.Load(ctx); err != nil {
+		return err
+	}
+	ApplySettings(settings.All())
+	return nil
 }
 
 // parseDevice 解析侧车推理设备；只认 cpu，其余一律按 auto 处理。
@@ -148,17 +270,6 @@ func parseDevice(raw string) string {
 	return "auto"
 }
 
-// parseAutoCaps 解析入库自动处理能力列表；`none`/`off` 表示完全关闭自动入队
-// （此时只能从桌面端手动提交处理任务）。
-func parseAutoCaps(raw string) []string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "none", "off":
-		return nil
-	default:
-		return splitCSV(raw)
-	}
-}
-
 func envString(key, def string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
@@ -166,16 +277,16 @@ func envString(key, def string) string {
 	return def
 }
 
-func envInt(key string, def, min, max int) int {
-	v, err := strconv.Atoi(strings.TrimSpace(os.Getenv(key)))
-	if err != nil || v < min || v > max {
+func atoiDefault(raw string, def int) int {
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || n <= 0 {
 		return def
 	}
-	return v
+	return n
 }
 
-func envSeconds(key string, def int) time.Duration {
-	return time.Duration(envInt(key, def, 1, 86400)) * time.Second
+func seconds(raw string, def int) time.Duration {
+	return time.Duration(atoiDefault(raw, def)) * time.Second
 }
 
 func splitCSV(raw string) []string {
@@ -186,36 +297,4 @@ func splitCSV(raw string) []string {
 		}
 	}
 	return out
-}
-
-// Validate 校验必要配置项，返回缺失项列表
-func Validate() error {
-	required := map[string]string{
-		"STATIC_DIR":  AppConf.StaticDir,
-		"GALLERY_DIR": AppConf.GalleryDir,
-		"LOCAL_PORT":  NetConf.LocalPort,
-		"DB_IP":       DbConf.DbIP,
-		"DB_PORT":     DbConf.DbPort,
-		"DB_USER":     DbConf.DbUser,
-		"DB_PASSWORD": DbConf.DbPassword,
-		"DB_NAME":     DbConf.DbName,
-	}
-
-	var missing []string
-	for key, val := range required {
-		if strings.TrimSpace(val) == "" {
-			missing = append(missing, key)
-		}
-	}
-
-	// LOCAL_DEBUG_PORT 仅在 local 模式需要
-	if IsLocalMode && strings.TrimSpace(NetConf.LocalDebugPort) == "" {
-		missing = append(missing, "LOCAL_DEBUG_PORT")
-	}
-
-	if len(missing) > 0 {
-		return fmt.Errorf("缺少必要的环境变量: %s", strings.Join(missing, ", "))
-	}
-
-	return nil
 }
