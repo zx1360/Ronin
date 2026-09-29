@@ -28,11 +28,7 @@
 **/.dart_tool/
 **/.pub/
 
-# Android
-android/.gradle
-android/build
-android/app/build
-android/app/src/main/assets/android_manifest.xml
+# Android 的忽略规则见 frontend/.gitignore
 
 # Go 编译产物
 *.exe

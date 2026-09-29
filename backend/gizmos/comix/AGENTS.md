@@ -63,7 +63,7 @@ Flutter / ops 网页端
 |---|---|---|
 | `comix/AGENTS.md` | 核心层：db/scheduler/cli/models/config/timefmt 职责与约定 | 改调度/数据访问/命令 |
 | `comix/adapters/AGENTS.md` | 适配器接口、新增站点步骤、各站要点 | 改爬虫/加站点 |
-| `scripts/AGENTS.md` | 运维脚本（PG 一次性导入/旧资源导入/回填/更新检查）职责与陷阱 | 跑脚本/改脚本 |
+| `scripts/AGENTS.md` | 运维脚本（旧资源导入/回填/更新检查）职责与陷阱 | 跑脚本/改脚本 |
 | `util/AGENTS.md` | 通用工具（common/image_size） | 复用工具函数 |
 | `docs/架构设计.md` | 表结构、桥接视图、Go 端对接与查询约定 | 改表/动 Go 侧 |
 
@@ -79,7 +79,6 @@ python -m comix.cli delete <comic_id>                      # 删除（DB+文件�
 python -m comix.cli clean                                  # 回收中断残留
 python -m comix.cli sync --all                             # 按站点校正章节序号/补登记 + 修复封面
 python -m comix.cli sync --all --force-covers               # 强制用站点封面刷新 cover_url
-python scripts/import_from_pg.py                           # 一次性 PostgreSQL → SQLite 导入（PG 只读）
 python scripts/import_legacy.py --execute                  # 导入旧资源（幂等可回退）
 python scripts/backfill_images.py                          # 补齐图片记录
 ```

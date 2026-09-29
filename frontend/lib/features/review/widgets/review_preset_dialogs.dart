@@ -7,7 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme/theme_book.dart';
-import 'package:torrid/core/api/generated/api_contract.dart';
+import 'package:torrid/features/review/models/review_models.dart';
 import 'package:torrid/features/review/providers/review_providers.dart';
 
 /// 打开预设管理对话框。
