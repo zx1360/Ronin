@@ -7,7 +7,7 @@ import (
 
 const jsHeader = "// 由 backend/cmd/route_export 生成，请勿手改。\n" +
 	"// 重新生成：cd backend && go run ./cmd/route_export\n" +
-	"// 路由来自 gin 路由表，标识符由 cmd/route_export 生成。\n\n"
+	"// 路由来自 gin 路由表。\n\n"
 
 // RenderJS 产出 ops 网页端的端点模块（纯 ES module，无依赖）。
 func (c *Contract) RenderJS() string {
@@ -15,13 +15,13 @@ func (c *Contract) RenderJS() string {
 	b.WriteString(jsHeader)
 	b.WriteString("// 静态路径表：键是生成的路由标识符，值是 gin 风格路径模板。\n")
 	b.WriteString("export const API = {\n")
-	for _, ep := range c.Doc.Endpoints {
+	for _, ep := range c.Endpoints {
 		fmt.Fprintf(&b, "  '%s': '%s',\n", ep.Identifier, ep.Path)
 	}
 	b.WriteString("};\n")
 
-	builders := make([]Endpoint, 0, len(c.Doc.Endpoints))
-	for _, ep := range c.Doc.Endpoints {
+	builders := make([]Endpoint, 0, len(c.Endpoints))
+	for _, ep := range c.Endpoints {
 		if len(ep.Params) > 0 {
 			builders = append(builders, ep)
 		}

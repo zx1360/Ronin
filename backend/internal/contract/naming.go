@@ -56,11 +56,7 @@ func lowerCamel(s string) string {
 		if word == "" {
 			continue
 		}
-		if b.Len() == 0 {
-			b.WriteString(strings.ToLower(word))
-			continue
-		}
-		if i == 0 {
+		if b.Len() == 0 || i == 0 {
 			b.WriteString(strings.ToLower(word))
 			continue
 		}
@@ -107,34 +103,4 @@ func camelJoin(segments []string) string {
 // methodSuffix 把 HTTP 方法转成标识符后缀："PATCH" -> "Patch"。
 func methodSuffix(method string) string {
 	return titleWord(strings.ToLower(strings.TrimSpace(method)))
-}
-
-// dartReserved 是 Dart 的保留字与内置标识符：作为字段名必须改名。
-var dartReserved = map[string]bool{
-	// 保留字
-	"assert": true, "break": true, "case": true, "catch": true, "class": true,
-	"const": true, "continue": true, "default": true, "do": true, "else": true,
-	"enum": true, "extends": true, "false": true, "final": true, "finally": true,
-	"for": true, "if": true, "in": true, "is": true, "new": true, "null": true,
-	"rethrow": true, "return": true, "super": true, "switch": true, "this": true,
-	"throw": true, "true": true, "try": true, "var": true, "void": true,
-	"while": true, "with": true,
-	// 上下文关键字
-	"async": true, "await": true, "hide": true, "of": true, "on": true,
-	"show": true, "sync": true, "yield": true,
-	// 内置标识符
-	"abstract": true, "as": true, "covariant": true, "deferred": true,
-	"dynamic": true, "export": true, "extension": true, "external": true,
-	"factory": true, "get": true, "implements": true, "import": true,
-	"interface": true, "late": true, "library": true, "mixin": true,
-	"operator": true, "part": true, "required": true, "set": true,
-	"static": true, "typedef": true,
-}
-
-// dartIdentifier 规避 Dart 保留字：default -> default_。
-func dartIdentifier(name string) string {
-	if dartReserved[name] {
-		return name + "_"
-	}
-	return name
 }

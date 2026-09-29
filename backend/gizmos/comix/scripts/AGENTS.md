@@ -8,18 +8,12 @@
 | 脚本 | 职责 | 关键参数 |
 |---|---|---|
 | `check_updates.py` | 全量更新检查（计划任务追更） | `--download` 自动追更 / `--latest N` / `--json` |
-| `import_from_pg.py` | **一次性**把 PostgreSQL `comix.*` 导入共享 SQLite 的 `comix_*` 表（PG 只读） | 环境变量 `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE` |
 | `import_legacy.py` | 导入旧资源 `comics_` → 存储根（移动+入库） | `--dry-run` / `--execute` / `--limit N` / `--json` |
 | `backfill_images.py` | 为已下载但**缺图片记录**的章节补齐（含封面） | `--comic-id N` / `--json` |
 
 > `backfill_images.py` 只处理 `status=done` 且 `comix_image` 无记录的章节
 > （导入与下载回填已写记录的自动跳过，避免重扫 28 万文件）；
 > 同时为 `cover_image` 为空的漫画补第一章第一图。
->
-> `import_from_pg.py` 是**一次性**迁移工具：先在 PostgreSQL 侧开只读事务，
-> 再逐表写入 SQLite（`ON CONFLICT (id) DO NOTHING`，可重复运行），
-> 最后逐表比对行数，不一致即非零退出。回退 = 删掉 SQLite 库文件（PG 未被改动）。
-> psycopg 不在运行时 `requirements.txt` 里，按需 `pip install "psycopg[binary]>=3.1"`。
 
 ## 关键约定与陷阱（踩过的坑）
 
@@ -52,7 +46,6 @@
 pip install -r requirements.txt
 python -m playwright install chromium        # 漫画鱼/奈斯需要
 python -m comix.cli init                      # 建表 + 桥接视图 + 注册站点
-python scripts/import_from_pg.py              # 如需从 PostgreSQL 迁移存量（PG 只读，可重跑）
 python scripts/import_legacy.py --execute     # 如需导入旧资源 comics_（幂等可回退）
 python scripts/backfill_images.py             # 补齐存量下载章节的图片记录
 ```

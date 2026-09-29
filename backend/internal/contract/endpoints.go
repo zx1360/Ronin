@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// RouteRef 一条路由；与 references/api/routes.json 的条目一一对应。
+// RouteRef 一条路由（gin 路由表的一条记录）。
 type RouteRef struct {
 	Method string `json:"method"`
 	Path   string `json:"path"`

@@ -1,6 +1,6 @@
 # 藏品数据表（gallery）
 
-> 表结构以 `internal/service/db/schema.sql` 为唯一真相源，`references/db/schema.sql` 是它的生成副本。
+> 表结构以 `internal/service/db/schema.sql` 为唯一真相源。
 > 时间列统一 TEXT（`2006-01-02T15:04:05.000Z`，UTC 定宽，字典序即时序），布尔列 INTEGER 0/1，
 > 数组列 JSON 文本，UUID 存 TEXT；`updated_at` 由 Go 侧显式写入（没有触发器）。
 
