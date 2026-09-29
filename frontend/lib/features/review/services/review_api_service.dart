@@ -9,8 +9,9 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/core/api/generated/api_contract.dart';
+import 'package:torrid/core/api/generated/api_contract.dart' show ApiPath;
 import 'package:torrid/core/services/network/api_client.dart';
+import 'package:torrid/features/review/models/review_models.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 回顾窗口的默认值与上限，与后端 `review.DefaultDays` / `review.MaxDays` 一致。

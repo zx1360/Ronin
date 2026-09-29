@@ -6,7 +6,7 @@ library;
 
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:torrid/core/api/generated/api_contract.dart';
+import 'package:torrid/features/review/models/review_models.dart';
 import 'package:torrid/features/review/services/review_api_service.dart';
 
 part 'review_providers.g.dart';

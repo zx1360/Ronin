@@ -14,8 +14,8 @@ Monarch 服务器的运维网页端。原是 Flutter Windows 桌面应用（Nort
 - 任务种类、参数默认值（含某模式是否接受 resize 参数）、能力与模型候选及切换用的配置键、
   配置项（键/标签/控件/范围/候选项）一律由后端下发（`/API/ops/capabilities`、
   `/API/ai/capabilities` 的 `setting_key`、`/API/settings` 的 `schema`）——页面只渲染。
-- 端点路径取自契约生成物 `js/generated/endpoints.js`（`cd backend && pwsh references/scripts/generate_refs.ps1`
-  一次生成 routes/contract 与两端客户端文件，勿手改）；UI 偏好存后端 `/API/ops/preferences`，不用 localStorage。
+- 端点路径取自契约生成物 `js/generated/endpoints.js`（`cd backend && powershell -ExecutionPolicy Bypass -File references/scripts/gen_contract.ps1`
+  生成两端的端点文件，勿手改）；UI 偏好存后端 `/API/ops/preferences`，不用 localStorage。
 
 ### 刻意去掉
 

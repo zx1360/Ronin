@@ -1,6 +1,6 @@
 // 由 backend/cmd/route_export 生成，请勿手改。
 // 重新生成：cd backend && go run ./cmd/route_export
-// 路由来自 gin 路由表，标识符由 cmd/route_export 生成。
+// 路由来自 gin 路由表。
 
 // 静态路径表：键是生成的路由标识符，值是 gin 风格路径模板。
 export const API = {

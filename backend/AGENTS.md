@@ -102,17 +102,19 @@ go build ./... && go vet ./... && go test ./...   # 在 backend/ 与 backend/giz
 
 ### 跨项目契约
 
-修改 Go 接口、路由或 CLI 参数后运行（同步 `references/api/` 契约与 CLI 快照）：
+端点契约由 gin 路由表生成（**只生成端点，不生成模型** —— 业务模型各端手写）：
+
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
+powershell -ExecutionPolicy Bypass -File .\references\scripts\gen_contract.ps1
 ```
-产物：`references/api/{routes.json,routes.md,contract.json}`、`references/db/schema.sql`，
-以及由契约生成的客户端文件（frontend 的 Dart、ops 的 JS 端点模块）。**契约由生成而非手工同步**。
+产物：`frontend/lib/core/api/generated/api_contract.dart`（`ApiPath` 常量与带参路径构造函数）、
+`ops/js/generated/endpoints.js`。两份都被两端直接编译/运行消费，因此纳入版本控制。
 
 ### 数据库
 
 见 `AGENTS_DB.md`（索引与约定）。表结构：`internal/service/db/schema.sql`。
-一次性迁移：`cmd/migrate_pg`（独立 module，须进其目录 `go run .`）；AI 侧车依赖安装：`powershell -File tools/ai/install.ps1`。
+PostgreSQL → SQLite 的一次性迁移已完成，工具归档在仓库外 `Ronin-archive/`。
+AI 侧车依赖安装：`powershell -File tools/ai/install.ps1`。
 
 ### 硬性要求
 

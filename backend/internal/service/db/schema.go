@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-// schemaSQL 是 SQLite 结构的唯一真相源；references/db/schema.sql 是它的生成副本。
+// schemaSQL 是 SQLite 结构的唯一真相源。
 //
 //go:embed schema.sql
 var schemaSQL string

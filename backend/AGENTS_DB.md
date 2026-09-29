@@ -1,7 +1,7 @@
 # 数据库索引
 
 **SQLite 单文件**（`DB_PATH`，默认 `backend/data/monarch.db`）。
-表结构以 `internal/service/db/schema.sql` 为唯一真相源，`references/db/schema.sql` 是它的生成副本。
+表结构以 `internal/service/db/schema.sql` 为唯一真相源。
 
 | 模块 | 表前缀 | 明细文件 | 内容 |
 |------|--------|----------|------|
@@ -24,16 +24,11 @@
 
 ## 迁移与回滚
 
-```powershell
-cd backend/cmd/migrate_pg
-$env:PGPASSWORD='...'; go run . -verify-sample 200   # 源库只读；逐表比对行数 + 抽样逐列校验
-```
-
-- 迁移工具是**独立 Go module**（`cmd/migrate_pg/go.mod`）：主服务因此不依赖任何 PostgreSQL 驱动，
-  运行它必须在本目录内执行（`go run .`），不能从 `backend/` 用 `go run ./cmd/migrate_pg`。
+PostgreSQL → SQLite 的一次性迁移**已完成**：迁移工具与 comix 的存量导入脚本都已移出仓库，
+归档在 `Ronin-archive/`（`migrate_pg/`、`comix-pg-import/`，用前先看那里的 README）。
+主服务因此不依赖任何 PostgreSQL 驱动。
 
 - 原 PostgreSQL 库**原样保留**，迁移工具绝不写入源库；回滚 = 删除 SQLite 文件后重启服务。
-- 目标文件已存在时必须显式 `-force`（会删除重建），避免误覆盖。
-- 迁移会把 `.env` 中的旧配置项播种进 `app_settings`，并按"迁移前的实际情况"登记
+- 迁移把 `.env` 中的旧配置项播种进 `app_settings`，并按"迁移前的实际情况"登记
   `ai_results` 溯源（统一 `preview256`），因此 face/ocr/vlm 会因档位升级自动重排一次。
-- `comix_*` 表另行执行 `python -m comix.cli init` 与 `gizmos/comix/scripts/import_from_pg.py`。
+- `comix_*` 表由 `python -m comix.cli init` 建表与维护。

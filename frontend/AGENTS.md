@@ -25,8 +25,8 @@ Flutter 应用，**仅面向 Android 移动端**（单平台，代码里不按�
 - 媒体播放：chewie + video_player + photo_view；本地存储：Hive + SharedPreferences + sqflite
 - 代码生成：json_serializable + build_runner + hive_generator
 - 静态检查：`flutter analyze` 必须零告警；`analysis_options.yaml` 已排除 `*.g.dart`
-- 契约由生成：端点与模型来自 `lib/core/api/generated/api_contract.dart`（**勿手改**）；
-  改了后端路由或模型就跑 `backend/references/scripts/generate_refs.ps1`
+- 端点由生成：`lib/core/api/generated/api_contract.dart` 的 `ApiPath`（**勿手改**）；
+  改了后端路由就跑 `backend/references/scripts/gen_contract.ps1`。业务模型手写在各 feature 的 `models/`。
 
 ### 平台
 
@@ -50,7 +50,7 @@ Flutter 应用，**仅面向 Android 移动端**（单平台，代码里不按�
 
 ### 与后端协同
 
-- API 变更见 `../backend/references/api/`（`routes.json`、`contract.json`）。
+- API 变更看 `lib/core/api/generated/api_contract.dart` 的 `ApiPath`（生成方式见上）。
 - **端点一律引用 `ApiPath`**（`lib/core/api/generated/api_contract.dart` 的生成常量与
   `xxxPath(...)` 辅助函数），不要在业务代码里手写 `/API/...` 字符串：路由改名时编译期就会报错。
   媒体文件流统一用 `ApiPath.galleryIdTypePath(id, 'thumb'|'preview'|'file')`。
@@ -114,5 +114,5 @@ Flutter 应用，**仅面向 Android 移动端**（单平台，代码里不按�
 
 ### 硬性要求
 
-- 参考 `../backend/references/` 契约文件。UI 简约美观，交互友好。
+- 参考 `../backend/references/db/` 的数据语义。UI 简约美观，交互友好。
 - 考虑边界情况，防止异常。除非明确要求，不引入破坏性修改。

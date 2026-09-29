@@ -1,5 +1,8 @@
 # 项目组成及技术细节
 
+单仓库三端：`backend/`（Go 后端 Monarch）+ `frontend/`（Flutter 安卓端）+ `ops/`（运维网页端）。
+各端的约定见对应目录下的 AGENTS.md，根目录 `.github/copilot-instructions.md` 是入口索引。
+
 ## 后端(Go)
 
 > **1. http服务器, 用以支持网络请求.**
@@ -22,8 +25,8 @@
 
 > 单文件 SQLite，置于 `backend/data/monarch.db`，**不依赖任何外部数据库服务**。
 
-备份与迁移就是拷贝这一个文件（连同 `-wal` 附属文件）。原 PostgreSQL 数据由
-`backend/cmd/migrate_pg` 一次性迁入，原库可原样保留作为回滚。
+备份与迁移就是拷贝这一个文件（连同 `-wal` 附属文件）。原 PostgreSQL 数据已完成一次性迁入
+（迁移工具归档在仓库外的 `Ronin-archive/`），原库可原样保留作为回滚。
 
 ## ops 网页端
 
@@ -74,11 +77,11 @@ PS: 除了某些页面手动点击"保存"按钮后, 保存在外部公共空间
 
 [zx1360/Ronin: 个人资源管理pc后端+多功能安卓软件.](https://github.com/zx1360/Ronin)
 
-业务闭环联系紧密, 所以合并了三个项目:
+业务闭环联系紧密, 所以合并成一个仓库:
 
-- [zx1360/monarch: Go编写的http服务器, 用以支持我另一个项目'torrid'的网络请求.](https://github.com/zx1360/monarch)
-- [zx1360/Torrid: 仅安卓端的自用多功能软件. 打卡, 随笔, 看漫画, 与monarch项目联动查看pc库存和媒体文件等功能.](https://github.com/zx1360/Torrid)
-- [zx1360/Northstar: 图形化管理http服务器和小工具.](https://github.com/zx1360/Northstar)
+- [zx1360/monarch](https://github.com/zx1360/monarch): Go 后端与 CLI。
+- [zx1360/Torrid](https://github.com/zx1360/Torrid): 安卓端自用多功能软件（打卡、随笔、漫画、画廊等）。
+- 运维端原为 Northstar 桌面应用，现由本仓库的 `ops/` 网页端承担。
 
 ## 二、业务闭环
 
