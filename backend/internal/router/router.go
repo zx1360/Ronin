@@ -125,11 +125,13 @@ func SetupRouter() *gin.Engine {
 		// AI 智能媒体处理层（运维 + 检索 + 组织）
 		aiGroup := api.Group("/ai")
 		{
-			// 运维：状态、队列、入队、重试、中断、模型进程、索引
+			// 运维：状态、队列、入队、重试、全量重生成、中断、模型进程、索引
 			aiGroup.GET("/status", ai_handler.Status)
+			aiGroup.GET("/capabilities", ai_handler.ListCapabilities)
 			aiGroup.GET("/jobs", ai_handler.ListJobs)
 			aiGroup.POST("/enqueue", ai_handler.Enqueue)
 			aiGroup.POST("/retry", ai_handler.Retry)
+			aiGroup.POST("/regenerate", ai_handler.Regenerate)
 			aiGroup.POST("/cancel", ai_handler.Cancel)
 			aiGroup.POST("/resume", ai_handler.Resume)
 			aiGroup.POST("/index/rebuild", ai_handler.RebuildIndex)

@@ -19,12 +19,13 @@ import (
 
 // EmbeddingWrite 一条待写入的图像向量（int8 量化）。
 type EmbeddingWrite struct {
-	MediaID uuid.UUID
-	Kind    string
-	Model   string
-	Dim     int
-	Scale   float32
-	Vec     []byte
+	MediaID  uuid.UUID
+	Kind     string
+	Model    string
+	Dim      int
+	Scale    float32
+	Vec      []byte
+	InputSig string // 输入档位 + 执行者指纹（追溯用）
 }
 
 // FaceWrite 一张待写入的人脸。
@@ -40,12 +41,14 @@ type FaceWrite struct {
 // ---------- 写入 ----------
 
 // SavePHash 写入感知哈希（-1 表示无法解码，同样落库以避免重复尝试）。
-func SavePHash(mediaID uuid.UUID, hash int64) error {
+func SavePHash(mediaID uuid.UUID, hash int64, inputSig string) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 	_, err := db.Exec(ctx, `
-		INSERT INTO media_ai (media_id, phash) VALUES (?, ?)
-		ON CONFLICT (media_id) DO UPDATE SET phash = excluded.phash`, mediaID, hash)
+		INSERT INTO media_ai (media_id, phash, phash_input_sig) VALUES (?, ?, ?)
+		ON CONFLICT (media_id) DO UPDATE SET phash = excluded.phash,
+		                                     phash_input_sig = excluded.phash_input_sig`,
+		mediaID, hash, inputSig)
 	if err != nil {
 		return fmt.Errorf("写入感知哈希失败: %w", err)
 	}
@@ -53,12 +56,14 @@ func SavePHash(mediaID uuid.UUID, hash int64) error {
 }
 
 // SaveOCR 写入 OCR 文本（空文本同样落库，表示"已识别但无文字"）。
-func SaveOCR(mediaID uuid.UUID, text string) error {
+func SaveOCR(mediaID uuid.UUID, text, inputSig string) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 	_, err := db.Exec(ctx, `
-		INSERT INTO media_ai (media_id, ocr_text) VALUES (?, ?)
-		ON CONFLICT (media_id) DO UPDATE SET ocr_text = excluded.ocr_text`, mediaID, text)
+		INSERT INTO media_ai (media_id, ocr_text, ocr_input_sig) VALUES (?, ?, ?)
+		ON CONFLICT (media_id) DO UPDATE SET ocr_text = excluded.ocr_text,
+		                                     ocr_input_sig = excluded.ocr_input_sig`,
+		mediaID, text, inputSig)
 	if err != nil {
 		return fmt.Errorf("写入 OCR 结果失败: %w", err)
 	}
@@ -66,15 +71,16 @@ func SaveOCR(mediaID uuid.UUID, text string) error {
 }
 
 // SaveVLM 写入 VLM 描述与关键词（关键词存 media_ai_tags，整批替换）。
-func SaveVLM(mediaID uuid.UUID, caption string, tags []string) error {
+func SaveVLM(mediaID uuid.UUID, caption string, tags []string, inputSig string) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
 	return db.Tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO media_ai (media_id, caption) VALUES (?, ?)
-			ON CONFLICT (media_id) DO UPDATE SET caption = excluded.caption`,
-			mediaID, caption); err != nil {
+			INSERT INTO media_ai (media_id, caption, caption_input_sig) VALUES (?, ?, ?)
+			ON CONFLICT (media_id) DO UPDATE SET caption = excluded.caption,
+			                                     caption_input_sig = excluded.caption_input_sig`,
+			mediaID, caption, inputSig); err != nil {
 			return fmt.Errorf("写入 VLM 结果失败: %w", err)
 		}
 		return replaceVLMTags(ctx, tx, mediaID, tags)
@@ -112,17 +118,18 @@ func SaveEmbeddings(rows []EmbeddingWrite) error {
 
 	return db.Tx(ctx, func(tx *sql.Tx) error {
 		stmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO embeddings (media_id, kind, model, dim, scale, vec)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO embeddings (media_id, kind, model, dim, scale, vec, input_sig)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (media_id, kind, model) DO UPDATE
-			SET dim = excluded.dim, scale = excluded.scale, vec = excluded.vec`)
+			SET dim = excluded.dim, scale = excluded.scale, vec = excluded.vec,
+			    input_sig = excluded.input_sig`)
 		if err != nil {
 			return fmt.Errorf("准备向量写入失败: %w", err)
 		}
 		defer stmt.Close()
 		for _, row := range rows {
 			if _, err := stmt.ExecContext(ctx,
-				row.MediaID, row.Kind, row.Model, row.Dim, row.Scale, row.Vec); err != nil {
+				row.MediaID, row.Kind, row.Model, row.Dim, row.Scale, row.Vec, row.InputSig); err != nil {
 				return fmt.Errorf("写入图像向量失败: %w", err)
 			}
 		}
@@ -134,7 +141,7 @@ func SaveEmbeddings(rows []EmbeddingWrite) error {
 //
 // 被删除的人脸若曾作为人物封面，由外键 ON DELETE SET NULL 自动清理。
 // 人物归属不在此处决定，交由聚类阶段统一维护。
-func ReplaceFaces(mediaID uuid.UUID, faces []FaceWrite) error {
+func ReplaceFaces(mediaID uuid.UUID, faces []FaceWrite, inputSig string) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
@@ -143,15 +150,15 @@ func ReplaceFaces(mediaID uuid.UUID, faces []FaceWrite) error {
 			return fmt.Errorf("清理旧人脸失败: %w", err)
 		}
 		stmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO faces (id, media_id, bbox, det_score, quality, embedding)
-			VALUES (?, ?, ?, ?, ?, ?)`)
+			INSERT INTO faces (id, media_id, bbox, det_score, quality, embedding, input_sig)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`)
 		if err != nil {
 			return fmt.Errorf("准备人脸写入失败: %w", err)
 		}
 		defer stmt.Close()
 		for _, f := range faces {
 			if _, err := stmt.ExecContext(ctx,
-				f.ID, f.MediaID, encodeBox(f.Box), f.DetScore, f.Quality, f.Embedding); err != nil {
+				f.ID, f.MediaID, encodeBox(f.Box), f.DetScore, f.Quality, f.Embedding, inputSig); err != nil {
 				return fmt.Errorf("写入人脸失败: %w", err)
 			}
 		}

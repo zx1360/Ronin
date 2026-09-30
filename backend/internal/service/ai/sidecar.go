@@ -71,6 +71,9 @@ const probeTTL = 5 * time.Minute
 
 // Sidecar 管理一个能力对应的 Python 侧车进程：用时启动，空闲退出。
 //
+// cfg 只保存启动期参数（解释器、侧车目录）；推理设备与空闲回收阈值随界面配置
+// 变化，因此每次都从 getCfg 取当前快照，不缓存。
+//
 // 两把锁，职责严格分开：
 //   - mu：会话锁，保护管道与请求/响应序列化；**整个批次期间持有**，
 //     因此绝不能在锁内做状态查询，否则 /status 会被批次拖住数十秒。
@@ -78,6 +81,7 @@ const probeTTL = 5 * time.Minute
 type Sidecar struct {
 	capability string
 	cfg        config.AiConfig
+	getCfg     func() config.AiConfig
 
 	mu     sync.Mutex
 	proc   *exec.Cmd
@@ -95,8 +99,16 @@ type Sidecar struct {
 }
 
 // NewSidecar 创建侧车管理器（不启动进程）。
-func NewSidecar(capability string, cfg config.AiConfig) *Sidecar {
-	return &Sidecar{capability: capability, cfg: cfg}
+func NewSidecar(capability string, cfg config.AiConfig, getCfg func() config.AiConfig) *Sidecar {
+	return &Sidecar{capability: capability, cfg: cfg, getCfg: getCfg}
+}
+
+// currentConfig 返回当前配置快照（无提供者时退回启动期配置）。
+func (s *Sidecar) currentConfig() config.AiConfig {
+	if s.getCfg == nil {
+		return s.cfg
+	}
+	return s.getCfg()
 }
 
 // resolvePython 解析侧车解释器：优先显式配置，其次工作区内的独立 venv。
@@ -336,7 +348,7 @@ func (s *Sidecar) writeRequest(params map[string]any, items []SidecarItem) error
 	}
 	// 推理设备随请求下发：侧车在建 session 时才知道自己该用哪个 provider，
 	// 而它只在批处理期间存在，没有别的配置通道。
-	params["device"] = s.cfg.Device
+	params["device"] = s.currentConfig().Device
 	if err := encoder.Encode(sidecarHeader{
 		V:          sidecarProtocolVersion,
 		Capability: s.capability,
@@ -361,10 +373,9 @@ func (s *Sidecar) writeRequest(params map[string]any, items []SidecarItem) error
 }
 
 // supervise 周期性回收空闲进程（ticker 粒度 10s）。
-func (s *Sidecar) supervise(ctx context.Context, idle time.Duration) {
-	if idle <= 0 {
-		idle = 120 * time.Second
-	}
+//
+// 空闲阈值每次从当前配置读取：界面改小后无需重启进程即可生效。
+func (s *Sidecar) supervise(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -372,6 +383,10 @@ func (s *Sidecar) supervise(ctx context.Context, idle time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			idle := s.currentConfig().IdleTimeout
+			if idle <= 0 {
+				idle = 120 * time.Second
+			}
 			s.stateMu.RLock()
 			running := s.procRef != nil
 			idleFor := time.Since(s.lastUsed)
@@ -491,7 +506,7 @@ type SidecarState struct {
 func (s *Sidecar) State(ctx context.Context) SidecarState {
 	state := SidecarState{
 		Capability:   s.capability,
-		IdleTimeoutS: int(s.cfg.IdleTimeout.Seconds()),
+		IdleTimeoutS: int(s.currentConfig().IdleTimeout.Seconds()),
 		Python:       s.resolvePython(),
 	}
 

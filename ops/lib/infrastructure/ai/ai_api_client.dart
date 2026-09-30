@@ -37,6 +37,24 @@ class AiApiClient {
     return AiStatus.fromJson(json);
   }
 
+  /// 能力契约（名称/档位/执行者/候选）与运行时可调配置。
+  ///
+  /// 供设置页与「按能力渲染」的界面使用：候选名单由服务端下发，端上不硬编码。
+  Future<({List<AiCapabilityStatus> capabilities, AiRuntimeSettings settings})>
+      fetchCapabilities(OpsSettings settings) async {
+    final json = await _request(settings, 'GET', '/API/ai/capabilities');
+    final capabilities = (json['capabilities'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => AiCapabilityStatus.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    return (
+      capabilities: capabilities,
+      settings: AiRuntimeSettings.fromJson(
+        Map<String, dynamic>.from(json['settings'] as Map? ?? const {}),
+      ),
+    );
+  }
+
   Future<({List<AiJob> jobs, int total})> fetchJobs(
     OpsSettings settings, {
     String? capability,
@@ -83,6 +101,21 @@ class AiApiClient {
     return (json['retried'] as num?)?.toInt() ?? 0;
   }
 
+  /// 单个能力的「全量重生成」：先清空该能力既有产物，再把全部媒体重新排队。
+  ///
+  /// 破坏性操作，只影响指定能力；调用方必须二次确认。
+  Future<({int cleared, int enqueued})> regenerate(
+    OpsSettings settings,
+    String capability,
+  ) async {
+    final json = await _request(settings, 'POST', '/API/ai/regenerate',
+        body: {'capability': capability}, timeout: _longTimeout);
+    return (
+      cleared: (json['cleared'] as num?)?.toInt() ?? 0,
+      enqueued: (json['enqueued'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   /// 暂停处理：中断当前批次并停止认领新任务，直到 [resume]。
   Future<bool> pause(OpsSettings settings) async {
     final json = await _request(settings, 'POST', '/API/ai/cancel');
@@ -104,6 +137,33 @@ class AiApiClient {
     final json = await _request(settings, 'POST', '/API/ai/index/rebuild',
         timeout: _longTimeout);
     return (json['vectors'] as num?)?.toInt() ?? 0;
+  }
+
+  /// 更新运行时可调配置；只提交传入的字段（null 表示不改动）。
+  ///
+  /// 服务端写入 `static/data/ai_config.json` 后立即生效，无需重启 Monarch。
+  Future<AiRuntimeSettings> updateSettings(
+    OpsSettings settings, {
+    int? idleTimeoutSeconds,
+    int? jobTimeoutSeconds,
+    int? batchSize,
+    int? maxAttempts,
+    int? workers,
+    String? device,
+    List<String>? autoCapabilities,
+    String? vlmModel,
+  }) async {
+    final json = await _request(settings, 'PUT', '/API/ai/settings', body: {
+      if (idleTimeoutSeconds != null) 'idle_timeout_seconds': idleTimeoutSeconds,
+      if (jobTimeoutSeconds != null) 'job_timeout_seconds': jobTimeoutSeconds,
+      if (batchSize != null) 'batch_size': batchSize,
+      if (maxAttempts != null) 'max_attempts': maxAttempts,
+      if (workers != null) 'workers': workers,
+      if (device != null) 'device': device,
+      if (autoCapabilities != null) 'auto_capabilities': autoCapabilities,
+      if (vlmModel != null) 'vlm_model': vlmModel,
+    });
+    return AiRuntimeSettings.fromJson(json);
   }
 
   Future<List<String>> fetchAutoCapabilities(OpsSettings settings) async {

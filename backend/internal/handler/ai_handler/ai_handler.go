@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"monarch/internal/config"
 	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
 	"monarch/internal/service/ai"
@@ -138,7 +139,7 @@ func Enqueue(c *gin.Context) {
 			ids = append(ids, id)
 		}
 		for _, capability := range req.Capabilities {
-			n, err := ai_repo.Enqueue(capability, ids)
+			n, err := ai_repo.Enqueue(capability, ids, e.InputSignature(capability))
 			if err != nil {
 				fail(c, err)
 				return
@@ -147,7 +148,7 @@ func Enqueue(c *gin.Context) {
 		}
 	} else {
 		for _, capability := range req.Capabilities {
-			n, err := ai_repo.EnqueueMissing(capability, limit, 50)
+			n, err := ai_repo.EnqueueMissing(capability, limit, 50, e.InputSignature(capability))
 			if err != nil {
 				fail(c, err)
 				return
@@ -197,6 +198,67 @@ func Retry(c *gin.Context) {
 	}
 	e.Wake()
 	c.JSON(http.StatusOK, gin.H{"retried": n})
+}
+
+// regenerateRequest POST /API/ai/regenerate 请求体。
+type regenerateRequest struct {
+	Capability string   `json:"capability"`
+	MediaIDs   []string `json:"media_ids"` // 留空 = 全库重生成
+}
+
+// Regenerate 处理 POST /API/ai/regenerate：单个能力的"全量重生成"。
+//
+// 破坏性操作：先把该能力的既有产物清空，再把全部未删除媒体重新排队，
+// 因此调用方（桌面端）必须二次确认。其它能力的产物完全不受影响。
+func Regenerate(c *gin.Context) {
+	e := engine(c)
+	if e == nil || !schemaGuard(c) {
+		return
+	}
+
+	var req regenerateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体解析失败: " + err.Error()})
+		return
+	}
+	capability := strings.TrimSpace(req.Capability)
+	if !model.IsValidCapability(capability) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "未知能力: " + capability})
+		return
+	}
+	// 逐条媒体重生成只是"重新入队指定媒体"，不清理全库产物
+	if len(req.MediaIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(req.MediaIDs))
+		for _, raw := range req.MediaIDs {
+			id, err := uuid.Parse(strings.TrimSpace(raw))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "媒体 ID 非法: " + raw})
+				return
+			}
+			ids = append(ids, id)
+		}
+		n, err := ai_repo.RegenerateMedia(capability, ids, e.InputSignature(capability))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		e.Wake()
+		c.JSON(http.StatusOK, gin.H{"capability": capability, "scope": "ids", "enqueued": n})
+		return
+	}
+
+	cleared, enqueued, err := ai_repo.Regenerate(capability, e.InputSignature(capability), 50)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	e.Wake()
+	c.JSON(http.StatusOK, gin.H{
+		"capability": capability,
+		"scope":      "all",
+		"cleared":    cleared,
+		"enqueued":   enqueued,
+	})
 }
 
 // Cancel 处理 POST /API/ai/cancel：中断当前批次并暂停队列。
@@ -737,43 +799,101 @@ func Recluster(c *gin.Context) {
 	})
 }
 
-// GetSettings 处理 GET /API/ai/settings
-func GetSettings(c *gin.Context) {
-	if !schemaGuard(c) {
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"auto_capabilities": ai_repo.AutoCapabilities(ai.Default.Config().AutoCaps),
-		"all_capabilities":  model.AllCapabilities,
-		"vlm_model":         ai.Default.VLMModel(),
-		"vlm_model_default": ai.Default.Config().OllamaVLM,
-		"vlm_model_alt":     ai.Default.VLMAltModel(),
-	})
-}
-
-// UpdateSettings 处理 PUT /API/ai/settings
-func UpdateSettings(c *gin.Context) {
+// ListCapabilities 处理 GET /API/ai/capabilities
+//
+// 能力的名称、输入档位、执行者与执行者候选全部由服务端下发：消费端只渲染列表，
+// 换模型后旧产物会被自动重排（不匹配即重排），端上无需硬编码任何能力语义。
+func ListCapabilities(c *gin.Context) {
 	e := engine(c)
 	if e == nil || !schemaGuard(c) {
 		return
 	}
+	specs := e.CapabilitySpecs()
+	cfg := e.Config()
+	items := make([]gin.H, 0, len(specs))
+	for _, spec := range specs {
+		items = append(items, gin.H{
+			"capability":          spec.Capability,
+			"label":               spec.Label,
+			"description":         spec.Description,
+			"input_tier":          spec.InputTier,
+			"tier_note":           spec.TierNote,
+			"executor":            spec.Executor,
+			"input_sig":           spec.InputSig,
+			"executor_candidates": e.ExecutorCandidates(spec.Capability, spec.Executor),
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"capabilities": items,
+		"settings": gin.H{
+			"idle_timeout_seconds": int(cfg.IdleTimeout.Seconds()),
+			"job_timeout_seconds":  int(cfg.JobTimeout.Seconds()),
+			"batch_size":           cfg.BatchSize,
+			"max_attempts":         cfg.MaxAttempts,
+			"workers":              cfg.Workers,
+			"device":               cfg.Device,
+			"auto_capabilities":    e.AutoCapabilities(),
+			"vlm_model":            e.VLMModel(),
+			"vlm_model_default":    cfg.OllamaVLM,
+			"config_path":          e.ConfigPath(),
+		},
+	})
+}
+
+// GetSettings 处理 GET /API/ai/settings（保留旧路径，语义与 /capabilities 的 settings 段一致）。
+func GetSettings(c *gin.Context) {
+	e := engine(c)
+	if e == nil {
+		return
+	}
+	cfg := e.Config()
+	c.JSON(http.StatusOK, gin.H{
+		"auto_capabilities":    e.AutoCapabilities(),
+		"all_capabilities":     model.AllCapabilities,
+		"vlm_model":            e.VLMModel(),
+		"vlm_model_default":    cfg.OllamaVLM,
+		"vlm_model_alt":        e.VLMAltModel(),
+		"idle_timeout_seconds": int(cfg.IdleTimeout.Seconds()),
+		"job_timeout_seconds":  int(cfg.JobTimeout.Seconds()),
+		"batch_size":           cfg.BatchSize,
+		"max_attempts":         cfg.MaxAttempts,
+		"workers":              cfg.Workers,
+		"device":               cfg.Device,
+		"config_path":          e.ConfigPath(),
+	})
+}
+
+// UpdateSettings 处理 PUT /API/ai/settings
+//
+// 字段全部可选：未传（null）表示不改动。写入 <STATIC_DIR>/data/ai_config.json 后
+// 立即生效，不必重启进程。
+func UpdateSettings(c *gin.Context) {
+	e := engine(c)
+	if e == nil {
+		return
+	}
 	var req struct {
-		AutoCapabilities []string `json:"auto_capabilities"`
-		VLMModel         *string  `json:"vlm_model"`
+		AutoCapabilities   *[]string `json:"auto_capabilities"`
+		VLMModel           *string   `json:"vlm_model"`
+		IdleTimeoutSeconds *int      `json:"idle_timeout_seconds"`
+		JobTimeoutSeconds  *int      `json:"job_timeout_seconds"`
+		BatchSize          *int      `json:"batch_size"`
+		MaxAttempts        *int      `json:"max_attempts"`
+		Workers            *int      `json:"workers"`
+		Device             *string   `json:"device"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体解析失败: " + err.Error()})
 		return
 	}
-	for _, capability := range req.AutoCapabilities {
-		if !model.IsValidCapability(capability) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "未知能力: " + capability})
-			return
+
+	if req.AutoCapabilities != nil {
+		for _, capability := range *req.AutoCapabilities {
+			if !model.IsValidCapability(capability) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "未知能力: " + capability})
+				return
+			}
 		}
-	}
-	if err := ai_repo.SetAutoCapabilities(req.AutoCapabilities); err != nil {
-		fail(c, err)
-		return
 	}
 	if req.VLMModel != nil {
 		selected := strings.TrimSpace(*req.VLMModel)
@@ -782,15 +902,36 @@ func UpdateSettings(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "未知模型: " + selected})
 			return
 		}
-		if err := e.SetVLMModel(selected); err != nil {
-			fail(c, err)
-			return
-		}
+	}
+
+	update := config.RuntimeConfig{
+		AutoCapabilities:   req.AutoCapabilities,
+		VLMModel:           req.VLMModel,
+		IdleTimeoutSeconds: req.IdleTimeoutSeconds,
+		JobTimeoutSeconds:  req.JobTimeoutSeconds,
+		BatchSize:          req.BatchSize,
+		MaxAttempts:        req.MaxAttempts,
+		Workers:            req.Workers,
+		Device:             req.Device,
+	}
+	if err := e.UpdateRuntime(update); err != nil {
+		// 取值非法属于客户端错误，如实回 400 并给出范围提示
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 	e.Wake()
+
+	cfg := e.Config()
 	c.JSON(http.StatusOK, gin.H{
-		"auto_capabilities": req.AutoCapabilities,
-		"vlm_model":         e.VLMModel(),
+		"auto_capabilities":    e.AutoCapabilities(),
+		"vlm_model":            e.VLMModel(),
+		"idle_timeout_seconds": int(cfg.IdleTimeout.Seconds()),
+		"job_timeout_seconds":  int(cfg.JobTimeout.Seconds()),
+		"batch_size":           cfg.BatchSize,
+		"max_attempts":         cfg.MaxAttempts,
+		"workers":              cfg.Workers,
+		"device":               cfg.Device,
+		"config_path":          e.ConfigPath(),
 	})
 }
 

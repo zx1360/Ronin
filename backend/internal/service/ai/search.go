@@ -120,20 +120,21 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 
 // queryVector 生成查询向量：优先复用库内媒体的向量，其次对图片/文本实时编码。
 func (e *Engine) queryVector(ctx context.Context, query, mediaID, imagePath string) ([]float32, error) {
+	embedModel := e.Config().EmbedModel
 	if mediaID != "" {
 		id, err := uuid.Parse(mediaID)
 		if err != nil {
 			return nil, fmt.Errorf("媒体 ID 非法: %s", mediaID)
 		}
-		row, err := ai_repo.GetEmbedding(id, "image", e.cfg.EmbedModel)
+		row, err := ai_repo.GetEmbedding(id, "image", embedModel)
 		if err != nil {
 			return nil, err
 		}
 		if row != nil {
 			return dequantize(row, row.Dim), nil
 		}
-		// 该媒体尚无向量：用它的文件现算一次
-		items, _, err := e.resolveItems([]string{mediaID})
+		// 该媒体尚无向量：用它的文件现算一次（与 embed 能力同档，结果一致）
+		items, _, err := e.resolveItems(model.CapEmbed, []string{mediaID})
 		if err != nil || len(items) == 0 {
 			return nil, fmt.Errorf("该媒体尚未生成向量，可先对其执行 embed 处理")
 		}
@@ -142,7 +143,7 @@ func (e *Engine) queryVector(ctx context.Context, query, mediaID, imagePath stri
 
 	switch {
 	case imagePath != "":
-		results, err := e.embed.RunBatch(ctx, map[string]any{"model": e.cfg.EmbedModel},
+		results, err := e.embed.RunBatch(ctx, map[string]any{"model": embedModel},
 			[]SidecarItem{{ID: "query", Path: imagePath}})
 		if err != nil {
 			return nil, err
@@ -156,7 +157,7 @@ func (e *Engine) queryVector(ctx context.Context, query, mediaID, imagePath stri
 		}
 		return decodeQuantized(payload)
 	default:
-		results, err := e.text.RunBatch(ctx, map[string]any{"model": e.cfg.EmbedModel},
+		results, err := e.text.RunBatch(ctx, map[string]any{"model": embedModel},
 			[]SidecarItem{{ID: "query", Text: query}})
 		if err != nil {
 			return nil, err

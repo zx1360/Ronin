@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -384,7 +384,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
       setState(() => _result = result);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = aiFriendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -404,7 +404,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = aiFriendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -421,7 +421,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
       setState(() => _persons = persons);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = aiFriendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -444,7 +444,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = aiFriendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

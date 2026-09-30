@@ -10,7 +10,7 @@ import (
 // TestKeepAliveMapping 确认 keep_alive 的三态语义：负数沿用服务端默认、
 // 0 表示回答完立即卸载（必须真实下发，不能被当成"未指定"）。
 func TestKeepAliveMapping(t *testing.T) {
-	o := NewOllama(config.AiConfig{OllamaKeepAlive: 300 * time.Second})
+	o := NewOllama(config.AiConfig{OllamaKeepAlive: 300 * time.Second}, nil)
 
 	cases := []struct {
 		name     string

@@ -8,6 +8,8 @@ import 'package:northstar/domain/ai/models/ai_models.dart';
 import 'package:northstar/ui/ai/widgets/ai_widgets.dart';
 
 /// 任务列表：按能力/状态过滤，支持一键重试失败任务。
+///
+/// 能力过滤项由服务端状态下发（`/API/ai/status` 的 capabilities），端上不硬编码能力清单。
 class AiJobsTab extends ConsumerStatefulWidget {
   const AiJobsTab({super.key});
 
@@ -23,6 +25,7 @@ class _AiJobsTabState extends ConsumerState<AiJobsTab> {
   Widget build(BuildContext context) {
     final filter = (capability: _capability, status: _status);
     final async = ref.watch(aiJobsProvider(filter));
+    final capabilities = ref.watch(aiBoardProvider).status?.capabilities ?? const [];
 
     return Padding(
       padding: const EdgeInsets.all(AppDimens.paddingM),
@@ -36,13 +39,10 @@ class _AiJobsTabState extends ConsumerState<AiJobsTab> {
             children: [
               _FilterGroup(
                 label: '能力',
-                options: const {
+                options: {
                   '': '全部',
-                  'phash': 'pHash',
-                  'embed': '向量',
-                  'face': '人脸',
-                  'ocr': 'OCR',
-                  'vlm': 'VLM',
+                  for (final capability in capabilities)
+                    capability.capability: capability.displayLabel,
                 },
                 value: _capability,
                 onChanged: (value) => setState(() => _capability = value),
@@ -170,26 +170,33 @@ class _FilterGroup extends StatelessWidget {
   }
 }
 
-class _JobRow extends StatelessWidget {
+/// 一条任务行。
+class _JobRow extends ConsumerWidget {
   final AiJob job;
 
   const _JobRow({required this.job});
 
   @override
-  Widget build(BuildContext context) {
-    final meta = AiCapabilityMeta.of(job.capability);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final capability =
+        ref.watch(aiBoardProvider).status?.capabilityOf(job.capability);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(meta.icon, size: 14, color: AppColors.onSurfaceVariant),
+          Icon(AiCapabilityIcon.of(job.capability),
+              size: 14, color: AppColors.onSurfaceVariant),
           const SizedBox(width: 8),
-          SizedBox(width: 64, child: Text(meta.label, style: _small(context))),
+          SizedBox(
+            width: 96,
+            child:
+                Text(capability?.displayLabel ?? job.capability, style: _small(context)),
+          ),
           SizedBox(
             width: 88,
             child: Text(
-              job.status,
+              _statusLabel(job.status),
               style: _small(context)?.copyWith(
                 color: _statusColor(context, job.status),
               ),
@@ -203,6 +210,14 @@ class _JobRow extends StatelessWidget {
           SizedBox(
             width: 64,
             child: Text('尝试 ${job.attempts}', style: _small(context)),
+          ),
+          // 执行时使用的输入档位/执行者（历史任务未记录时显示 -）
+          SizedBox(
+            width: 180,
+            child: Tooltip(
+              message: job.inputSig ?? '',
+              child: Text(job.inputSig ?? '-', style: _small(context)),
+            ),
           ),
           Expanded(
             child: Text(
@@ -219,6 +234,21 @@ class _JobRow extends StatelessWidget {
 
   TextStyle? _small(BuildContext context) =>
       Theme.of(context).textTheme.bodySmall;
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'pending':
+        return '待处理';
+      case 'running':
+        return '执行中';
+      case 'done':
+        return '已完成';
+      case 'failed':
+        return '失败';
+      default:
+        return status;
+    }
+  }
 
   Color _statusColor(BuildContext context, String status) {
     switch (status) {

@@ -32,6 +32,10 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 ### 与后端协同
 
 - API 变更见 `../backend/references/api/`（`routes.json`）。
+- AI 能力未启用（服务端 `AI_ENABLED=false`）或 AI 表未初始化时，AI 接口返回 503；
+  调用方一律"降级可用"而不是把错误抛到界面上：相册 AI 标签入口、智能相册的 AI 结果块
+  在失败时整块隐藏，检索/人物页把 503 换成明确说明（`aiFriendlyError`，`features/others/ai/services/`）。
+  能力的展示名由 `/API/ai/capabilities` 下发（端上不硬编码能力清单），失败时原样显示标识即可。
 - 网络层：`lib/core/services/network/`、`lib/providers/api_client/`、`lib/providers/network_config/`。
 - 服务器连接配置唯一真相源为 `providers/network_config/`（`NetworkConfigManager`，持久化于 SharedPreferences 的 `PC_HOST_LIST`/`PC_ACTIVE_INDEX`/`API_KEY`）；`providers/api_client/` 的 `ApiClientManager` 通过监听该状态派生 `ApiClient`.
 - 统一异常：`ApiClient` 提供 `ApiException` 错误映射与幂等 GET 自动重试；fetcher 系列统一走 `ApiClient.mapError`，UI 不应直接处理底层协议异常。

@@ -16,7 +16,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 |------|----|------|
 | 藏品 | `media_assets` / `tags` / `media_tag_links` | 见 `gallery.md`；标签 `full_path` 级联由 Go 维护 |
 | 用户数据 | `essay_articles` / `essay_labels` / `essay_year_summaries` / `booklet_styles` / `booklet_records` | 见 `user_data.md` |
-| AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md` |
+| AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md`。`jobs` 与 `media_ai`/`embeddings`/`faces` 各有 `input_sig` 列（输入档位 + 执行者指纹，用于追溯与自动重排） |
 | 漫画 | `comic_sites` / `comics` / `comic_chapters` / `comic_images` / `comic_download_tasks` / `comic_aliases` | 见 `comix.md` |
 
 ## 类型与取值约定
@@ -48,8 +48,17 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
   `(is_deleted, captured_at)` 供 `/media` 默认排序；
   `(is_deleted, id)` 是 AI「尚无产物」统计的覆盖索引（缺它该聚合从 0.3s 退化到 3s）。
 - `embeddings` 主键 `(media_id, kind, model)`；`faces` 建 `media_id` / `person_id` 索引；
-  `jobs` 建 `(capability, status, priority, id)` / `media_id` / `updated_at`。
+  `jobs` 建 `(capability, status, priority, id)` / `media_id` / `updated_at`
+  （后两个 + `input_sig` 支撑"指纹不匹配则重排"的扫描）。
 - `comic_chapters.url`、`comic_images(chapter_id, sort_num)` 等唯一约束沿用原语义。
+
+## 列迁移
+
+`sqlite.sql` 只能 `CREATE TABLE IF NOT EXISTS`，给既有表补列不会生效。新增列统一在
+`internal/service/db/migrate.go` 的 `addedColumns` 里声明（先查 `pragma_table_info` 再
+`ALTER TABLE ADD COLUMN`），同时更新 `sqlite.sql` 让全新库直接建好；Monarch 启动时执行。
+当前新增列：`jobs.input_sig`、`media_ai.{phash,ocr,caption}_input_sig`、
+`embeddings.input_sig`、`faces.input_sig`。
 
 ## 与 PostgreSQL 方案的性能比对
 

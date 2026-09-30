@@ -97,13 +97,13 @@ func sampleMediaID(t *testing.T) uuid.UUID {
 func TestAiWrites(t *testing.T) {
 	mediaID := sampleMediaID(t)
 
-	if err := ai_repo.SavePHash(mediaID, -1); err != nil {
+	if err := ai_repo.SavePHash(mediaID, -1, "preview256|go-dct-phash"); err != nil {
 		t.Fatalf("写入感知哈希失败: %v", err)
 	}
-	if err := ai_repo.SaveOCR(mediaID, "验收用 OCR 文本"); err != nil {
+	if err := ai_repo.SaveOCR(mediaID, "验收用 OCR 文本", "ai1024|rapidocr-ppocr"); err != nil {
 		t.Fatalf("写入 OCR 失败: %v", err)
 	}
-	if err := ai_repo.SaveVLM(mediaID, "验收用描述", []string{"标签A", "标签B", "标签A", ""}); err != nil {
+	if err := ai_repo.SaveVLM(mediaID, "验收用描述", []string{"标签A", "标签B", "标签A", ""}, "ai1024|ollama:test"); err != nil {
 		t.Fatalf("写入 VLM 失败: %v", err)
 	}
 
@@ -145,7 +145,7 @@ func TestAiWrites(t *testing.T) {
 	if err := ai_repo.ReplaceFaces(mediaID, []ai_repo.FaceWrite{{
 		ID: uuid.New(), MediaID: mediaID, Box: []float32{0.1, 0.2, 0.3, 0.4},
 		DetScore: 0.9, Quality: 0.8, Embedding: make([]byte, 2048),
-	}}); err != nil {
+	}}, "ai1024|insightface-buffalo_l"); err != nil {
 		t.Fatalf("写入人脸失败: %v", err)
 	}
 	faces, err := ai_repo.ListFacesByMedia([]uuid.UUID{mediaID})
@@ -225,23 +225,6 @@ func TestAiWrites(t *testing.T) {
 	if n, err := ai_repo.UnignoreDuplicates([]uuid.UUID{mediaID}); err != nil || n != 1 {
 		t.Fatalf("取消标记失败: n=%d err=%v", n, err)
 	}
-
-	// 运行时设置
-	if err := ai_repo.SetAutoCapabilities([]string{model.CapPHash, model.CapOCR}); err != nil {
-		t.Fatalf("保存自动能力失败: %v", err)
-	}
-	if got := ai_repo.AutoCapabilities(nil); len(got) != 2 || got[0] != model.CapPHash {
-		t.Fatalf("自动能力读取不符: %v", got)
-	}
-	if err := ai_repo.SetVLMModel("test-model"); err != nil {
-		t.Fatalf("保存 VLM 模型失败: %v", err)
-	}
-	if got := ai_repo.VLMModel(); got != "test-model" {
-		t.Fatalf("VLM 模型读取不符: %q", got)
-	}
-	if err := ai_repo.SetVLMModel(""); err != nil {
-		t.Fatalf("清除 VLM 模型失败: %v", err)
-	}
 }
 
 // ---------- AI 任务队列 ----------
@@ -268,10 +251,10 @@ func TestAiJobQueue(t *testing.T) {
 	}
 
 	// 入队（幂等）→ 认领 → 完成/失败/退回/重试
-	if n, err := ai_repo.Enqueue(model.CapVLM, mediaIDs); err != nil || n != int64(len(mediaIDs)) {
+	if n, err := ai_repo.Enqueue(model.CapVLM, mediaIDs, "ai1024|ollama:test"); err != nil || n != int64(len(mediaIDs)) {
 		t.Fatalf("入队失败: n=%d err=%v", n, err)
 	}
-	if n, err := ai_repo.Enqueue(model.CapVLM, mediaIDs); err != nil || n != 0 {
+	if n, err := ai_repo.Enqueue(model.CapVLM, mediaIDs, "ai1024|ollama:test"); err != nil || n != 0 {
 		t.Fatalf("重复入队应幂等: n=%d err=%v", n, err)
 	}
 	pending, err := ai_repo.PendingCount(model.CapVLM)
@@ -286,10 +269,11 @@ func TestAiJobQueue(t *testing.T) {
 	if len(claimed) != 16 {
 		t.Fatalf("应认领 16 条，实际 %d", len(claimed))
 	}
-	if err := ai_repo.FinishDone([]int64{claimed[0].JobID}); err != nil {
+	if err := ai_repo.FinishDone([]int64{claimed[0].JobID}, "ai1024|ollama:test"); err != nil {
 		t.Fatalf("标记完成失败: %v", err)
 	}
-	if err := ai_repo.FinishFailed([]int64{claimed[1].JobID}, "验收失败原因", 3); err != nil {
+	if err := ai_repo.FinishFailed([]int64{claimed[1].JobID}, "验收失败原因", 3,
+		"ai1024|ollama:test"); err != nil {
 		t.Fatalf("标记失败失败: %v", err)
 	}
 	if err := ai_repo.ReleaseRunning([]int64{claimed[2].JobID}); err != nil {
@@ -316,14 +300,49 @@ func TestAiJobQueue(t *testing.T) {
 	}
 }
 
+// TestAiStaleInput 指纹不匹配才重排：失败的任务同样记指纹，否则会被反复重排。
+func TestAiStaleInput(t *testing.T) {
+	mediaIDs := []uuid.UUID{sampleMediaID(t)}
+	const current = "ai1024|ollama:current"
+
+	if _, err := ai_repo.RegenerateMedia(model.CapVLM, mediaIDs, current); err != nil {
+		t.Fatalf("入队失败: %v", err)
+	}
+	claimed, err := ai_repo.Claim(model.CapVLM, 1)
+	if err != nil || len(claimed) != 1 {
+		t.Fatalf("认领失败: n=%d err=%v", len(claimed), err)
+	}
+	// 失败任务（attempts 已到上限）应带上当前指纹
+	if err := ai_repo.FinishFailed([]int64{claimed[0].JobID}, "验收失败", 1, current); err != nil {
+		t.Fatalf("标记失败失败: %v", err)
+	}
+	if n, err := ai_repo.CountStaleInput(model.CapVLM, current); err != nil || n != 0 {
+		t.Fatalf("失败任务不应被判为待重排: n=%d err=%v", n, err)
+	}
+	if n, err := ai_repo.ResetStaleInput(model.CapVLM, current); err != nil || n != 0 {
+		t.Fatalf("失败任务不应被重排: n=%d err=%v", n, err)
+	}
+
+	// 换成另一个执行者后，同一条已完成/已失败的任务应被判为待重排
+	if n, err := ai_repo.CountStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 1 {
+		t.Fatalf("指纹变更应被判为待重排: n=%d err=%v", n, err)
+	}
+	if n, err := ai_repo.ResetStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 1 {
+		t.Fatalf("指纹变更应被重排: n=%d err=%v", n, err)
+	}
+	if n, err := ai_repo.CountStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 0 {
+		t.Fatalf("重排后不应再判为待重排: n=%d err=%v", n, err)
+	}
+}
+
 // ---------- AI 检索 ----------
 
 func TestAiSearch(t *testing.T) {
 	mediaID := sampleMediaID(t)
-	if err := ai_repo.SaveOCR(mediaID, "独一无二的验收检索词"); err != nil {
+	if err := ai_repo.SaveOCR(mediaID, "独一无二的验收检索词", "ai1024|rapidocr-ppocr"); err != nil {
 		t.Fatalf("写入 OCR 失败: %v", err)
 	}
-	if err := ai_repo.SaveVLM(mediaID, "", []string{"验收专属标签"}); err != nil {
+	if err := ai_repo.SaveVLM(mediaID, "", []string{"验收专属标签"}, "ai1024|ollama:test"); err != nil {
 		t.Fatalf("写入 VLM 失败: %v", err)
 	}
 

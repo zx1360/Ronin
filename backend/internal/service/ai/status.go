@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"monarch/internal/config"
 	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
 )
@@ -92,14 +91,16 @@ func (e *Engine) sidecarFor(capability string) *Sidecar {
 
 // CapabilityStatus 单个能力的就绪与运行状态。
 type CapabilityStatus struct {
-	Capability   string        `json:"capability"`
-	Ready        bool          `json:"ready"`
-	Reason       string        `json:"reason,omitempty"`
-	Sidecar      *SidecarState `json:"sidecar,omitempty"`
-	MissingMedia int           `json:"missing_media"` // 尚无该产物的媒体数
-	Pending      int           `json:"pending"`
-	Failed       int           `json:"failed"`
-	Done         int           `json:"done"`
+	model.CapabilitySpec
+	Ready        bool               `json:"ready"`
+	Reason       string             `json:"reason,omitempty"`
+	Sidecar      *SidecarState      `json:"sidecar,omitempty"`
+	Candidates   []ExecutorCandidate `json:"executor_candidates,omitempty"`
+	MissingMedia int                `json:"missing_media"` // 尚无该产物的媒体数
+	StaleMedia   int                `json:"stale_media"`   // 输入档位/执行者已变、待自动重排的媒体数
+	Pending      int                `json:"pending"`
+	Failed       int                `json:"failed"`
+	Done         int                `json:"done"`
 }
 
 // IndexState 向量索引状态。
@@ -115,6 +116,7 @@ type Status struct {
 	Enabled          bool                     `json:"enabled"`
 	SchemaReady      bool                     `json:"schema_ready"`
 	Started          bool                     `json:"started"`
+	ConfigPath       string                   `json:"config_path"`
 	EmbedModel       string                   `json:"embed_model"`
 	Device           string                   `json:"device"`
 	Workers          int                      `json:"workers"`
@@ -140,23 +142,24 @@ type Status struct {
 // 就绪探测会（首次）拉起一次 python 探测进程，结果缓存 5 分钟，
 // 因此该接口在探测窗口外的响应是毫秒级的。
 func (e *Engine) Status(ctx context.Context) *Status {
+	cfg := e.Config()
 	status := &Status{
-		Enabled:      e.cfg.Enabled,
+		Enabled:      cfg.Enabled,
 		SchemaReady:  ai_repo.SchemaReady(ctx),
 		Started:      e.started,
-		EmbedModel:   e.cfg.EmbedModel,
-		Device:       e.cfg.Device,
-		Workers:      e.cfg.Workers,
-		BatchSize:    e.cfg.BatchSize,
-		IdleTimeoutS: int(e.cfg.IdleTimeout.Seconds()),
-		JobTimeoutS:  int(e.cfg.JobTimeout.Seconds()),
-		MaxAttempts:  e.cfg.MaxAttempts,
+		EmbedModel:   cfg.EmbedModel,
+		Device:       cfg.Device,
+		Workers:      cfg.Workers,
+		BatchSize:    cfg.BatchSize,
+		IdleTimeoutS: int(cfg.IdleTimeout.Seconds()),
+		JobTimeoutS:  int(cfg.JobTimeout.Seconds()),
+		MaxAttempts:  cfg.MaxAttempts,
 		Paused:       e.paused.Load(),
 		LastRun:      e.LastRun(),
 		Ollama:       e.ollamaState(ctx),
 		Cluster:      e.cluster.State(),
 		Index: IndexState{
-			Model:   e.cfg.EmbedModel,
+			Model:   cfg.EmbedModel,
 			Vectors: e.index.VectorCount(),
 			Loaded:  e.index.Loaded(),
 		},
@@ -166,7 +169,8 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		return status
 	}
 
-	status.AutoCapabilities = ai_repo.AutoCapabilities(e.cfg.AutoCaps)
+	status.AutoCapabilities = e.AutoCapabilities()
+	status.ConfigPath = e.ConfigPath()
 	status.Index.MemoryBytes = int64(status.Index.Vectors) * int64(dimEstimate)
 
 	stats, err := ai_repo.Stats()
@@ -185,24 +189,30 @@ func (e *Engine) Status(ctx context.Context) *Status {
 	}
 
 	missing := e.missingCounts()
+	specs := e.CapabilitySpecs()
 
-	for _, capability := range model.AllCapabilities {
-		ready, reason := e.CapabilityReady(ctx, capability)
+	for _, spec := range specs {
+		ready, reason := e.CapabilityReady(ctx, spec.Capability)
 		item := CapabilityStatus{
-			Capability: capability,
-			Ready:      ready,
-			Reason:     reason,
+			CapabilitySpec: spec,
+			Ready:          ready,
+			Reason:         reason,
+			Candidates:     e.ExecutorCandidates(spec.Capability, spec.Executor),
 		}
-		if stat, ok := byCap[capability]; ok {
+		if stat, ok := byCap[spec.Capability]; ok {
 			item.Pending = stat.Pending + stat.Running
 			item.Failed = stat.Failed
 			item.Done = stat.Done
 		}
-		if sidecar := e.sidecarFor(capability); sidecar != nil {
+		if sidecar := e.sidecarFor(spec.Capability); sidecar != nil {
 			state := sidecar.State(ctx)
 			item.Sidecar = &state
 		}
-		item.MissingMedia = missing[capability]
+		item.MissingMedia = missing[spec.Capability]
+		// 输入档位/执行者变更后待自动重排的数量（见 worker.reconcileLoop）
+		if stale, err := ai_repo.CountStaleInput(spec.Capability, spec.InputSig); err == nil {
+			item.StaleMedia = stale
+		}
 		status.Capabilities = append(status.Capabilities, item)
 	}
 	return status
@@ -257,9 +267,6 @@ func (e *Engine) refreshMissingCounts() {
 
 // dimEstimate 向量维度估算（SigLIP base 为 768；仅用于内存占用展示）。
 var dimEstimate = 768
-
-// Config 返回引擎使用的配置副本。
-func (e *Engine) Config() config.AiConfig { return e.cfg }
 
 // Index 暴露索引以便 handler 触发重建。
 func (e *Engine) Index() *Index { return e.index }

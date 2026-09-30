@@ -13,8 +13,8 @@ class OpsSettings {
 
   factory OpsSettings.defaults() {
     return const OpsSettings(
-      apiBaseUrl: 'http://127.0.0.1:7275',
-      apiKey: '',
+      apiBaseUrl: 'http://127.0.0.1:7274',
+      apiKey: 'mN4qT2wX9pL6kH7vR3cF5dG8yJ1bV0uCzA8sD3fG6hJ9kL2zX4cV7bN1mQ5wE8rY0tU',
       autoRefreshSeconds: 300,
       hideApiKey: true,
     );
@@ -36,8 +36,8 @@ class OpsSettings {
 
   factory OpsSettings.fromJson(Map<String, dynamic> json) {
     return OpsSettings(
-      apiBaseUrl: (json['apiBaseUrl'] ?? 'http://127.0.0.1:7275').toString(),
-      apiKey: (json['apiKey'] ?? '').toString(),
+      apiBaseUrl: (json['apiBaseUrl'] ?? 'http://127.0.0.1:7274').toString(),
+      apiKey: (json['apiKey'] ?? 'mN4qT2wX9pL6kH7vR3cF5dG8yJ1bV0uCzA8sD3fG6hJ9kL2zX4cV7bN1mQ5wE8rY0tU').toString(),
       autoRefreshSeconds: int.tryParse(
             (json['autoRefreshSeconds'] ?? '300').toString(),
           ) ??

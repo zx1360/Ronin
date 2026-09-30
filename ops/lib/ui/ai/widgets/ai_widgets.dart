@@ -48,63 +48,26 @@ class AiStatusPill extends StatelessWidget {
   }
 }
 
-/// 能力名称与图标的展示映射。
-class AiCapabilityMeta {
-  final String name;
-  final String label;
-  final String description;
-  final IconData icon;
-
-  const AiCapabilityMeta({
-    required this.name,
-    required this.label,
-    required this.description,
-    required this.icon,
-  });
-
-  static const all = <AiCapabilityMeta>[
-    AiCapabilityMeta(
-      name: 'phash',
-      label: '感知哈希去重',
-      description: '服务进程内计算，无外部依赖',
-      icon: Icons.filter_none_rounded,
-    ),
-    AiCapabilityMeta(
-      name: 'embed',
-      label: 'SigLIP 语义向量',
-      description: '文本搜图 / 以图搜图',
-      icon: Icons.image_search_rounded,
-    ),
-    AiCapabilityMeta(
-      name: 'face',
-      label: '人脸检测与分组',
-      description: 'SCRFD + ArcFace，自动归入人物',
-      icon: Icons.face_retouching_natural_rounded,
-    ),
-    AiCapabilityMeta(
-      name: 'ocr',
-      label: 'OCR 文字识别',
-      description: 'PP-OCR，截图与表情包文字可检索',
-      icon: Icons.text_fields_rounded,
-    ),
-    AiCapabilityMeta(
-      name: 'vlm',
-      label: 'VLM 自动标注',
-      description: 'Ollama 生成描述与关键词，耗时较长',
-      icon: Icons.auto_awesome_rounded,
-    ),
-  ];
-
-  static AiCapabilityMeta of(String name) {
-    for (final meta in all) {
-      if (meta.name == name) return meta;
+/// 能力图标映射。
+///
+/// 只映射图标（纯展示细节）；能力名称、说明、输入档位与执行者一律由服务端下发，
+/// 端上不维护能力语义表，新增能力无需改客户端。
+class AiCapabilityIcon {
+  static IconData of(String capability) {
+    switch (capability) {
+      case 'phash':
+        return Icons.filter_none_rounded;
+      case 'embed':
+        return Icons.image_search_rounded;
+      case 'face':
+        return Icons.face_retouching_natural_rounded;
+      case 'ocr':
+        return Icons.text_fields_rounded;
+      case 'vlm':
+        return Icons.auto_awesome_rounded;
+      default:
+        return Icons.extension_rounded;
     }
-    return AiCapabilityMeta(
-      name: name,
-      label: name,
-      description: '',
-      icon: Icons.extension_rounded,
-    );
   }
 }
 
@@ -149,6 +112,27 @@ class AiProgressBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 档位徽标：说明这条能力用的是哪个输入图源档。
+class AiTierPill extends StatelessWidget {
+  final String tier;
+  final String note;
+
+  const AiTierPill({super.key, required this.tier, required this.note});
+
+  @override
+  Widget build(BuildContext context) {
+    if (tier.isEmpty) return const SizedBox.shrink();
+    return Tooltip(
+      message: note.isEmpty ? tier : '$tier · $note',
+      child: AiStatusPill(
+        text: tier,
+        color: tier == 'ai1024' ? AppColors.info : AppColors.onSurfaceVariant,
+        icon: tier == 'ai1024' ? Icons.hd_rounded : Icons.photo_size_select_small,
+      ),
     );
   }
 }

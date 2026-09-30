@@ -33,7 +33,8 @@ type vlmResult struct {
 
 // Ollama 封装本地 Ollama 服务：按需拉起、请求后立即卸载模型。
 type Ollama struct {
-	cfg config.AiConfig
+	cfg    config.AiConfig
+	getCfg func() config.AiConfig
 
 	client *http.Client
 
@@ -45,11 +46,23 @@ type Ollama struct {
 }
 
 // NewOllama 创建 Ollama 客户端。
-func NewOllama(cfg config.AiConfig) *Ollama {
+//
+// cfg 只保存启动期参数（可执行文件位置、模型库）；上下文长度、驻留时长与
+// 空闲回收阈值随界面配置变化，统一从 getCfg 取当前快照。
+func NewOllama(cfg config.AiConfig, getCfg func() config.AiConfig) *Ollama {
 	return &Ollama{
 		cfg:    cfg,
+		getCfg: getCfg,
 		client: &http.Client{Timeout: 10 * time.Minute},
 	}
+}
+
+// currentConfig 返回当前配置快照（无提供者时退回启动期配置）。
+func (o *Ollama) currentConfig() config.AiConfig {
+	if o.getCfg == nil {
+		return o.cfg
+	}
+	return o.getCfg()
 }
 
 // Available 报告服务是否可达且指定模型已安装。
@@ -84,7 +97,7 @@ func (o *Ollama) ListModels(ctx context.Context) ([]string, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, o.cfg.OllamaURL+"/api/tags", nil)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, o.currentConfig().OllamaURL+"/api/tags", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +205,7 @@ func (o *Ollama) Unload(ctx context.Context, model string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/generate", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.currentConfig().OllamaURL+"/api/generate", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -256,6 +269,7 @@ func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmRes
 		return nil, fmt.Errorf("读取图片失败: %w", err)
 	}
 
+	cfg := o.currentConfig()
 	body, err := json.Marshal(map[string]any{
 		"model":  model,
 		"prompt": vlmPrompt,
@@ -271,14 +285,14 @@ func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmRes
 		"options": map[string]any{
 			"temperature": 0.2,
 			"num_predict": 256,
-			"num_ctx":     o.cfg.OllamaVLMCTX,
+			"num_ctx":     cfg.OllamaVLMCTX,
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/generate", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.OllamaURL+"/api/generate", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -377,9 +391,10 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 	o.touch()
 	o.setKeepAlive(opt.KeepAliveSeconds)
 
+	cfg := o.currentConfig()
 	numCtx := opt.NumCtx
 	if numCtx < 2048 {
-		numCtx = o.cfg.OllamaVLMCTX
+		numCtx = cfg.OllamaVLMCTX
 	}
 	temperature := opt.Temperature
 	if temperature < 0 {
@@ -401,7 +416,7 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/chat", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.OllamaURL+"/api/chat", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -484,7 +499,7 @@ func (o *Ollama) keepAliveSeconds(override int) int {
 	if override >= 0 {
 		return override
 	}
-	return int(o.cfg.OllamaKeepAlive.Seconds())
+	return int(o.currentConfig().OllamaKeepAlive.Seconds())
 }
 
 // idleLimit 返回自拉 ollama serve 的回收阈值：不小于配置值，且覆盖用户要求的驻留时长
@@ -516,10 +531,9 @@ func (o *Ollama) touch() {
 }
 
 // supervise 仅回收"由我们拉起"的 ollama 进程；用户自启的实例不会被触碰。
-func (o *Ollama) supervise(ctx context.Context, idle time.Duration) {
-	if idle <= 0 {
-		idle = 120 * time.Second
-	}
+//
+// 回收阈值每次从当前配置读取：界面改小后无需重启进程即可生效。
+func (o *Ollama) supervise(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -527,6 +541,10 @@ func (o *Ollama) supervise(ctx context.Context, idle time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			idle := o.currentConfig().OllamaIdle
+			if idle <= 0 {
+				idle = 120 * time.Second
+			}
 			o.mu.Lock()
 			owned := o.proc != nil
 			lastUsed := o.lastUsed
@@ -590,14 +608,15 @@ type OllamaState struct {
 
 // State 返回 Ollama 状态快照；model 为当前生效的 VLM 模型。
 func (o *Ollama) State(ctx context.Context, model, modelAlt string) OllamaState {
+	cfg := o.currentConfig()
 	state := OllamaState{
-		URL:                     o.cfg.OllamaURL,
+		URL:                     cfg.OllamaURL,
 		Model:                   model,
-		ModelDefault:            o.cfg.OllamaVLM,
+		ModelDefault:            cfg.OllamaVLM,
 		ModelAlt:                modelAlt,
-		NumCtx:                  o.cfg.OllamaVLMCTX,
-		KeepAlive:               fmt.Sprintf("对话请求下发 %ds；批量标注沿用 Ollama 默认（无请求 5 分钟后卸载模型）", int(o.cfg.OllamaKeepAlive.Seconds())),
-		KeepAliveDefaultSeconds: int(o.cfg.OllamaKeepAlive.Seconds()),
+		NumCtx:                  cfg.OllamaVLMCTX,
+		KeepAlive:               fmt.Sprintf("对话请求下发 %ds；批量标注沿用 Ollama 默认（无请求 5 分钟后卸载模型）", int(cfg.OllamaKeepAlive.Seconds())),
+		KeepAliveDefaultSeconds: int(cfg.OllamaKeepAlive.Seconds()),
 		Thinking:                SupportsThinking(model),
 	}
 
