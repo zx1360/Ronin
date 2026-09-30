@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
-import 'package:torrid/features/others/comic/services/reader_image_service.dart';
+import 'package:torrid/features/comic/services/reader_image_service.dart';
 
 void main() {
   group('collectCropSegments', () {

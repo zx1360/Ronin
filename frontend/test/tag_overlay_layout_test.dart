@@ -5,9 +5,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:torrid/features/others/gallery/models/tag.dart';
-import 'package:torrid/features/others/gallery/providers/tag_providers.dart';
-import 'package:torrid/features/others/gallery/widgets/tag_drag_overlay.dart';
+import 'package:torrid/features/gallery/models/tag.dart';
+import 'package:torrid/features/gallery/providers/tag_providers.dart';
+import 'package:torrid/features/gallery/widgets/tag_drag_overlay.dart';
 
 /// 假的标签树：只需要浮层能取到标签数据。
 class _FakeTagTree extends TagTree {
