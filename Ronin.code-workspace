@@ -9,8 +9,8 @@
 			"path": "android"
 		},
 		{
-			"name": "Desktop App(Flutter)",
-			"path": "desktop"
+			"name": "Ops App(Web)",
+			"path": "ops"
 		},
 		{
 			"path": "."

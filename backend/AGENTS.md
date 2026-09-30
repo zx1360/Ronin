@@ -4,7 +4,7 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
 ### 模块
 
-- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器，为 Torrid (Android) 和 Northstar (Desktop) 提供 REST API。
+- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器，为 Torrid (Android) 和 Northstar (Ops) 提供 REST API。
 - **Gizmos CLI**（`gizmos/`，独立 Go module）：命令行批处理媒体库（`ingest`/`execute`/`refresh`）。
 - **comix 爬虫集成**（`internal/service/comix/` + `internal/handler/comix_handler/`）：以子进程方式调用
   外部 comix 项目（`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
@@ -72,11 +72,11 @@ AI 处理层可选（缺省即可用）：`AI_ENABLED`, `AI_PYTHON`, `AI_SIDECAR
 |--------|---------|------|
 | `/API/user-data` | `GET /sync/:module`, `POST /backup/:module`, `POST /check-images/:module` | 用户数据同步/备份（提交完整数据集，服务端事务内全量替换） |
 | `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download`, `/sync-readed` | 漫画浏览与离线下载（Android 端主用） |
-| `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Desktop 端主用） |
+| `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Ops 端主用） |
 | `/API/gallery` | `GET /batch`, `GET /overview`, `GET /:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
 | `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
 | `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）与 `only_deleted`（仅软删除项）；**不传 `vlm_tags` 时完全不触及 `ai` schema**，未初始化 AI 层的部署不受影响 |
-| `/API/ops` | `GET /overview` | 系统概览（Desktop 用；`service.staticDir` 为 static 绝对路径） |
+| `/API/ops` | `GET /overview` | 系统概览（Ops 用；`service.staticDir` 为 static 绝对路径） |
 | `/API/ai` | `GET /status`, `GET /jobs`, `POST /enqueue\|retry\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态、队列与进度、入队/重试、暂停与继续、模型进程启停、自动处理开关（`cancel` 会中断当前批次并暂停队列，`resume` 恢复） |
 | `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `POST /duplicates/ignore\|unignore`, `GET /duplicates/ignored`, `GET /tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组（`ignore` = 人工判定「非重复」，之后不再参与分组，可随时恢复）、AI 标签清单（含出现次数） |
 | `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式（`notice`/`thinking`/`delta`/`done`/`aborted`/`error`），图片可用 `media_ids` 引用库内媒体或内联 base64；`model`/`num_ctx`/`think`/`temperature`/`keep_alive_seconds` 逐次可调 |
