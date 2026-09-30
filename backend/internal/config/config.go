@@ -127,8 +127,8 @@ func loadAiConfig() {
 	// 备选模型：社区对 Qwen3.5-4B 的无审查（abliteration）版本，保留视觉能力
 	AiConf.OllamaVLMAlt = envString("OLLAMA_VLM_MODEL_ALT", "huihui_ai/qwen3.5-abliterated:4B")
 	// 每次请求显式下发上下文窗口，使行为不受 Ollama 应用默认值影响。
-	// 缺省 8192 对批量标注（实测每张约 220 token）已是数十倍余量。
-	AiConf.OllamaVLMCTX = envInt("OLLAMA_VLM_CTX", 8192, 2048, 262144)
+	// 缺省 65,536 对批量标注（实测每张约 220 token）已是数十倍余量。
+	AiConf.OllamaVLMCTX = envInt("OLLAMA_VLM_CTX", 65536, 2048, 262144)
 	// 对话请求的模型驻留时长（keep_alive）。Ollama 自身默认也是 5 分钟，这里显式
 	// 下发是为了让"后端默认值"可被客户端读取并展示，而不是靠隐式约定。
 	AiConf.OllamaKeepAlive = envSeconds("OLLAMA_KEEP_ALIVE", 300)
