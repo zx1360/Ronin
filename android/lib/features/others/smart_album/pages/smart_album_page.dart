@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/chat/chat_entry.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
+import 'package:torrid/features/others/smart_album/providers/smart_album_providers.dart';
 import 'package:torrid/features/others/widgets/media_viewer_page.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -14,6 +15,7 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 /// 与画廊页同为一级入口（见 `pages_data.dart`），不再依赖画廊网格页跳转。
 /// 只消费服务端 AI 能力：结果按需拉取，不写入本地缓存，也不改动画廊的下载与标注链路；
 /// 页面内不出现人工标签——人工标签归相册(immich)页。
+/// 本页只做渲染与导航，检索状态与编排在 `smart_album_providers.dart`。
 class SmartAlbumPage extends ConsumerStatefulWidget {
   const SmartAlbumPage({super.key});
 
@@ -29,21 +31,15 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
   /// DefaultTabController.of(context)（那个 context 在控制器之上，会抛错）。
   late final TabController _tabs = TabController(length: 2, vsync: this);
 
-  /// 默认使用智能检索。
-  AiSearchMode _mode = AiSearchMode.auto;
-  bool _loading = false;
-  String? _error;
-  AiSearchResult _result = AiSearchResult.empty;
-
-  /// 人物视图的数据（懒加载，首次切到该页时请求）。
-  List<AiPerson>? _persons;
-
   @override
   void initState() {
     super.initState();
     _tabs.addListener(() {
       if (_tabs.indexIsChanging) return;
-      if (_tabs.index == 1 && _persons == null && !_loading) _loadPersons();
+      final state = ref.read(smartAlbumControllerProvider);
+      if (_tabs.index == 1 && state.persons == null && !state.loading) {
+        ref.read(smartAlbumControllerProvider.notifier).loadPersons();
+      }
     });
   }
 
@@ -56,6 +52,19 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(smartAlbumControllerProvider);
+    final controller = ref.read(smartAlbumControllerProvider.notifier);
+
+    // 控制器要求回填输入框时（以图搜图 / 点人物）同步一次
+    ref.listen(
+      smartAlbumControllerProvider.select((value) => value.queryRevision),
+      (previous, next) {
+        if (previous == next) return;
+        _controller.text =
+            ref.read(smartAlbumControllerProvider).queryText;
+      },
+    );
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -75,14 +84,20 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
       ),
       body: TabBarView(
         controller: _tabs,
-        children: [_buildSearchView(), _buildPersonsView()],
+        children: [
+          _buildSearchView(state, controller),
+          _buildPersonsView(state, controller),
+        ],
       ),
     );
   }
 
   // ---------- 检索 ----------
 
-  Widget _buildSearchView() {
+  Widget _buildSearchView(
+    SmartAlbumState state,
+    SmartAlbumController controller,
+  ) {
     return Column(
       children: [
         Padding(
@@ -91,9 +106,9 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
             controller: _controller,
             style: const TextStyle(color: Colors.white),
             textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _search(),
+            onSubmitted: controller.search,
             decoration: InputDecoration(
-              hintText: _mode == AiSearchMode.filename
+              hintText: state.mode == AiSearchMode.filename
                   ? '文件名或扩展名，如：IMG_2024 / .mp4'
                   : '描述想要的画面，如：可爱的猫娘 / 夜景街道',
               hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
@@ -102,7 +117,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
                 icon: const Icon(Icons.close, color: Colors.grey, size: 18),
                 onPressed: () {
                   _controller.clear();
-                  setState(() => _result = AiSearchResult.empty);
+                  controller.clearResult();
                 },
               ),
               filled: true,
@@ -127,12 +142,13 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
                       for (final mode in AiSearchMode.values) ...[
                         ChoiceChip(
                           label: Text(mode.label),
-                          selected: _mode == mode,
+                          selected: state.mode == mode,
                           onSelected: (_) {
-                            setState(() => _mode = mode);
-                            // 切换检索方式后旧结果不再对应，清掉避免误读
-                            _result = AiSearchResult.empty;
-                            if (_controller.text.trim().isNotEmpty) _search();
+                            controller.setMode(mode);
+                            // 切换检索方式后旧结果不再对应，有查询词就重搜一次
+                            if (_controller.text.trim().isNotEmpty) {
+                              controller.search(_controller.text);
+                            }
                           },
                           // 深色页面下必须显式给配色：主题是浅色，未选中 chip 的
                           // 默认底色与白字撞在一起会看不见文字
@@ -143,7 +159,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           labelStyle: TextStyle(
-                            color: _mode == mode ? Colors.black : Colors.white,
+                            color: state.mode == mode ? Colors.black : Colors.white,
                             fontSize: 12,
                           ),
                         ),
@@ -154,7 +170,9 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
                 ),
               ),
               TextButton.icon(
-                onPressed: _loading ? null : _search,
+                onPressed: state.loading
+                    ? null
+                    : () => controller.search(_controller.text),
                 icon: const Icon(Icons.search, size: 16),
                 label: const Text('搜索'),
                 style: TextButton.styleFrom(foregroundColor: Colors.white),
@@ -162,25 +180,29 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
             ],
           ),
         ),
-        if (_loading) const LinearProgressIndicator(minHeight: 2),
-        if (_error != null)
+        if (state.loading) const LinearProgressIndicator(minHeight: 2),
+        if (state.error != null)
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-              _error!,
+              state.error!,
               style: const TextStyle(color: Colors.redAccent, fontSize: 12),
             ),
           ),
-        Expanded(child: _buildResultGrid()),
+        Expanded(child: _buildResultGrid(state, controller)),
       ],
     );
   }
 
-  Widget _buildResultGrid() {
-    if (_result.hits.isEmpty) {
+  Widget _buildResultGrid(
+    SmartAlbumState state,
+    SmartAlbumController controller,
+  ) {
+    final result = state.result;
+    if (result.hits.isEmpty) {
       return Center(
         child: Text(
-          _loading ? '检索中…' : '输入关键词开始检索',
+          state.loading ? '检索中…' : '输入关键词开始检索',
           style: const TextStyle(color: Colors.grey),
         ),
       );
@@ -195,7 +217,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '命中 ${_result.total} 条 · ${_modeLabel(_result.mode)}',
+              '命中 ${result.total} 条 · ${_modeLabel(result.mode)}',
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),
@@ -208,14 +230,14 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
               mainAxisSpacing: 3,
               crossAxisSpacing: 3,
             ),
-            itemCount: _result.hits.length,
+            itemCount: result.hits.length,
             itemBuilder: (context, index) {
-              final hit = _result.hits[index];
+              final hit = result.hits[index];
               return _HitTile(
                 hit: hit,
                 url: hit.thumbUrl(api.baseUrl),
                 headers: api.headers,
-                onTap: () => _openViewer(index),
+                onTap: () => _openViewer(result, index, controller),
               );
             },
           ),
@@ -225,14 +247,18 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
   }
 
   /// 打开全屏查看器：本页只注入"以图搜图"和"AI 分析"两个智能操作。
-  void _openViewer(int index) {
+  void _openViewer(
+    AiSearchResult result,
+    int index,
+    SmartAlbumController controller,
+  ) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MediaViewerPage(
-          assets: [for (final hit in _result.hits) hit.toAsset()],
+          assets: [for (final hit in result.hits) hit.toAsset()],
           initialIndex: index,
           subtitleBuilder: (asset) {
-            final hit = _hitById(asset.id);
+            final hit = _hitById(result, asset.id);
             if (hit == null || hit.score <= 0) return null;
             return '相关度 ${hit.score.toStringAsFixed(3)}';
           },
@@ -251,7 +277,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
               tooltip: '以图搜图',
               onPressed: () {
                 Navigator.of(context).pop();
-                unawaited(_searchSimilar(asset.id));
+                unawaited(controller.searchSimilar(asset.id));
               },
             ),
             IconButton(
@@ -265,8 +291,8 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
     );
   }
 
-  AiSearchHit? _hitById(String id) {
-    for (final hit in _result.hits) {
+  AiSearchHit? _hitById(AiSearchResult result, String id) {
+    for (final hit in result.hits) {
       if (hit.id == id) return hit;
     }
     return null;
@@ -274,18 +300,22 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
 
   // ---------- 人物 ----------
 
-  Widget _buildPersonsView() {
-    if (_persons == null) {
+  Widget _buildPersonsView(
+    SmartAlbumState state,
+    SmartAlbumController controller,
+  ) {
+    final persons = state.persons;
+    if (persons == null) {
       return Center(
-        child: _loading
+        child: state.loading
             ? const CircularProgressIndicator(color: Colors.white70)
             : FilledButton(
-                onPressed: _loadPersons,
+                onPressed: controller.loadPersons,
                 child: const Text('加载人物分组'),
               ),
       );
     }
-    if (_persons!.isEmpty) {
+    if (persons.isEmpty) {
       return const Center(
         child: Text('暂无人物分组', style: TextStyle(color: Colors.grey)),
       );
@@ -314,11 +344,15 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
               crossAxisSpacing: 8,
               childAspectRatio: 0.78,
             ),
-            itemCount: _persons!.length,
+            itemCount: persons.length,
             itemBuilder: (context, index) {
-              final person = _persons![index];
+              final person = persons[index];
               return InkWell(
-                onTap: () => _searchByPerson(person),
+                // 先切页再请求：用户点了就必须有反馈，不能只等结果
+                onTap: () {
+                  _tabs.animateTo(0);
+                  controller.searchByPerson(person);
+                },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -368,87 +402,6 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
   }
 
   // ---------- 动作 ----------
-
-  Future<void> _search() async {
-    final query = _controller.text.trim();
-    // 纯条件检索（文件名模式必须给词）没有查询词时不做请求
-    if (query.isEmpty && _mode == AiSearchMode.filename) return;
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final result = await ref.read(aiApiProvider).search(query, mode: _mode);
-      if (!mounted) return;
-      setState(() => _result = result);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = aiFriendlyError(e));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _searchSimilar(String mediaId) async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final result = await ref.read(aiApiProvider).similar(mediaId);
-      if (!mounted) return;
-      setState(() {
-        _result = result;
-        _controller.text = '与所选图片相似';
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = aiFriendlyError(e));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadPersons() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final persons = await ref.read(aiApiProvider).fetchPersons();
-      if (!mounted) return;
-      setState(() => _persons = persons);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = aiFriendlyError(e));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  /// 点人物即回到"检索"页查看该人物的全部媒体。
-  Future<void> _searchByPerson(AiPerson person) async {
-    // 先切页再请求：用户点了就必须有反馈，不能只等结果
-    _tabs.animateTo(0);
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final result = await ref.read(aiApiProvider).searchByPerson(person.id);
-      if (!mounted) return;
-      setState(() {
-        _result = result;
-        _controller.text = person.displayName;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = aiFriendlyError(e));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
 
   /// 只读展示该媒体的 AI 分析结果（描述 / 关键词 / OCR）。
   Future<void> _showAiDetail(String mediaId) async {

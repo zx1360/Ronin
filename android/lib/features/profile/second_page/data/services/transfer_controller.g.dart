@@ -7,7 +7,7 @@ part of 'transfer_controller.dart';
 // **************************************************************************
 
 String _$transferControllerHash() =>
-    r'40369115eeb5701d15503d4d170b34914bba5639';
+    r'198d6aa155f71226938342a77911d1c712cb6a34';
 
 /// 数据传输控制器
 ///

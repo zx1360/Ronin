@@ -143,6 +143,11 @@ func SetupRouter() *gin.Engine {
 			// 交互式对话（NDJSON 流；Android 端聊天页使用）
 			aiGroup.POST("/chat", ai_handler.Chat)
 
+			// 近期回顾：后端算确定性统计（+ 可选随机素材）后交本地模型叙述
+			aiGroup.POST("/review", ai_handler.Review)
+			aiGroup.GET("/review/presets", ai_handler.GetReviewPresets)
+			aiGroup.PUT("/review/presets", ai_handler.UpdateReviewPresets)
+
 			// 检索：文本搜图 / 以图搜图 / 组合筛选
 			aiGroup.GET("/search", ai_handler.Search)
 			aiGroup.POST("/search/image", ai_handler.SearchByImage)

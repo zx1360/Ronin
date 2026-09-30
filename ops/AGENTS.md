@@ -47,7 +47,7 @@ Riverpod + GoRouter + SharedPreferences + `dart:io` HttpClient（自签证书信
 - `X-API-Key` 只注入到"当前配置的 Monarch 主机"，不会随 `HttpOverrides` 泄漏给第三方站点（如漫画封面源站）。
 - 任务模板 (`default_task_templates.dart`) 需对照 `../backend/gizmos/` 的 CLI 参数（`-mode`/`-gallery-root`/`-concurrency`/`-batch`/`-resize*`），任何 CLI 参数变更须同步模板。`-gallery-root` 现在是**必填**项。
 - 自签证书：`assets/cert/server.crt`。
-- 后端接口变更后查看 `../backend/references/api/routes.json`。
+- 后端接口变更后查看 `../backend/references/generated/api/routes.md`（生成物，需在后端跑一次 `references/scripts/generate_refs.ps1`）。
 - **mDNS 自动发现**：设置页点击"发现服务"可自动扫描局域网内的 Monarch 服务，发现后自动替换当前地址。
 
 ### 轮询与请求生命周期

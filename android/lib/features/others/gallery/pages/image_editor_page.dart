@@ -4,7 +4,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -113,15 +112,9 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
     );
     if (ok != true) return;
     try {
-      final db = ref.read(galleryDatabaseProvider);
-      await db.updateMediaAsset(widget.asset.copyWith(clearEditParams: true));
-      // 服务端权威: 本地先生效, 编辑参数经缓冲写入服务端
-      ref.read(galleryWriteBufferProvider).queuePatch(
-            widget.asset.id,
-            const MediaPatchIntent(clearEditParams: true),
-            baselineAsset: widget.asset,
-          );
-      await ref.read(mediaAssetListProvider.notifier).refresh();
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .setEditParams(widget.asset, null);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -135,15 +128,10 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
     if (_saving) return;
     setState(() => _saving = true);
     try {
-      final db = ref.read(galleryDatabaseProvider);
       final params = _buildEditParamsJson();
-      await db.updateMediaAsset(widget.asset.copyWith(editParams: params));
-      ref.read(galleryWriteBufferProvider).queuePatch(
-            widget.asset.id,
-            MediaPatchIntent(editParams: params),
-            baselineAsset: widget.asset,
-          );
-      await ref.read(mediaAssetListProvider.notifier).refresh();
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .setEditParams(widget.asset, params);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('编辑参数已保存'), duration: Duration(seconds: 1)),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
-import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/pages/comic_download_tasks_page.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
 import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
@@ -76,58 +75,18 @@ class _ComicPageState extends ConsumerState<ComicPage> {
     });
   }
 
+  /// 与服务端同步本地漫画状态；编排在 [ComicService.syncWithServer] 里。
   Future<void> _syncStatus() async {
-    // 收集本地已下载的漫画
-    final localComics = ref.read(comicInfosProvider);
-    if (localComics.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('本地没有已下载的漫画')),
-        );
-      }
-      return;
-    }
-
     try {
-      // 1. 获取服务器全部漫画数据（强制刷新确保最新）
-      ref.invalidate(comicsOnlineProvider);
-      final serverComics = await ref.read(comicsOnlineProvider.future);
+      final result =
+          await ref.read(comicServiceProvider.notifier).syncWithServer();
+      if (!mounted) return;
 
-      final serverComicMap = <String, ComicInfo>{};
-      for (final sc in serverComics) {
-        serverComicMap[sc.id] = sc;
-      }
-
-      int syncedCount = 0;
-      int newDownloadCount = 0;
-
-      for (final localComic in localComics) {
-        final serverComic = serverComicMap[localComic.id];
-        if (serverComic == null) continue;
-
-        // 同步字段到本地
-        await ref
-            .read(comicServiceProvider.notifier)
-            .syncFieldsFromServer(serverComic);
-        syncedCount++;
-
-        // 检查是否有新章节
-        if (serverComic.chapterCount > localComic.chapterCount) {
-          await ref
-              .read(comicDownloadTasksProvider.notifier)
-              .enqueueComic(comicInfo: localComic);
-          newDownloadCount++;
-        }
-      }
-
-      if (mounted) {
-        final msg = newDownloadCount > 0
-            ? '已同步 $syncedCount 本漫画，$newDownloadCount 本有更新，已加入下载队列'
-            : '已同步 $syncedCount 本漫画，均为最新';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
-      }
+      final message =
+          result.hasLocalComics ? result.message : '本地没有已下载的漫画';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -103,6 +103,7 @@ AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`A
 | `/API/ai` | `GET /status`, `GET /capabilities`, `GET /jobs`, `POST /enqueue\|retry\|regenerate\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态与输入档位/执行者候选（`capabilities` 为端上唯一真源）、队列与进度、入队、重试失败项、单能力全量重生成（清产物后重排，破坏性）、暂停与继续、模型进程启停、运行时配置读写 |
 | `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `POST /duplicates/ignore\|unignore`, `GET /duplicates/ignored`, `GET /tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组（`ignore` = 人工判定「非重复」，之后不再参与分组，可随时恢复）、AI 标签清单（含出现次数） |
 | `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式（`notice`/`thinking`/`delta`/`done`/`aborted`/`error`），图片可用 `media_ids` 引用库内媒体或内联 base64；`model`/`num_ctx`/`think`/`temperature`/`keep_alive_seconds` 逐次可调 |
+| `/API/ai` | `POST /review`, `GET/PUT /review/presets` | 近期回顾：后端从 booklet/essay 数据算**确定性统计**（+ 可选随机抽样素材）后交本地模型叙述，NDJSON 流（正文前先下发一条 `stats` 事件供端上展示"本次依据"）。统计口径见 `service/review/`：essay 按本地日历日、booklet 按日历日标记（UTC 零点）归日，两者混用会整体错一天。预设（角色/语气）存 `<STATIC_DIR>/data/review_presets.json`，服务端权威、端上只做镜像；生成结果不落库，由端上本地缓存 |
 | `/API/ai` | `GET /persons`, `GET /persons/:id/faces`, `PATCH/DELETE /persons/:id`, `POST /persons/merge\|faces/assign\|recluster` | 人物分组：改名/删除/合并/人工纠正/重新聚类 |
 
 `GET /API/ai/search` 的检索方式（`mode`）：`auto`（默认，有文本走语义并对关键词命中加权）、
@@ -122,9 +123,12 @@ python tools/smoke_api.py                         # 服务运行中逐个接口�
 
 ### 跨项目契约
 
-修改 Go 接口、路由或 CLI 参数后运行（会同步 `references/api/` 与 `references/cli/`）：
+路由表与 CLI 参数快照是**生成物**（`references/generated/`，不入 git），真源永远是 Go 代码；
+端上 DTO 仍手写，改接口后照快照里的处理函数去读响应结构再同步。修改 Go 路由或 CLI 参数后运行：
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
+powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1 -Check  # 只校验快照是否已过期
 ```
 
 ### 数据库
