@@ -51,9 +51,6 @@ type Spec struct {
 	Restart bool `json:"restart,omitempty"`
 }
 
-// CapabilityNames 是 AI 能力的固定词表，供 ai.auto_capabilities 的候选项使用。
-var CapabilityNames = []string{"phash", "embed", "face", "ocr", "vlm"}
-
 // Specs 是全部可配置项。顺序即 UI 展示顺序。
 var Specs = []Spec{
 	// ---- 应用 ----
@@ -89,7 +86,7 @@ var Specs = []Spec{
 	{Key: "ai.job_timeout", Section: "ai", Label: "单批超时（秒）", Kind: KindInt, Default: "900", Min: 1, Max: 86400},
 	{Key: "ai.max_attempts", Section: "ai", Label: "单条最大尝试次数", Kind: KindInt, Default: "3", Min: 1, Max: 20},
 	{Key: "ai.auto_capabilities", Section: "ai", Label: "入库后自动处理", Kind: KindMulti,
-		Default: "phash,embed,face,ocr", Options: multiOptions(CapabilityNames),
+		Default: defaultAutoCapabilities(), Options: capabilityOptions(),
 		Help: "空表示关闭自动入队，只能手动提交"},
 
 	// ---- AI 执行者（能力实现 / 模型）----
@@ -116,12 +113,24 @@ var Specs = []Spec{
 		Default: "", Help: "自拉 ollama serve 时指向用户既有模型库", Restart: true},
 }
 
-func multiOptions(names []string) []Option {
-	out := make([]Option, 0, len(names))
-	for _, n := range names {
-		out = append(out, Option{Value: n, Label: n})
+// capabilityOptions 把能力登记转成多选项控件（值即能力标识）。
+func capabilityOptions() []Option {
+	out := make([]Option, 0, len(model.Capabilities))
+	for _, c := range model.Capabilities {
+		out = append(out, Option{Value: c.ID, Label: c.ID})
 	}
 	return out
+}
+
+// defaultAutoCapabilities 默认自动处理的能力：登记里标了 AutoDefault 的那些。
+func defaultAutoCapabilities() string {
+	ids := make([]string, 0, len(model.Capabilities))
+	for _, c := range model.Capabilities {
+		if c.AutoDefault {
+			ids = append(ids, c.ID)
+		}
+	}
+	return strings.Join(ids, ",")
 }
 
 var specByKey = func() map[string]Spec {

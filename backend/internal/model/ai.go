@@ -6,57 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// AI 能力标识。phash 在 Go 进程内完成，其余通过外部进程接入。
-const (
-	CapPHash = "phash" // 感知哈希（纯 Go，无外部进程）
-	CapEmbed = "embed" // SigLIP 图像向量
-	CapFace  = "face"  // InsightFace 人脸检测与特征
-	CapOCR   = "ocr"   // RapidOCR / PP-OCR 文字识别
-	CapVLM   = "vlm"   // Ollama VLM 描述与关键词
-)
-
-// AllCapabilities 全部能力，顺序即处理优先级（廉价能力优先）。
-var AllCapabilities = []string{CapPHash, CapEmbed, CapFace, CapOCR, CapVLM}
-
-// IsValidCapability 报告能力标识是否受支持。
-func IsValidCapability(capability string) bool {
-	for _, c := range AllCapabilities {
-		if c == capability {
-			return true
-		}
-	}
-	return false
-}
-
-// AI 能力的输入档位。phash/embed 用 256 预览图；face/ocr/vlm 需要更大分辨率。
-// AI 专用派生档只有这一个新增档位，PreviewSize 的语义与用途不变。
-const (
-	TierPreview256 = "preview256"
-	TierAI1024     = "ai1024"
-)
-
-// AIInputTier 返回能力对应的输入档位。
-func AIInputTier(capability string) string {
-	switch capability {
-	case CapPHash, CapEmbed:
-		return TierPreview256
-	default:
-		return TierAI1024
-	}
-}
-
-// 固定能力实现的稳定标识（写入 ai_results.executor，作为结果溯源的执行者）。
-// 标识一旦变更，既有结果会被判定为失配并自动重排。
-const (
-	ImplPHashGoDCT  = "go-dct-phash-v1"
-	ImplFaceSidecar = "buffalo_l"
-	ImplOCRSidecar  = "rapidocr"
-)
-
-// LegacyInputTier 是迁移前所有 AI 结果实际使用的输入档位：旧代码统一喂 256 预览图。
-// 迁移按此如实登记溯源，face/ocr/vlm 因此会被判定为失配并自动改用 ai1024 重排。
-const LegacyInputTier = TierPreview256
-
 // AiResultSpec 一条 AI 结果的溯源信息：用了哪个输入档位、哪个执行者（实现或模型）。
 // 与期望规格不一致时由 reconcile 循环自动重排。
 type AiResultSpec struct {

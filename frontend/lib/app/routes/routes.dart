@@ -10,7 +10,7 @@ import 'package:torrid/features/chat/pages/chat_settings_page.dart';
 import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
 import 'package:torrid/features/read/pages/read_page.dart';
-import 'package:torrid/features/others/pages/others_page.dart';
+import 'package:torrid/features/others/others_page.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
 import 'package:torrid/features/profile/pages/profile_page.dart';

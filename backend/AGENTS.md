@@ -16,6 +16,9 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。数据为**单文件 
 - **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长。
 - **AI 媒体处理层**（`internal/service/ai/` + `internal/repository/ai_repo/` + `handler/ai_handler/`）：
   按需拉起、空闲退出的本地 AI 能力。
+  - **能力登记**：`internal/model/capability.go` 是唯一权威（展示名 / 输入档位 / 优先级 /
+    内置实现 / 可切换的配置键）；设置项候选项与默认值、`/API/ai/capabilities` 的下发内容、
+    入队优先级都由它派生，新增能力只需改这一处。
   - `phash`：纯 Go 感知哈希，无外部进程；`embed` / `face` / `ocr`：Python 侧车（`tools/ai/`），
     一个能力一个进程，空闲 `ai.idle_timeout` 秒后退出并降为 BelowNormal 优先级。
     `ai.device=auto` 时 `face`/`ocr` 走 DirectML，向量编码固定 CPU——换执行提供者会改变向量数值。

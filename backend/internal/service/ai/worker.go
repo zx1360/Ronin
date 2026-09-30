@@ -29,15 +29,6 @@ const (
 	vlmBatchMax = 4
 )
 
-// 各能力的默认优先级（越小越先处理，廉价能力优先）。
-var capabilityPriority = map[string]int{
-	model.CapPHash: 10,
-	model.CapEmbed: 20,
-	model.CapFace:  30,
-	model.CapOCR:   40,
-	model.CapVLM:   100,
-}
-
 // ---------- 入库自动触发 ----------
 
 // reconcileLoop 周期性把"结果规格已失配或尚无结果"的媒体补进队列。
@@ -68,7 +59,7 @@ func (e *Engine) reconcileLoop(ctx context.Context) {
 				continue
 			}
 			n, err := ai_repo.EnqueueStale(capability, tier, executor, stale,
-				capabilityPriority[capability], e.cfg.MaxAttempts)
+				model.CapabilityPriority(capability), e.cfg.MaxAttempts)
 			if err != nil {
 				log.Printf("[AI] 补充入队 %s 失败: %v", capability, err)
 				continue

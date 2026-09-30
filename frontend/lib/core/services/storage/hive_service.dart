@@ -9,11 +9,11 @@ import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
-import 'package:torrid/features/others/comic/models/chapter_info.dart';
-import 'package:torrid/features/others/comic/models/comic_info.dart';
+import 'package:torrid/features/comic/models/chapter_info.dart';
+import 'package:torrid/features/comic/models/comic_info.dart';
 // gallery库
 // comic漫画
-import 'package:torrid/features/others/comic/models/comic_preference.dart';
+import 'package:torrid/features/comic/models/comic_preference.dart';
 import 'package:torrid/features/chat/models/chat_models.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开

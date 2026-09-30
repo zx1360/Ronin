@@ -7,68 +7,43 @@ import (
 	"monarch/internal/model"
 )
 
-// 本文件集中定义"能力的执行者与候选"，是结果溯源（ai_results）与
-// /API/ai/capabilities 的唯一真相源：消费端只渲染后端下发的清单。
+// 本文件把 model.Capabilities 这份唯一登记翻译成运行时视图（执行者、候选清单），
+// 是结果溯源（ai_results）与 /API/ai/capabilities 的出口：消费端只渲染后端下发的清单。
 
-// capabilityLabels 能力的展示名。
-var capabilityLabels = map[string]string{
-	model.CapPHash: "感知哈希",
-	model.CapEmbed: "图像向量",
-	model.CapFace:  "人脸检测与特征",
-	model.CapOCR:   "文字识别",
-	model.CapVLM:   "视觉描述与关键词",
-}
-
-// buildinImplementations 无法选择的固定实现（本机只有一个可用实现）。
-var buildinImplementations = map[string][]model.AiImplementation{
-	model.CapPHash: {{ID: model.ImplPHashGoDCT, Label: "Go DCT pHash", Note: "进程内计算，无外部依赖"}},
-	model.CapFace:  {{ID: model.ImplFaceSidecar, Label: "InsightFace buffalo_l", Note: "Python 侧车"}},
-	model.CapOCR:   {{ID: model.ImplOCRSidecar, Label: "RapidOCR", Note: "Python 侧车"}},
-}
-
-// Executor 返回能力当前的执行者标识（写入 ai_results.executor）。
+// Executor 返回能力当前的执行者标识（写入 ai_results.executor）：执行者可由配置切换的
+// 能力取配置值，其余取登记里的固定实现。
 func (e *Engine) Executor(capability string) string {
 	switch capability {
-	case model.CapPHash:
-		return model.ImplPHashGoDCT
 	case model.CapEmbed:
 		return strings.TrimSpace(e.cfg.EmbedModel)
-	case model.CapFace:
-		return model.ImplFaceSidecar
-	case model.CapOCR:
-		return model.ImplOCRSidecar
 	case model.CapVLM:
 		return e.VLMModel()
-	default:
-		return ""
 	}
+	if c, ok := model.CapabilityByID(capability); ok {
+		return c.BuiltinExecutor()
+	}
+	return ""
 }
 
 // InputTier 返回能力的输入档位。
 func (e *Engine) InputTier(capability string) string { return model.AIInputTier(capability) }
 
-// executorSettingKeys 可切换执行者的能力对应的配置键；其余能力只有一个实现，无需切换。
-var executorSettingKeys = map[string]string{
-	model.CapEmbed: "ai.embed_model",
-	model.CapVLM:   "ai.vlm_model",
-}
-
 // CapabilityInfos 下发全部能力的输入档位、当前执行者与候选清单。
 //
 // 消费端（前端 / ops 页面）只负责渲染，不在端上硬编码能力名、模型名与配置键。
 func (e *Engine) CapabilityInfos(ctx context.Context) []model.AiCapabilityInfo {
-	infos := make([]model.AiCapabilityInfo, 0, len(model.AllCapabilities))
-	for _, capability := range model.AllCapabilities {
-		ready, reason := e.CapabilityReady(ctx, capability)
+	infos := make([]model.AiCapabilityInfo, 0, len(model.Capabilities))
+	for _, c := range model.Capabilities {
+		ready, reason := e.CapabilityReady(ctx, c.ID)
 		infos = append(infos, model.AiCapabilityInfo{
-			Capability: capability,
-			Label:      capabilityLabels[capability],
-			InputTier:  e.InputTier(capability),
-			Selected:   e.Executor(capability),
+			Capability: c.ID,
+			Label:      c.Label,
+			InputTier:  c.InputTier,
+			Selected:   e.Executor(c.ID),
 			Ready:      ready,
 			Reason:     reason,
-			Candidates: e.candidates(capability),
-			SettingKey: executorSettingKeys[capability],
+			Candidates: e.candidates(c.ID),
+			SettingKey: c.SettingKey,
 		})
 	}
 	return infos
@@ -81,9 +56,11 @@ func (e *Engine) candidates(capability string) []model.AiImplementation {
 		return embedCandidates(e.cfg.EmbedModel)
 	case model.CapVLM:
 		return vlmCandidates(e.cfg.OllamaVLM, e.cfg.OllamaVLMAlt, e.VLMModel())
-	default:
-		return buildinImplementations[capability]
 	}
+	if c, ok := model.CapabilityByID(capability); ok {
+		return c.Builtin
+	}
+	return nil
 }
 
 // embedCandidates 返回向量模型的候选。
