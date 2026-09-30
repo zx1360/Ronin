@@ -77,6 +77,9 @@ func Init(conf config.DbConfig) {
 	if err := applySchema(ctx, conf.SchemaFile); err != nil {
 		log.Fatalf("初始化数据库结构失败: %v", err)
 	}
+	if err := ensureColumns(ctx); err != nil {
+		log.Fatalf("数据库列迁移失败: %v", err)
+	}
 
 	log.Printf("SQLite 数据库就绪: %s", abs)
 }

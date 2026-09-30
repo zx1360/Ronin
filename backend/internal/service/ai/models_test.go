@@ -11,7 +11,7 @@ import (
 // newTestEngine 构造一个不接触真实 Ollama 的引擎（卸载调用会立即连接失败，只留日志）。
 func newTestEngine(t *testing.T) *Engine {
 	t.Helper()
-	return New(config.AiConfig{
+	return New(nil, config.AiConfig{
 		OllamaURL:       "http://127.0.0.1:1", // 不可达：卸载动作在测试里不产生副作用
 		OllamaVLM:       "model-a",
 		OllamaVLMAlt:    "model-b",

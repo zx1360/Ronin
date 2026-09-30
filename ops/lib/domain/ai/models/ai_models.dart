@@ -74,23 +74,82 @@ class AiSidecarState {
   }
 }
 
-/// 单个 AI 能力的就绪与队列状态。
+/// 执行者候选（模型）：候选名单由服务端下发，端上只渲染不硬编码。
+class AiExecutorCandidate {
+  final String model;
+  final String label;
+  final bool installed;
+  final bool isCurrent;
+
+  /// 该候选对应的输入档位（如 ai1024）。
+  final String inputTier;
+
+  const AiExecutorCandidate({
+    required this.model,
+    required this.label,
+    required this.installed,
+    required this.isCurrent,
+    this.inputTier = '',
+  });
+
+  factory AiExecutorCandidate.fromJson(Map<String, dynamic> json) {
+    return AiExecutorCandidate(
+      model: _string(json['model']),
+      label: _string(json['label']),
+      installed: _bool(json['installed']),
+      isCurrent: _bool(json['is_current']),
+      inputTier: _string(json['input_tier']),
+    );
+  }
+}
+
+/// 单个 AI 能力的就绪、档位与队列状态。
+///
+/// 能力的名称、输入档位、执行者与候选全部来自服务端（`/API/ai/status` 的
+/// capabilities 段），端上不再维护能力语义表。
 class AiCapabilityStatus {
   final String capability;
+
+  /// 服务端下发的能力名称与说明。
+  final String label;
+  final String description;
+
+  /// 输入图源档位（preview256 / ai1024）及其说明。
+  final String inputTier;
+  final String tierNote;
+
+  /// 当前执行者（进程内实现 / 模型标识 / Ollama 模型名）。
+  final String executor;
+
+  /// 输入档位 + 执行者指纹；变更后旧产物会被自动重排。
+  final String inputSig;
+  final List<AiExecutorCandidate> executorCandidates;
+
   final bool ready;
   final String? reason;
   final AiSidecarState? sidecar;
   final int missingMedia;
+
+  /// 输入档位/执行者已变、等待自动重排的媒体数。
+  final int staleMedia;
   final int pending;
   final int failed;
   final int done;
 
   const AiCapabilityStatus({
     required this.capability,
+    this.label = '',
+    this.description = '',
+    this.inputTier = '',
+    this.tierNote = '',
+    this.executor = '',
+    this.inputSig = '',
+    this.executorCandidates = const [],
     required this.ready,
     this.reason,
     this.sidecar,
     required this.missingMedia,
+    this.staleMedia = 0,
     required this.pending,
     required this.failed,
     required this.done,
@@ -100,18 +159,74 @@ class AiCapabilityStatus {
     final sidecar = json['sidecar'];
     return AiCapabilityStatus(
       capability: _string(json['capability']),
+      label: _string(json['label']),
+      description: _string(json['description']),
+      inputTier: _string(json['input_tier']),
+      tierNote: _string(json['tier_note']),
+      executor: _string(json['executor']),
+      inputSig: _string(json['input_sig']),
+      executorCandidates: (json['executor_candidates'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => AiExecutorCandidate.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
       ready: _bool(json['ready']),
       reason: json['reason'] as String?,
       sidecar: sidecar == null ? null : AiSidecarState.fromJson(_map(sidecar)),
       missingMedia: _int(json['missing_media']),
+      staleMedia: _int(json['stale_media']),
       pending: _int(json['pending']),
       failed: _int(json['failed']),
       done: _int(json['done']),
     );
   }
 
+  /// 展示名（服务端未下发时退回能力标识）。
+  String get displayLabel => label.isEmpty ? capability : label;
+
   /// 该能力是否已处理完所有媒体（无待处理且无待补）。
   bool get settled => pending == 0 && missingMedia == 0;
+}
+
+/// AI 处理层的运行时可调配置（存服务端配置文件，改完立即生效）。
+class AiRuntimeSettings {
+  final int idleTimeoutSeconds;
+  final int jobTimeoutSeconds;
+  final int batchSize;
+  final int maxAttempts;
+  final int workers;
+  final String device;
+  final List<String> autoCapabilities;
+  final String vlmModel;
+  final String vlmModelDefault;
+  final String configPath;
+
+  const AiRuntimeSettings({
+    this.idleTimeoutSeconds = 0,
+    this.jobTimeoutSeconds = 0,
+    this.batchSize = 0,
+    this.maxAttempts = 0,
+    this.workers = 0,
+    this.device = '',
+    this.autoCapabilities = const [],
+    this.vlmModel = '',
+    this.vlmModelDefault = '',
+    this.configPath = '',
+  });
+
+  factory AiRuntimeSettings.fromJson(Map<String, dynamic> json) {
+    return AiRuntimeSettings(
+      idleTimeoutSeconds: _int(json['idle_timeout_seconds']),
+      jobTimeoutSeconds: _int(json['job_timeout_seconds']),
+      batchSize: _int(json['batch_size']),
+      maxAttempts: _int(json['max_attempts']),
+      workers: _int(json['workers']),
+      device: _string(json['device']),
+      autoCapabilities: _stringList(json['auto_capabilities']),
+      vlmModel: _string(json['vlm_model']),
+      vlmModelDefault: _string(json['vlm_model_default']),
+      configPath: _string(json['config_path']),
+    );
+  }
 }
 
 /// 队列计数。
@@ -294,6 +409,9 @@ class AiStatus {
   final bool enabled;
   final bool schemaReady;
   final bool started;
+
+  /// 运行时可调配置所在文件（服务端 static/data/ai_config.json）。
+  final String configPath;
   final String embedModel;
   final String device;
   final int workers;
@@ -317,6 +435,7 @@ class AiStatus {
     required this.enabled,
     required this.schemaReady,
     required this.started,
+    this.configPath = '',
     required this.embedModel,
     required this.device,
     required this.workers,
@@ -342,6 +461,7 @@ class AiStatus {
       enabled: _bool(json['enabled']),
       schemaReady: _bool(json['schema_ready']),
       started: _bool(json['started']),
+      configPath: _string(json['config_path']),
       embedModel: _string(json['embed_model']),
       device: _string(json['device']),
       workers: _int(json['workers']),
@@ -377,6 +497,20 @@ class AiStatus {
     }
     return null;
   }
+
+  /// 运行时可调配置的视图（与 /API/ai/settings 同源）。
+  AiRuntimeSettings get runtimeSettings => AiRuntimeSettings(
+        idleTimeoutSeconds: idleTimeoutSeconds,
+        jobTimeoutSeconds: jobTimeoutSeconds,
+        batchSize: batchSize,
+        maxAttempts: maxAttempts,
+        workers: workers,
+        device: device,
+        autoCapabilities: autoCapabilities,
+        vlmModel: ollama.model,
+        vlmModelDefault: ollama.modelDefault,
+        configPath: configPath,
+      );
 }
 
 /// 一条 AI 处理任务。
@@ -388,6 +522,9 @@ class AiJob {
   final int attempts;
   final String? lastError;
 
+  /// 执行时使用的输入档位 + 执行者指纹；旧版本记录的任务为空。
+  final String? inputSig;
+
   const AiJob({
     required this.id,
     required this.capability,
@@ -395,6 +532,7 @@ class AiJob {
     required this.status,
     required this.attempts,
     this.lastError,
+    this.inputSig,
   });
 
   factory AiJob.fromJson(Map<String, dynamic> json) {
@@ -405,6 +543,7 @@ class AiJob {
       status: _string(json['status']),
       attempts: _int(json['attempts']),
       lastError: json['last_error'] as String?,
+      inputSig: json['input_sig'] as String?,
     );
   }
 }
