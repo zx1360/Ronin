@@ -1,0 +1,26 @@
+# 资源目录
+comics/
+comics_/
+
+# 临时目录
+tmp/
+
+# 产物程序
+*.exe
+
+# 环境变量
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# 临时探测/检查文件
+_probe*.py
+_probe*.json
+_db*.py
+_db*.json
+_list.json
+_search.json
+_colcheck.py
+_envcheck.py

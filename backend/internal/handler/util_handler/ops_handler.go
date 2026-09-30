@@ -97,18 +97,18 @@ type galleryDBStats struct {
 
 func queryGalleryDBStats(ctx context.Context) galleryDBStats {
 	var stats galleryDBStats
-	pool := db.GetPool()
+	pool := db.Read()
 	if pool == nil {
 		stats.DBError = "database pool is nil"
 		return stats
 	}
-	err := pool.QueryRow(ctx, `
+	err := pool.QueryRowContext(ctx, `
 		SELECT
 			COUNT(*) FILTER (WHERE NOT is_deleted),
 			COALESCE(SUM(size_bytes) FILTER (WHERE NOT is_deleted), 0),
 			COUNT(*) FILTER (WHERE is_deleted),
 			COALESCE(SUM(size_bytes) FILTER (WHERE is_deleted), 0)
-		FROM gallery.media_assets
+		FROM media_assets
 	`).Scan(&stats.MediaFiles, &stats.MediaBytes, &stats.DeletedFiles, &stats.DeletedBytes)
 	if err != nil {
 		stats.DBError = err.Error()
@@ -133,9 +133,7 @@ func SystemOverview(c *gin.Context) {
 	}
 
 	dbReachable, dbErr := false, ""
-	if pool := db.GetPool(); pool == nil {
-		dbErr = "database pool is nil"
-	} else if err := pool.Ping(c.Request.Context()); err != nil {
+	if err := db.Ping(c.Request.Context()); err != nil {
 		dbErr = err.Error()
 	} else {
 		dbReachable = true

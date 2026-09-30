@@ -1,8 +1,6 @@
 package model
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -37,10 +35,10 @@ type AiJob struct {
 	Priority   int        `json:"priority"`
 	Attempts   int        `json:"attempts"`
 	LastError  *string    `json:"last_error"`
-	StartedAt  *time.Time `json:"started_at"`
-	FinishedAt *time.Time `json:"finished_at"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	StartedAt  *FlexTime  `json:"started_at"`
+	FinishedAt *FlexTime  `json:"finished_at"`
+	CreatedAt  FlexTime   `json:"created_at"`
+	UpdatedAt  FlexTime   `json:"updated_at"`
 }
 
 // AiCapabilityStat 单个能力的队列计数。
@@ -60,8 +58,8 @@ type AiPerson struct {
 	CoverFaceID *string   `json:"cover_face_id"`
 	CoverMedia  *string   `json:"cover_media_id"`
 	FaceCount   int       `json:"face_count"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedAt   FlexTime  `json:"created_at"`
+	UpdatedAt   FlexTime  `json:"updated_at"`
 }
 
 // AiFace 单张人脸。
@@ -72,7 +70,7 @@ type AiFace struct {
 	Box       []float64 `json:"bbox"` // 归一化 x1,y1,x2,y2
 	DetScore  float64   `json:"det_score"`
 	Quality   float64   `json:"quality"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt FlexTime  `json:"created_at"`
 }
 
 // AiMediaDetail 单个媒体的 AI 结果汇总。

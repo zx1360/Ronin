@@ -40,49 +40,52 @@ func TestBuildBatchWhereClause(t *testing.T) {
 		{
 			name:       "仅默认条件",
 			params:     model.BatchQueryParams{},
-			wantCond:   []string{"is_deleted = false"},
+			wantCond:   []string{"is_deleted = 0"},
 			wantArgLen: 0,
 		},
 		{
 			name:       "MIME 大类前缀匹配",
 			params:     model.BatchQueryParams{MimeType: "image"},
-			wantCond:   []string{"mime_type LIKE $1"},
+			wantCond:   []string{"mime_type LIKE ?"},
 			wantArgLen: 1,
 		},
 		{
 			name:       "MIME 精确匹配",
 			params:     model.BatchQueryParams{MimeType: "image/jpeg"},
-			wantCond:   []string{"mime_type = $1"},
+			wantCond:   []string{"mime_type = ?"},
 			wantArgLen: 1,
 		},
 		{
 			name:       "按年",
 			params:     model.BatchQueryParams{Year: 2024},
-			wantCond:   []string{"EXTRACT(YEAR FROM captured_at) = $1"},
+			wantCond:   []string{"CAST(strftime('%Y', captured_at) AS INTEGER) = ?"},
 			wantArgLen: 1,
 		},
 		{
-			name:       "按年月",
-			params:     model.BatchQueryParams{Year: 2024, Month: 6},
-			wantCond:   []string{"EXTRACT(YEAR FROM captured_at) = $1 AND EXTRACT(MONTH FROM captured_at) = $2"},
+			name:   "按年月",
+			params: model.BatchQueryParams{Year: 2024, Month: 6},
+			wantCond: []string{"CAST(strftime('%Y', captured_at) AS INTEGER) = ? AND " +
+				"CAST(strftime('%m', captured_at) AS INTEGER) = ?"},
 			wantArgLen: 2,
 		},
 		{
 			name:       "按年月日",
 			params:     model.BatchQueryParams{Year: 2024, Month: 6, Day: 3},
-			wantCond:   []string{"DATE(captured_at) = $1"},
+			wantCond:   []string{"date(captured_at) = ?"},
 			wantArgLen: 1,
 		},
 		{
 			name:       "有月无年时不加年份条件",
 			params:     model.BatchQueryParams{Month: 6},
-			wantCond:   []string{"is_deleted = false"},
+			wantCond:   []string{"is_deleted = 0"},
 			wantArgLen: 0,
 		},
 		{
-			name:       "MIME + 年月组合的参数序号递增",
-			params:     model.BatchQueryParams{MimeType: "video", Year: 2023, Month: 12},
-			wantCond:   []string{"mime_type LIKE $1", "EXTRACT(YEAR FROM captured_at) = $2 AND EXTRACT(MONTH FROM captured_at) = $3"},
+			name:   "MIME + 年月组合的条件同时生效",
+			params: model.BatchQueryParams{MimeType: "video", Year: 2023, Month: 12},
+			wantCond: []string{"mime_type LIKE ?",
+				"CAST(strftime('%Y', captured_at) AS INTEGER) = ? AND " +
+					"CAST(strftime('%m', captured_at) AS INTEGER) = ?"},
 			wantArgLen: 3,
 		},
 	}
@@ -203,15 +206,15 @@ func TestSetBuilder(t *testing.T) {
 	if !b.isEmpty() {
 		t.Fatal("初始应为空")
 	}
-	b.add("name = $%d", "x")
-	b.add("is_favorite = $%d", true)
+	b.add("name = ?", "x")
+	b.add("is_favorite = ?", true)
 	b.raw("group_id = NULL")
 	if b.isEmpty() {
 		t.Fatal("添加字段后不应为空")
 	}
 
-	query, args := b.build("gallery.tags", "id = $%d", uuid.Nil)
-	want := "UPDATE gallery.tags SET name = $1, is_favorite = $2, group_id = NULL WHERE id = $3"
+	query, args := b.build("tags", "id = ?", uuid.Nil)
+	want := "UPDATE tags SET name = ?, is_favorite = ?, group_id = NULL WHERE id = ?"
 	if query != want {
 		t.Fatalf("SQL 不符\n期望: %s\n实际: %s", want, query)
 	}

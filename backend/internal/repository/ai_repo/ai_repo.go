@@ -1,49 +1,51 @@
-// Package ai_repo 提供 ai schema 的数据访问。
+// Package ai_repo 提供 AI 处理层的数据访问。
 //
-// 只读写 ai schema 内自有对象；对 gallery.media_assets 仅做只读筛选与外键引用，
-// 不修改其任何列或语义。
+// 只读写 ai 侧自有表；对 media_assets 仅做只读筛选与外键引用，不修改其任何列
+// 或语义。原 PostgreSQL 的 text[]（vlm_tags）拆为 media_ai_tags 关系表。
 package ai_repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
-	"fmt"
 	"math"
 	"strings"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"monarch/internal/service/db"
 )
 
 // 可识别的业务错误。
 var (
-	ErrSchemaMissing = errors.New("ai schema 未初始化，请先执行 references/db/ai.sql")
+	ErrSchemaMissing = errors.New("AI 数据表未初始化，请确认已执行 references/db/sqlite.sql")
 	ErrPersonMissing = errors.New("人物不存在")
 )
 
-// querier 抽象 *pgxpool.Pool 与 pgx.Tx。
+// querier 抽象 *sql.Tx 与 *sql.DB。
 type querier interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-// schemaReadyOnce 仅用于把"schema 缺失"这一确定性事实缓存下来，避免每次请求都探测。
-var schemaKnownMissing bool
+// schemaReadyChecked 仅用于把"表缺失"这一确定性事实缓存下来，避免每次请求都探测。
+var (
+	schemaReadyChecked bool
+	schemaKnownMissing bool
+)
 
-// SchemaReady 报告 ai schema 是否已初始化（未初始化时全部 AI 接口返回可读错误）。
+// SchemaReady 报告 AI 侧数据表是否已初始化（未初始化时全部 AI 接口返回可读错误）。
 func SchemaReady(ctx context.Context) bool {
-	if db.GetPool() == nil {
+	if db.Read() == nil {
 		return false
 	}
-	if schemaKnownMissing {
-		return false
+	if schemaReadyChecked {
+		return !schemaKnownMissing
 	}
-	var ok bool
-	err := db.GetPool().QueryRow(ctx, `SELECT to_regclass('ai.jobs') IS NOT NULL`).Scan(&ok)
-	if err != nil || !ok {
+	var n int
+	err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'jobs'`).Scan(&n)
+	schemaReadyChecked = true
+	if err != nil || n == 0 {
 		schemaKnownMissing = true
 		return false
 	}
@@ -69,28 +71,25 @@ func SplitAndTrim(raw string) []string {
 	return out
 }
 
-// joinCSV 以逗号拼接（写入 ai.settings 用）。
+// joinCSV 以逗号拼接（写入 settings 用）。
 func joinCSV(items []string) string {
 	return strings.Join(items, ",")
 }
 
-// withTx 在事务内执行 fn，失败自动回滚。
-func withTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
-	tx, err := db.GetPool().Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
+// placeholders 生成 n 个 `?`（空集合返回 NULL，使 IN 子句恒为空集）。
+func placeholders(n int) string {
+	if n <= 0 {
+		return "NULL"
 	}
-	defer tx.Rollback(ctx)
-	if err := fn(tx); err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-	return nil
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
 }
 
-// DecodeFloat32 把 bytea 还原为 float32 切片（小端，与 Python 侧约定一致）。
+// joinValues 以逗号拼接占位符组（调用方负责转义）。
+func joinValues(values []string) string {
+	return strings.Join(values, ", ")
+}
+
+// DecodeFloat32 把 BLOB 还原为 float32 切片（小端，与 Python 侧约定一致）。
 func DecodeFloat32(raw []byte) []float32 {
 	if len(raw)%4 != 0 {
 		return nil

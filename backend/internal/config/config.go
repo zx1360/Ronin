@@ -23,19 +23,17 @@ type NetConfig struct {
 	LocalDebugPort string
 }
 
-// DbConfig 数据库配置
+// DbConfig SQLite 单文件数据库配置
 type DbConfig struct {
-	DbIP       string
-	DbPort     string
-	DbUser     string
-	DbPassword string
-	DbName     string
+	File       string // 数据库文件（相对路径按 backend/ 解析）
+	SchemaFile string // 幂等建表脚本（references/db/sqlite.sql）
 }
 
 // ComixConfig comix 爬虫集成配置（子进程调用 python -m comix.cli）
 type ComixConfig struct {
-	Python string // python 可执行文件（默认 "python"）
-	Root   string // comix 项目根目录（依赖 .env 与 util 包，必须设置）
+	Python      string // python 可执行文件（默认 "python"）
+	Root        string // comix 项目根目录（含 comix 包与 util 包）
+	StorageRoot string // 漫画图片存储根目录（COMIC_STORAGE_ROOT）
 }
 
 // AiConfig 本地 AI 媒体处理配置。
@@ -86,22 +84,33 @@ func Load() error {
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")
 	NetConf.LocalDebugPort = os.Getenv("LOCAL_DEBUG_PORT")
 
-	DbConf.DbIP = os.Getenv("DB_IP")
-	DbConf.DbPort = os.Getenv("DB_PORT")
-	DbConf.DbUser = os.Getenv("DB_USER")
-	DbConf.DbPassword = os.Getenv("DB_PASSWORD")
-	DbConf.DbName = os.Getenv("DB_NAME")
+	// SQLite 单文件数据库：默认 backend/data/monarch.db
+	DbConf.File = envString("DB_FILE", filepath.Join("data", "monarch.db"))
+	DbConf.SchemaFile = envString("DB_SCHEMA_FILE", filepath.Join("references", "db", "sqlite.sql"))
 
-	// comix 爬虫集成配置（可选；未配置时相关 API 返回明确错误）
+	// comix 集成配置（可选；未配置时相关 API 返回明确错误）
 	ComixConf.Python = os.Getenv("COMIX_PYTHON")
 	if strings.TrimSpace(ComixConf.Python) == "" {
 		ComixConf.Python = "python"
 	}
 	ComixConf.Root = os.Getenv("COMIX_ROOT")
+	ComixConf.StorageRoot = envAbs("COMIC_STORAGE_ROOT")
 
 	loadAiConfig()
 
 	return Validate()
+}
+
+// envAbs 读取路径配置并解析为绝对路径（相对路径按当前工作目录 = backend/ 解析）。
+func envAbs(key string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(value); err == nil {
+		return abs
+	}
+	return value
 }
 
 // loadAiConfig 装载 AI 处理层配置（全部可选，缺省即可用）。
@@ -194,11 +203,7 @@ func Validate() error {
 		"STATIC_DIR":  AppConf.StaticDir,
 		"GALLERY_DIR": AppConf.GalleryDir,
 		"LOCAL_PORT":  NetConf.LocalPort,
-		"DB_IP":       DbConf.DbIP,
-		"DB_PORT":     DbConf.DbPort,
-		"DB_USER":     DbConf.DbUser,
-		"DB_PASSWORD": DbConf.DbPassword,
-		"DB_NAME":     DbConf.DbName,
+		"DB_FILE":     DbConf.File,
 	}
 
 	var missing []string
