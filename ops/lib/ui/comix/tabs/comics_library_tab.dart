@@ -1,13 +1,8 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 
 import 'package:northstar/app/theme.dart';
 import 'package:northstar/core/providers/comix/comix_providers.dart';
-import 'package:northstar/core/providers/ops/ops_overview_provider.dart';
 import 'package:northstar/core/providers/ops/ops_settings_provider.dart';
 import 'package:northstar/domain/comix/models/comix_models.dart';
 import 'package:northstar/infrastructure/api_http_helper.dart';
@@ -15,8 +10,8 @@ import 'package:northstar/ui/comix/widgets/comix_dialogs.dart';
 
 /// 漫画库 Tab：书库管理与爬虫操作的一体化视图。
 ///
-/// 数据来自单一接口 `/API/comix/list`（含下载进度 + 公开/已读/封面等管理字段），
-/// 因此封面网格既能做书库管理（公开·隐藏/已读/换封面/删除），
+/// 数据来自单一接口 `/API/comix/list`（含下载进度 + 公开/已读等管理字段），
+/// 因此封面网格既能做书库管理（公开·隐藏/已读/删除），
 /// 也能直接发起爬虫任务（增量下载/追更检查/章节/孤儿回收）。
 class ComicsLibraryTab extends ConsumerStatefulWidget {
   const ComicsLibraryTab({super.key});
@@ -132,62 +127,6 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
     }
   }
 
-  /// 替换封面：把选中的图片复制到服务端 static 目录并写回 cover_image。
-  ///
-  /// 目录取服务端返回的 static 绝对路径——桌面端与服务端工作目录不同，
-  /// 靠客户端自身路径推导必然落到错误位置。
-  Future<void> _replaceCover(ComixComic comic) async {
-    final staticDir = ref
-        .read(opsOverviewControllerProvider)
-        .overview
-        ?.service
-        .staticDir;
-    if (staticDir == null || staticDir.isEmpty) {
-      _snack('尚未获取到服务端 static 目录（请先刷新仪表盘）');
-      return;
-    }
-
-    final comicDir = p.join(staticDir, 'comics', '${comic.comicId}');
-    final String? pickedPath;
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        initialDirectory: Directory(comicDir).existsSync() ? comicDir : null,
-      );
-      pickedPath = result?.files.firstOrNull?.path;
-    } catch (e) {
-      _snack('选择封面图片失败: $e');
-      return;
-    }
-    if (pickedPath == null) return;
-
-    final coverFileName = 'cover${p.extension(pickedPath)}';
-    final targetDir = p.join(comicDir, 'cover');
-    final relativePath = p
-        .join('comics', '${comic.comicId}', 'cover', coverFileName)
-        .replaceAll('\\', '/');
-
-    try {
-      final dir = Directory(targetDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      await File(pickedPath).copy(p.join(targetDir, coverFileName));
-
-      final settings = ref.read(opsSettingsControllerProvider);
-      await ref.read(comixApiClientProvider).updateComicMeta(
-        settings,
-        comic.comicId,
-        {'cover_image': relativePath},
-      );
-      _refreshComics();
-      _snack('封面已更新');
-    } catch (e) {
-      _snack('封面替换失败: $e');
-    }
-  }
-
   Future<void> _delete(ComixComic comic) async {
     final confirmed = await showDeleteComicConfirmDialog(context, comic);
     if (confirmed != true || !mounted) return;
@@ -280,7 +219,6 @@ class _ComicsLibraryTabState extends ConsumerState<ComicsLibraryTab> {
                       title: comic.title,
                     ),
                     onChapters: () => _chapters(comic),
-                    onReplaceCover: () => _replaceCover(comic),
                     onTogglePublic: () => _togglePublic(comic),
                     onToggleReaded: () => _toggleReaded(comic),
                     onDelete: () => _delete(comic),
@@ -388,7 +326,6 @@ class _ComicCard extends StatelessWidget {
   final VoidCallback onDownload;
   final VoidCallback onUpdateCheck;
   final VoidCallback onChapters;
-  final VoidCallback onReplaceCover;
   final VoidCallback onTogglePublic;
   final VoidCallback onToggleReaded;
   final VoidCallback onDelete;
@@ -399,7 +336,6 @@ class _ComicCard extends StatelessWidget {
     required this.onDownload,
     required this.onUpdateCheck,
     required this.onChapters,
-    required this.onReplaceCover,
     required this.onTogglePublic,
     required this.onToggleReaded,
     required this.onDelete,
@@ -468,11 +404,6 @@ class _ComicCard extends StatelessWidget {
                 icon: Icons.update_rounded,
               ),
               _MiniIconButton(
-                tooltip: '替换封面',
-                onPressed: onReplaceCover,
-                icon: Icons.photo_library_outlined,
-              ),
-              _MiniIconButton(
                 tooltip: '删除',
                 onPressed: onDelete,
                 icon: Icons.delete_outline,
@@ -501,12 +432,10 @@ class _ComicCard extends StatelessWidget {
     );
   }
 
+  // 漫画封面呈现
   Widget _buildCover(BuildContext context) {
-    // 本地封面走服务端静态资源；无本地封面时回退到站点原始地址。
     final base = _staticBase(context);
-    final url = comic.coverImage.isNotEmpty
-        ? '$base${comic.coverImage}'
-        : comic.coverUrl;
+    final url = '$base${comic.coverImage}';
 
     return InkWell(
       onTap: onChapters,
@@ -515,7 +444,6 @@ class _ComicCard extends StatelessWidget {
           : Image.network(
               url,
               fit: BoxFit.cover,
-              // 自签证书由 CertTrust 的全局 HttpOverrides 处理；
               // 单张封面失败不应让整个网格报错。
               errorBuilder: (_, __, ___) =>
                   _coverPlaceholder(Icons.broken_image_outlined),

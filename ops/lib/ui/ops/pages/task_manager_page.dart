@@ -40,21 +40,6 @@ class _TaskManagerPageState extends ConsumerState<TaskManagerPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _addTask,
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('新增任务'),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      '共 ${tasks.length} 个任务',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimens.spacingL),
                 for (final task in visibleTasks) ...[
                   _TaskCard(task: task),
                   const SizedBox(height: AppDimens.spacingM),
@@ -77,19 +62,6 @@ class _TaskManagerPageState extends ConsumerState<TaskManagerPage> {
         ),
       ],
     );
-  }
-
-  Future<void> _addTask() async {
-    final result = await showDialog<TaskProfile>(
-      context: context,
-      builder: (_) => const TaskEditorDialog(),
-    );
-
-    if (result == null || !mounted) {
-      return;
-    }
-
-    await ref.read(taskProfilesControllerProvider.notifier).upsertTask(result);
   }
 }
 

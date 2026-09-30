@@ -42,7 +42,7 @@ final List<AppRoute> routes = [
   AppRoute(
     path: '/logs',
     name: 'logs',
-    icon: IconData(0xe627, fontFamily: 'iconfont'),
+    icon: Icons.receipt_long_outlined,
     builder: (context, state) => const LogsPage(),
   ),
 

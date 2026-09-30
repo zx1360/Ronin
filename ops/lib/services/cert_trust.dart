@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-/// 自签证书信任管理 (Desktop 端)
+/// 自签证书信任管理 (Ops 端)
 ///
 /// 加载 assets/cert/server.crt 并配置全局 HttpOverrides，
 /// 使 Image.network 等组件也能访问自签 HTTPS 服务器，
