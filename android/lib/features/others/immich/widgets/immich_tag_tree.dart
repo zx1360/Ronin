@@ -1,83 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/others/gallery/widgets/tag_icon_tap.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
-
-// 标签树通用工具
-
-/// 扁平化后的树节点
-class ImmichTagNode {
-  final Tag tag;
-  final int depth;
-  final bool hasChildren;
-
-  const ImmichTagNode({
-    required this.tag,
-    required this.depth,
-    required this.hasChildren,
-  });
-}
-
-/// 按父级分组 (父级不存在的标签视为根级), 同级按名称排序
-Map<String, List<Tag>> groupTagsByParent(List<Tag> tags) {
-  final byId = {for (final tag in tags) tag.id: tag};
-  final map = <String, List<Tag>>{};
-  for (final tag in tags) {
-    final parentId = tag.parentId;
-    final key =
-        (parentId != null && byId.containsKey(parentId)) ? parentId : '';
-    map.putIfAbsent(key, () => []).add(tag);
-  }
-  for (final list in map.values) {
-    list.sort((a, b) => a.name.compareTo(b.name));
-  }
-  return map;
-}
-
-/// 扁平化标签树; [visible] 非空时仅保留其中的标签并强制展开
-List<ImmichTagNode> flattenTagTree(
-  Map<String, List<Tag>> childrenMap, {
-  Set<String>? visible,
-  Set<String> expanded = const {},
-}) {
-  final result = <ImmichTagNode>[];
-  void walk(String parentKey, int depth) {
-    for (final tag in childrenMap[parentKey] ?? const <Tag>[]) {
-      if (visible != null && !visible.contains(tag.id)) continue;
-      final hasChildren = (childrenMap[tag.id] ?? const <Tag>[]).isNotEmpty;
-      result.add(
-        ImmichTagNode(tag: tag, depth: depth, hasChildren: hasChildren),
-      );
-      if (hasChildren && (visible != null || expanded.contains(tag.id))) {
-        walk(tag.id, depth + 1);
-      }
-    }
-  }
-
-  walk('', 0);
-  return result;
-}
-
-/// 搜索命中的标签 id 及其全部祖先
-Set<String> matchedTagIds(List<Tag> tags, String query) {
-  if (query.isEmpty) return {};
-  final byId = {for (final tag in tags) tag.id: tag};
-  final keep = <String>{};
-  for (final tag in tags) {
-    final hit = tag.name.toLowerCase().contains(query) ||
-        (tag.fullPath ?? '').toLowerCase().contains(query);
-    if (!hit) continue;
-    keep.add(tag.id);
-    var parentId = tag.parentId;
-    while (parentId != null) {
-      if (!keep.add(parentId)) break;
-      parentId = byId[parentId]?.parentId;
-    }
-  }
-  return keep;
-}
 
 /// 标签树管理面板 (相册页 Drawer)
 ///
@@ -283,7 +211,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
     );
   }
 
-  Widget _buildRow(ImmichTagNode node) {
+  Widget _buildRow(TagNode node) {
     final tag = node.tag;
     final filter = ref.watch(immichFilterNotifierProvider);
     final selected = filter.tagIds.contains(tag.id);
@@ -343,10 +271,11 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                   '${tag.mediaCount}',
                   style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                 ),
-              _IconTap(
+              TagIconTap(
                 icon: tag.isFavorite ? Icons.star : Icons.star_border,
                 color: tag.isFavorite ? Colors.amber : Colors.grey,
                 tooltip: tag.isFavorite ? '取消快捷标签' : '设为快捷标签',
+                padding: 4,
                 onTap: () => _toggleFavorite(tag, !tag.isFavorite),
               ),
               PopupMenuButton<String>(
@@ -502,36 +431,6 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
-  }
-}
-
-/// 紧凑图标按钮
-class _IconTap extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _IconTap({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(icon, size: 18, color: color),
-        ),
-      ),
     );
   }
 }

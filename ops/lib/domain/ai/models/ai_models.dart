@@ -1,7 +1,7 @@
 /// AI 媒体处理层的数据模型。
 ///
 /// 与后端 `/API/ai/*` 的 JSON 一一对应；字段名保持后端原样（snake_case），
-/// 便于对照 `backend/references/api/routes.json` 排查。
+/// 便于对照 `backend/references/generated/api/routes.md` 排查。
 library;
 
 /// 数值取值辅助：JSON 里数字可能是 int 也可能是 double。

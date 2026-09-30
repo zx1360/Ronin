@@ -25,7 +25,7 @@ final chatOptionsControllerProvider =
 );
 
 typedef _$ChatOptionsController = Notifier<ChatOptions>;
-String _$chatControllerHash() => r'58c91e46caefd68ea327e92a53f273f52b7c6f4e';
+String _$chatControllerHash() => r'7354488b1cb01da8a674f4d3e66acfdb0b3f65d2';
 
 /// 聊天控制器：本地会话读写 + 流式请求编排。
 ///

@@ -666,7 +666,7 @@ class _AllTaskCompletionCountsProviderElement
   String get styleId => (origin as AllTaskCompletionCountsProvider).styleId;
 }
 
-String _$currentStreakHash() => r'13a1df0dcc47ae3d9a36d309db20490a1ed0877b';
+String _$currentStreakHash() => r'ab622392a9cc1b2ff7d6f36a1069e0b45ff5bc4c';
 
 /// 当前的连续打卡记录 (传入 styleId)
 /// 如果今天有记录，则包含今天
@@ -824,7 +824,7 @@ class _CurrentStreakProviderElement extends AutoDisposeProviderElement<int>
   String get styleId => (origin as CurrentStreakProvider).styleId;
 }
 
-String _$styleDateRangeHash() => r'2b32f55cdb94c53cc56f39e97edac84191b971b4';
+String _$styleDateRangeHash() => r'cf5e6a38388ee1b76c702c795cefd08e9c6f5568';
 
 /// 根据 Style 获取该 Style 的日期范围
 ///

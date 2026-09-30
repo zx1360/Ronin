@@ -3,6 +3,7 @@ package ai_handler
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,9 +24,8 @@ const (
 	chatMaxKeepAliveSeconds = 86400
 )
 
-// chatRequest POST /API/ai/chat 请求体。
-type chatRequest struct {
-	Messages []chatMessage `json:"messages"`
+// chatTuning 一次流式对话的可调项，/chat 与 /review 共用。
+type chatTuning struct {
 	// Model 为空表示使用当前生效的 VLM 模型；只接受 默认/备选 两个候选
 	Model string `json:"model"`
 	// 以下为可选项，缺省时沿用服务端配置。
@@ -33,6 +33,42 @@ type chatRequest struct {
 	Think            bool     `json:"think"`
 	Temperature      *float64 `json:"temperature"`
 	KeepAliveSeconds *int     `json:"keep_alive_seconds"`
+}
+
+// resolve 校验可调项并换算为引擎选项，返回本次实际使用的模型名。
+func (t chatTuning) resolve(e *ai.Engine) (string, ai.ChatOptions, error) {
+	options := ai.ChatOptions{
+		NumCtx:      t.NumCtx,
+		Think:       t.Think,
+		Temperature: -1, // 负值 = 取服务端默认温度
+		// 负值 = 取服务端默认驻留时长（0 是合法值：回答完立即卸载）
+		KeepAliveSeconds: -1,
+	}
+	if t.Temperature != nil {
+		options.Temperature = *t.Temperature
+	}
+	if t.KeepAliveSeconds != nil {
+		if *t.KeepAliveSeconds < 0 || *t.KeepAliveSeconds > chatMaxKeepAliveSeconds {
+			return "", options, errors.New("keep_alive_seconds 超出范围")
+		}
+		options.KeepAliveSeconds = *t.KeepAliveSeconds
+	}
+
+	modelName := strings.TrimSpace(t.Model)
+	if modelName == "" {
+		return e.VLMModel(), options, nil
+	}
+	if modelName != e.VLMModel() && modelName != e.VLMAltModel() {
+		// 只接受两个候选（默认 / 无审查版），避免客户端塞进任意模型名
+		return "", options, errors.New("未知模型: " + modelName)
+	}
+	return modelName, options, nil
+}
+
+// chatRequest POST /API/ai/chat 请求体。
+type chatRequest struct {
+	Messages []chatMessage `json:"messages"`
+	chatTuning
 }
 
 // chatMessage 一条消息。图片可以是库内媒体（media_ids）或内联 base64（images）。
@@ -137,33 +173,19 @@ func Chat(c *gin.Context) {
 		})
 	}
 
-	options := ai.ChatOptions{
-		NumCtx:      req.NumCtx,
-		Think:       req.Think,
-		Temperature: -1, // 负值 = 取服务端默认温度
-		// 负值 = 取服务端默认驻留时长（0 是合法值：回答完立即卸载）
-		KeepAliveSeconds: -1,
-	}
-	if req.Temperature != nil {
-		options.Temperature = *req.Temperature
-	}
-	if req.KeepAliveSeconds != nil {
-		if *req.KeepAliveSeconds < 0 || *req.KeepAliveSeconds > chatMaxKeepAliveSeconds {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "keep_alive_seconds 超出范围"})
-			return
-		}
-		options.KeepAliveSeconds = *req.KeepAliveSeconds
-	}
-
-	// 模型选择：不传则用当前生效的 VLM 模型
-	modelName := strings.TrimSpace(req.Model)
-	if modelName == "" {
-		modelName = e.VLMModel()
-	} else if modelName != e.VLMModel() && modelName != e.VLMAltModel() {
-		// 只接受两个候选（默认 / 无审查版），避免客户端塞进任意模型名
-		c.JSON(http.StatusBadRequest, gin.H{"error": "未知模型: " + modelName})
+	modelName, options, err := req.chatTuning.resolve(e)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	streamChat(c, e, "对话", modelName, options, messages)
+}
+
+// streamChat 以 NDJSON 流式承接一次对话，/chat 与 /review 共用。
+//
+// 调用方负责参数校验与消息组装；prelude 是正文之前先下发的事件（如回顾的确定性统计）。
+// 模型未就绪时以 503 返回 JSON，因此必须发生在写出流式响应头之前。
+func streamChat(c *gin.Context, e *ai.Engine, purpose, modelName string, options ai.ChatOptions, messages []ai.ChatMessage, prelude ...ai.ChatEvent) {
 	if ok, reason := e.OllamaProvider().Ready(c.Request.Context(), modelName); !ok {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": reason})
 		return
@@ -185,9 +207,14 @@ func Chat(c *gin.Context) {
 		writer.Flush()
 		return nil
 	}
+	for _, event := range prelude {
+		if err := write(event); err != nil {
+			return
+		}
+	}
 
 	// 前台优先级：本机同时只跑一个模型，需要切换时抢占后台标注并释放其显存。
-	lease := e.UseModel(c.Request.Context(), modelName, "对话", ai.ModelForeground)
+	lease := e.UseModel(c.Request.Context(), modelName, purpose, ai.ModelForeground)
 	defer lease.Release()
 	if lease.Notice != "" {
 		_ = write(ai.ChatEvent{Type: "notice", Content: lease.Notice})

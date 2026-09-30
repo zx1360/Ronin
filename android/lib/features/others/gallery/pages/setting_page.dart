@@ -754,19 +754,9 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     );
 
     if (confirmed) {
-      final db = ref.read(galleryDatabaseProvider);
-      await db.clearAllData();
-      
-      // 重置状态
-      await ref.read(galleryModifiedCountProvider.notifier).reset();
-      await ref.read(galleryCurrentIndexProvider.notifier).update(0);
-      
-      // 刷新数据
-      ref.invalidate(mediaAssetListProvider);
-      ref.invalidate(tagTreeProvider);
-      ref.invalidate(galleryDbStatsProvider);
-      ref.invalidate(galleryUploadStatsProvider);
-
+      await ref
+          .read(galleryLocalDataControllerProvider.notifier)
+          .clearDatabase();
     }
   }
 
@@ -779,14 +769,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     );
 
     if (confirmed) {
-      final storage = ref.read(galleryStorageProvider);
-      await storage.clearAllFiles();
-      
-      // 刷新数据
-      try {
-        await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
-      } catch (_) {}
-
+      await ref.read(galleryLocalDataControllerProvider.notifier).clearFiles();
     }
   }
 
@@ -799,24 +782,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     );
 
     if (confirmed) {
-      final db = ref.read(galleryDatabaseProvider);
-      final storage = ref.read(galleryStorageProvider);
-      
-      await db.clearAllData();
-      await storage.clearAllFiles();
-      
-      // 重置状态
-      await ref.read(galleryModifiedCountProvider.notifier).reset();
-      await ref.read(galleryCurrentIndexProvider.notifier).update(0);
-      
-      // 刷新数据
-      ref.invalidate(mediaAssetListProvider);
-      ref.invalidate(tagTreeProvider);
-      ref.invalidate(galleryDbStatsProvider);
-      ref.invalidate(galleryUploadStatsProvider);
-      try {
-        await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
-      } catch (_) {}
+      await ref.read(galleryLocalDataControllerProvider.notifier).clearAll();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

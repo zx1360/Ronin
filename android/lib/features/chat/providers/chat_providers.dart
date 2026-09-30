@@ -251,7 +251,7 @@ class ChatController extends _$ChatController {
             state = state.copyWith(notice: event.error);
             return;
           case 'error':
-            throw ApiChatException(event.error ?? '模型返回错误');
+            throw AiStreamException(event.error ?? '模型返回错误');
           default:
             break;
         }
@@ -449,10 +449,10 @@ Future<String?> readLocalImage(String relativePath) async {
   }
 }
 
-/// 服务端返回的对话错误。
-class ApiChatException implements Exception {
+/// 服务端在流式事件里返回的错误（对话 / 回顾共用）。
+class AiStreamException implements Exception {
   final String message;
-  const ApiChatException(this.message);
+  const AiStreamException(this.message);
 
   @override
   String toString() => message;

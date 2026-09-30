@@ -32,9 +32,6 @@ String _$contentServerHash() => r'fdd5b1e710b49201d78772f119e8209067d1e379';
 ///
 /// 用于详情页和相关操作时保持当前随笔的引用。
 ///
-/// **重命名说明**: 原名 `ContentServer`，为提高可读性重命名为 `SelectedEssay`。
-/// 生成的 provider 名称保持 `contentServerProvider` 以保持向后兼容。
-///
 /// Copied from [ContentServer].
 @ProviderFor(ContentServer)
 final contentServerProvider =

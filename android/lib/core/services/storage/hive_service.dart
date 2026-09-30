@@ -15,6 +15,7 @@ import 'package:torrid/features/others/comic/models/comic_info.dart';
 // comic漫画
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/chat/models/chat_models.dart';
+import 'package:torrid/features/chat/models/review_models.dart';
 
 // 全局注册所有Adapter和常用Box, 非常用Box到特定页面再打开
 class HiveService {
@@ -28,6 +29,9 @@ class HiveService {
   static const String essayBoxName = 'essays';
   // chat对话(仅本地)
   static const String chatBoxName = 'chatConversations';
+  // 近期回顾(仅本地: 预设镜像 + 生成结果)
+  static const String reviewPresetBoxName = 'reviewPresets';
+  static const String reviewHistoryBoxName = 'reviewHistory';
   // 非常用
   // comic漫画
   static const String comicPrefBoxName = "comicPreference";
@@ -60,6 +64,10 @@ class HiveService {
     Hive.registerAdapter(ChatMessageAdapter());
     Hive.registerAdapter(ChatAttachmentAdapter());
 
+    // 近期回顾
+    Hive.registerAdapter(ReviewPresetAdapter());
+    Hive.registerAdapter(ReviewRecordAdapter());
+
     // 打开(创建)箱
     await Hive.openBox<Style>(styleBoxName);
     await Hive.openBox<Record>(recordBoxName);
@@ -69,6 +77,9 @@ class HiveService {
     await Hive.openBox<Essay>(essayBoxName);
 
     await Hive.openBox<ChatConversation>(chatBoxName);
+
+    await Hive.openBox<ReviewPreset>(reviewPresetBoxName);
+    await Hive.openBox<ReviewRecord>(reviewHistoryBoxName);
   }
 
   // 非常用Box

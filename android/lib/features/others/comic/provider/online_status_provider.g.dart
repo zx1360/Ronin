@@ -339,26 +339,5 @@ class _OnlineImagesWithChapterIdProviderElement
   String get chapterId =>
       (origin as OnlineImagesWithChapterIdProvider).chapterId;
 }
-
-String _$comicSyncControllerHash() =>
-    r'4554116c56c414632f594a434473ac6d17a73e85';
-
-/// 同步操作：检查更新并同步后端字段到本地
-///
-/// Copied from [ComicSyncController].
-@ProviderFor(ComicSyncController)
-final comicSyncControllerProvider = AutoDisposeNotifierProvider<
-    ComicSyncController, AsyncValue<Map<String, int>?>>.internal(
-  ComicSyncController.new,
-  name: r'comicSyncControllerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$comicSyncControllerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$ComicSyncController
-    = AutoDisposeNotifier<AsyncValue<Map<String, int>?>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

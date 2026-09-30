@@ -5,10 +5,10 @@ import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
-import 'package:torrid/features/others/immich/widgets/immich_tag_tree.dart';
 
 // 底部批量操作栏
 

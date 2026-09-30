@@ -112,6 +112,56 @@ class MediaAssetList extends _$MediaAssetList {
     return state.valueOrNull ?? [];
   }
 
+  /// 设置备注（空串清空）。
+  Future<void> setMessage(MediaAsset target, String message) =>
+      _applyLocalAndQueue(
+        target.copyWith(
+          message: message.isEmpty ? null : message,
+          clearMessage: message.isEmpty,
+        ),
+        target,
+        MediaPatchIntent(message: message),
+      );
+
+  /// 保存编辑参数（图片旋转/裁切、视频剪辑共用）；[params] 为空表示清除编辑记录。
+  Future<void> setEditParams(MediaAsset target, String? params) =>
+      _applyLocalAndQueue(
+        target.copyWith(
+          editParams: params,
+          clearEditParams: params == null || params.isEmpty,
+        ),
+        target,
+        params == null || params.isEmpty
+            ? const MediaPatchIntent(clearEditParams: true)
+            : MediaPatchIntent(editParams: params),
+      );
+
+  /// 「本地立即生效 → 写缓冲合并推送」这一条写路径的唯一实现。
+  ///
+  /// 详情页、图片编辑页、视频剪辑页原先各抄一遍（还各漏了几项），统一到这里：
+  /// 本地落库 + 内存态同步 + 服务端经缓冲推送，失败由缓冲层回滚。
+  Future<void> _applyLocalAndQueue(
+    MediaAsset updated,
+    MediaAsset baseline,
+    MediaPatchIntent intent,
+  ) async {
+    final currentList = state.valueOrNull ?? [];
+    final index = currentList.indexWhere((a) => a.id == updated.id);
+    if (index >= 0) {
+      state = AsyncData(
+        List<MediaAsset>.from(currentList)..[index] = updated,
+      );
+    }
+
+    final db = ref.read(galleryDatabaseProvider);
+    await db.updateMediaAsset(updated);
+    ref.read(galleryWriteBufferProvider).queuePatch(
+          updated.id,
+          intent,
+          baselineAsset: baseline,
+        );
+  }
+
   /// 捆绑媒体文件（组成员写入 group_id）
   Future<void> bundleMedia(String leadId, List<String> memberIds) async {
     if (memberIds.isEmpty) return;

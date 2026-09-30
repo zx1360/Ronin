@@ -50,3 +50,6 @@
 
 # 资源目录
 _static/
+
+# 跨端契约快照（生成物，真源是 Go 代码；用 backend/references/scripts/generate_refs.ps1 生成）
+backend/references/generated/

@@ -105,6 +105,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
         actions: [
           IconButton(
+            tooltip: '近期回顾',
+            onPressed: () => context.pushNamed('chat_review'),
+            icon: const Icon(Icons.insights_outlined),
+          ),
+          IconButton(
             tooltip: '新对话',
             onPressed: () => controller.newConversation(),
             icon: const Icon(Icons.add_comment_outlined),

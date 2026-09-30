@@ -8,7 +8,6 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/features/chat/chat_entry.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/features/others/gallery/widgets/fullscreen_image_viewer.dart';
@@ -544,23 +543,11 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     setState(() => _isSaving = true);
 
     try {
-      final db = ref.read(galleryDatabaseProvider);
-      final message = _messageController.text.trim();
-      // 备注属于"当前正在查看的那一个"文件，组成员各写各的
-      final target = _currentAsset;
-      final updatedAsset = target.copyWith(
-        message: message.isEmpty ? null : message,
-        clearMessage: message.isEmpty,
-      );
-
-      await db.updateMediaAsset(updatedAsset);
-      // 服务端权威: 本地先生效, 备注经缓冲写入服务端
-      ref.read(galleryWriteBufferProvider).queuePatch(
-            target.id,
-            MediaPatchIntent(message: message),
-            baselineAsset: target,
-          );
-      ref.invalidate(mediaAssetListProvider);
+      // 备注属于"当前正在查看的那一个"文件，组成员各写各的；
+      // 写路径（本地立即生效 + 写缓冲推送）统一在 mediaAssetListProvider 里
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .setMessage(_currentAsset, _messageController.text.trim());
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

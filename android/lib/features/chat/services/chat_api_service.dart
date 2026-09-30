@@ -103,81 +103,100 @@ class ChatApiService {
   final ApiClient _client;
 
   /// 发起一次流式对话。
-  ///
-  /// 逐条解析服务端下发的 NDJSON；非 200 时读取响应体里的 `error` 作为提示。
   Stream<ChatStreamEvent> chat({
     required List<Map<String, dynamic>> messages,
     required ChatOptions options,
     CancelToken? cancelToken,
-  }) async* {
-    final Response<ResponseBody> response;
-    try {
-      response = await _client.postStream(
-        '/API/ai/chat',
-        data: {
-          'messages': messages,
-          if (options.model.isNotEmpty) 'model': options.model,
-          if (options.numCtx > 0) 'num_ctx': options.numCtx,
-          'think': options.think,
-          'temperature': options.temperature,
-          'keep_alive_seconds': options.customKeepAlive
-              ? options.keepAliveSeconds
-              : null,
-        },
-        cancelToken: cancelToken,
-      );
-    } catch (e) {
-      throw ApiClient.mapError(e);
-    }
+  }) {
+    return streamNdjsonEvents(
+      _client,
+      '/API/ai/chat',
+      {
+        'messages': messages,
+        if (options.model.isNotEmpty) 'model': options.model,
+        if (options.numCtx > 0) 'num_ctx': options.numCtx,
+        'think': options.think,
+        'temperature': options.temperature,
+        'keep_alive_seconds': options.customKeepAlive
+            ? options.keepAliveSeconds
+            : null,
+      },
+      cancelToken: cancelToken,
+      failureLabel: '对话请求',
+    );
+  }
+}
 
-    final stream = response.data?.stream;
-    if (stream == null) {
-      throw const ApiException('服务端未返回对话内容');
-    }
-
-    if (response.statusCode != 200) {
-      final text = await _readAll(stream);
-      throw ApiException(_errorMessage(text, response.statusCode));
-    }
-
-    // 服务端按行下发 JSON，用 LineSplitter 保证跨分片的半行不会被误解析。
-    yield* stream
-        .cast<List<int>>()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .where((line) => line.trim().isNotEmpty)
-        .map(_decode);
+/// 把服务端的 NDJSON 流（每行一个事件）解成事件流；`/chat` 与 `/review` 共用。
+///
+/// 逐行解析以保证跨分片的半行不会被误解析；非 200 时读取响应体里的 `error`
+/// 作为提示（服务端未启用 AI 能力等情况都会走到这里）。
+Stream<ChatStreamEvent> streamNdjsonEvents(
+  ApiClient client,
+  String path,
+  Map<String, dynamic> data, {
+  CancelToken? cancelToken,
+  required String failureLabel,
+  Duration receiveTimeout = const Duration(minutes: 5),
+}) async* {
+  final Response<ResponseBody> response;
+  try {
+    response = await client.postStream(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+      receiveTimeout: receiveTimeout,
+    );
+  } catch (e) {
+    throw ApiClient.mapError(e);
   }
 
-  ChatStreamEvent _decode(String line) {
-    try {
-      final decoded = jsonDecode(line);
-      if (decoded is Map<String, dynamic>) {
-        return ChatStreamEvent.fromJson(decoded);
-      }
-    } catch (_) {
-      // 落单的非法行直接跳过，不让整轮对话失败
-    }
-    return const ChatStreamEvent(type: 'ignore');
+  final stream = response.data?.stream;
+  if (stream == null) {
+    throw ApiException('服务端未返回$failureLabel内容');
   }
 
-  Future<String> _readAll(Stream<List<int>> stream) async {
-    final bytes = <int>[];
-    await for (final chunk in stream) {
-      bytes.addAll(chunk);
-    }
-    return utf8.decode(bytes, allowMalformed: true);
+  if (response.statusCode != 200) {
+    final text = await _readAll(stream);
+    throw ApiException(_errorMessage(text, response.statusCode, failureLabel));
   }
 
-  String _errorMessage(String body, int? statusCode) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map && decoded['error'] != null) {
-        return decoded['error'].toString();
-      }
-    } catch (_) {}
-    final text = body.trim();
-    if (text.isNotEmpty) return text;
-    return '对话请求失败 (HTTP ${statusCode ?? '-'})';
+  yield* stream
+      .cast<List<int>>()
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .where((line) => line.trim().isNotEmpty)
+      .map(_decodeEvent);
+}
+
+ChatStreamEvent _decodeEvent(String line) {
+  try {
+    final decoded = jsonDecode(line);
+    if (decoded is Map<String, dynamic>) {
+      return ChatStreamEvent.fromJson(decoded);
+    }
+  } catch (_) {
+    // 落单的非法行直接跳过，不让整轮生成失败
   }
+  return const ChatStreamEvent(type: 'ignore');
+}
+
+Future<String> _readAll(Stream<List<int>> stream) async {
+  final bytes = <int>[];
+  await for (final chunk in stream) {
+    bytes.addAll(chunk);
+  }
+  return utf8.decode(bytes, allowMalformed: true);
+}
+
+String _errorMessage(String body, int? statusCode, String failureLabel) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is Map && decoded['error'] != null) {
+      return decoded['error'].toString();
+    }
+  } catch (_) {}
+  final text = body.trim();
+  if (text.isNotEmpty) return text;
+  return '$failureLabel失败 (HTTP ${statusCode ?? '-'})';
 }

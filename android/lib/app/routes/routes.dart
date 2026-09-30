@@ -7,6 +7,8 @@ import 'package:torrid/features/booklet/pages/booklet_page.dart';
 import 'package:torrid/features/chat/models/chat_models.dart';
 import 'package:torrid/features/chat/pages/chat_page.dart';
 import 'package:torrid/features/chat/pages/chat_settings_page.dart';
+import 'package:torrid/features/chat/pages/review_page.dart';
+import 'package:torrid/features/chat/pages/review_presets_page.dart';
 import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
 import 'package:torrid/features/read/pages/read_page.dart';
@@ -68,6 +70,18 @@ final List<RouteBase> routes = [
         path: "settings",
         name: "chat_settings",
         builder: (context, state) => const ChatSettingsPage(),
+      ),
+      // 近期回顾（二级页）
+      GoRoute(
+        path: "review",
+        name: "chat_review",
+        builder: (context, state) => const ReviewPage(),
+      ),
+      // 回顾的角色与语气预设
+      GoRoute(
+        path: "review/presets",
+        name: "chat_review_presets",
+        builder: (context, state) => const ReviewPresetsPage(),
       ),
     ],
   ),
