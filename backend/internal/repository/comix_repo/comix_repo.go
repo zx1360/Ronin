@@ -7,6 +7,7 @@ package comix_repo
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -15,9 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"monarch/internal/service/comix"
 	"monarch/internal/service/db"
@@ -51,7 +49,7 @@ type Comic struct {
 	CoverImage string `json:"cover_image"`
 	// IsLegacy：legacy 站点的本地历史资源，不参与追更（Python 端同样跳过）。
 	IsLegacy bool `json:"is_legacy"`
-	// 书库管理字段（comix.comic_books 视图）；记录缺失时给出默认值，
+	// 书库管理字段（comics 表）；记录缺失时给出默认值，
 	// 使客户端无需再请求 /API/comic/comic-info 即可完成管理操作。
 	IsPublic     bool `json:"is_public"`
 	Readed       bool `json:"readed"`
@@ -73,14 +71,14 @@ type Chapter struct {
 // ErrComicNotFound 漫画不存在。
 var ErrComicNotFound = errors.New("漫画不存在")
 
-// withPool 以默认超时的上下文执行查询，并传入全局连接池。
-func withPool[T any](fn func(ctx context.Context, pool *pgxpool.Pool) (T, error)) (T, error) {
+// withDB 以默认超时的上下文执行查询。
+func withDB[T any](fn func(ctx context.Context, conn *sql.DB) (T, error)) (T, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
-	return fn(ctx, db.GetPool())
+	return fn(ctx, db.Read())
 }
 
-// MatchSiteByURL 根据详情页 URL 的 host 匹配已注册站点（comix.site.base_url）。
+// MatchSiteByURL 根据详情页 URL 的 host 匹配已注册站点（comic_sites.base_url）。
 // 比较时忽略协议与 "www." 前缀；匹配失败返回不支持站点的明确错误。
 func MatchSiteByURL(rawURL string, sites []Site) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
@@ -127,10 +125,10 @@ func supportedSiteNames(sites []Site) string {
 
 // ListSites 列出全部站点。
 func ListSites() ([]Site, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]Site, error) {
-		rows, err := pool.Query(ctx, `
+	return withDB(func(ctx context.Context, conn *sql.DB) ([]Site, error) {
+		rows, err := conn.QueryContext(ctx, `
 			SELECT code, name, base_url, enabled
-			FROM comix.site
+			FROM comic_sites
 			ORDER BY id
 		`)
 		if err != nil {
@@ -156,11 +154,11 @@ func ListSites() ([]Site, error) {
 // ListComics 列出全部已登记漫画（单条 SQL 聚合，替代 Python 端 N+1 查询）。
 //
 // 同时带出书库管理字段（公开/已读/章节数/图片数），使客户端只需一次请求。
-// 图片数取 chapter.page_count 汇总：与爬虫写入的页数一致，且避免 COUNT 图片表
-// （12 万行）带来的数量级开销。
+// 图片数取 comic_chapters.page_count 汇总：与爬虫写入的页数一致，且避免 COUNT
+// 图片表（12 万行）带来的数量级开销。
 func ListComics() ([]Comic, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]Comic, error) {
-		rows, err := pool.Query(ctx, `
+	return withDB(func(ctx context.Context, conn *sql.DB) ([]Comic, error) {
+		rows, err := conn.QueryContext(ctx, `
 			SELECT
 				c.id,
 				c.title,
@@ -175,17 +173,16 @@ func ListComics() ([]Comic, error) {
 				COALESCE(MAX(ch.chapter_no), 0)                         AS max_chapter_no,
 				c.cover_url,
 				c.cover_image,
-				(s.code = 'legacy')                                     AS is_legacy,
-				COALESCE(b.is_public, TRUE)                             AS is_public,
-				COALESCE(b.readed, FALSE)                               AS readed,
+				CASE WHEN s.code = 'legacy' THEN 1 ELSE 0 END           AS is_legacy,
+				c.is_public,
+				c.readed,
 				COUNT(ch.id)                                            AS chapter_count,
 				COALESCE(SUM(ch.page_count), 0)                         AS image_count
-			FROM comix.comic c
-			JOIN comix.site s ON s.id = c.site_id
-			LEFT JOIN comix.comic_books b ON b.id = c.id::text
-			LEFT JOIN comix.chapter ch ON ch.comic_id = c.id
+			FROM comics c
+			JOIN comic_sites s ON s.id = c.site_id
+			LEFT JOIN comic_chapters ch ON ch.comic_id = c.id
 			GROUP BY c.id, c.title, s.code, s.name, c.detail_url, c.rel_dir,
-			         c.cover_url, c.cover_image, b.is_public, b.readed
+			         c.cover_url, c.cover_image, c.is_public, c.readed
 			ORDER BY c.id
 		`)
 		if err != nil {
@@ -214,21 +211,21 @@ func ListComics() ([]Comic, error) {
 
 // ListChapters 列出指定漫画的章节（精简列，避免大 payload）。
 func ListChapters(comicID int) ([]Chapter, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) ([]Chapter, error) {
+	return withDB(func(ctx context.Context, conn *sql.DB) ([]Chapter, error) {
 		// 与 CLI 语义一致：漫画不存在时返回业务错误
 		var exists bool
-		if err := pool.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM comix.comic WHERE id = $1)`, comicID).Scan(&exists); err != nil {
+		if err := conn.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM comics WHERE id = ?)`, comicID).Scan(&exists); err != nil {
 			return nil, fmt.Errorf("查询漫画存在性失败: %w", err)
 		}
 		if !exists {
 			return nil, fmt.Errorf("%w: %d", ErrComicNotFound, comicID)
 		}
 
-		rows, err := pool.Query(ctx, `
+		rows, err := conn.QueryContext(ctx, `
 			SELECT id, chapter_no, title, status, page_count, rel_dir, error
-			FROM comix.chapter
-			WHERE comic_id = $1
+			FROM comic_chapters
+			WHERE comic_id = ?
 			ORDER BY chapter_no
 		`, comicID)
 		if err != nil {
@@ -267,13 +264,13 @@ type DeletedComic struct {
 // ⑤ 成功后移除改名目录（尽力而为，失败时报告残留路径）。
 // keepFiles=true 时只删 DB 记录，文件原样保留（便于可回退验收）。
 func DeleteComic(comicID int, keepFiles bool) (*DeletedComic, error) {
-	return withPool(func(ctx context.Context, pool *pgxpool.Pool) (*DeletedComic, error) {
+	return withDB(func(ctx context.Context, conn *sql.DB) (*DeletedComic, error) {
 		var title, relDir string
-		err := pool.QueryRow(ctx,
-			`SELECT title, rel_dir FROM comix.comic WHERE id = $1`, comicID,
+		err := conn.QueryRowContext(ctx,
+			`SELECT title, rel_dir FROM comics WHERE id = ?`, comicID,
 		).Scan(&title, &relDir)
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return nil, fmt.Errorf("%w: %d", ErrComicNotFound, comicID)
 			}
 			return nil, fmt.Errorf("查询漫画失败: %w", err)
@@ -299,8 +296,7 @@ func DeleteComic(comicID int, keepFiles bool) (*DeletedComic, error) {
 		}
 
 		// ② 删除 DB 记录（外键级联）
-		if _, err := pool.Exec(ctx,
-			`DELETE FROM comix.comic WHERE id = $1`, comicID); err != nil {
+		if _, err := db.Exec(ctx, `DELETE FROM comics WHERE id = ?`, comicID); err != nil {
 			if renamed != "" {
 				_ = os.Rename(renamed, absDir) // 回滚改名
 			}

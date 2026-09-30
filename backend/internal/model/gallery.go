@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"monarch/internal/dbutil"
 )
 
 // FlexTime 包装 time.Time，JSON 侧兼容多种时间格式（客户端序列化格式不统一）。
@@ -49,26 +51,39 @@ func (ft FlexTime) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + t.Format(time.RFC3339Nano) + "\""), nil
 }
 
-// Scan 实现 sql.Scanner 接口，用于从数据库读取
+// Scan 实现 sql.Scanner 接口，用于从数据库读取（SQLite 时间列为本地时间文本）。
 func (ft *FlexTime) Scan(value interface{}) error {
-	if value == nil {
+	switch v := value.(type) {
+	case nil:
 		*ft = FlexTime(time.Time{})
-		return nil
-	}
-	if t, ok := value.(time.Time); ok {
+	case time.Time:
+		*ft = FlexTime(v)
+	case string:
+		t, err := dbutil.ParseTS(v)
+		if err != nil {
+			return err
+		}
 		*ft = FlexTime(t)
-		return nil
+	case []byte:
+		t, err := dbutil.ParseTS(string(v))
+		if err != nil {
+			return err
+		}
+		*ft = FlexTime(t)
 	}
 	return nil
 }
 
-// Value 实现 driver.Valuer 接口，用于写入数据库
+// Time 返回底层 time.Time。
+func (ft FlexTime) Time() time.Time { return time.Time(ft) }
+
+// Value 实现 driver.Valuer 接口，写入为本地时间存储文本。
 func (ft FlexTime) Value() (interface{}, error) {
 	t := time.Time(ft)
 	if t.IsZero() {
 		return nil, nil
 	}
-	return t, nil
+	return dbutil.TS(t), nil
 }
 
 // MediaAsset 对应数据库的 media_assets 表

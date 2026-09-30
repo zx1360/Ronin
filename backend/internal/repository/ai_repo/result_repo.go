@@ -2,15 +2,18 @@ package ai_repo
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 
+	"monarch/internal/dbutil"
 	"monarch/internal/model"
+	"monarch/internal/repository/gallery_repo"
 	"monarch/internal/service/db"
 )
 
@@ -40,9 +43,9 @@ type FaceWrite struct {
 func SavePHash(mediaID uuid.UUID, hash int64) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	_, err := db.GetPool().Exec(ctx, `
-		INSERT INTO ai.media_ai (media_id, phash) VALUES ($1, $2)
-		ON CONFLICT (media_id) DO UPDATE SET phash = EXCLUDED.phash`, mediaID, hash)
+	_, err := db.Exec(ctx, `
+		INSERT INTO media_ai (media_id, phash) VALUES (?, ?)
+		ON CONFLICT (media_id) DO UPDATE SET phash = excluded.phash`, mediaID, hash)
 	if err != nil {
 		return fmt.Errorf("写入感知哈希失败: %w", err)
 	}
@@ -53,28 +56,48 @@ func SavePHash(mediaID uuid.UUID, hash int64) error {
 func SaveOCR(mediaID uuid.UUID, text string) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	_, err := db.GetPool().Exec(ctx, `
-		INSERT INTO ai.media_ai (media_id, ocr_text) VALUES ($1, $2)
-		ON CONFLICT (media_id) DO UPDATE SET ocr_text = EXCLUDED.ocr_text`, mediaID, text)
+	_, err := db.Exec(ctx, `
+		INSERT INTO media_ai (media_id, ocr_text) VALUES (?, ?)
+		ON CONFLICT (media_id) DO UPDATE SET ocr_text = excluded.ocr_text`, mediaID, text)
 	if err != nil {
 		return fmt.Errorf("写入 OCR 结果失败: %w", err)
 	}
 	return nil
 }
 
-// SaveVLM 写入 VLM 描述与关键词。
+// SaveVLM 写入 VLM 描述与关键词（关键词存 media_ai_tags，整批替换）。
 func SaveVLM(mediaID uuid.UUID, caption string, tags []string) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	if tags == nil {
-		tags = []string{}
+
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO media_ai (media_id, caption) VALUES (?, ?)
+			ON CONFLICT (media_id) DO UPDATE SET caption = excluded.caption`,
+			mediaID, caption); err != nil {
+			return fmt.Errorf("写入 VLM 结果失败: %w", err)
+		}
+		return replaceVLMTags(ctx, tx, mediaID, tags)
+	})
+}
+
+// replaceVLMTags 全量替换某媒体的 AI 标签。
+func replaceVLMTags(ctx context.Context, tx *sql.Tx, mediaID uuid.UUID, tags []string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM media_ai_tags WHERE media_id = ?`, mediaID); err != nil {
+		return fmt.Errorf("清理旧 AI 标签失败: %w", err)
 	}
-	_, err := db.GetPool().Exec(ctx, `
-		INSERT INTO ai.media_ai (media_id, caption, vlm_tags) VALUES ($1, $2, $3)
-		ON CONFLICT (media_id) DO UPDATE SET caption = EXCLUDED.caption, vlm_tags = EXCLUDED.vlm_tags`,
-		mediaID, caption, tags)
-	if err != nil {
-		return fmt.Errorf("写入 VLM 结果失败: %w", err)
+	seen := map[string]bool{}
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO media_ai_tags (media_id, tag) VALUES (?, ?)`,
+			mediaID, tag); err != nil {
+			return fmt.Errorf("写入 AI 标签失败: %w", err)
+		}
 	}
 	return nil
 }
@@ -87,48 +110,75 @@ func SaveEmbeddings(rows []EmbeddingWrite) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
-	batch := &pgx.Batch{}
-	for _, row := range rows {
-		batch.Queue(`
-			INSERT INTO ai.embeddings (media_id, kind, model, dim, scale, vec)
-			VALUES ($1, $2, $3, $4, $5, $6)
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		stmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO embeddings (media_id, kind, model, dim, scale, vec)
+			VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT (media_id, kind, model) DO UPDATE
-			SET dim = EXCLUDED.dim, scale = EXCLUDED.scale, vec = EXCLUDED.vec`,
-			row.MediaID, row.Kind, row.Model, row.Dim, row.Scale, row.Vec)
-	}
-
-	results := db.GetPool().SendBatch(ctx, batch)
-	defer results.Close()
-	for range rows {
-		if _, err := results.Exec(); err != nil {
-			return fmt.Errorf("写入图像向量失败: %w", err)
+			SET dim = excluded.dim, scale = excluded.scale, vec = excluded.vec`)
+		if err != nil {
+			return fmt.Errorf("准备向量写入失败: %w", err)
 		}
-	}
-	return results.Close()
+		defer stmt.Close()
+		for _, row := range rows {
+			if _, err := stmt.ExecContext(ctx,
+				row.MediaID, row.Kind, row.Model, row.Dim, row.Scale, row.Vec); err != nil {
+				return fmt.Errorf("写入图像向量失败: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 // ReplaceFaces 全量替换某媒体的人脸记录（重跑该能力时不留残留）。
 //
-// 被删除的人脸若曾作为人物封面，由数据库 ON DELETE SET NULL 自动清理。
+// 被删除的人脸若曾作为人物封面，由外键 ON DELETE SET NULL 自动清理。
 // 人物归属不在此处决定，交由聚类阶段统一维护。
 func ReplaceFaces(mediaID uuid.UUID, faces []FaceWrite) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
-	return withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `DELETE FROM ai.faces WHERE media_id = $1`, mediaID); err != nil {
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM faces WHERE media_id = ?`, mediaID); err != nil {
 			return fmt.Errorf("清理旧人脸失败: %w", err)
 		}
+		stmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO faces (id, media_id, bbox, det_score, quality, embedding)
+			VALUES (?, ?, ?, ?, ?, ?)`)
+		if err != nil {
+			return fmt.Errorf("准备人脸写入失败: %w", err)
+		}
+		defer stmt.Close()
 		for _, f := range faces {
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO ai.faces (id, media_id, bbox, det_score, quality, embedding)
-				VALUES ($1, $2, $3, $4, $5, $6)`,
-				f.ID, f.MediaID, f.Box, f.DetScore, f.Quality, f.Embedding); err != nil {
+			if _, err := stmt.ExecContext(ctx,
+				f.ID, f.MediaID, encodeBox(f.Box), f.DetScore, f.Quality, f.Embedding); err != nil {
 				return fmt.Errorf("写入人脸失败: %w", err)
 			}
 		}
 		return nil
 	})
+}
+
+// encodeBox 把人脸框编码为 JSON 文本（SQLite 无数组类型）。
+func encodeBox(box []float32) string {
+	values := make([]float64, len(box))
+	for i, v := range box {
+		values[i] = float64(v)
+	}
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return "[]"
+	}
+	return string(raw)
+}
+
+// decodeBox 解析人脸框 JSON 文本。
+func decodeBox(raw string) []float64 {
+	var values []float64
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return []float64{}
+	}
+	return values
 }
 
 // ---------- 读取 ----------
@@ -137,8 +187,8 @@ func ReplaceFaces(mediaID uuid.UUID, faces []FaceWrite) error {
 func LoadPHashes() (map[uuid.UUID]int64, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	rows, err := db.GetPool().Query(ctx,
-		`SELECT media_id, phash FROM ai.media_ai WHERE phash IS NOT NULL`)
+	rows, err := db.Read().QueryContext(ctx,
+		`SELECT media_id, phash FROM media_ai WHERE phash IS NOT NULL`)
 	if err != nil {
 		return nil, fmt.Errorf("载入感知哈希失败: %w", err)
 	}
@@ -168,8 +218,8 @@ type EmbeddingRow struct {
 func LoadEmbeddings(kind, modelName string) ([]EmbeddingRow, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	rows, err := db.GetPool().Query(ctx, `
-		SELECT media_id, dim, scale, vec FROM ai.embeddings WHERE kind = $1 AND model = $2`,
+	rows, err := db.Read().QueryContext(ctx, `
+		SELECT media_id, dim, scale, vec FROM embeddings WHERE kind = ? AND model = ?`,
 		kind, modelName)
 	if err != nil {
 		return nil, fmt.Errorf("载入图像向量失败: %w", err)
@@ -192,8 +242,8 @@ func EmbeddingCount(kind, modelName string) (int, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 	var n int
-	err := db.GetPool().QueryRow(ctx,
-		`SELECT COUNT(*) FROM ai.embeddings WHERE kind = $1 AND model = $2`, kind, modelName).Scan(&n)
+	err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM embeddings WHERE kind = ? AND model = ?`, kind, modelName).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("统计图像向量失败: %w", err)
 	}
@@ -205,12 +255,12 @@ func GetEmbedding(mediaID uuid.UUID, kind, modelName string) (*EmbeddingRow, err
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 	row := EmbeddingRow{MediaID: mediaID}
-	err := db.GetPool().QueryRow(ctx, `
-		SELECT dim, scale, vec FROM ai.embeddings
-		WHERE media_id = $1 AND kind = $2 AND model = $3`, mediaID, kind, modelName).
+	err := db.Read().QueryRowContext(ctx, `
+		SELECT dim, scale, vec FROM embeddings
+		WHERE media_id = ? AND kind = ? AND model = ?`, mediaID, kind, modelName).
 		Scan(&row.Dim, &row.Scale, &row.Vec)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
@@ -224,16 +274,22 @@ func GetMediaDetail(mediaID uuid.UUID) (*model.AiMediaDetail, error) {
 	defer cancel()
 
 	detail := &model.AiMediaDetail{MediaID: mediaID, VLMTags: []string{}, Faces: []model.AiFace{}}
-	err := db.GetPool().QueryRow(ctx, `
-		SELECT phash, ocr_text, caption, vlm_tags
-		FROM ai.media_ai WHERE media_id = $1`, mediaID).
-		Scan(&detail.PHash, &detail.OCRText, &detail.Caption, &detail.VLMTags)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	err := db.Read().QueryRowContext(ctx, `
+		SELECT phash, ocr_text, caption
+		FROM media_ai WHERE media_id = ?`, mediaID).
+		Scan(&detail.PHash, &detail.OCRText, &detail.Caption)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("读取媒体 AI 结果失败: %w", err)
 	}
 
-	if err := db.GetPool().QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM ai.embeddings WHERE media_id = $1)`, mediaID).
+	tags, err := listVLMTagsByMedia(ctx, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	detail.VLMTags = tags
+
+	if err := db.Read().QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM embeddings WHERE media_id = ?)`, mediaID).
 		Scan(&detail.HasVector); err != nil {
 		return nil, fmt.Errorf("读取向量状态失败: %w", err)
 	}
@@ -248,6 +304,26 @@ func GetMediaDetail(mediaID uuid.UUID) (*model.AiMediaDetail, error) {
 	return detail, nil
 }
 
+// listVLMTagsByMedia 读取单个媒体的 AI 标签。
+func listVLMTagsByMedia(ctx context.Context, mediaID uuid.UUID) ([]string, error) {
+	rows, err := db.Read().QueryContext(ctx,
+		`SELECT tag FROM media_ai_tags WHERE media_id = ? ORDER BY tag`, mediaID)
+	if err != nil {
+		return nil, fmt.Errorf("读取 AI 标签失败: %w", err)
+	}
+	defer rows.Close()
+
+	tags := []string{}
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	return tags, rows.Err()
+}
+
 // ListFacesByMedia 按媒体批量查询人脸。
 func ListFacesByMedia(mediaIDs []uuid.UUID) (map[uuid.UUID][]model.AiFace, error) {
 	if len(mediaIDs) == 0 {
@@ -256,9 +332,10 @@ func ListFacesByMedia(mediaIDs []uuid.UUID) (map[uuid.UUID][]model.AiFace, error
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx, `
+	rows, err := db.Read().QueryContext(ctx, `
 		SELECT id, media_id, person_id, bbox, det_score, quality, created_at
-		FROM ai.faces WHERE media_id = ANY($1) ORDER BY det_score DESC`, mediaIDs)
+		FROM faces WHERE media_id IN (`+placeholders(len(mediaIDs))+`) ORDER BY det_score DESC`,
+		uuidArgs(mediaIDs)...)
 	if err != nil {
 		return nil, fmt.Errorf("查询人脸失败: %w", err)
 	}
@@ -275,19 +352,25 @@ func ListFacesByMedia(mediaIDs []uuid.UUID) (map[uuid.UUID][]model.AiFace, error
 	return result, rows.Err()
 }
 
-// scanFaceRow 读取一行人脸记录（bbox 由数据库的 float4[] 加宽为 float64）。
-func scanFaceRow(rows pgx.Rows) (model.AiFace, error) {
+// scanFaceRow 读取一行人脸记录（bbox 为 JSON 文本）。
+func scanFaceRow(rows *sql.Rows) (model.AiFace, error) {
 	var face model.AiFace
-	var box []float32
+	var box string
 	if err := rows.Scan(&face.ID, &face.MediaID, &face.PersonID, &box,
 		&face.DetScore, &face.Quality, &face.CreatedAt); err != nil {
 		return face, err
 	}
-	face.Box = make([]float64, len(box))
-	for i, v := range box {
-		face.Box[i] = float64(v)
-	}
+	face.Box = decodeBox(box)
 	return face, nil
+}
+
+// uuidArgs 把 UUID 列表转为 SQL 参数。
+func uuidArgs(ids []uuid.UUID) []any {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return args
 }
 
 // FaceEmbedding 聚类所需的单张人脸特征。
@@ -303,11 +386,11 @@ func LoadFaceEmbeddings(unassignedOnly bool) ([]FaceEmbedding, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
-	sql := `SELECT id, person_id, quality, embedding FROM ai.faces`
+	query := `SELECT id, person_id, quality, embedding FROM faces`
 	if unassignedOnly {
-		sql += ` WHERE person_id IS NULL`
+		query += ` WHERE person_id IS NULL`
 	}
-	rows, err := db.GetPool().Query(ctx, sql)
+	rows, err := db.Read().QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("载入人脸特征失败: %w", err)
 	}
@@ -334,10 +417,10 @@ func ListPersons() ([]model.AiPerson, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx, `
+	rows, err := db.Read().QueryContext(ctx, `
 		SELECT p.id, p.name, p.cover_face_id, f.media_id, p.face_count, p.created_at, p.updated_at
-		FROM ai.persons p
-		LEFT JOIN ai.faces f ON f.id = p.cover_face_id
+		FROM persons p
+		LEFT JOIN faces f ON f.id = p.cover_face_id
 		ORDER BY p.face_count DESC, p.created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("查询人物分组失败: %w", err)
@@ -372,15 +455,15 @@ func ListPersonFaces(personID uuid.UUID, limit, offset int) ([]model.AiFace, int
 	defer cancel()
 
 	var total int
-	if err := db.GetPool().QueryRow(ctx,
-		`SELECT COUNT(*) FROM ai.faces WHERE person_id = $1`, personID).Scan(&total); err != nil {
+	if err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM faces WHERE person_id = ?`, personID).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("统计人物人脸失败: %w", err)
 	}
 
-	rows, err := db.GetPool().Query(ctx, `
+	rows, err := db.Read().QueryContext(ctx, `
 		SELECT id, media_id, person_id, bbox, det_score, quality, created_at
-		FROM ai.faces WHERE person_id = $1
-		ORDER BY quality DESC, created_at ASC LIMIT $2 OFFSET $3`, personID, limit, offset)
+		FROM faces WHERE person_id = ?
+		ORDER BY quality DESC, created_at ASC LIMIT ? OFFSET ?`, personID, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("查询人物人脸失败: %w", err)
 	}
@@ -404,8 +487,7 @@ func CreatePerson(name *string) (uuid.UUID, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 	id := uuid.New()
-	_, err := db.GetPool().Exec(ctx,
-		`INSERT INTO ai.persons (id, name) VALUES ($1, $2)`, id, name)
+	_, err := db.Exec(ctx, `INSERT INTO persons (id, name) VALUES (?, ?)`, id, name)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("创建人物失败: %w", err)
 	}
@@ -419,8 +501,9 @@ func AssignFaces(faceIDs []uuid.UUID, personID *uuid.UUID) error {
 	}
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
-	_, err := db.GetPool().Exec(ctx,
-		`UPDATE ai.faces SET person_id = $2 WHERE id = ANY($1)`, faceIDs, personID)
+	_, err := db.Exec(ctx,
+		`UPDATE faces SET person_id = ? WHERE id IN (`+placeholders(len(faceIDs))+`)`,
+		append([]any{personID}, uuidArgs(faceIDs)...)...)
 	if err != nil {
 		return fmt.Errorf("分配人脸失败: %w", err)
 	}
@@ -431,12 +514,11 @@ func AssignFaces(faceIDs []uuid.UUID, personID *uuid.UUID) error {
 func RenamePerson(personID uuid.UUID, name *string) error {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
-	tag, err := db.GetPool().Exec(ctx,
-		`UPDATE ai.persons SET name = $2 WHERE id = $1`, personID, name)
+	res, err := db.Exec(ctx, `UPDATE persons SET name = ? WHERE id = ?`, name, personID)
 	if err != nil {
 		return fmt.Errorf("重命名人物失败: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrPersonMissing
 	}
 	return nil
@@ -448,15 +530,17 @@ func MergePersons(srcIDs []uuid.UUID, dstID uuid.UUID) (int64, error) {
 	defer cancel()
 
 	var moved int64
-	err := withTx(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx,
-			`UPDATE ai.faces SET person_id = $1 WHERE person_id = ANY($2)`, dstID, srcIDs)
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE faces SET person_id = ? WHERE person_id IN (`+placeholders(len(srcIDs))+`)`,
+			append([]any{dstID}, uuidArgs(srcIDs)...)...)
 		if err != nil {
 			return fmt.Errorf("合并人脸失败: %w", err)
 		}
-		moved = tag.RowsAffected()
-		if _, err := tx.Exec(ctx,
-			`DELETE FROM ai.persons WHERE id = ANY($1)`, srcIDs); err != nil {
+		moved, _ = res.RowsAffected()
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM persons WHERE id IN (`+placeholders(len(srcIDs))+`)`,
+			uuidArgs(srcIDs)...); err != nil {
 			return fmt.Errorf("清理被合并分组失败: %w", err)
 		}
 		return refreshPersonStats(ctx, tx, []uuid.UUID{dstID})
@@ -468,11 +552,11 @@ func MergePersons(srcIDs []uuid.UUID, dstID uuid.UUID) (int64, error) {
 func DeletePerson(personID uuid.UUID) error {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
-	tag, err := db.GetPool().Exec(ctx, `DELETE FROM ai.persons WHERE id = $1`, personID)
+	res, err := db.Exec(ctx, `DELETE FROM persons WHERE id = ?`, personID)
 	if err != nil {
 		return fmt.Errorf("删除人物失败: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrPersonMissing
 	}
 	return nil
@@ -482,25 +566,36 @@ func DeletePerson(personID uuid.UUID) error {
 func RefreshPersonStats(personIDs []uuid.UUID) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	return refreshPersonStats(ctx, db.GetPool(), personIDs)
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		return refreshPersonStats(ctx, tx, personIDs)
+	})
 }
 
 // RefreshAllPersonStats 重算全部人物的人脸数与封面（封面取质量最高的人脸）。
 func RefreshAllPersonStats() error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	_, err := db.GetPool().Exec(ctx, `
-		UPDATE ai.persons p
-		SET face_count = COALESCE(c.n, 0),
-		    cover_face_id = c.cover
-		FROM (
-			SELECT p2.id,
-			       (SELECT COUNT(*) FROM ai.faces f WHERE f.person_id = p2.id) AS n,
-			       (SELECT f2.id FROM ai.faces f2 WHERE f2.person_id = p2.id
-			        ORDER BY f2.quality DESC, f2.det_score DESC LIMIT 1) AS cover
-			FROM ai.persons p2
-		) c
-		WHERE p.id = c.id`)
+	if _, err := db.Exec(ctx, refreshPersonStatsSQL); err != nil {
+		return fmt.Errorf("重算人物统计失败: %w", err)
+	}
+	return nil
+}
+
+// refreshPersonStatsSQL 以相关子查询重算人脸数与封面；SQLite 无 UPDATE ... FROM，
+// 但人物数很小（十级），逐行子查询代价可忽略。
+const refreshPersonStatsSQL = `
+	UPDATE persons SET
+		face_count = (SELECT COUNT(*) FROM faces f WHERE f.person_id = persons.id),
+		cover_face_id = (SELECT f.id FROM faces f WHERE f.person_id = persons.id
+		                 ORDER BY f.quality DESC, f.det_score DESC LIMIT 1)`
+
+func refreshPersonStats(ctx context.Context, q querier, personIDs []uuid.UUID) error {
+	if len(personIDs) == 0 {
+		return nil
+	}
+	_, err := q.ExecContext(ctx,
+		refreshPersonStatsSQL+` WHERE id IN (`+placeholders(len(personIDs))+`)`,
+		uuidArgs(personIDs)...)
 	if err != nil {
 		return fmt.Errorf("重算人物统计失败: %w", err)
 	}
@@ -511,60 +606,39 @@ func RefreshAllPersonStats() error {
 func DropEmptyPersons() (int64, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	tag, err := db.GetPool().Exec(ctx, `
-		DELETE FROM ai.persons p
-		WHERE NOT EXISTS (SELECT 1 FROM ai.faces f WHERE f.person_id = p.id)`)
+	res, err := db.Exec(ctx, `
+		DELETE FROM persons WHERE NOT EXISTS (SELECT 1 FROM faces f WHERE f.person_id = persons.id)`)
 	if err != nil {
 		return 0, fmt.Errorf("清理空人物分组失败: %w", err)
 	}
-	return tag.RowsAffected(), nil
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // ResetAllFaceAssignments 清空全部人脸归属（重新聚类前调用）。
 func ResetAllFaceAssignments() error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
-	return withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `UPDATE ai.faces SET person_id = NULL`); err != nil {
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `UPDATE faces SET person_id = NULL`); err != nil {
 			return fmt.Errorf("重置人脸归属失败: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM ai.persons`); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM persons`); err != nil {
 			return fmt.Errorf("清空人物分组失败: %w", err)
 		}
 		return nil
 	})
 }
 
-func refreshPersonStats(ctx context.Context, q querier, personIDs []uuid.UUID) error {
-	if len(personIDs) == 0 {
-		return nil
-	}
-	_, err := q.Exec(ctx, `
-		UPDATE ai.persons p
-		SET face_count = c.n, cover_face_id = c.cover
-		FROM (
-			SELECT p2.id,
-			       (SELECT COUNT(*) FROM ai.faces f WHERE f.person_id = p2.id) AS n,
-			       (SELECT f2.id FROM ai.faces f2 WHERE f2.person_id = p2.id
-			        ORDER BY f2.quality DESC, f2.det_score DESC LIMIT 1) AS cover
-			FROM ai.persons p2 WHERE p2.id = ANY($1)
-		) c
-		WHERE p.id = c.id`, personIDs)
-	if err != nil {
-		return fmt.Errorf("重算人物统计失败: %w", err)
-	}
-	return nil
-}
-
 // ---------- 结构化筛选（组合搜索的候选集） ----------
 
 // SearchFilters 结构化筛选条件（语义相关度在 Go 侧计算，不在此处）。
 type SearchFilters struct {
-	Keyword        string      // 命中 OCR 文本 / VLM 描述 / VLM 关键词
+	Keyword        string      // 命中 OCR 文本 / VLM 描述 / AI 关键词
 	Filename       string      // 命中文件路径（文件名或扩展名，忽略大小写）
 	VLMTags        []string    // AI 标签（任一命中；只读，与人工标签分开）
 	TagIDs         []uuid.UUID // 人工标签（任一命中）
-	Descendants    bool        // 标签是否含子孙
+	Descendants    bool        // 标签是否含子孙（由 [SearchMediaIDs] 预先展开）
 	PersonIDs      []uuid.UUID // 人物分组（任一命中）
 	MimeType       string
 	From, To       *time.Time
@@ -576,69 +650,73 @@ type SearchFilters struct {
 }
 
 // BuildSearchWhere 生成 WHERE 片段与参数（供候选集查询与计数复用）。
+//
+// 一律写成 `m.id IN (子查询)` 而非 `EXISTS(...)`：让 SQLite 从索引侧的表
+// （media_ai / media_tag_links / faces）驱动，避免对 7 万行媒体逐行回表探测。
+// TagIDs 必须已包含子孙标签（见 [SearchMediaIDs]）：SQLite 无法高效地把相关
+// 子查询里的递归 CTE 提前求值，展开统一在 Go 侧完成。
 func BuildSearchWhere(f SearchFilters) (string, []any) {
 	conditions := []string{}
 	args := []any{}
 
 	if !f.IncludeDeleted {
-		conditions = append(conditions, "m.is_deleted = false")
+		conditions = append(conditions, "m.is_deleted = 0")
 	}
 	if strings.TrimSpace(f.Keyword) != "" {
-		args = append(args, "%"+strings.TrimSpace(f.Keyword)+"%")
-		idx := len(args)
-		conditions = append(conditions, fmt.Sprintf(`(
-			EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id
-			        AND (a.ocr_text ILIKE $%d OR a.caption ILIKE $%d))
-			OR EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id
-			           AND EXISTS (SELECT 1 FROM unnest(a.vlm_tags) t WHERE t ILIKE $%d))
-		)`, idx, idx, idx))
+		// SQLite 的 LIKE 对 ASCII 大小写不敏感，与 PG 的 ILIKE 在本数据集上等价；
+		// 无 pg_trgm 索引，这里对 media_ai 做一次全表扫描（见 AGENTS_DB.md 的性能说明）。
+		pattern := "%" + strings.TrimSpace(f.Keyword) + "%"
+		args = append(args, pattern, pattern, pattern)
+		conditions = append(conditions, `m.id IN (
+			SELECT a.media_id FROM media_ai a WHERE a.ocr_text LIKE ? OR a.caption LIKE ?
+			UNION
+			SELECT t.media_id FROM media_ai_tags t WHERE t.tag LIKE ?
+		)`)
 	}
 	if len(f.VLMTags) > 0 {
-		args = append(args, f.VLMTags)
 		conditions = append(conditions, fmt.Sprintf(
-			`EXISTS (SELECT 1 FROM ai.media_ai a WHERE a.media_id = m.id AND a.vlm_tags && $%d)`, len(args)))
+			`m.id IN (SELECT t.media_id FROM media_ai_tags t WHERE t.tag IN (%s))`,
+			placeholders(len(f.VLMTags))))
+		for _, tag := range f.VLMTags {
+			args = append(args, tag)
+		}
 	}
 	if strings.TrimSpace(f.Filename) != "" {
 		args = append(args, "%"+strings.TrimSpace(f.Filename)+"%")
-		conditions = append(conditions, fmt.Sprintf("m.file_path ILIKE $%d", len(args)))
+		conditions = append(conditions, "m.file_path LIKE ?")
 	}
 	if len(f.TagIDs) > 0 {
-		args = append(args, f.TagIDs)
-		idx := len(args)
-		if f.Descendants {
-			conditions = append(conditions, fmt.Sprintf(`EXISTS (
-				SELECT 1 FROM gallery.media_tag_links l WHERE l.media_id = m.id AND l.tag_id IN (
-					WITH RECURSIVE sub AS (
-						SELECT id FROM gallery.tags WHERE id = ANY($%d)
-						UNION ALL
-						SELECT t.id FROM gallery.tags t JOIN sub ON t.parent_id = sub.id
-					) SELECT id FROM sub))`, idx))
-		} else {
-			conditions = append(conditions, fmt.Sprintf(
-				`EXISTS (SELECT 1 FROM gallery.media_tag_links l WHERE l.media_id = m.id AND l.tag_id = ANY($%d))`, idx))
+		conditions = append(conditions, fmt.Sprintf(
+			`m.id IN (SELECT l.media_id FROM media_tag_links l WHERE l.tag_id IN (%s))`,
+			placeholders(len(f.TagIDs))))
+		for _, id := range f.TagIDs {
+			args = append(args, id)
 		}
 	}
 	if len(f.PersonIDs) > 0 {
-		args = append(args, f.PersonIDs)
 		conditions = append(conditions, fmt.Sprintf(
-			`EXISTS (SELECT 1 FROM ai.faces fa WHERE fa.media_id = m.id AND fa.person_id = ANY($%d))`, len(args)))
+			`m.id IN (SELECT fa.media_id FROM faces fa WHERE fa.person_id IN (%s))`,
+			placeholders(len(f.PersonIDs))))
+		for _, id := range f.PersonIDs {
+			args = append(args, id)
+		}
 	}
 	if f.MimeType != "" {
 		if strings.Contains(f.MimeType, "/") {
 			args = append(args, f.MimeType)
-			conditions = append(conditions, fmt.Sprintf("m.mime_type = $%d", len(args)))
+			conditions = append(conditions, "m.mime_type = ?")
 		} else {
 			args = append(args, f.MimeType+"/%")
-			conditions = append(conditions, fmt.Sprintf("m.mime_type LIKE $%d", len(args)))
+			conditions = append(conditions, "m.mime_type LIKE ?")
 		}
 	}
 	if f.From != nil {
-		args = append(args, *f.From)
-		conditions = append(conditions, fmt.Sprintf("m.captured_at >= $%d", len(args)))
+		args = append(args, dbutil.TS(*f.From))
+		conditions = append(conditions, "m.captured_at >= ?")
 	}
 	if f.To != nil {
-		args = append(args, *f.To)
-		conditions = append(conditions, fmt.Sprintf("m.captured_at <= $%d", len(args)))
+		args = append(args, dbutil.TS(*f.To))
+		conditions = append(conditions, "m.captured_at <= ?")
 	}
 
 	where := "TRUE"
@@ -653,11 +731,19 @@ func SearchMediaIDs(f SearchFilters) ([]uuid.UUID, int, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
+	if f.Descendants && len(f.TagIDs) > 0 {
+		expanded, err := gallery_repo.ExpandTagIDs(f.TagIDs)
+		if err != nil {
+			return nil, 0, err
+		}
+		f.TagIDs = expanded
+	}
+
 	where, args := BuildSearchWhere(f)
 
 	var total int
-	if err := db.GetPool().QueryRow(ctx,
-		fmt.Sprintf(`SELECT COUNT(*) FROM gallery.media_assets m WHERE %s`, where),
+	if err := db.Read().QueryRowContext(ctx,
+		fmt.Sprintf(`SELECT COUNT(*) FROM media_assets m WHERE %s`, where),
 		args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("统计搜索结果失败: %w", err)
 	}
@@ -676,11 +762,10 @@ func SearchMediaIDs(f SearchFilters) ([]uuid.UUID, int, error) {
 	}
 
 	query := fmt.Sprintf(`
-		SELECT m.id FROM gallery.media_assets m
-		WHERE %s ORDER BY %s, m.id ASC LIMIT $%d OFFSET $%d`,
-		where, order, len(args)+1, len(args)+2)
+		SELECT m.id FROM media_assets m
+		WHERE %s ORDER BY %s, m.id ASC LIMIT ? OFFSET ?`, where, order)
 
-	rows, err := db.GetPool().Query(ctx, query, append(args, f.Limit, f.Offset)...)
+	rows, err := db.Read().QueryContext(ctx, query, append(args, f.Limit, f.Offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("查询搜索结果失败: %w", err)
 	}
@@ -704,8 +789,6 @@ type VLMTagCount struct {
 }
 
 // ListVLMTags 聚合未删除媒体的全部 AI 标签。
-//
-// 一次全表 unnest 聚合；VLM 产物规模远小于媒体总数，代价可接受。
 func ListVLMTags(limit int) ([]VLMTagCount, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
@@ -714,15 +797,14 @@ func ListVLMTags(limit int) ([]VLMTagCount, error) {
 		limit = 500
 	}
 
-	rows, err := db.GetPool().Query(ctx, `
-		SELECT t.tag, COUNT(*)::int AS n
-		FROM ai.media_ai a
-		JOIN gallery.media_assets m ON m.id = a.media_id
-		CROSS JOIN LATERAL unnest(a.vlm_tags) AS t(tag)
-		WHERE m.is_deleted = false AND t.tag <> ''
+	rows, err := db.Read().QueryContext(ctx, `
+		SELECT t.tag, COUNT(*) AS n
+		FROM media_ai_tags t
+		JOIN media_assets m ON m.id = t.media_id
+		WHERE m.is_deleted = 0 AND t.tag <> ''
 		GROUP BY t.tag
 		ORDER BY n DESC, t.tag ASC
-		LIMIT $1`, limit)
+		LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("聚合 AI 标签失败: %w", err)
 	}
@@ -742,25 +824,25 @@ func ListVLMTags(limit int) ([]VLMTagCount, error) {
 // CountMediaMissingAll 一次扫描算出各能力"尚无产物"的未删除媒体数。
 //
 // 用 LEFT JOIN 而非 5 个相关 EXISTS：三次哈希连接远快于五个逐行子计划。
-// ai.media_ai 以 media_id 为主键、另两张表先各自去重，因此不会放大行数。
+// media_ai 以 media_id 为主键、另两张表先各自去重，因此不会放大行数。
 func CountMediaMissingAll() (map[string]int, error) {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
 	counts := map[string]int{}
 	var phash, embed, face, ocr, vlm int
-	err := db.GetPool().QueryRow(ctx, `
+	err := db.Read().QueryRowContext(ctx, `
 		SELECT
 			COUNT(*) FILTER (WHERE a.media_id IS NULL OR a.phash IS NULL),
 			COUNT(*) FILTER (WHERE e.media_id IS NULL),
 			COUNT(*) FILTER (WHERE f.media_id IS NULL),
 			COUNT(*) FILTER (WHERE a.media_id IS NULL OR a.ocr_text IS NULL),
 			COUNT(*) FILTER (WHERE a.media_id IS NULL OR a.caption IS NULL)
-		FROM gallery.media_assets m
-		LEFT JOIN ai.media_ai a ON a.media_id = m.id
-		LEFT JOIN (SELECT DISTINCT media_id FROM ai.embeddings) e ON e.media_id = m.id
-		LEFT JOIN (SELECT DISTINCT media_id FROM ai.faces) f ON f.media_id = m.id
-		WHERE m.is_deleted = false`).Scan(&phash, &embed, &face, &ocr, &vlm)
+		FROM media_assets m
+		LEFT JOIN media_ai a ON a.media_id = m.id
+		LEFT JOIN (SELECT DISTINCT media_id FROM embeddings) e ON e.media_id = m.id
+		LEFT JOIN (SELECT DISTINCT media_id FROM faces) f ON f.media_id = m.id
+		WHERE m.is_deleted = 0`).Scan(&phash, &embed, &face, &ocr, &vlm)
 	if err != nil {
 		return nil, fmt.Errorf("统计待处理媒体失败: %w", err)
 	}

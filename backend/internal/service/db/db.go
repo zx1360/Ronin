@@ -1,70 +1,127 @@
-// 数据库连接
+// 数据库连接（单文件 SQLite）
+//
+// 单写者模型：全部写入走只开一个连接的 writePool（`_txlock=immediate`，
+// 事务一开始就取写锁，避免读→写升级时的死锁），读取走可并发的 readPool
+// （WAL 日志模式下读写互不阻塞）。跨进程竞争（comix 子进程）由 busy_timeout
+// 与 [dbutil.IsBusy] 退避重试兜底。
 package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
-	"monarch/internal/config"
+	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "modernc.org/sqlite" // 纯 Go 驱动，无需 cgo
+
+	"monarch/internal/config"
+	"monarch/internal/dbutil"
 )
 
-// Pool 全局 PostgreSQL 连接池
-var Pool *pgxpool.Pool
+const (
+	// 跨进程写锁等待上限；超出后返回 SQLITE_BUSY 并由 retryWrite 退避重试。
+	busyTimeoutMS = 10000
+	// 写事务重试次数与退避基数。
+	writeRetries = 5
+)
 
-// Init 初始化数据库连接池
+var (
+	readPool  *sql.DB
+	writePool *sql.DB
+	dbFile    string
+)
+
+// File 返回当前数据库文件的绝对路径（空表示尚未初始化）。
+func File() string {
+	return dbFile
+}
+
+// Init 打开数据库文件、应用 pragma 并执行幂等建表脚本。
 func Init(conf config.DbConfig) {
-	// TODO: sslmode改为required, 使用CA证书.
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=prefer",
-		conf.DbIP,
-		conf.DbPort,
-		conf.DbUser,
-		conf.DbPassword,
-		conf.DbName,
-	)
-
-	// 配置连接池（可选：自定义连接池参数，提升可控性）
-	poolConfig, err := pgxpool.ParseConfig(dsn)
+	abs, err := filepath.Abs(conf.File)
 	if err != nil {
-		log.Fatalf("解析数据库配置失败: %v", err)
+		log.Fatalf("解析数据库路径失败: %v", err)
 	}
-	// 可选：设置连接池参数（根据业务调整）
-	poolConfig.MaxConns = 10                               // 最大连接数
-	poolConfig.MinConns = 2                                // 最小空闲连接
-	poolConfig.MaxConnLifetime = 1 * time.Hour             // 连接最大存活时间（避免长期空闲连接失效）
-	poolConfig.MaxConnIdleTime = 30 * time.Minute          // 连接最大空闲时间
-	poolConfig.ConnConfig.ConnectTimeout = 5 * time.Second // 连接超时
-
-	// 初始化连接池
-	Pool, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
-	if err != nil {
-		log.Fatalf("创建数据库连接池失败: %v", err)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		log.Fatalf("创建数据库目录失败: %v", err)
 	}
+	dbFile = abs
 
-	// 验证连接
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	base := fmt.Sprintf("file:%s?_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)"+
+		"&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)"+
+		"&_pragma=cache_size(-65536)", filepath.ToSlash(abs), busyTimeoutMS)
+
+	if writePool, err = sql.Open("sqlite", base+"&_txlock=immediate"); err != nil {
+		log.Fatalf("打开数据库（写）失败: %v", err)
+	}
+	writePool.SetMaxOpenConns(1)
+	writePool.SetMaxIdleConns(1)
+	writePool.SetConnMaxLifetime(0)
+
+	if readPool, err = sql.Open("sqlite", base); err != nil {
+		log.Fatalf("打开数据库（读）失败: %v", err)
+	}
+	readPool.SetMaxOpenConns(8)
+	readPool.SetMaxIdleConns(4)
+	readPool.SetConnMaxLifetime(0)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err = Pool.Ping(ctx); err != nil {
+	if err := writePool.PingContext(ctx); err != nil {
 		log.Fatalf("数据库连接失败: %v", err)
 	}
 
-	log.Println("数据库连接池初始化成功")
+	if err := applySchema(ctx, conf.SchemaFile); err != nil {
+		log.Fatalf("初始化数据库结构失败: %v", err)
+	}
+
+	log.Printf("SQLite 数据库就绪: %s", abs)
 }
 
-// Close 关闭连接池
+// applySchema 执行幂等建表脚本（与 references/db/sqlite.sql 同源）。
+func applySchema(ctx context.Context, schemaFile string) error {
+	raw, err := os.ReadFile(schemaFile)
+	if err != nil {
+		return fmt.Errorf("读取建表脚本 %s 失败: %w", schemaFile, err)
+	}
+	if _, err := writePool.ExecContext(ctx, string(raw)); err != nil {
+		return fmt.Errorf("执行建表脚本失败: %w", err)
+	}
+	return nil
+}
+
+// Close 关闭连接池。
 func Close() {
-	if Pool != nil {
-		Pool.Close()
-		log.Println("数据库连接池已关闭")
+	if writePool != nil {
+		_ = writePool.Close()
+		writePool = nil
+	}
+	if readPool != nil {
+		_ = readPool.Close()
+		readPool = nil
+		log.Println("数据库连接已关闭")
 	}
 }
 
-// GetPool 获取连接池实例（非 nil 保障）
-func GetPool() *pgxpool.Pool {
-	return Pool
+// Read 返回读连接池（WAL 下可并发读）。
+func Read() *sql.DB {
+	return readPool
+}
+
+// Write 返回写连接池（固定单连接）。
+func Write() *sql.DB {
+	return writePool
+}
+
+// Ping 探测数据库可用性。
+func Ping(ctx context.Context) error {
+	if writePool == nil {
+		return fmt.Errorf("数据库未初始化")
+	}
+	return writePool.PingContext(ctx)
 }
 
 // GetDefaultCtx 返回默认超时（5s）的上下文，适用于单条/少量语句的查询。
@@ -75,4 +132,46 @@ func GetDefaultCtx() (context.Context, context.CancelFunc) {
 // GetLongCtx 返回长超时（5min）的上下文，适用于批量写入与全量替换类操作。
 func GetLongCtx() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 5*time.Minute)
+}
+
+// Exec 执行单条写语句，遇写锁竞争自动退避重试。
+func Exec(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	var res sql.Result
+	err := retryWrite(ctx, func() error {
+		var execErr error
+		res, execErr = writePool.ExecContext(ctx, query, args...)
+		return execErr
+	})
+	return res, err
+}
+
+// Tx 在写事务内执行 fn；失败自动回滚，锁竞争整体重试。
+func Tx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	return retryWrite(ctx, func() error {
+		tx, err := writePool.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback() //nolint:errcheck // 提交成功后回滚为无操作
+		if err := fn(tx); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
+}
+
+// retryWrite 退避重试写锁竞争。
+func retryWrite(ctx context.Context, fn func() error) error {
+	var err error
+	for attempt := 0; attempt < writeRetries; attempt++ {
+		if err = fn(); err == nil || !dbutil.IsBusy(err) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(20*(attempt+1)) * time.Millisecond):
+		}
+	}
+	return err
 }

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"monarch/internal/config"
+	"monarch/internal/service/db"
 )
 
 // Result 为 comix CLI 的统一 JSON 响应（协议文档 §2）。
@@ -87,6 +88,12 @@ func RunSync(ctx context.Context, cmd string, rest ...string) (*Result, error) {
 	full := BuildArgs(cmd, rest...)
 	process := exec.CommandContext(ctx, PythonExecutable(), full...)
 	process.Dir = config.ComixConf.Root
+	// 数据库文件与漫画存储根由 backend/.env 统一持有（单一真源），
+	// 调用子进程时注入环境变量，comix 侧无需重复维护。
+	process.Env = append(os.Environ(),
+		"MONARCH_DB_FILE="+dbAbsPath(),
+		"COMIC_STORAGE_ROOT="+config.ComixConf.StorageRoot,
+	)
 
 	var stdout, stderr strings.Builder
 	process.Stdout = &stdout
@@ -116,60 +123,28 @@ func parseOutput(stdout, stderr string, exitCode int, runErr error) (*Result, er
 }
 
 // ---------------------------------------------------------------------------
-// 存储路径（与 comix 端 util/common 的语义保持一致）
+// 存储路径（与 comix 端 config 的语义保持一致）
 // ---------------------------------------------------------------------------
 
-var (
-	storageOnce sync.Once
-	storageRoot string
-	storageErr  error
-)
-
-// StorageRoot 返回 comix 的漫画存储根目录（COMIC_STORAGE_ROOT）。
-//
-// 该值定义在 comix 项目根目录的 .env 中（backend/.env 不重复维护，避免双真相源）；
-// 相对路径按 comix 约定相对其项目根解析。首次调用后缓存。
+// StorageRoot 返回漫画存储根目录（backend/.env 的 COMIC_STORAGE_ROOT）。
 func StorageRoot() (string, error) {
-	storageOnce.Do(func() {
-		root := strings.TrimSpace(config.ComixConf.Root)
-		if root == "" {
-			storageErr = errors.New("COMIX_ROOT 未配置（请在 backend/.env 中设置 comix 项目根目录）")
-			return
-		}
-		storageRoot, storageErr = readStorageRoot(root)
-	})
-	return storageRoot, storageErr
+	root := strings.TrimSpace(config.ComixConf.StorageRoot)
+	if root == "" {
+		return "", errors.New("COMIC_STORAGE_ROOT 未配置（请在 backend/.env 中设置漫画存储根目录）")
+	}
+	return root, nil
 }
 
-func readStorageRoot(comixRoot string) (string, error) {
-	envFile := filepath.Join(comixRoot, ".env")
-	data, err := os.ReadFile(envFile)
+// dbAbsPath 返回数据库文件绝对路径（注入给 comix 子进程）。
+func dbAbsPath() string {
+	if path := db.File(); path != "" {
+		return path
+	}
+	abs, err := filepath.Abs(config.DbConf.File)
 	if err != nil {
-		return "", fmt.Errorf("读取 comix .env 失败: %v", err)
+		return config.DbConf.File
 	}
-	value := ""
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		key, val, found := strings.Cut(line, "=")
-		if !found {
-			continue
-		}
-		if strings.TrimSpace(key) == "COMIC_STORAGE_ROOT" {
-			value = strings.TrimSpace(val)
-			break
-		}
-	}
-	if value == "" {
-		value = "./comics" // comix 默认值
-	}
-	if !filepath.IsAbs(value) {
-		value = filepath.Join(comixRoot, value)
-	}
-	// 清理可能的引号
-	return strings.Trim(value, `"'`), nil
+	return abs
 }
 
 // StoragePath 将 DB 中的 rel_dir（形如 `comics/{comic_id}/{chapter_id}`）

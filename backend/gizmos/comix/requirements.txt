@@ -1,0 +1,7 @@
+# comix 漫画下载管理系统依赖
+# 数据库使用标准库 sqlite3，无需额外驱动
+requests>=2.31
+lxml>=5.0
+fake-useragent>=1.5
+playwright>=1.40          # 漫画鱼/奈斯漫画需要（并需执行: python -m playwright install chromium）
+python-dotenv>=1.0

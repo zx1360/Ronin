@@ -1,19 +1,18 @@
-# AI 处理层数据表 (ai schema)
+# AI 处理层数据表
 
-独立 schema，可整体回滚：`DROP SCHEMA ai CASCADE`（见 `references/db/ai_rollback.sql`）。
-不修改 gallery / user_data / comix 的任何既有对象，只以外键引用 `gallery.media_assets`。
+> 建表真源：`references/db/sqlite.sql`（AI 侧 8 张表）。不修改其它模块的任何表，
+> 只以外键引用 `media_assets`（`ON DELETE CASCADE`），可整组删除而不影响其它数据。
 
-**AI 产物与人工数据物理隔离**：人工标签在 `gallery.tags`，AI 关键词在
-`ai.media_ai.vlm_tags`，两者天然可区分，不会互相覆盖。
+**AI 产物与人工数据物理隔离**：人工标签在 `tags`，AI 关键词在 `media_ai_tags`，
+两者天然可区分，不会互相覆盖。
 
-## 扩展
-
-| 扩展 | 位置 | 用途 |
-| ---- | ---- | ---- |
-| `pg_trgm` | 装入 `ai` schema | OCR 文本 / VLM 描述的子串检索索引（contrib 内置，无需编译安装） |
-
-> **不需要 pgvector**：图像向量以 int8 量化存于 `ai.embeddings.vec`，检索由
-> Go 服务把全量向量载入内存做精确余弦扫描（7w × 768 维 ≈ 54MB，单次查询数十毫秒）。
+> **不需要 pgvector**：图像向量以 int8 量化存于 `embeddings.vec`，检索由 Go 服务把
+> 全量向量载入内存做精确余弦扫描（7w × 768 维 ≈ 54MB，SQLite 读取比原 pgx 更快：
+> 0.41s vs 1.23s）。
+>
+> **不需要 pg_trgm**：OCR/描述/AI 标签的关键词检索改为 `LIKE '%kw%'` 全表扫描
+> （media_ai 表窄，7 万行实测 29ms，快于原 pg_trgm 路径）；代价随文本量线性增长，
+> 属已知上限，见 `AGENTS_DB.md`。
 
 ## media_ai
 
@@ -21,18 +20,25 @@
 
 | 列 | 类型 | 说明 |
 | -- | ---- | ---- |
-| media_id | UUID PRIMARY KEY FK→gallery.media_assets ON DELETE CASCADE | |
-| phash | BIGINT | 感知哈希；`-1` 表示无法解码（占位，避免重复尝试） |
+| media_id | TEXT PRIMARY KEY FK→media_assets ON DELETE CASCADE | |
+| phash | INTEGER | 感知哈希；`-1` 表示无法解码（占位，避免重复尝试） |
 | ocr_text | TEXT | OCR 全文（多行拼接）；`''` 表示已识别但无文字 |
 | caption | TEXT | VLM 生成的一句话描述 |
-| vlm_tags | TEXT[] NOT NULL DEFAULT '{}' | VLM 关键词 |
-| updated_at | TIMESTAMPTZ (自动更新) | 由 `ai.update_updated_at_column()` 触发器维护 |
+| updated_at | TEXT (AFTER UPDATE 触发器维护) | |
 
-索引：`phash`、`vlm_tags` GIN、`ocr_text`/`caption` trigram GIN。
+索引：`phash`。
 
-> `updated_at` 触发器函数**自带在 ai schema 内**（`ai.update_updated_at_column`），
-> 不依赖 `public` 或其它 schema 的同名函数——生产库中 gallery / user_data 各自持有
-> 自己的副本，ai 沿用同一约定，从而保证 ai.sql 可独立执行与整体回收。
+## media_ai_tags
+
+VLM 关键词（替代原 PG 的 `media_ai.vlm_tags text[]`）：一行一个标签，
+使「任一命中」与「标签聚合」都退化为普通索引查询。
+
+| 列 | 类型 | 说明 |
+| -- | ---- | ---- |
+| media_id | TEXT FK→media_ai ON DELETE CASCADE | |
+| tag | TEXT | |
+
+主键：`(media_id, tag)`；另建 `tag` 索引。写入时整组替换（`SaveVLM`）。
 
 ## embeddings
 
@@ -40,12 +46,12 @@
 
 | 列 | 类型 | 说明 |
 | -- | ---- | ---- |
-| media_id | UUID FK→media_assets ON DELETE CASCADE | |
+| media_id | TEXT FK→media_assets ON DELETE CASCADE | |
 | kind | TEXT | 目前仅 `image` |
 | model | TEXT | 如 `siglip2-base-patch16-224` |
 | dim | INTEGER | 维度 |
 | scale | REAL | 反量化系数：真实分量 = int8 值 × scale |
-| vec | BYTEA | dim 字节 int8 |
+| vec | BLOB | dim 字节 int8 |
 
 主键：`(media_id, kind, model)`。量化前做 L2 归一化，故内积即余弦相似度。
 
@@ -58,19 +64,19 @@
 
 | faces 列 | 类型 | 说明 |
 | -------- | ---- | ---- |
-| id | UUID PRIMARY KEY | |
-| media_id | UUID FK→media_assets ON DELETE CASCADE | |
-| person_id | UUID FK→persons ON DELETE SET NULL | 未归组时为 NULL |
-| bbox | REAL[] | 归一化 x1,y1,x2,y2 |
+| id | TEXT PRIMARY KEY | |
+| media_id | TEXT FK→media_assets ON DELETE CASCADE | |
+| person_id | TEXT FK→persons ON DELETE SET NULL | 未归组时为 NULL |
+| bbox | TEXT | JSON `[x1,y1,x2,y2]`（归一化） |
 | det_score | REAL | 检测置信度 |
 | quality | REAL | 检测分 × 人脸尺寸权重，用于选封面与聚类顺序 |
-| embedding | BYTEA | 512 维 float32（已 L2 归一化），2048 字节 |
+| embedding | BLOB | 512 维 float32（已 L2 归一化），2048 字节 |
 
 | persons 列 | 类型 | 说明 |
 | ---------- | ---- | ---- |
-| id | UUID PRIMARY KEY | |
+| id | TEXT PRIMARY KEY | |
 | name | TEXT | 人工命名，可空 |
-| cover_face_id | UUID FK→faces ON DELETE SET NULL | 质量最高的人脸 |
+| cover_face_id | TEXT FK→faces ON DELETE SET NULL | 质量最高的人脸 |
 | face_count | INTEGER | 冗余计数，由服务端在归并后重算 |
 
 聚类策略（`internal/service/ai/cluster.go`）：以人物中心为锚做在线增量归并，
@@ -83,18 +89,20 @@
 
 | 列 | 类型 | 说明 |
 | -- | ---- | ---- |
-| id | BIGSERIAL PRIMARY KEY | |
+| id | INTEGER PRIMARY KEY AUTOINCREMENT | |
 | capability | TEXT | `phash` / `embed` / `face` / `ocr` / `vlm` |
-| media_id | UUID FK→media_assets ON DELETE CASCADE | |
+| media_id | TEXT FK→media_assets ON DELETE CASCADE | |
 | status | TEXT | `pending` / `running` / `done` / `failed` |
-| priority | SMALLINT DEFAULT 100 | 越小越先处理 |
-| attempts | SMALLINT DEFAULT 0 | 认领时 +1 |
+| priority | INTEGER DEFAULT 100 | 越小越先处理 |
+| attempts | INTEGER DEFAULT 0 | 认领时 +1 |
 | last_error | TEXT | 最近一次失败原因 |
-| started_at / finished_at | TIMESTAMPTZ | |
-| created_at / updated_at | TIMESTAMPTZ (updated_at 自动更新) | |
+| started_at / finished_at | TEXT | |
+| created_at / updated_at | TEXT (updated_at 触发器维护) | |
 
 唯一约束：`(capability, media_id)` —— 入队天然幂等。
-认领使用 `FOR UPDATE SKIP LOCKED`，多 worker 安全。
+认领（`Claim`）改为在写事务内一条 `UPDATE ... WHERE id IN (SELECT ... LIMIT n)
+RETURNING id, media_id`：单写者模型下进程内不存在竞争，无需 PG 的
+`FOR UPDATE SKIP LOCKED`。
 
 ## duplicate_ignores
 
@@ -103,16 +111,16 @@
 
 | 列 | 类型 | 说明 |
 | -- | ---- | ---- |
-| media_id | UUID PRIMARY KEY FK→media_assets ON DELETE CASCADE | |
-| created_at | TIMESTAMPTZ | 标记时间 |
+| media_id | TEXT PRIMARY KEY FK→media_assets ON DELETE CASCADE | |
+| created_at | TEXT | 标记时间 |
 
 ## settings
 
 | 列 | 类型 | 说明 |
 | -- | ---- | ---- |
-| key | TEXT PRIMARY KEY | 目前仅有 `auto_capabilities` |
-| value | TEXT | 逗号分隔的能力列表 |
-| updated_at | TIMESTAMPTZ (自动更新) | |
+| key | TEXT PRIMARY KEY | `auto_capabilities` / `ollama_vlm_model` |
+| value | TEXT | 逗号分隔的能力列表 / 模型名 |
+| updated_at | TEXT (自动更新) | |
 
 `auto_capabilities` 决定"入库后自动入队处理哪些能力"，可在桌面端 AI 页面实时调整，
 未选中者只能手动提交（VLM 默认不在其中：单张 5-15 秒，全量代价过高）。

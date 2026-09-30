@@ -439,7 +439,7 @@ func parseBookletStyle(m map[string]interface{}) (model.BookletStyle, error) {
 
 	return model.BookletStyle{
 		ID:                 id,
-		StartDate:          dateOnly(startDate),
+		StartDate:          model.FlexTime(dateOnly(startDate)),
 		ValidCheckIn:       getInt(m, "valid_check_in"),
 		FullyDone:          getInt(m, "fully_done"),
 		LongestStreak:      getInt(m, "longest_streak"),
@@ -467,7 +467,7 @@ func parseBookletRecord(m map[string]interface{}) (model.BookletRecord, error) {
 	return model.BookletRecord{
 		ID:             id,
 		StyleID:        styleID,
-		Date:           dateOnly(date),
+		Date:           model.FlexTime(dateOnly(date)),
 		Message:        getString(m, "message"),
 		TaskCompletion: toJSONRaw(m["task_completion"]),
 		Mood:           getOptionalString(m, "mood"),
@@ -489,7 +489,7 @@ func parseEssayArticle(m map[string]interface{}) (model.EssayArticle, error) {
 
 	return model.EssayArticle{
 		ID:        id,
-		Date:      date,
+		Date:      model.FlexTime(date),
 		WordCount: getInt(m, "word_count"),
 		Content:   getString(m, "content"),
 		Imgs:      getStringSlice(m, "imgs"),

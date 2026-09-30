@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -45,63 +44,63 @@ func (y *FlexYear) UnmarshalJSON(data []byte) error {
 // Essay 相关模型
 // ============================================================================
 
-// EssayArticle 对应 user_data.essay_articles 表
+// EssayArticle 对应 essay_articles 表
 type EssayArticle struct {
 	ID        uuid.UUID       `json:"id"`
-	Date      time.Time       `json:"date"`
+	Date      FlexTime        `json:"date"`
 	WordCount int             `json:"word_count"`
 	Content   string          `json:"content"`
 	Imgs      []string        `json:"imgs"`
 	Labels    []string        `json:"labels"`
-	Messages  json.RawMessage `json:"messages"` // JSONB
+	Messages  json.RawMessage `json:"messages"` // JSON 文本
 	Mood      *string         `json:"mood"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	CreatedAt FlexTime        `json:"created_at"`
+	UpdatedAt FlexTime        `json:"updated_at"`
 }
 
-// EssayLabel 对应 user_data.essay_labels 表
+// EssayLabel 对应 essay_labels 表
 type EssayLabel struct {
 	ID         uuid.UUID `json:"id"`
 	Name       string    `json:"name"`
 	EssayCount int       `json:"essay_count"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	CreatedAt  FlexTime  `json:"created_at"`
+	UpdatedAt  FlexTime  `json:"updated_at"`
 }
 
-// EssayYearSummary 对应 user_data.essay_year_summaries 表
+// EssayYearSummary 对应 essay_year_summaries 表
 type EssayYearSummary struct {
 	Year           FlexYear        `json:"year"`
 	EssayCount     int             `json:"essay_count"`
 	WordCount      int             `json:"word_count"`
-	MonthSummaries json.RawMessage `json:"month_summaries"` // JSONB
-	UpdatedAt      time.Time       `json:"updated_at"`
+	MonthSummaries json.RawMessage `json:"month_summaries"` // JSON 文本
+	UpdatedAt      FlexTime        `json:"updated_at"`
 }
 
 // ============================================================================
 // Booklet 相关模型
 // ============================================================================
 
-// BookletStyle 对应 user_data.booklet_styles 表
+// BookletStyle 对应 booklet_styles 表
 type BookletStyle struct {
 	ID                 uuid.UUID       `json:"id"`
-	StartDate          time.Time       `json:"start_date"`
+	StartDate          FlexTime        `json:"start_date"`
 	ValidCheckIn       int             `json:"valid_check_in"`
 	FullyDone          int             `json:"fully_done"`
 	LongestStreak      int             `json:"longest_streak"`
 	LongestFullyStreak int             `json:"longest_fully_streak"`
-	Tasks              json.RawMessage `json:"tasks"` // JSONB
-	CreatedAt          time.Time       `json:"created_at"`
-	UpdatedAt          time.Time       `json:"updated_at"`
+	Tasks              json.RawMessage `json:"tasks"` // JSON 文本
+	CreatedAt          FlexTime        `json:"created_at"`
+	UpdatedAt          FlexTime        `json:"updated_at"`
 }
 
-// BookletRecord 对应 user_data.booklet_records 表
+// BookletRecord 对应 booklet_records 表
 type BookletRecord struct {
 	ID             uuid.UUID       `json:"id"`
 	StyleID        uuid.UUID       `json:"style_id"`
-	Date           time.Time       `json:"date"`
+	Date           FlexTime        `json:"date"`
 	Message        string          `json:"message"`
-	TaskCompletion json.RawMessage `json:"task_completion"` // JSONB
+	TaskCompletion json.RawMessage `json:"task_completion"` // JSON 文本
 	Mood           *string         `json:"mood"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	CreatedAt      FlexTime        `json:"created_at"`
+	UpdatedAt      FlexTime        `json:"updated_at"`
 }
