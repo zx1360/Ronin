@@ -135,7 +135,7 @@ class MDnsDiscovery {
       final txt = _parseTxtRecords(txtRecords);
 
       for (final srv in srvRecords) {
-        // 3. 从 SRV target 提取主机名 (如 "DESKTOP-XXX.local.")
+        // 3. 从 SRV target 提取主机名
         final srvTarget = _stripTrailingDot(srv.target);
 
         // 4. 查询该主机的 A 记录以获取真实 IP
