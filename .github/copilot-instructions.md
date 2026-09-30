@@ -17,7 +17,7 @@
    - ops 网页端（`http://127.0.0.1:<LOCAL_DEBUG_PORT>/ops/`）只经回环 http 调用后端提供的本机能力，自身不起进程、不落文件
    - mDNS 自动发现：Monarch 启动时通过 `_monarch._tcp` 注册，客户端通过组播 DNS 自动发现
 
-### 分支策略
+### 证书与信任
 
 - 自签证书：后端与前端统一，Flutter 端通过 `assets/cert/server.crt` 信任；ops 走回环 http 无需证书
 

@@ -19,6 +19,9 @@ Flutter 应用，**仅面向 Android 移动端**（单平台，代码里不按�
 
 > 只有上表列出的顶层路由是 GoRouter 路由；`/others` 下的二级页用 `Navigator.push` 进入.
 
+`lib/features/` 一个功能一个目录：`gallery` / `comic` / `immich` / `smart_album` / `ai` 由 `/others` 入口进入，
+跨功能复用的零件放 `shared/`，`others/` 只留入口页与入口数据。
+
 ### 技术栈
 
 - 状态管理：Riverpod + riverpod_generator；路由：GoRouter；网络：Dio（自签证书兼容）
@@ -60,8 +63,11 @@ Flutter 应用，**仅面向 Android 移动端**（单平台，代码里不按�
 - 自签证书：`assets/cert/`，经 `CertTrust` 加载（`withTrustedRoots=false`）。
   ⚠️ `assets/` 未纳入版本控制：全新检出需先补回该证书，否则 `CertTrust.init()` 会失败。
 - **画廊/相册数据权威**：服务端权威 + 本地缓存 + 操作式写入。标签、标签关系、媒体标注（is_deleted/message/group_id/edit_params）全部经 `/API/gallery/*` 写服务端；本地 `gallery.db` 只是缓存（下载批次镜像、写操作回写），跨端不会互相覆盖。
-  - 写入口：`services/gallery_api_service.dart`（类型化操作接口）。
-  - 交互流畅性：`services/gallery_write_buffer.dart` + `providers/write_buffer_provider.dart` 提供「本地立即生效 → 后台合并推送 → 退避重试 → 最终失败回滚」，批量/低频操作走 `retryServerWrite`。
+  - **唯一写入口**：`services/gallery_write_service.dart`（经 `providers/gallery_write_provider.dart` 取用），
+    底层操作接口是 `services/gallery_api_service.dart`。三种模式：`buffered`（交互式，合并推送 + 退避重试）、
+    `direct`（批量/低频，直推 + 整批回滚）、`serverOnly`（纯服务端动作）。「本地立即生效 → 失败按基线回滚」
+    由它统一实现，provider 与页面不再各写一套。
+  - 分页统一用 `services/media_pagination.dart` 的 `MediaPager`（`mediaPageSize` 只在那一处被引用）。
   - 批次处理游标：设置页「标记已处理」= 服务端 `sync_count + 1`（PATCH `/media` 的 `mark_processed`）+ 清理本地已处理记录与文件。
 - mDNS 自动发现：`/profile` → 网络设置页点击"发现"可扫描局域网内的 Monarch 服务，发现的新地址会自动添加到配置列表。
 
@@ -108,8 +114,11 @@ Flutter 应用，**仅面向 Android 移动端**（单平台，代码里不按�
 
 ### 复用约定
 
-- 标签树一律用 `features/others/shared/tag_tree.dart` 的 `TagTreeIndex` 建索引；根级取
-  `displayRoots`（真根 + 父级缺失的孤儿），**不要把孤儿丢掉**——否则父标签被删后子标签会从界面上消失。
+- 标签树一律用 `features/shared/tag_tree.dart`：`TagTreeIndex` 建索引（根级取 `displayRoots`
+  = 真根 + 父级缺失的孤儿，**不要把孤儿丢掉**——否则父标签被删后子标签会从界面上消失），
+  `TagTreeExpansion` 管展开态，`TagTreeView`/`flatten` 管可见节点；各页面的渲染与交互各自保留。
+- 媒体网格单元的唯一实现是 `features/gallery/widgets/browser/media_grid_cell.dart`
+  （`MediaGridCellLayout` 区分缩略 / 等比 / 瀑布），新列表不要另写单元。
 - 漫画阅读页的图像拼接与选区裁剪在 `comic/services/reader_image_service.dart`（纯函数，有单测）。
 
 ### 硬性要求

@@ -109,6 +109,35 @@ func (o *Ollama) ListModels(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// sendJSON 是所有 Ollama 推理往返的公共出口：序列化请求体、构造请求、设置
+// Content-Type、发送，并把传输错误与非 200 统一成可读错误（Ollama 把失败原因
+// 写在响应体里，读出来才能诊断 400/404）。
+//
+// 返回的响应体由调用方关闭并解析——各协议的请求体与响应语义差别都在那之后，
+// 刻意不在这里合并。ctx 取消即中断请求。
+func (o *Ollama) sendJSON(ctx context.Context, path string, payload any) (*http.Response, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("调用 Ollama 失败: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		resp.Body.Close()
+		return nil, fmt.Errorf("Ollama 返回 %d: %s", resp.StatusCode, strings.TrimSpace(string(detail)))
+	}
+	return resp, nil
+}
+
 // resolveExe 解析 ollama 可执行文件（未配置时从 PATH 查找）。
 func (o *Ollama) resolveExe() string {
 	if exe := strings.TrimSpace(o.cfg.OllamaExe); exe != "" {
@@ -191,27 +220,14 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 
 // Unload 立即卸载指定模型（释放显存）；模型本来就没加载时同样返回成功。
 func (o *Ollama) Unload(ctx context.Context, model string) error {
-	body, err := json.Marshal(map[string]any{
+	resp, err := o.sendJSON(ctx, "/api/generate", map[string]any{
 		"model":      model,
 		"keep_alive": 0,
 	})
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/generate", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := o.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("卸载模型失败: %w", err)
-	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("卸载模型失败: Ollama 返回 %d", resp.StatusCode)
-	}
 	return nil
 }
 
@@ -284,7 +300,7 @@ func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmRes
 		return nil, fmt.Errorf("读取图片失败: %w", err)
 	}
 
-	body, err := json.Marshal(map[string]any{
+	body := map[string]any{
 		"model":  model,
 		"prompt": vlmPrompt,
 		"images": []string{base64.StdEncoding.EncodeToString(raw)},
@@ -301,25 +317,13 @@ func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmRes
 			"num_predict": 256,
 			"num_ctx":     o.cfg.OllamaVLMCTX,
 		},
-	})
-	if err != nil {
-		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/generate", bytes.NewReader(body))
+	resp, err := o.sendJSON(ctx, "/api/generate", body)
 	if err != nil {
 		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := o.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("调用 Ollama 失败: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Ollama 返回 %d", resp.StatusCode)
-	}
 
 	var parsed struct {
 		Response string `json:"response"`
@@ -414,7 +418,7 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 		temperature = defaultTemperature
 	}
 
-	body, err := json.Marshal(map[string]any{
+	body := map[string]any{
 		"model":      model,
 		"messages":   messages,
 		"stream":     true,
@@ -424,26 +428,13 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 			"temperature": temperature,
 			"num_ctx":     numCtx,
 		},
-	})
-	if err != nil {
-		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.cfg.OllamaURL+"/api/chat", bytes.NewReader(body))
+	resp, err := o.sendJSON(ctx, "/api/chat", body)
 	if err != nil {
 		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := o.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("调用 Ollama 失败: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("Ollama 返回 %d: %s", resp.StatusCode, strings.TrimSpace(string(detail)))
-	}
 
 	emit := func(event ChatEvent) error {
 		if onEvent == nil {
