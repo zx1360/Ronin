@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -206,25 +205,10 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
     setState(() => _saving = true);
 
     try {
-      final db = ref.read(galleryDatabaseProvider);
       final editParams = _buildEditParamsJson();
-      final updatedAsset = widget.asset.copyWith(
-        editParams: editParams,
-        clearEditParams: editParams == null,
-      );
-      await db.updateMediaAsset(updatedAsset);
-
-      // 服务端权威: 本地先生效, 编辑参数经缓冲写入服务端
-      ref.read(galleryWriteBufferProvider).queuePatch(
-            widget.asset.id,
-            editParams == null
-                ? const MediaPatchIntent(clearEditParams: true)
-                : MediaPatchIntent(editParams: editParams),
-            baselineAsset: widget.asset,
-          );
-
-      // 刷新列表
-      await ref.read(mediaAssetListProvider.notifier).refresh();
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .setEditParams(widget.asset, editParams);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

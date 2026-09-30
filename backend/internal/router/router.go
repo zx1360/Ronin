@@ -125,11 +125,13 @@ func SetupRouter() *gin.Engine {
 		// AI 智能媒体处理层（运维 + 检索 + 组织）
 		aiGroup := api.Group("/ai")
 		{
-			// 运维：状态、队列、入队、重试、中断、模型进程、索引
+			// 运维：状态、队列、入队、重试、全量重生成、中断、模型进程、索引
 			aiGroup.GET("/status", ai_handler.Status)
+			aiGroup.GET("/capabilities", ai_handler.ListCapabilities)
 			aiGroup.GET("/jobs", ai_handler.ListJobs)
 			aiGroup.POST("/enqueue", ai_handler.Enqueue)
 			aiGroup.POST("/retry", ai_handler.Retry)
+			aiGroup.POST("/regenerate", ai_handler.Regenerate)
 			aiGroup.POST("/cancel", ai_handler.Cancel)
 			aiGroup.POST("/resume", ai_handler.Resume)
 			aiGroup.POST("/index/rebuild", ai_handler.RebuildIndex)
@@ -140,6 +142,11 @@ func SetupRouter() *gin.Engine {
 
 			// 交互式对话（NDJSON 流；Android 端聊天页使用）
 			aiGroup.POST("/chat", ai_handler.Chat)
+
+			// 近期回顾：后端算确定性统计（+ 可选随机素材）后交本地模型叙述
+			aiGroup.POST("/review", ai_handler.Review)
+			aiGroup.GET("/review/presets", ai_handler.GetReviewPresets)
+			aiGroup.PUT("/review/presets", ai_handler.UpdateReviewPresets)
 
 			// 检索：文本搜图 / 以图搜图 / 组合筛选
 			aiGroup.GET("/search", ai_handler.Search)

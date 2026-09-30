@@ -40,7 +40,8 @@ var capabilityPriority = map[string]int{
 
 // ---------- 入库自动触发 ----------
 
-// reconcileLoop 周期性把"尚无任务行"的媒体补进队列。
+// reconcileLoop 周期性把"尚无任务行"的媒体补进队列，并把输入档位/执行者已变
+// （换 VLM 模型等）的旧产物自动重排。
 //
 // 这是"媒体入库后自动触发处理流水线"的唯一实现：不依赖入库方的任何配合，
 // 幂等且自愈——无论媒体是何时、由哪个工具写入的，最终都会被覆盖到。
@@ -53,18 +54,40 @@ func (e *Engine) reconcileLoop(ctx context.Context) {
 		case <-time.After(next):
 		}
 
-		autoCaps := ai_repo.AutoCapabilities(e.cfg.AutoCaps)
+		autoCaps := e.AutoCapabilities()
+		specs := map[string]string{}
+		for _, spec := range e.CapabilitySpecs() {
+			specs[spec.Capability] = spec.InputSig
+		}
 		inserted := int64(0)
 		for _, capability := range autoCaps {
-			n, err := ai_repo.EnqueueMissing(capability, reconcileBatch, capabilityPriority[capability])
+			n, err := ai_repo.EnqueueMissing(capability, reconcileBatch,
+				capabilityPriority[capability], specs[capability])
 			if err != nil {
 				log.Printf("[AI] 补充入队 %s 失败: %v", capability, err)
 				continue
 			}
 			inserted += n
 		}
+		// 输入档位/执行者变更后自动重排：按全部能力检查，不限于"自动处理"清单——
+		// 换模型只影响该能力已有的那批产物，正是用户期望被重算的范围
+		// （未启用自动处理的能力同样如此，否则换模型后旧产物会一直留着）。
+		requeued := int64(0)
+		for _, capability := range model.AllCapabilities {
+			n, err := ai_repo.ResetStaleInput(capability, specs[capability])
+			if err != nil {
+				log.Printf("[AI] 重排 %s 旧产物失败: %v", capability, err)
+				continue
+			}
+			if n > 0 {
+				log.Printf("[AI] %s 的输入档位/执行者已变更，%d 条旧产物已重新排队", capability, n)
+			}
+			requeued += n
+		}
 		if inserted > 0 {
 			log.Printf("[AI] 入库自动入队 %d 条任务（能力: %v）", inserted, autoCaps)
+		}
+		if inserted > 0 || requeued > 0 {
 			e.Wake()
 			next = reconcileActiveInterval
 		} else {
@@ -135,7 +158,7 @@ func (e *Engine) runOneBatch(ctx context.Context) (bool, error) {
 
 // batchLimit 返回该能力单批处理条数。
 func (e *Engine) batchLimit(capability string) int {
-	limit := e.cfg.BatchSize
+	limit := e.Config().BatchSize
 	if capability == model.CapVLM && limit > vlmBatchMax {
 		limit = vlmBatchMax
 	}
@@ -147,7 +170,8 @@ func (e *Engine) batchLimit(capability string) int {
 
 // executeBatch 执行一个已认领的批次并回写任务状态。
 func (e *Engine) executeBatch(parent context.Context, capability string, claimed []ai_repo.ClaimedJob) {
-	batchCtx, cancel := context.WithTimeout(parent, e.cfg.JobTimeout)
+	cfg := e.Config()
+	batchCtx, cancel := context.WithTimeout(parent, cfg.JobTimeout)
 	e.setRunCancel(cancel)
 	defer func() {
 		e.setRunCancel(nil)
@@ -175,9 +199,17 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		jobByMedia[key] = job.JobID
 	}
 
-	items, missing, err := e.resolveItems(mediaIDs)
+	// 本次批次使用的输入档位 + 执行者指纹：随产物一起落库，供追溯与自动重排判断
+	spec, ok := e.capabilitySpec(capability)
+	if !ok {
+		e.failJobs(claimed, capability, "未知能力: "+capability)
+		info.Failed = len(claimed)
+		return
+	}
+
+	items, missing, err := e.resolveItems(capability, mediaIDs)
 	if err != nil {
-		e.failJobs(claimed, fmt.Sprintf("解析媒体失败: %v", err))
+		e.failJobs(claimed, capability, fmt.Sprintf("解析媒体失败: %v", err))
 		info.Failed = len(claimed)
 		return
 	}
@@ -189,15 +221,15 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 
 	switch capability {
 	case model.CapPHash:
-		e.runPHash(items, failed)
+		e.runPHash(items, spec.InputSig, failed)
 	case model.CapEmbed:
-		e.runEmbed(batchCtx, items, failed)
+		e.runEmbed(batchCtx, items, spec.InputSig, failed)
 	case model.CapFace:
-		e.runFace(batchCtx, items, failed)
+		e.runFace(batchCtx, items, spec.InputSig, failed)
 	case model.CapOCR:
-		e.runOCR(batchCtx, items, failed)
+		e.runOCR(batchCtx, items, spec.InputSig, failed)
 	case model.CapVLM:
-		e.runVLM(batchCtx, items, failed)
+		e.runVLM(batchCtx, items, spec.InputSig, failed)
 	default:
 		for _, item := range items {
 			failed[item.MediaID] = "未知能力: " + capability
@@ -218,7 +250,7 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		doneJobIDs = append(doneJobIDs, jobID)
 	}
 
-	if err := ai_repo.FinishDone(doneJobIDs); err != nil {
+	if err := ai_repo.FinishDone(doneJobIDs, spec.InputSig); err != nil {
 		log.Printf("[AI] 标记任务完成失败: %v", err)
 	}
 	// 用户主动中断 / 模型被切换抢占：未完成的任务退回队列，不计失败
@@ -228,7 +260,7 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		}
 		e.cancelRequested.Store(false)
 	} else if len(failedJobIDs) > 0 {
-		if err := ai_repo.FinishFailed(failedJobIDs, firstErr, e.cfg.MaxAttempts); err != nil {
+		if err := ai_repo.FinishFailed(failedJobIDs, firstErr, cfg.MaxAttempts, spec.InputSig); err != nil {
 			log.Printf("[AI] 标记任务失败失败: %v", err)
 		}
 	}
@@ -239,12 +271,13 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		capability, info.Processed, info.Failed, info.Total)
 }
 
-func (e *Engine) failJobs(claimed []ai_repo.ClaimedJob, reason string) {
+// failJobs 整条批次无法执行（例如媒体解析失败）时把所有任务标记为失败。
+func (e *Engine) failJobs(claimed []ai_repo.ClaimedJob, capability, reason string) {
 	ids := make([]int64, 0, len(claimed))
 	for _, job := range claimed {
 		ids = append(ids, job.JobID)
 	}
-	if err := ai_repo.FinishFailed(ids, reason, e.cfg.MaxAttempts); err != nil {
+	if err := ai_repo.FinishFailed(ids, reason, e.Config().MaxAttempts, e.InputSignature(capability)); err != nil {
 		log.Printf("[AI] 标记批次失败状态时出错: %v", err)
 	}
 }
@@ -252,7 +285,7 @@ func (e *Engine) failJobs(claimed []ai_repo.ClaimedJob, reason string) {
 // ---------- 各能力实现 ----------
 
 // runPHash 在 Go 进程内计算感知哈希，不依赖任何外部进程。
-func (e *Engine) runPHash(items []MediaItem, failed map[string]string) {
+func (e *Engine) runPHash(items []MediaItem, inputSig string, failed map[string]string) {
 	for _, item := range items {
 		mediaID, err := uuid.Parse(item.MediaID)
 		if err != nil {
@@ -260,7 +293,7 @@ func (e *Engine) runPHash(items []MediaItem, failed map[string]string) {
 			continue
 		}
 		hash := ComputePHash(item.Path)
-		if err := ai_repo.SavePHash(mediaID, hash); err != nil {
+		if err := ai_repo.SavePHash(mediaID, hash, inputSig); err != nil {
 			failed[item.MediaID] = err.Error()
 			continue
 		}
@@ -276,8 +309,9 @@ type embedPayload struct {
 }
 
 // runEmbed 通过侧车计算 SigLIP 图像向量。
-func (e *Engine) runEmbed(ctx context.Context, items []MediaItem, failed map[string]string) {
-	results, err := e.embed.RunBatch(ctx, map[string]any{"model": e.cfg.EmbedModel}, toSidecarItems(items))
+func (e *Engine) runEmbed(ctx context.Context, items []MediaItem, inputSig string, failed map[string]string) {
+	embedModel := e.Config().EmbedModel
+	results, err := e.embed.RunBatch(ctx, map[string]any{"model": embedModel}, toSidecarItems(items))
 	if err != nil {
 		failAllItems(items, failed, err)
 		return
@@ -304,12 +338,13 @@ func (e *Engine) runEmbed(ctx context.Context, items []MediaItem, failed map[str
 			continue
 		}
 		writes = append(writes, ai_repo.EmbeddingWrite{
-			MediaID: mediaID,
-			Kind:    "image",
-			Model:   e.cfg.EmbedModel,
-			Dim:     payload.Dim,
-			Scale:   payload.Scale,
-			Vec:     raw,
+			MediaID:  mediaID,
+			Kind:     "image",
+			Model:    embedModel,
+			Dim:      payload.Dim,
+			Scale:    payload.Scale,
+			Vec:      raw,
+			InputSig: inputSig,
 		})
 	}
 
@@ -335,7 +370,7 @@ type facePayload struct {
 }
 
 // runFace 通过侧车做人脸检测与特征提取，随后增量归并到人物分组。
-func (e *Engine) runFace(ctx context.Context, items []MediaItem, failed map[string]string) {
+func (e *Engine) runFace(ctx context.Context, items []MediaItem, inputSig string, failed map[string]string) {
 	results, err := e.face.RunBatch(ctx, nil, toSidecarItems(items))
 	if err != nil {
 		failAllItems(items, failed, err)
@@ -387,7 +422,7 @@ func (e *Engine) runFace(ctx context.Context, items []MediaItem, failed map[stri
 			})
 		}
 
-		if err := ai_repo.ReplaceFaces(mediaID, writes); err != nil {
+		if err := ai_repo.ReplaceFaces(mediaID, writes, inputSig); err != nil {
 			failed[res.ID] = err.Error()
 			continue
 		}
@@ -410,7 +445,7 @@ type ocrPayload struct {
 }
 
 // runOCR 通过侧车做文字识别。
-func (e *Engine) runOCR(ctx context.Context, items []MediaItem, failed map[string]string) {
+func (e *Engine) runOCR(ctx context.Context, items []MediaItem, inputSig string, failed map[string]string) {
 	results, err := e.ocr.RunBatch(ctx, nil, toSidecarItems(items))
 	if err != nil {
 		failAllItems(items, failed, err)
@@ -431,7 +466,7 @@ func (e *Engine) runOCR(ctx context.Context, items []MediaItem, failed map[strin
 		if err != nil {
 			continue
 		}
-		if err := ai_repo.SaveOCR(mediaID, payload.Text); err != nil {
+		if err := ai_repo.SaveOCR(mediaID, payload.Text, inputSig); err != nil {
 			failed[res.ID] = err.Error()
 		}
 	}
@@ -441,7 +476,7 @@ func (e *Engine) runOCR(ctx context.Context, items []MediaItem, failed map[strin
 //
 // 逐张串行是刻意的：单张 4B VLM 推理已接近本机算力上限，并发只会互相拖慢。
 // 模型由人工选择（默认 / 无审查版），并受模型仲裁保护：后台工作不抢占前台对话。
-func (e *Engine) runVLM(ctx context.Context, items []MediaItem, failed map[string]string) {
+func (e *Engine) runVLM(ctx context.Context, items []MediaItem, inputSig string, failed map[string]string) {
 	modelName := e.VLMModel()
 	lease := e.UseModel(ctx, modelName, "VLM 自动标注", ModelBackground)
 	defer lease.Release()
@@ -469,7 +504,7 @@ func (e *Engine) runVLM(ctx context.Context, items []MediaItem, failed map[strin
 			failed[item.MediaID] = err.Error()
 			continue
 		}
-		if err := ai_repo.SaveVLM(mediaID, result.Caption, result.Tags); err != nil {
+		if err := ai_repo.SaveVLM(mediaID, result.Caption, result.Tags, inputSig); err != nil {
 			failed[item.MediaID] = err.Error()
 		}
 	}

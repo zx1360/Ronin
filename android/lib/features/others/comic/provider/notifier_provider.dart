@@ -12,6 +12,8 @@ import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/models/comic_preference.dart';
 import 'package:torrid/features/others/comic/provider/box_provider.dart';
+import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
+import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/service_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
 import 'package:torrid/features/others/comic/services/comic_servic.dart';
@@ -24,6 +26,28 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 
 part 'notifier_provider.g.dart';
+
+/// 与服务端同步的结果。
+class ComicSyncResult {
+  /// 本地没有任何已下载的漫画时为 false；此时不该提示"已同步 0 本"。
+  final bool hasLocalComics;
+
+  /// 服务端仍有、已同步字段的本数。
+  final int synced;
+
+  /// 服务端章节数比本地多、已加入下载队列的本数。
+  final int updated;
+
+  const ComicSyncResult({
+    required this.hasLocalComics,
+    this.synced = 0,
+    this.updated = 0,
+  });
+
+  String get message => updated > 0
+      ? '已同步 $synced 本漫画，$updated 本有更新，已加入下载队列'
+      : '已同步 $synced 本漫画，均为最新';
+}
 
 /// Comic 模块的数据仓库
 ///
@@ -305,6 +329,43 @@ class ComicService extends _$ComicService {
         chapterCount: serverComic.chapterCount,
         imageCount: serverComic.imageCount,
       ),
+    );
+  }
+
+  /// 用服务端数据同步本地漫画：刷新各字段，并把有新章节的漫画加入下载队列。
+  ///
+  /// 此前这段编排写在漫画页的 State 里，页面只该负责提示结果。
+  Future<ComicSyncResult> syncWithServer() async {
+    final localComics = ref.read(comicInfosProvider);
+    if (localComics.isEmpty) {
+      return const ComicSyncResult(hasLocalComics: false);
+    }
+
+    // 强制重取服务端列表，否则拿到的可能是上次的缓存
+    ref.invalidate(comicsOnlineProvider);
+    final serverComics = await ref.read(comicsOnlineProvider.future);
+    final serverById = {for (final comic in serverComics) comic.id: comic};
+
+    var synced = 0;
+    var updated = 0;
+    for (final local in localComics) {
+      final server = serverById[local.id];
+      if (server == null) continue; // 服务端已没有这本，本地保持原样
+
+      await syncFieldsFromServer(server);
+      synced++;
+
+      if (server.chapterCount > local.chapterCount) {
+        await ref
+            .read(comicDownloadTasksProvider.notifier)
+            .enqueueComic(comicInfo: local);
+        updated++;
+      }
+    }
+    return ComicSyncResult(
+      hasLocalComics: true,
+      synced: synced,
+      updated: updated,
     );
   }
 

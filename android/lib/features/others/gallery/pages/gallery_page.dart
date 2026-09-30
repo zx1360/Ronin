@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/pages/image_editor_page.dart';
 import 'package:torrid/features/others/gallery/pages/label_list_page.dart';
 import 'package:torrid/features/others/gallery/pages/media_detail_page.dart';
@@ -16,7 +18,7 @@ import 'package:torrid/features/others/gallery/widgets/tag_drag_overlay.dart';
 
 /// 解析编辑参数 JSON，生成人类可读的编辑提示文本。
 /// 返回 null 表示没有有效的编辑信息。
-String? parseEditInfo(dynamic media) {
+String? parseEditInfo(MediaAsset? media) {
   if (media == null || media.editParams == null) return null;
   try {
     final json = jsonDecode(media.editParams as String) as Map<String, dynamic>;
@@ -261,7 +263,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 
   /// 构建标签栏
-  Widget _buildTagBar(List<dynamic> tags) {
+  Widget _buildTagBar(List<Tag> tags) {
     if (tags.isEmpty) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -301,7 +303,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 
   /// 构建底部导航栏
-  Widget _buildBottomBar(BuildContext context, dynamic currentMedia) {
+  Widget _buildBottomBar(BuildContext context, MediaAsset? currentMedia) {
     return SafeArea(
       top: false,
       child: Container(
@@ -377,7 +379,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 
   /// 切换删除状态
-  Future<void> _toggleDelete(dynamic media) async {
+  Future<void> _toggleDelete(MediaAsset media) async {
     final isCurrentlyDeleted = media.isDeleted;
 
     if (!isCurrentlyDeleted) {
@@ -409,7 +411,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 
   /// 打开编辑页面
-  void _openEditor(BuildContext context, dynamic media) {
+  void _openEditor(BuildContext context, MediaAsset media) {
     if (media.isImage) {
       Navigator.push(
         context,

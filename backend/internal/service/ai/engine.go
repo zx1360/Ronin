@@ -30,12 +30,13 @@ var Default *Engine
 // MediaItem 一个待处理的媒体文件。
 type MediaItem struct {
 	MediaID string
-	Path    string // 用于 AI 推理的绝对路径（优先预览图）
+	Path    string // 用于 AI 推理的绝对路径（按能力档位解析而来）
+	Tier    string // 实际使用的输入档位
 }
 
 // Engine AI 处理层门面：进程监管 + 任务队列 + 检索索引 + 分组。
 type Engine struct {
-	cfg     config.AiConfig
+	rt      *runtimeStore
 	started bool
 
 	embed  *Sidecar
@@ -85,29 +86,45 @@ type RunInfo struct {
 }
 
 // New 构建引擎（不启动任何外部进程）。
-func New(cfg config.AiConfig) *Engine {
+//
+// store 为运行时配置文件存储；引擎全程读取它提供的配置快照，因此界面改完配置
+// 立即生效，无需重建引擎。
+func New(store *config.ConfigStore, cfg config.AiConfig) *Engine {
+	rt := newRuntimeStore(store, cfg)
+	if store != nil {
+		if model := store.Snapshot().VLMModel; model != nil {
+			rt.vlmModel = *model
+		}
+	}
 	e := &Engine{
-		cfg:   cfg,
+		rt:    rt,
 		wake:  make(chan struct{}, 1),
 		index: NewIndex(cfg.EmbedModel),
 	}
-	e.embed = NewSidecar("embed", cfg)
-	e.text = NewSidecar("embed_text", cfg)
-	e.face = NewSidecar("face", cfg)
-	e.ocr = NewSidecar("ocr", cfg)
-	e.ollama = NewOllama(cfg)
+	e.embed = NewSidecar("embed", cfg, e.Config)
+	e.text = NewSidecar("embed_text", cfg, e.Config)
+	e.face = NewSidecar("face", cfg, e.Config)
+	e.ocr = NewSidecar("ocr", cfg, e.Config)
+	e.ollama = NewOllama(cfg, e.Config)
 	e.cluster = NewClusterer()
 	return e
 }
 
+// Config 返回当前生效的 AI 配置副本。
+func (e *Engine) Config() config.AiConfig { return e.rt.Config() }
+
+// ConfigPath 返回运行时配置文件路径（空串表示未启用文件存储）。
+func (e *Engine) ConfigPath() string { return e.rt.StorePath() }
+
 // Start 启动后台循环；AI 未启用或 schema 缺失时安全退出（不影响主服务）。
 func (e *Engine) Start() {
-	if !e.cfg.Enabled {
+	cfg := e.Config()
+	if !cfg.Enabled {
 		log.Println("[AI] 已通过 AI_ENABLED=false 关闭，跳过启动")
 		return
 	}
 	if !ai_repo.SchemaReady(context.Background()) {
-		log.Println("[AI] ai schema 未初始化，AI 能力停用（执行 references/db/ai.sql 后重启）")
+		log.Println("[AI] ai schema 未初始化，AI 能力停用（执行 references/db/sqlite.sql 后重启）")
 		return
 	}
 
@@ -116,7 +133,7 @@ func (e *Engine) Start() {
 	e.started = true
 
 	// 服务刚启动，不可能有本进程的任务在跑：把遗留的 running 全部回收
-	if n, err := ai_repo.RecoverStaleRunning(0, e.cfg.MaxAttempts); err != nil {
+	if n, err := ai_repo.RecoverStaleRunning(0, cfg.MaxAttempts); err != nil {
 		log.Printf("[AI] 回收孤儿任务失败: %v", err)
 	} else if n > 0 {
 		log.Printf("[AI] 已回收 %d 条中断任务", n)
@@ -125,12 +142,12 @@ func (e *Engine) Start() {
 	go e.reconcileLoop(ctx)
 	go e.workerLoop(ctx)
 	for _, s := range e.sidecars() {
-		go s.supervise(ctx, e.cfg.IdleTimeout)
+		go s.supervise(ctx)
 	}
-	go e.ollama.supervise(ctx, e.cfg.OllamaIdle)
+	go e.ollama.supervise(ctx)
 
-	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s）",
-		e.cfg.Workers, e.cfg.BatchSize, e.cfg.IdleTimeout, e.cfg.OllamaIdle)
+	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s 配置=%s）",
+		cfg.Workers, cfg.BatchSize, cfg.IdleTimeout, cfg.OllamaIdle, e.ConfigPath())
 }
 
 // Stop 停止全部后台循环并回收外部进程（服务退出时调用）。
@@ -189,18 +206,18 @@ func firstExisting(paths ...string) string {
 		if p == "" {
 			continue
 		}
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+		if fileExists(p) {
 			return p
 		}
 	}
 	return ""
 }
 
-// resolveItems 把媒体 ID 解析为可推理的文件项，并跳过文件缺失的媒体。
+// resolveItems 按能力档位把媒体 ID 解析为可推理的文件项，并跳过无图源的媒体。
 //
-// 推理优先使用预览图：体积小、统一 JPEG、且已由入库流程生成，
-// 可避免 HEIC/WebP 等格式在侧车里额外解码，也避免读取 GB 级原图。
-func (e *Engine) resolveItems(mediaIDs []string) ([]MediaItem, []string, error) {
+// 档位由能力决定：phash/embed 用 256 预览档（同一张图始终得到同样的哈希/向量），
+// face/ocr/vlm 用长边 1024 的 AI 专用派生档（按需生成并缓存）。两者都不使用原图。
+func (e *Engine) resolveItems(capability string, mediaIDs []string) ([]MediaItem, []string, error) {
 	ids, err := parseUUIDs(mediaIDs)
 	if err != nil {
 		return nil, nil, err
@@ -210,51 +227,31 @@ func (e *Engine) resolveItems(mediaIDs []string) ([]MediaItem, []string, error) 
 		return nil, nil, err
 	}
 
+	tier := e.inputTier(capability)
 	items := make([]MediaItem, 0, len(assets))
 	var missing []string
 	for _, asset := range assets {
-		path := firstExisting(
-			PreviewAbsPath(asset.PreviewPath),
-			ThumbAbsPath(asset.ThumbPath),
-			MediaAbsPath(asset.FilePath),
-		)
-		if path == "" {
+		source, err := resolveSource(mediaPaths{
+			Preview: PreviewAbsPath(asset.PreviewPath),
+			Thumb:   ThumbAbsPath(asset.ThumbPath),
+			Media:   MediaAbsPath(asset.FilePath),
+		}, tier, asset.ID)
+		if err != nil {
 			missing = append(missing, asset.ID.String())
 			continue
 		}
-		items = append(items, MediaItem{MediaID: asset.ID.String(), Path: path})
+		items = append(items, MediaItem{MediaID: asset.ID.String(), Path: source.Path, Tier: source.Tier})
 	}
 	return items, missing, nil
 }
 
-// VLMModel 返回当前生效的 VLM 模型（数据库设置优先，其次 .env 默认值）。
+// ResolveChatImages 把媒体 ID 批量解析为 base64 图片，供对话请求内联发送。
 //
-// 数据库不可用时退回进程配置：模型选择不应让整个 AI 层不可用。
-func (e *Engine) VLMModel() string {
-	if model := ai_repo.VLMModel(); model != "" {
-		return model
-	}
-	return e.cfg.OllamaVLM
-}
-
-// VLMAltModel 返回备选（无审查版）模型名，供两端做模型切换。
-func (e *Engine) VLMAltModel() string { return e.cfg.OllamaVLMAlt }
-
-// SetVLMModel 持久化 VLM 模型选择。
-func (e *Engine) SetVLMModel(model string) error {
-	if err := ai_repo.SetVLMModel(model); err != nil {
-		return err
-	}
-	e.Wake()
-	return nil
-}
-
-// ResolveChatImages 把媒体 ID 批量解析为 base64 图片，供对话请求内联发送。//
-// 复用推理用路径解析（优先预览图）：手机端因此无需把原图下载再上传。
+// 与 face/ocr/vlm 同档：手机端因此无需把原图下载再上传。
 // 返回的 missing 为不可用的媒体 ID（不存在或文件读取失败），调用方应据此报错
 // 而不是静默丢图——用户会疑惑"为什么 AI 看不到这张图"。
 func (e *Engine) ResolveChatImages(mediaIDs []string) (map[string]string, []string, error) {
-	items, _, err := e.resolveItems(mediaIDs)
+	items, _, err := e.resolveItems(model.CapVLM, mediaIDs)
 	if err != nil {
 		return nil, nil, err
 	}

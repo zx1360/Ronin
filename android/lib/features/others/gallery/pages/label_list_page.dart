@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/others/gallery/widgets/tag_icon_tap.dart';
 
 /// 标签页
 /// - 传入 [mediaId] 时为"选择标签": 点击行即为当前媒体添加/移除标签;
@@ -106,7 +108,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
           final byId = {for (final t in tags) t.id: t};
 
           // 搜索过滤: 命中的标签 + 其全部祖先, 保持树形结构可见
-          final visible = _visibleIds(tags, byId);
+          final visible = _query.isEmpty ? null : matchedTagIds(tags, _query);
           bool isVisible(Tag t) => visible == null || visible.contains(t.id);
 
           final childrenMap = <String, List<Tag>>{};
@@ -300,7 +302,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
             final draggedId = details.data;
             // 不能拖到自己或自己的子节点
             if (draggedId == tag.id) return false;
-            return !_isAncestorOf(draggedId, tag.id, byId);
+            return !isAncestorOf(byId, draggedId, tag.id);
           },
           onAcceptWithDetails: (details) => _moveTag(details.data, tag.id),
           builder: (context, candidateData, rejectedData) {
@@ -370,18 +372,15 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   // 状态操作
 
   /// 首次进入时展开已选标签所在的路径（默认其余折叠, 避免大树难以浏览）
+  /// 展开所有已应用标签的祖先，保证选中项可见（只做一次）。
   void _initExpandedIds(List<Tag> tags, Set<String> appliedIds) {
     if (_expandInitialized) return;
     _expandInitialized = true;
     if (appliedIds.isEmpty) return;
 
-    final byId = {for (final t in tags) t.id: t};
+    final byId = tagIndex(tags);
     for (final id in appliedIds) {
-      var parentId = byId[id]?.parentId;
-      while (parentId != null) {
-        _expandedIds.add(parentId);
-        parentId = byId[parentId]?.parentId;
-      }
+      _expandedIds.addAll(ancestorIds(byId, id));
     }
   }
 
@@ -393,24 +392,6 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         _expandedIds.addAll(expandableIds);
       }
     });
-  }
-
-  /// 搜索命中集合（null 表示未搜索）
-  Set<String>? _visibleIds(List<Tag> tags, Map<String, Tag> byId) {
-    if (_query.isEmpty) return null;
-    final keep = <String>{};
-    for (final tag in tags) {
-      final matched = tag.name.toLowerCase().contains(_query) ||
-          (tag.fullPath ?? '').toLowerCase().contains(_query);
-      if (!matched) continue;
-      keep.add(tag.id);
-      var parentId = tag.parentId;
-      while (parentId != null) {
-        if (!keep.add(parentId)) break;
-        parentId = byId[parentId]?.parentId;
-      }
-    }
-    return keep;
   }
 
   void _toggleExpand(String tagId) {
@@ -566,19 +547,6 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       }
     }
   }
-
-  /// 检查 [ancestorId] 是否是 [descendantId] 的祖先
-  ///
-  /// 沿 parentId 向上回溯，而不是遍历当前（可能被搜索过滤过的）childrenMap——
-  /// 否则过滤掉中间层级后会把子孙误判为可放置目标，从而形成树环。
-  bool _isAncestorOf(String ancestorId, String descendantId, Map<String, Tag> byId) {
-    var parentId = byId[descendantId]?.parentId;
-    while (parentId != null) {
-      if (parentId == ancestorId) return true;
-      parentId = byId[parentId]?.parentId;
-    }
-    return false;
-  }
 }
 
 /// 标签行内容
@@ -668,14 +636,14 @@ class _TagTileContent extends StatelessWidget {
                   ],
                 ),
               ),
-              _IconTap(
+              TagIconTap(
                 icon: favorite ? Icons.star : Icons.star_border,
                 color: favorite ? Colors.amber : Colors.grey,
                 tooltip: favorite ? '取消快捷标签' : '设为快捷标签',
                 onTap: onToggleFavorite,
               ),
               if (hasChildren)
-                _IconTap(
+                TagIconTap(
                   icon: expanded ? Icons.expand_less : Icons.expand_more,
                   color: Colors.grey,
                   tooltip: expanded ? '收起' : '展开',
@@ -728,36 +696,6 @@ class _TagTileContent extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 紧凑图标按钮
-class _IconTap extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String tooltip;
-  final VoidCallback? onTap;
-
-  const _IconTap({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 18, color: color),
         ),
       ),
     );

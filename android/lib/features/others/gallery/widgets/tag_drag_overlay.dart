@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 
 /// 快速打标签浮层
@@ -252,8 +253,8 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
       .map((t) => t.id)
       .toSet();
 
-  List<Tag> _childrenOf(String id) =>
-      _allTags.where((t) => t.parentId == id).toList();
+  /// 该标签是否有子级（浮层内按当前标签集直接判断）。
+  bool _hasChildren(String id) => _allTags.any((t) => t.parentId == id);
 
   void _toast(String msg) {
     if (!mounted) return;
@@ -338,9 +339,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     }
 
     // 经过有子级的标签立即展开（子级插入在该行下方，不会改变当前行命中位置）
-    if (tagId != null &&
-        !_expandedIds.contains(tagId) &&
-        _childrenOf(tagId).isNotEmpty) {
+    if (tagId != null && !_expandedIds.contains(tagId) && _hasChildren(tagId)) {
       setState(() => _expandedIds.add(tagId));
     }
   }
@@ -419,17 +418,8 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
         .toSet();
     final favorites = ref.watch(favoriteTagsProvider);
 
-    final childrenMap = <String, List<Tag>>{};
-    for (final t in allTags) {
-      if (t.parentId != null) {
-        childrenMap.putIfAbsent(t.parentId!, () => []).add(t);
-      }
-    }
-    for (final list in childrenMap.values) {
-      list.sort(_byName);
-    }
-    final roots = allTags.where((t) => t.parentId == null).toList()
-      ..sort(_byName);
+    final childrenMap = groupTagsByParent(allTags, compare: compareTagsByPath);
+    final roots = rootTags(childrenMap);
 
     return RotatedBox(
       quarterTurns: widget.quarterTurns % 4,
@@ -831,9 +821,6 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
   void _toggleExpanded(String tagId) {
     if (!_expandedIds.remove(tagId)) _expandedIds.add(tagId);
   }
-
-  static int _byName(Tag a, Tag b) =>
-      (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name);
 }
 
 /// 面板头部图标按钮

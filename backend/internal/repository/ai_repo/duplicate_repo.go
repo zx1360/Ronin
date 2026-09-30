@@ -13,8 +13,8 @@ func ListDuplicateIgnoreIDs() ([]uuid.UUID, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	rows, err := db.GetPool().Query(ctx,
-		`SELECT media_id FROM ai.duplicate_ignores ORDER BY created_at DESC`)
+	rows, err := db.Read().QueryContext(ctx,
+		`SELECT media_id FROM duplicate_ignores ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -52,14 +52,20 @@ func IgnoreDuplicates(ids []uuid.UUID) (int64, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tag, err := db.GetPool().Exec(ctx, `
-		INSERT INTO ai.duplicate_ignores (media_id)
-		SELECT unnest($1::uuid[])
-		ON CONFLICT (media_id) DO NOTHING`, ids)
+	values := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids))
+	for _, id := range ids {
+		values = append(values, "(?)")
+		args = append(args, id)
+	}
+	res, err := db.Exec(ctx,
+		`INSERT INTO duplicate_ignores (media_id) VALUES `+joinValues(values)+
+			` ON CONFLICT (media_id) DO NOTHING`, args...)
 	if err != nil {
 		return 0, err
 	}
-	return tag.RowsAffected(), nil
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // UnignoreDuplicates 取消"非重复"标记，返回恢复条数。
@@ -70,10 +76,12 @@ func UnignoreDuplicates(ids []uuid.UUID) (int64, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	tag, err := db.GetPool().Exec(ctx,
-		`DELETE FROM ai.duplicate_ignores WHERE media_id = ANY($1)`, ids)
+	res, err := db.Exec(ctx,
+		`DELETE FROM duplicate_ignores WHERE media_id IN (`+placeholders(len(ids))+`)`,
+		uuidArgs(ids)...)
 	if err != nil {
 		return 0, err
 	}
-	return tag.RowsAffected(), nil
+	n, _ := res.RowsAffected()
+	return n, nil
 }

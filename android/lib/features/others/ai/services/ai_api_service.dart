@@ -3,12 +3,17 @@ import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
+/// 把 AI 接口错误转成用户能理解的提示。
+///
+/// 服务端未启用 AI 能力（AI_ENABLED=false）或 AI 表未初始化时统一返回 503
+String aiFriendlyError(Object error) {
+  if (error is ApiException && error.statusCode == 503) {
+    return '服务端未启用 AI 能力（或 AI 数据表未初始化），请在桌面端开启后重试';
+  }
+  return error.toString();
+}
+
 /// 服务端 AI 接口（`/API/ai/*`）。
-///
-/// 只提供只读能力：检索、人物分组、AI 标签清单。AI 任务的入队/重试等运维操作
-/// 由桌面端负责，Android 端不提供写入口，避免误触触发大批量处理。
-///
-/// 依赖几乎不变，故用普通 Provider 而非代码生成（与桌面端同一取舍）。
 final aiApiProvider = Provider<AiApiService>((ref) {
   return AiApiService(ref.watch(apiClientManagerProvider));
 });
@@ -32,6 +37,9 @@ class AiApiService {
   AiApiService(this._client);
 
   final ApiClient _client;
+
+  /// capabilityLabels 的短期缓存（能力清单几乎不变，每次错误提示都请求不划算）。
+  ({Map<String, String> labels, DateTime at})? _capabilityLabels;
 
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {
@@ -127,5 +135,32 @@ class AiApiService {
       final resp = await _client.get('/API/ai/media/$mediaId');
       return AiMediaDetail.fromJson(resp.data as Map<String, dynamic>);
     });
+  }
+
+  /// 能力标识 → 展示名（服务端下发），用于把错误里的能力标识换成可读名称。
+  ///
+  /// 结果缓存 5 分钟；取不到时返回空表，调用方原样显示标识即可，不影响功能。
+  Future<Map<String, String>> capabilityLabels() async {
+    final cached = _capabilityLabels;
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < const Duration(minutes: 5)) {
+      return cached.labels;
+    }
+    try {
+      final resp = await _client.get('/API/ai/capabilities');
+      final data = resp.data as Map<String, dynamic>;
+      final labels = <String, String>{};
+      for (final item in (data['capabilities'] as List? ?? const [])) {
+        if (item is Map<String, dynamic>) {
+          final id = (item['capability'] ?? '').toString();
+          final label = (item['label'] ?? '').toString();
+          if (id.isNotEmpty && label.isNotEmpty) labels[id] = label;
+        }
+      }
+      _capabilityLabels = (labels: labels, at: DateTime.now());
+      return labels;
+    } catch (_) {
+      return const {};
+    }
   }
 }

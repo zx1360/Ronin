@@ -24,7 +24,7 @@ final nextMediaAssetProvider = AutoDisposeProvider<MediaAsset?>.internal(
 );
 
 typedef NextMediaAssetRef = AutoDisposeProviderRef<MediaAsset?>;
-String _$mediaAssetListHash() => r'4c2cf29a3e8292d98d035506fba19fdd3662d6f7';
+String _$mediaAssetListHash() => r'892b6b1cb2f086a78dc7edeaa2d59f6703410660';
 
 /// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
 ///
