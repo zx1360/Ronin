@@ -1,251 +1,392 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as path;
-import 'package:torrid/app/theme/theme_book.dart';
-import 'package:torrid/core/utils/file_relates.dart';
+import 'package:torrid/core/modals/confirm_modal.dart';
+import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/models/mood.dart';
+import 'package:torrid/core/utils/util.dart';
+import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 import 'package:torrid/features/essay/models/essay.dart';
+import 'package:torrid/features/essay/models/essay_draft.dart';
+import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
-import 'package:torrid/features/essay/widgets/write/image_preview.dart';
+import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
-import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/utils/util.dart';
-import 'package:torrid/core/models/mood.dart';
-import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
+import 'package:torrid/features/essay/widgets/label_editor.dart';
+import 'package:torrid/features/essay/widgets/write/image_preview.dart';
 
 class EssayWritePage extends ConsumerStatefulWidget {
-  final String? initialContent;
-  final List<String>? initialLabels;
-  const EssayWritePage({super.key, this.initialContent, this.initialLabels});
+  final EssayDraft? draft;
+  final Essay? original;
+  const EssayWritePage({super.key, this.draft, this.original});
 
   @override
   ConsumerState<EssayWritePage> createState() => _EssayWritePageState();
 }
 
-class _EssayWritePageState extends ConsumerState<EssayWritePage> {
-  // 文本输入相关
-  final TextEditingController _contentController = TextEditingController();
-  final _contentFucusNode = FocusNode();
-  final TextEditingController _newLabelController = TextEditingController();
-  final _labelFucusNode = FocusNode();
-  // 内容相关
-  final List<String> _selectedLabels = [];
-  final List<File> _selectedImages = [];
-  // 心情相关
-  MoodType? _selectedMood;
+class _EssayWritePageState extends ConsumerState<EssayWritePage>
+    with WidgetsBindingObserver {
+  final _title = TextEditingController();
+  final _content = TextEditingController();
+  late final EssayDraftStore _store;
+  late EssayDraft _draft;
+  final _labels = <String>[];
+  final _images = <String>[];
+  MoodType? _mood;
+  bool _busy = false;
+  bool _allowPop = false;
+  String _status = '草稿仅存本机';
+  int _revision = 0;
 
   @override
   void initState() {
     super.initState();
-    _contentController.text = widget.initialContent ?? "";
-    _selectedLabels.addAll(widget.initialLabels ?? []);
+    _store = ref.read(essayDraftStoreProvider);
+    final original = widget.original;
+    _draft =
+        widget.draft ??
+        (original == null ? null : _store.forEssay(original.id)) ??
+        EssayDraft(
+          essay:
+              original ??
+              Essay(
+                id: generateId(),
+                date: DateTime.now(),
+                wordCount: 0,
+                content: '',
+                imgs: [],
+                labels: [],
+                messages: [],
+              ),
+          original: original,
+          updatedAt: DateTime.now(),
+        );
+    _title.text = _draft.essay.title;
+    _content.text = _draft.essay.content;
+    _labels.addAll(_draft.essay.labels);
+    _images.addAll(_draft.essay.imgs);
+    _mood = _draft.essay.mood;
+    _title.addListener(_changed);
+    _content.addListener(_changed);
+    WidgetsBinding.instance.addObserver(this);
+    if (_images.any((image) => !image.startsWith('essay_drafts/'))) {
+      _busy = true;
+      unawaited(_cacheOriginalImages());
+    }
   }
 
-  void _toggleLabel(String labelId) {
-    setState(() {
-      if (_selectedLabels.contains(labelId)) {
-        _selectedLabels.remove(labelId);
-      } else {
-        _selectedLabels.add(labelId);
+  Future<void> _cacheOriginalImages() async {
+    try {
+      final root = await IoService.externalStorageDir;
+      for (var i = 0; i < _images.length; i++) {
+        if (_images[i].startsWith('essay_drafts/')) continue;
+        _images[i] = await _store.importImage(
+          _draft.essay.id,
+          File('${root.path}/${_images[i]}'),
+        );
       }
-    });
+      await _persist();
+    } catch (e) {
+      _error(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  void _addNewLabel() {
-    final labelName = _newLabelController.text.trim();
-    if (labelName.isEmpty) return;
-    _newLabelController.clear();
+  EssayDraft _snapshot() => EssayDraft(
+    essay: _draft.essay.copyWith(
+      title: _title.text,
+      content: _content.text,
+      wordCount: _content.text.trim().length,
+      labels: List.of(_labels),
+      imgs: List.of(_images),
+      mood: _mood,
+      clearMood: _mood == null,
+    ),
+    original: _draft.original,
+    updatedAt: DateTime.now(),
+  );
 
-    ref.watch(essayServiceProvider.notifier).addLabel(labelName);
+  void _changed() => unawaited(_persist());
+
+  Future<bool> _persist() async {
+    final revision = ++_revision;
+    _draft = _snapshot();
+    if (!_draft.hasContent && !_store.box.containsKey(_draft.essay.id)) {
+      return true;
+    }
+    try {
+      await _store.save(_draft);
+      if (mounted && revision == _revision) setState(() => _status = '草稿已存本机');
+      return true;
+    } catch (e) {
+      if (mounted) setState(() => _status = '草稿保存失败，请重试：$e');
+      return false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed && !_allowPop && !_busy) {
+      unawaited(_cacheBeforePause());
+    }
+  }
+
+  Future<void> _cacheBeforePause() async {
+    if (await _persist()) {
+      try {
+        await _store.flush();
+      } catch (e) {
+        if (mounted) setState(() => _status = '草稿保存失败，请重试：$e');
+      }
+    }
+  }
+
+  Future<void> _close() async {
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _leave() async {
+    if (_busy) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _busy = true);
+    try {
+      if (await _persist()) {
+        await _store.flush();
+        await _close();
+      }
+    } catch (e) {
+      _error(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _error(Object error) {
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
+  Future<void> _discard() async {
+    if (_busy) return;
+    await showConfirmDialog(
+      context: context,
+      title: '丢弃草稿',
+      content: _draft.original == null
+          ? '确认丢弃这份草稿及其图片？'
+          : '确认丢弃这次编辑？已保存的原随笔会保留。',
+      confirmFunc: () async {
+        if (!mounted) return;
+        FocusManager.instance.primaryFocus?.unfocus();
+        setState(() => _busy = true);
+        try {
+          await _store.remove(_draft.essay.id);
+          await _store.flush();
+          await _close();
+          // 图片清理失败不影响已完成的丢弃。
+          try {
+            await _store.cleanImages(_draft.essay.id);
+          } catch (_) {}
+        } catch (e) {
+          _error(e);
+        } finally {
+          if (mounted) setState(() => _busy = false);
+        }
+      },
+    );
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    List pickedFiles = (await picker.pickMultiImage());
-
-    if (pickedFiles.isNotEmpty) {
-      setState(() {
-        if (_selectedImages.length + pickedFiles.length > 9) {
-          pickedFiles = pickedFiles.sublist(0, 9 - _selectedImages.length);
-        }
-        _selectedImages.addAll(pickedFiles.map((file) => File(file.path)));
-      });
+    setState(() => _busy = true);
+    try {
+      final files = await ImagePicker().pickMultiImage();
+      for (final file in files.take(9 - _images.length)) {
+        final image = await _store.importImage(
+          _draft.essay.id,
+          File(file.path),
+        );
+        if (!mounted) return;
+        setState(() => _images.add(image));
+        await _persist();
+      }
+    } catch (e) {
+      _error(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _removeImage(int index) {
-    setState(() {
-      _selectedImages.removeAt(index);
-    });
-  }
+  String _editableFields(Essay essay) =>
+      jsonEncode(essay.toJson()..remove('messages'));
 
-  void _saveEssay() async {
-    // 验证内容和标签
-    final content = _contentController.text.trim();
-    if (content.isEmpty ||
-        _selectedLabels.isEmpty ||
-        _selectedLabels.length >= 5) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('随笔内容不能为空\n标签数应大于等于1小于等于4')));
+  Future<void> _saveEssay() async {
+    if (_busy) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_content.text.trim().isEmpty || _labels.isEmpty || _labels.length > 4) {
+      _error('正文不能为空，请选择 1–4 个标签');
       return;
     }
-
-    // 保存图片.
-
-    // 写入随笔并更新相关数据.
-    final imgs = <String>[];
-    final directory = await IoService.externalStorageDir;
-    await directory.create(recursive: true);
-    for (int i = 0; i < _selectedImages.length; i++) {
-      final originalFileName = path.basename(_selectedImages[i].path);
-      final fileExtension = path.extension(originalFileName);
-      final newFileName = 'essay_${generateFileName()}$fileExtension';
-
-      final targetPath = path.join(
-        directory.path,
-        "img_storage/essay",
-        newFileName,
+    setState(() => _busy = true);
+    try {
+      if (!await _persist()) return;
+      await _store.flush();
+      final base = _draft.original;
+      final current = ref.read(essayBoxProvider).get(_draft.essay.id);
+      if (base != null &&
+          (current == null ||
+              _editableFields(current) != _editableFields(base))) {
+        throw const FormatException('原随笔已被修改或同步替换。草稿已保留，请核对原文后再处理');
+      }
+      var essay = _draft.essay.copyWith(
+        title: _title.text.trim(),
+        content: _content.text.trim(),
+        date: base?.date ?? DateTime.now(),
+        messages: current?.messages ?? [],
       );
-
-      imgs.add("img_storage/essay/$newFileName");
-      await File(targetPath).writeAsBytes(await _selectedImages[i].readAsBytes());
+      essay = await _store.publishImages(essay);
+      await ref.read(essayServiceProvider.notifier).writeEssay(essay: essay);
+      // 保存成功后再删草稿；清理失败时保留可继续的同 ID 草稿。
+      _draft = EssayDraft(
+        essay: essay,
+        original: essay,
+        updatedAt: DateTime.now(),
+      );
+      await _store.save(_draft);
+      await _store.remove(essay.id);
+      await _store.flush();
+      await _close();
+      try {
+        await _store.cleanImages(essay.id);
+      } catch (_) {}
+    } catch (e) {
+      _error(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    final essay = Essay(
-      id: generateId(),
-      date: DateTime.now(),
-      wordCount: content.length,
-      content: content,
-      imgs: imgs,
-      labels: _selectedLabels,
-      messages: [],
-      mood: _selectedMood,
-    );
-    // 必须 await：否则可能在落库完成前就退出页面并提示成功
-    await ref.read(essayServiceProvider.notifier).writeEssay(essay: essay);
-
-    if (!mounted) return;
-    // 返回上一页
-    Navigator.pop(context);
-
-    // 显示成功提示
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('随笔已记录.')));
   }
 
   @override
   Widget build(BuildContext context) {
     final labels = ref.watch(labelsProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('写随笔'),
-        actions: [
-          TextButton(
-            onPressed: _saveEssay,
-            style: TextButton.styleFrom(
-              foregroundColor: AppTheme.onPrimary,
-              minimumSize: const Size(64, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+    return PopScope(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_leave());
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_draft.original == null ? '写随笔' : '编辑随笔'),
+          actions: [
+            IconButton(
+              tooltip: '丢弃草稿',
+              onPressed: _busy ? null : _discard,
+              icon: const Icon(Icons.delete_outline),
             ),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 内容输入
-            TextField(
-              controller: _contentController,
-              focusNode: _contentFucusNode,
-              onTapOutside: (event) => _contentFucusNode.unfocus(),
-              minLines: 6,
-              maxLines: null,
-              decoration: const InputDecoration(
-                hintText: '请输入随笔内容...',
-                border: InputBorder.none,
-              ),
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-
-            const SizedBox(height: 16),
-
-            // 心情选择
-            const Text('今日心情:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            MoodSelector(
-              selectedMood: _selectedMood,
-              onMoodChanged: (mood) {
-                setState(() {
-                  _selectedMood = mood;
-                });
-              },
-              compact: false,
-              iconSize: 28,
-            ),
-
-            const SizedBox(height: 16),
-
-            // 图片选择
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _pickImage,
-                  icon: const Icon(Icons.add_photo_alternate),
-                  label: const Text('添加图片'),
-                ),
-
-                const SizedBox(height: 12),
-
-                if (_selectedImages.isNotEmpty)
-                  ImagePreview(images: _selectedImages, onRemove: _removeImage),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // 标签选择
-            const Text('选择标签:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-
-            LabelSelector(
-              labels: labels,
-              selectedLabels: _selectedLabels,
-              onToggleLabel: _toggleLabel,
-            ),
-
-            const SizedBox(height: 16),
-
-            // 添加新标签
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newLabelController,
-                    focusNode: _labelFucusNode,
-                    onTapOutside: (event) => _labelFucusNode.unfocus(),
-                    decoration: const InputDecoration(
-                      hintText: '添加新标签...',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _addNewLabel,
-                  child: const Text('添加'),
-                ),
-              ],
+            TextButton(
+              onPressed: _busy ? null : _saveEssay,
+              child: const Text('保存随笔'),
             ),
           ],
+        ),
+        body: AbsorbPointer(
+          absorbing: _busy,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                _busy ? '正在处理…' : _status,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              TextField(
+                controller: _title,
+                readOnly: _busy,
+                maxLength: 100,
+                decoration: const InputDecoration(
+                  hintText: '标题（可选）',
+                  border: InputBorder.none,
+                ),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              TextField(
+                controller: _content,
+                readOnly: _busy,
+                minLines: 8,
+                maxLines: null,
+                onTapOutside: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
+                decoration: const InputDecoration(
+                  hintText: '记下此刻…',
+                  border: InputBorder.none,
+                ),
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 16),
+              const Text('心情'),
+              MoodSelector(
+                selectedMood: _mood,
+                compact: false,
+                iconSize: 28,
+                onMoodChanged: (mood) {
+                  setState(() => _mood = mood);
+                  _changed();
+                },
+              ),
+              const SizedBox(height: 16),
+              if (_images.isNotEmpty)
+                ImagePreview(
+                  images: _images,
+                  onRemove: (index) {
+                    setState(() => _images.removeAt(index));
+                    _changed();
+                  },
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _images.length >= 9 ? null : _pickImage,
+                  icon: const Icon(Icons.add_photo_alternate),
+                  label: const Text('添加图片（最多 9 张）'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Expanded(child: Text('标签（1–4 个）')),
+                  TextButton(
+                    onPressed: () => showLabelEditor(context, ref),
+                    child: const Text('新增标签'),
+                  ),
+                ],
+              ),
+              LabelSelector(
+                labels: labels,
+                selectedLabels: _labels,
+                onToggleLabel: (id) {
+                  if (!_labels.contains(id) && _labels.length >= 4) {
+                    _error('最多选择 4 个标签');
+                    return;
+                  }
+                  setState(
+                    () => _labels.contains(id)
+                        ? _labels.remove(id)
+                        : _labels.add(id),
+                  );
+                  _changed();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -253,10 +394,9 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage> {
 
   @override
   void dispose() {
-    _contentController.dispose();
-    _contentFucusNode.dispose();
-    _newLabelController.dispose();
-    _labelFucusNode.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _title.dispose();
+    _content.dispose();
     super.dispose();
   }
 }

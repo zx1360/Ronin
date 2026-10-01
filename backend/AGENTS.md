@@ -1,148 +1,35 @@
-## 项目说明 (Monarch)
+# Monarch
 
-Ronin 三端架构的"唯一真理"层，Go 语言开发。
+Go + Gin + `modernc.org/sqlite`；启动入口 `cmd/main.go`，路由真源 `internal/router/`。
+架构见 `../docs/architecture/monarch.md`；数据库索引见 `AGENTS_DB.md`，建表真源 `references/db/sqlite.sql`。
 
-### 模块
+## 代码边界
 
-- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器，为 Torrid (Android) 和 Northstar (Ops) 提供 REST API。
-- **Gizmos CLI**（`gizmos/`，独立 Go module）：命令行批处理媒体库（`ingest`/`execute`/`refresh`）。
-- **comix 爬虫**（`gizmos/comix/`，Python，随本仓库维护）：以子进程方式调用
-  （`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
-  提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
-  comix 的表（`comic_*`）由 comix 项目自行建表与维护，本项目只读写。
-- **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长，供画廊剪辑页使用。
-- **AI 媒体处理层**（`internal/service/ai/` + `internal/repository/ai_repo/` + `handler/ai_handler/`）：
-  按需拉起、空闲退出的本地 AI 能力。数据落在 AI 侧自有的 8 张表
-  （`references/db/ai.md`，与其它模块以 `media_assets` 外键隔离，可整组删除），不修改其它表。
-  - **输入图源分两档**（`derive.go`）：`phash`/`embed` 用 256 预览档（同一张图的哈希与向量
-    才不会随入库时期漂移）；`face`/`ocr`/`vlm` 用长边 1024 的 AI 专用派生档
-    （`GALLERY_DIR/AI/<年-月>/<基础名>_ai.jpg`，与既有的 6.9 万张同构）。派生档按需生成
-    （优先生成自原图，退而用预览档）并缓存；生成失败退回 256 档而不是让任务失败。
-    不新增档位，也不改动 `media_assets.preview_path` 的语义与用途。
-  - **可追溯与自动重排**：每个能力有"输入档位 + 执行者"指纹（`input_sig`，如
-    `ai1024|ollama:qwen3.5:4b`），`jobs` 与三张产物表都记录它。reconcile 发现某能力的
-    指纹与现有产物不一致时自动重排（换 VLM 模型后旧标注会被重算），NULL 指纹的历史数据
-    不会被自动重排（避免升级后一次性重排 28 万条），需要刷新时用"全量重生成"。
-  - `phash`：纯 Go 感知哈希（对预览图算 DCT pHash），无外部进程。
-  - `embed` / `face` / `ocr`：Python 侧车（`tools/ai/`）批量处理，一个能力一个进程，
-    空闲 `ai_config.json` 的 `idle_timeout_seconds` 后自动退出释放内存，进程降为 BelowNormal
-    优先级（`priority_windows.go`）。`device=auto` 时 `face`/`ocr` 走 DirectML，向量编码
-    固定 CPU——换执行提供者会改变向量数值、使既有 `embeddings` 失效（`ronin_ai/providers.py`）。
-  - `vlm`：调用本机 Ollama（`OLLAMA_VLM_MODEL`，默认 `qwen3.5:4b`；备选
-    `OLLAMA_VLM_MODEL_ALT` = 社区 abliteration 的无审查版，同样保留视觉能力）。请求必须带
-    `think=false` 与显式 `num_ctx`（`OLLAMA_VLM_CTX`）：思考型模型会把 `num_predict`
-    全用在推理上，JSON 输出为空。不传 `keep_alive`，沿用 Ollama 默认（无请求 5 分钟后
-    卸载模型）；用户已运行的 Ollama 直接复用，未运行时才自拉 `ollama serve`（靠
-    `OLLAMA_MODELS` 指向同一模型库，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收）。
-  - 模型可切换：桌面端选择**标注**用哪个候选（`ai_config.json` 的 `vlm_model`），
-    对话请求可用 `model` 字段逐次指定；候选由 `/API/ai/capabilities` 与 `/API/ai/status`
-    的 `executor_candidates` 下发，消费端只渲染列表、不硬编码。
-    备选模型可用社区 GGUF 本地构建：`ollama create -f Modelfile` 里必须有**两条 FROM**
-    （文本 GGUF + `mmproj`），否则丢失视觉能力；`SupportsThinking` 会剥掉 `命名空间/`
-    前缀再判断，社区重打包的 Qwen 模型同样能开"深度思考"。
-  - 模型仲裁（`models.go`）：本地只有一块 GPU，同一时刻只跑一个模型。**前台对话抢占**
-    后台标注（中断批次 + 卸载旧模型，任务退回队列不计失败），**后台标注等前台**结束
-    （超时才接管），避免边聊天边被反复打断。
-  - `chat`（`/API/ai/chat`）：同一模型承接的交互式对话，NDJSON 流式返回
-    `notice`/`thinking`/`delta`/`done`/`aborted`/`error`。每轮显式下发 `keep_alive`
-    （默认 `OLLAMA_KEEP_ALIVE`，客户端可覆盖，0 = 立即卸载）；客户端要求更长的驻留时间时，
-    自拉服务的空闲回收阈值同步放宽。图片可用 `media_ids` 引用库内媒体（服务端就地取
-    AI 档派生图）或内联 base64，不读写 AI 侧数据表。
-  - 任务队列持久化在 `jobs`，支持失败重试、批次超时、暂停/继续与进度查询；
-    入库自动触发由 reconcile 循环（`EnqueueMissing`）实现，幂等自愈。
-  - 检索不需要 pgvector：向量 int8 量化存 `embeddings`，Go 侧内存精确扫描。
-  - 向量模型必须是**多语种分词器**版本（默认 SigLIP 2）。
-  - 未启用 AI 能力时（`AI_ENABLED=false`）不启动 worker，`/API/ai/status` 仍可用并如实
-    回报 `enabled=false`，两端界面据此降级提示而不是报错。
+- `handler` 负责 HTTP 校验/响应，`service` 负责业务与进程，`repository` 负责 SQL。
+- `gizmos/` 是独立 Go module，处理媒体入库/编辑/刷新；`gizmos/comix/` 是 Python CLI，修改前读其 `AGENTS.md`。
+- gallery/comix 长任务共用 `service/taskengine/`；gallery 同时只允许一个任务。任务状态在内存，退出须杀进程树。
+- 通用 API 使用 `X-API-Key`，资源可用 `api_key` 查询参数。Ops 页面及本机接口由 `LocalOnly` 按 TCP 对端限制回环访问；回环地址不得封禁。
 
-### 技术栈
+## 数据与配置
 
-Go + Gin + **单文件 SQLite**（`modernc.org/sqlite` 纯 Go 驱动，无外部数据库服务）。
-支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁）。启动时自动通过
-mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
+- SQLite 为共享单文件（WAL）；读用 `db.Read()`，写用 `db.Exec` / `db.Tx`，多步写入必须事务回滚。跨进程竞争由 busy timeout 与重试处理。
+- 新增列同时更新 `sqlite.sql` 与 `internal/service/db/migrate.go`；不可依赖 `CREATE TABLE IF NOT EXISTS` 给旧表补列。
+- 时间戳用本机时区定宽毫秒文本；日期是日历日。回顾统计中 essay 按本地日期，booklet 的 UTC 零点仅用于标记日历日，不得混用。
+- `.env` 保存启动配置，字段以 `internal/config/config.go` 为准；AI 运行配置在 `<STATIC_DIR>/data/ai_config.json`，网页偏好在 `ops_web.json`，回顾预设在 `review_presets.json`。
+- user-data 同步/备份是完整数据集替换；回顾预设也是整体替换。解析校验完成后才写入，失败保持原数据。
 
-### 快速启动
+## AI 不变量
 
-```bash
-go run ./cmd -mode local    # 开发模式 (HTTP, 无鉴权)
-go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
-go build ./cmd              # 产出 cmd.exe（替换旧 exe；避免 go run 触发防火墙确认）
-```
+- `phash/embed` 固定使用 256 预览图；`face/ocr/vlm` 使用按需生成的 1024 派生图，失败退回预览图，不改变 `preview_path` 语义。
+- `input_sig` 记录图源档位与执行者；reconcile 只补无任务行，已有结果仅在用户显式重生成时刷新。
+- embed 固定 CPU、多语种分词器；切换执行提供者/模型会影响既有向量。侧车、向量索引、自拉 Ollama 均须空闲回收。
+- VLM 请求带 `think=false` 和显式 `num_ctx`；候选模型来自本机 Ollama，两端不得硬编码。已选模型被删除时不自动改选。
+- 单 GPU 模型仲裁：前台对话可抢占后台标注，后台等待前台；中断批次退回队列，不计失败。
+- `AI_ENABLED=false` 不启动 worker；AI 不可用时主服务仍可用。chat/review 返回 NDJSON，消费端须处理 503 与中断事件。
 
-### 环境变量 (.env)
+## 验收
 
-`.env` 只保留"连库（以及拉起侧车进程）之前就必须知道"的项：`LOCAL_PORT`,
-`LOCAL_DEBUG_PORT`, `STATIC_DIR`, `GALLERY_DIR`, `DB_FILE`(默认 `data/monarch.db`),
-`DB_SCHEMA_FILE`(默认 `references/db/sqlite.sql`), `API_KEY_SERVER`；
-comix 集成：`COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`(默认 `gizmos/comix`)
-/ `COMIC_STORAGE_ROOT`（漫画图片存储根）。
-另有一段 `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`：**仅一次性迁移脚本使用**，
-迁移确认无误后可删除（原 PostgreSQL 库保留作回滚）。
-
-AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`AI_PYTHON`、`AI_SIDECAR_DIR`、
-`AI_EMBED_MODEL`（换模型会使既有 `embeddings` 作废）、`OLLAMA_URL`、`OLLAMA_MODELS`、
-`OLLAMA_EXE`、`OLLAMA_VLM_MODEL`/`OLLAMA_VLM_MODEL_ALT`（候选模型名）、`OLLAMA_VLM_CTX`、
-`OLLAMA_KEEP_ALIVE`。
-**运行时可调项已迁到 `<STATIC_DIR>/data/ai_config.json`**（由桌面端 AI 页读写，改完即时生效，
-不必重启）：`idle_timeout_seconds`、`job_timeout_seconds`、`batch_size`、`max_attempts`、
-`workers`、`device`、`auto_capabilities`、`vlm_model`。首次启动时若配置文件不存在，
-会按 .env 同名项（`AI_IDLE_TIMEOUT` 等，作为种子值）与数据库 `settings` 表的旧值生成它；
-之后 .env 里的运行项不再参与。`config/store.go` 负责读写与取值范围校验。
-
-### API 概览
-
-| 路由组 | 关键端点 | 用途 |
-|--------|---------|------|
-| `/API/user-data` | `GET /sync/:module`, `POST /backup/:module`, `POST /check-images/:module` | 用户数据同步/备份（提交完整数据集，服务端事务内全量替换） |
-| `/API/comic` | `/meta-info`, `/comic-info`, `/chapter-info`, `/download`, `/sync-readed` | 漫画浏览与离线下载（Android 端主用） |
-| `/API/comix` | `/list`, `/chapters/:id`, `/tasks*`, `/download*`, `/update-check`, `/delete`, `/clean` | 漫画库查询（含下载进度与书库管理字段）+ 爬虫任务生命周期（Ops 端主用） |
-| `/API/gallery` | `GET /batch`, `GET /overview`, `GET /:id/:type` | 媒体资产浏览、文件流、客户端本地缓存下载 |
-| `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
-| `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）与 `only_deleted`（仅软删除项）；**不传 `vlm_tags` 时完全不触及 AI 侧数据表**，未初始化 AI 层的部署不受影响 |
-| `/API/ops` | `GET /overview` | 系统概览（Ops 用；`service.staticDir` 为 static 绝对路径） |
-| `/API/ai` | `GET /status`, `GET /capabilities`, `GET /jobs`, `POST /enqueue\|retry\|regenerate\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态与输入档位/执行者候选（`capabilities` 为端上唯一真源）、队列与进度、入队、重试失败项、单能力全量重生成（清产物后重排，破坏性）、暂停与继续、模型进程启停、运行时配置读写 |
-| `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `POST /duplicates/ignore\|unignore`, `GET /duplicates/ignored`, `GET /tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组（`ignore` = 人工判定「非重复」，之后不再参与分组，可随时恢复）、AI 标签清单（含出现次数） |
-| `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式（`notice`/`thinking`/`delta`/`done`/`aborted`/`error`），图片可用 `media_ids` 引用库内媒体或内联 base64；`model`/`num_ctx`/`think`/`temperature`/`keep_alive_seconds` 逐次可调 |
-| `/API/ai` | `POST /review`, `GET/PUT /review/presets` | 近期回顾：后端从 booklet/essay 数据算**确定性统计**（+ 可选随机抽样素材）后交本地模型叙述，NDJSON 流（正文前先下发一条 `stats` 事件供端上展示"本次依据"）。统计口径见 `service/review/`：essay 按本地日历日、booklet 按日历日标记（UTC 零点）归日，两者混用会整体错一天。预设（角色/语气）存 `<STATIC_DIR>/data/review_presets.json`，服务端权威、端上只做镜像；生成结果不落库，由端上本地缓存 |
-| `/API/ai` | `GET /persons`, `GET /persons/:id/faces`, `PATCH/DELETE /persons/:id`, `POST /persons/merge\|faces/assign\|recluster` | 人物分组：改名/删除/合并/人工纠正/重新聚类 |
-
-`GET /API/ai/search` 的检索方式（`mode`）：`auto`（默认，有文本走语义并对关键词命中加权）、
-`semantic`、`keyword`（只匹配 OCR/描述/AI 关键词）、`filename`（只匹配文件路径，可用扩展名过滤）。
-结构筛选：`tag_ids`（人工标签）、`vlm_tags`（AI 标签，只读，与人工标签物理隔离）、
-`person_ids`、`mime_type`、`from`/`to`。非法的 `tag_ids`/`person_ids` 返回 400 而不是 500。
-
-### 验收
-
-```bash
-go build ./... && go vet ./... && go test ./...   # 在 backend/ 与 backend/gizmos/ 各执行一次
-python tools/smoke_api.py                         # 服务运行中逐个接口冒烟（详情见 AGENTS_DB.md）
-```
-
-`go test ./internal/repository` 是数据层端到端验收：把 `data/monarch.db` 复制到临时目录后
-跑遍全部写路径（AI 产物、标签树级联、全量替换、comix 管理字段），不触碰真实数据。
-
-### 跨项目契约
-
-路由表与 CLI 参数快照是**生成物**（`references/generated/`，不入 git），真源永远是 Go 代码；
-端上 DTO 仍手写，改接口后照快照里的处理函数去读响应结构再同步。修改 Go 路由或 CLI 参数后运行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
-powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1 -Check  # 只校验快照是否已过期
-```
-
-### 数据库
-
-单文件 SQLite，表结构与索引见 `AGENTS_DB.md`，建表真源 `references/db/sqlite.sql`
-（幂等，Monarch 启动时执行，comix 的 `init` 读同一份）。
-迁移与回滚：`python tools/migrate_pg_to_sqlite.py`（只读源库、可重跑、含抽样校验；
-原 PostgreSQL 库保留作回滚）；两方案性能比对：`python tools/bench_pg_vs_sqlite.py`。
-AI 侧车依赖安装：`powershell -File tools/ai/install.ps1`（详见 `tools/ai/README.md`）。
-
-### 硬性要求
-
-- 考虑边界情况, 做好异常防护.
-- 除非明确要求, 不对已有功能引入破坏性修改.
-- 更新数据库记录时显式更新所有字段值.
-- 涉及用户数据的写入必须走事务, 保证失败可回滚.
-- 注意代码可维护性.
+在 `backend/` 和 `backend/gizmos/` 各运行 `go build ./...`、`go vet ./...`、`go test ./...`。
+运行主服务用 `go build ./cmd` 后启动 `cmd.exe`，避免 `go run` 触发防火墙确认。
+网页冒烟：`python tools/smoke_ops_web.py`（`OPS_SMOKE_BASE` 可指向隔离实例）。
+AI 安装与依赖见 `tools/ai/README.md`。

@@ -24,64 +24,54 @@ type dirUsage struct {
 }
 
 // ---------------------------------------------------------------------------
-// 目录用量缓存：static 等大目录的统计由后台按 TTL 刷新，请求只读缓存（毫秒级）。
+// 目录用量缓存：首次访问计算，过期后返回旧值并异步刷新。
 // gallery 的 Media/Deleted 数量与体积不遍历磁盘，改由 DB 聚合提供。
 // ---------------------------------------------------------------------------
 
 const usageCacheTTL = 5 * time.Minute
 
 var (
-	usageCacheMu   sync.Mutex
-	usageCache     = map[string]dirUsage{}
-	usageRefresher sync.Once
+	usageCacheMu sync.Mutex
+	usageCache   = map[string]*dirUsageEntry{}
 )
 
-// StartDirUsageRefresher 启动后台目录统计刷新（服务启动时调用，预热缓存）。
-func StartDirUsageRefresher() {
-	usageRefresher.Do(func() {
-		go func() {
-			refreshAllDirUsage()
-			ticker := time.NewTicker(usageCacheTTL)
-			defer ticker.Stop()
-			for range ticker.C {
-				refreshAllDirUsage()
-			}
-		}()
-	})
+type dirUsageEntry struct {
+	usage      dirUsage
+	updatedAt  time.Time
+	refreshing bool
+	ready      chan struct{}
 }
 
-func refreshAllDirUsage() {
-	for _, root := range cachedUsageRoots() {
-		usage := collectDirUsage(root)
-		usageCacheMu.Lock()
-		usageCache[root] = usage
-		usageCacheMu.Unlock()
+func refreshDirUsage(root string, entry *dirUsageEntry) {
+	usage := collectDirUsage(root)
+	usageCacheMu.Lock()
+	defer usageCacheMu.Unlock()
+	if entry.updatedAt.IsZero() {
+		close(entry.ready)
 	}
+	entry.usage, entry.updatedAt, entry.refreshing = usage, time.Now(), false
 }
 
-func cachedUsageRoots() []string {
-	roots := []string{config.AppConf.StaticDir}
-	if config.AppConf.GalleryDir == "" {
-		return roots
-	}
-	return append(roots,
-		config.AppConf.GalleryDir,
-		filepath.Join(config.AppConf.GalleryDir, "Thumbs"),
-		filepath.Join(config.AppConf.GalleryDir, "Preview"),
-	)
-}
-
-// getCachedDirUsage 返回目录用量；缓存未就绪时同步计算（服务刚启动的罕见情况）。
+// getCachedDirUsage 同一目录的并发访问共用一次扫描。
 func getCachedDirUsage(root string) dirUsage {
 	usageCacheMu.Lock()
-	usage, ok := usageCache[root]
-	usageCacheMu.Unlock()
-	if ok {
-		return usage
+	entry, ok := usageCache[root]
+	if !ok {
+		entry = &dirUsageEntry{ready: make(chan struct{})}
+		usageCache[root] = entry
 	}
-	usage = collectDirUsage(root)
-	usageCacheMu.Lock()
-	usageCache[root] = usage
+	if entry.updatedAt.IsZero() {
+		usageCacheMu.Unlock()
+		if !ok {
+			refreshDirUsage(root, entry)
+		}
+		<-entry.ready
+		usageCacheMu.Lock()
+	} else if !entry.refreshing && time.Since(entry.updatedAt) >= usageCacheTTL {
+		entry.refreshing = true
+		go refreshDirUsage(root, entry)
+	}
+	usage := entry.usage
 	usageCacheMu.Unlock()
 	return usage
 }
@@ -116,16 +106,12 @@ func queryGalleryDBStats(ctx context.Context) galleryDBStats {
 	return stats
 }
 
-// SystemOverview 返回服务端基础运维信息，便于桌面端统一展示。
+// SystemOverview 返回服务端基础运维信息，便于网页运维端统一展示。
 func SystemOverview(c *gin.Context) {
 	galleryStats := queryGalleryDBStats(c.Request.Context())
 
-	currentPort := config.NetConf.LocalPort
-	if config.IsLocalMode {
-		currentPort = config.NetConf.LocalDebugPort
-	}
-	// 桌面端需要直接读写封面等文件，因此必须给出绝对路径：服务端与客户端的
-	// 工作目录不同，相对路径在客户端无法解析。
+	// 网页端需要直接读写文件（如资源管理器定位），因此必须给出绝对路径：
+	// 服务端与浏览器的路径视角不同，相对路径无法解析。
 	staticDir, absErr := filepath.Abs(config.AppConf.StaticDir)
 	staticDirError := ""
 	if absErr != nil {
@@ -151,8 +137,7 @@ func SystemOverview(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"service": gin.H{
-			"isLocalMode":    config.IsLocalMode,
-			"port":           currentPort,
+			"port":           ServedPort(c),
 			"staticDir":      staticDir,
 			"staticDirError": staticDirError,
 		},

@@ -1,9 +1,0 @@
-# 静态分析配置。
-#
-# 生成代码（build_runner 产出的 *.g.dart）不参与分析：其中的 deprecation
-# 提示会淹没真实问题，且这些文件不允许手改。
-include: package:flutter_lints/flutter.yaml
-
-analyzer:
-  exclude:
-    - "**/*.g.dart"

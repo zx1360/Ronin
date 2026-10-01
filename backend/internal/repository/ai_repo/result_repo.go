@@ -670,8 +670,8 @@ func BuildSearchWhere(f SearchFilters) (string, []any) {
 		conditions = append(conditions, "m.is_deleted = 0")
 	}
 	if strings.TrimSpace(f.Keyword) != "" {
-		// SQLite 的 LIKE 对 ASCII 大小写不敏感，与 PG 的 ILIKE 在本数据集上等价；
-		// 无 pg_trgm 索引，这里对 media_ai 做一次全表扫描（见 AGENTS_DB.md 的性能说明）。
+		// SQLite 的 LIKE 对 ASCII 大小写不敏感，正好覆盖关键词检索；
+		// 无 trigram 索引，这里对 media_ai 做一次全表扫描（见 AGENTS_DB.md 的性能说明）。
 		pattern := "%" + strings.TrimSpace(f.Keyword) + "%"
 		args = append(args, pattern, pattern, pattern)
 		conditions = append(conditions, `m.id IN (
@@ -826,6 +826,19 @@ func ListVLMTags(limit int) ([]VLMTagCount, error) {
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+// CountUndeletedMedia 返回未删除媒体总数（能力进度的分母）。
+func CountUndeletedMedia() (int, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	var n int
+	err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM media_assets WHERE is_deleted = 0`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("统计媒体总数失败: %w", err)
+	}
+	return n, nil
 }
 
 // CountMediaMissingAll 一次扫描算出各能力"尚无产物"的未删除媒体数。

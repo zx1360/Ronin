@@ -236,7 +236,7 @@ enum GalleryGridPreviewMode {
   preview,
 
   /// 瀑布流布局
-  waterfall;
+  waterfall,
 }
 
 /// 网格预览模式 Provider
@@ -259,13 +259,6 @@ class GalleryGridPreviewModeNotifier extends _$GalleryGridPreviewModeNotifier {
     final prefs = PrefsService().prefs;
     await prefs.setString(GalleryPrefsKeys.gridPreviewMode, mode.name);
     state = mode;
-  }
-
-  /// 循环切换模式
-  Future<void> cycleMode() async {
-    final modes = GalleryGridPreviewMode.values;
-    final nextIdx = (modes.indexOf(state) + 1) % modes.length;
-    await setMode(modes[nextIdx]);
   }
 }
 

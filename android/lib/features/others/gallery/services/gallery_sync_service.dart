@@ -31,13 +31,7 @@ int processedUpperIndex({
 }
 
 /// 同步状态
-enum SyncStatus {
-  idle,
-  downloading,
-  uploading,
-  success,
-  error,
-}
+enum SyncStatus { idle, downloading, uploading, success, error }
 
 /// 同步进度信息
 class SyncProgress {
@@ -94,10 +88,7 @@ class GallerySyncService extends _$GallerySyncService {
     state = const SyncProgress(status: SyncStatus.idle, message: '已取消');
   }
 
-  /// 下载一批媒体文件
-  /// 1. 获取 batch 数据 (媒体信息 + tags + links)
-  /// 2. 存储数据到本地数据库
-  /// 3. 下载媒体文件 (原图 + 缩略图 + 预览图)
+  /// 下载一批媒体记录及缩略图、预览图。
   Future<bool> downloadBatch({int limit = 50}) async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
@@ -110,15 +101,17 @@ class GallerySyncService extends _$GallerySyncService {
     final apiClient = ref.read(apiClientManagerProvider);
 
     try {
-      // 1. 获取当前本地记录数作为 offset
-      final offset = await db.getMediaAssetCount();
-      
       state = SyncProgress(
         status: SyncStatus.downloading,
         message: '正在获取数据...',
         current: 0,
         total: 0,
       );
+
+      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
+        throw StateError('部分修改未同步，请确认后重试');
+      }
+      final offset = await db.getMediaAssetCount();
 
       // 2. 请求 batch 数据（携带筛选/排序参数）
       final mimeFilter = ref.read(galleryDownloadMimeFilterProvider);
@@ -129,17 +122,16 @@ class GallerySyncService extends _$GallerySyncService {
       final filterDay = ref.read(galleryDownloadDayProvider);
       final secondarySort = ref.read(galleryDownloadSecondarySortProvider);
 
-      final queryParams = <String, dynamic>{
-        'limit': limit,
-        'offset': offset,
-      };
+      final queryParams = <String, dynamic>{'limit': limit, 'offset': offset};
       if (mimeFilter.isNotEmpty) queryParams['mime_type'] = mimeFilter;
       if (sortBy.isNotEmpty) queryParams['sort_by'] = sortBy;
       if (sortOrder.isNotEmpty) queryParams['sort_order'] = sortOrder;
       if (filterYear > 0) queryParams['year'] = filterYear;
       if (filterMonth > 0) queryParams['month'] = filterMonth;
       if (filterDay > 0) queryParams['day'] = filterDay;
-      if (secondarySort.isNotEmpty) queryParams['secondary_sort'] = secondarySort;
+      if (secondarySort.isNotEmpty) {
+        queryParams['secondary_sort'] = secondarySort;
+      }
 
       final response = await apiClient.get(
         "/API/gallery/batch",
@@ -166,22 +158,23 @@ class GallerySyncService extends _$GallerySyncService {
 
       // 3. 保存数据到数据库
       state = state.copyWith(message: '正在保存数据...');
-      
+
       await db.upsertMediaAssets(assets);
       // 标签以服务端为权威, 整表镜像到本地缓存
       await db.syncTagsCache(tags);
-      if (links.isNotEmpty) {
-        await db.upsertMediaTagLinks(links);
+      final tagsByMedia = <String, List<String>>{
+        for (final asset in assets) asset.id: [],
+      };
+      for (final link in links) {
+        tagsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
       }
+      await db.replaceTagsForMediaBatch(tagsByMedia);
 
       // 4. 下载媒体文件 (仅缩略图和预览图，原图通过网络实时加载)
       final totalFiles = assets.length * 2; // 每个 asset 有2个文件 (缩略图+预览图)
       int downloadedFiles = 0;
 
-      state = state.copyWith(
-        message: '正在下载文件...',
-        total: totalFiles,
-      );
+      state = state.copyWith(message: '正在下载文件...', total: totalFiles);
 
       // 并发下载控制
       const maxConcurrent = 4;
@@ -192,41 +185,44 @@ class GallerySyncService extends _$GallerySyncService {
           throw Exception('下载已取消');
         }
 
-        // 注意: 原图不再下载到本地，改为实时请求并通过 cached_network_image 缓存
-        // 仅下载缩略图和预览图
+        // 只下缩略图与预览图；原图实时请求，由 cached_network_image 缓存
 
         // 下载缩略图
         if (asset.thumbPath != null) {
-          downloadTasks.add(_downloadFile(
-            apiClient: apiClient,
-            path: "/API/gallery/${asset.id}/thumb",
-            saveFn: (bytes) => storage.saveThumbFile(
-              serverPath: asset.thumbPath!,
-              bytes: bytes,
+          downloadTasks.add(
+            _downloadFile(
+              apiClient: apiClient,
+              path: "/API/gallery/${asset.id}/thumb",
+              saveFn: (bytes) => storage.saveThumbFile(
+                serverPath: asset.thumbPath!,
+                bytes: bytes,
+              ),
+              onComplete: () {
+                downloadedFiles++;
+                state = state.copyWith(current: downloadedFiles);
+              },
             ),
-            onComplete: () {
-              downloadedFiles++;
-              state = state.copyWith(current: downloadedFiles);
-            },
-          ));
+          );
         } else {
           downloadedFiles++;
         }
 
         // 下载预览图
         if (asset.previewPath != null) {
-          downloadTasks.add(_downloadFile(
-            apiClient: apiClient,
-            path: "/API/gallery/${asset.id}/preview",
-            saveFn: (bytes) => storage.savePreviewFile(
-              serverPath: asset.previewPath!,
-              bytes: bytes,
+          downloadTasks.add(
+            _downloadFile(
+              apiClient: apiClient,
+              path: "/API/gallery/${asset.id}/preview",
+              saveFn: (bytes) => storage.savePreviewFile(
+                serverPath: asset.previewPath!,
+                bytes: bytes,
+              ),
+              onComplete: () {
+                downloadedFiles++;
+                state = state.copyWith(current: downloadedFiles);
+              },
             ),
-            onComplete: () {
-              downloadedFiles++;
-              state = state.copyWith(current: downloadedFiles);
-            },
-          ));
+          );
         } else {
           downloadedFiles++;
         }
@@ -284,7 +280,7 @@ class GallerySyncService extends _$GallerySyncService {
         path,
         cancelToken: _cancelToken,
       );
-      
+
       if (response.data != null) {
         await saveFn(response.data!);
       }
@@ -319,6 +315,10 @@ class GallerySyncService extends _$GallerySyncService {
         message: '正在准备数据...',
       );
 
+      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
+        throw StateError('部分修改未同步，请确认后重试');
+      }
+
       final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
       final upperIndex = processedUpperIndex(
         currentIndex: ref.read(galleryCurrentIndexProvider),
@@ -327,8 +327,8 @@ class GallerySyncService extends _$GallerySyncService {
       );
 
       // 1. 取队列中 0..upperIndex 的媒体及其组成员
-      final data = await db.getPartialDataForUpload(upperIndex);
-      if (data.assets.isEmpty) {
+      final processedAssets = await db.getProcessedAssets(upperIndex);
+      if (processedAssets.isEmpty) {
         state = const SyncProgress(
           status: SyncStatus.success,
           message: '没有需要标记的媒体',
@@ -338,10 +338,10 @@ class GallerySyncService extends _$GallerySyncService {
 
       state = state.copyWith(
         message: '正在标记已处理...',
-        total: data.assets.length,
+        total: processedAssets.length,
       );
 
-      final mediaIds = data.assets.map((a) => a.id).toList();
+      final mediaIds = processedAssets.map((a) => a.id).toList();
 
       // 2. 服务端标记已处理（游标推进）
       await api.patchMedia(
@@ -357,7 +357,7 @@ class GallerySyncService extends _$GallerySyncService {
       );
 
       // 3. 删除本地记录与文件
-      await db.deleteUploadedData(mediaIds);
+      await db.deleteProcessedData(mediaIds);
       await ref.read(galleryModifiedCountProvider.notifier).reset();
       await ref.read(galleryCurrentIndexProvider.notifier).update(0);
 
@@ -366,7 +366,7 @@ class GallerySyncService extends _$GallerySyncService {
       ref.invalidate(mediaIdsWithTagsProvider);
       await ref.read(mediaAssetListProvider.future);
 
-      _deleteLocalFilesInBackground(data.assets, storage);
+      _deleteLocalFilesInBackground(processedAssets, storage);
 
       AppLogger().info('Gallery 标记已处理: ${mediaIds.length} 条记录');
       return true;
@@ -395,7 +395,7 @@ class GallerySyncService extends _$GallerySyncService {
     state = const SyncProgress();
   }
 
-  /// 后台静默删除已上传媒体的本地缩略图和预览图
+  /// 后台删除已处理媒体的本地缩略图和预览图
   /// 在主 isolate 中解析路径后，在后台 Isolate 中执行文件删除
   void _deleteLocalFilesInBackground(
     List<MediaAsset> assets,
@@ -411,66 +411,40 @@ class GallerySyncService extends _$GallerySyncService {
           thumbResolved.add(await storage.getLocalThumbPath(asset.thumbPath!));
         }
         if (asset.previewPath != null) {
-          previewResolved.add(await storage.getLocalPreviewPath(asset.previewPath!));
+          previewResolved.add(
+            await storage.getLocalPreviewPath(asset.previewPath!),
+          );
         }
       }
       // 在后台 isolate 中执行纯文件 I/O，不阻塞 UI
       if (thumbResolved.isNotEmpty || previewResolved.isNotEmpty) {
-        await Isolate.run(() => _deleteFilesInIsolate(thumbResolved, previewResolved));
+        await Isolate.run(
+          () => _deleteFilesInIsolate(thumbResolved, previewResolved),
+        );
       }
     });
   }
 }
 
-/// 待上传数据统计 Provider
-/// 按照 modified_count 计算需要上传的记录：
-/// - media_assets: sync_count <= modified_count 的记录
-/// - tags: 全量
-/// - media_tag_links: 与涉及到的 media_assets 关联的记录
+/// 与「标记已处理」使用相同范围的主文件统计。
 @riverpod
-Future<UploadStats> galleryUploadStats(GalleryUploadStatsRef ref) async {
+Future<({int mediaCount, int deletedCount})> galleryProcessedStats(
+  GalleryProcessedStatsRef ref,
+) async {
   final db = ref.watch(galleryDatabaseProvider);
+  final currentIndex = ref.watch(galleryCurrentIndexProvider);
   final modifiedCount = ref.watch(galleryModifiedCountProvider);
-  
-  // 获取需要上传的 media_assets 数量
-  final mediaCount = await db.getModifiedMediaAssetCount(modifiedCount);
-  
-  // 获取其中标记为删除的数量
-  final deletedCount = await db.getModifiedDeletedMediaAssetCount(modifiedCount);
-  
-  // tags 全量上传
-  final tagCount = await db.getTagCount();
-  
-  // 获取涉及到的 media_ids，计算关联的 links 数量
-  final mediaIds = await db.getModifiedMediaAssetIds(modifiedCount);
-  final linkCount = await db.getMediaTagLinkCountForMediaIds(mediaIds);
-  
-  return UploadStats(
-    mediaCount: mediaCount,
-    deletedCount: deletedCount,
-    tagCount: tagCount,
-    linkCount: linkCount,
+  final assets = await ref.watch(mediaAssetListProvider.future);
+  return db.getProcessedStats(
+    processedUpperIndex(
+      currentIndex: currentIndex,
+      modifiedCount: modifiedCount,
+      length: assets.length,
+    ),
   );
 }
 
-/// 待上传统计
-class UploadStats {
-  final int mediaCount;
-  final int deletedCount;
-  final int tagCount;
-  final int linkCount;
-
-  const UploadStats({
-    required this.mediaCount,
-    required this.deletedCount,
-    required this.tagCount,
-    required this.linkCount,
-  });
-
-  bool get hasData => mediaCount > 0;
-}
-
-/// 在独立 Isolate 中删除已上传媒体的本地文件
+/// 在独立 Isolate 中删除已处理媒体的本地文件
 /// 接收已解析的本地绝对路径，执行纯文件 I/O
 Future<void> _deleteFilesInIsolate(
   List<String> thumbResolvedPaths,
@@ -501,7 +475,9 @@ Future<void> _deleteFilesInIsolate(
       final parts = firstPath.split(Platform.pathSeparator);
       final galleryIdx = parts.indexWhere((p) => p == 'gallery');
       if (galleryIdx >= 0) {
-        final galleryRoot = parts.take(galleryIdx + 1).join(Platform.pathSeparator);
+        final galleryRoot = parts
+            .take(galleryIdx + 1)
+            .join(Platform.pathSeparator);
         await _cleanupEmptyDirs(Directory(galleryRoot));
       }
     } catch (_) {}
@@ -515,7 +491,9 @@ Future<void> _cleanupEmptyDirs(Directory dir) async {
     if (entity is Directory) {
       await _cleanupEmptyDirs(entity);
       if (entity.listSync().isEmpty) {
-        try { await entity.delete(); } catch (_) {}
+        try {
+          await entity.delete();
+        } catch (_) {}
       }
     }
   }

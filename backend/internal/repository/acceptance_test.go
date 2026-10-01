@@ -1,11 +1,8 @@
-// Package repository_test 是数据层的端到端验收：在**数据库副本**上跑遍全部读写
-// 场景（AI 产物写入、标签树级联、事务性全量替换、comix 管理字段）。
-//
-// 需要一份已迁移的 SQLite 数据库；缺省取 backend/data/monarch.db，可用
-// MONARCH_DB_SRC 指定。测试先把库复制到临时目录再操作，绝不触碰真实数据。
+// 数据层验收默认使用独立测试数据；MONARCH_DB_SRC 可指定只读源库做快照兼容性验收。
 package repository_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -25,55 +22,89 @@ import (
 	"monarch/internal/service/db"
 )
 
-const (
-	sourceDB   = "../../data/monarch.db"
-	schemaFile = "../../references/db/sqlite.sql"
-)
+const schemaFile = "../../references/db/sqlite.sql"
 
-// TestMain 复制一份数据库副本供全部用例共用（每个用例各复制一次 340MB 太浪费）。
 func TestMain(m *testing.M) {
-	src := os.Getenv("MONARCH_DB_SRC")
-	if src == "" {
-		src = sourceDB
-	}
-	src = filepath.FromSlash(src)
-	if _, err := os.Stat(src); err != nil {
-		fmt.Fprintf(os.Stderr, "跳过数据层验收：未找到源数据库 %s（设置 MONARCH_DB_SRC 或先执行迁移）\n", src)
-		os.Exit(0)
-	}
+	os.Exit(runAcceptance(m))
+}
 
+func runAcceptance(m *testing.M) int {
 	dir, err := os.MkdirTemp("", "monarch-acceptance")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "创建临时目录失败: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	defer os.RemoveAll(dir)
 	dst := filepath.Join(dir, "monarch_test.db")
-	if err := copyFilePlain(src, dst); err != nil {
-		fmt.Fprintf(os.Stderr, "复制数据库失败: %v\n", err)
-		os.Exit(1)
+	src := os.Getenv("MONARCH_DB_SRC")
+	if src != "" {
+		if err := copyDatabase(src, dst); err != nil {
+			fmt.Fprintf(os.Stderr, "复制数据库失败: %v\n", err)
+			return 1
+		}
 	}
 	db.Init(config.DbConfig{File: dst, SchemaFile: schemaFile})
-
-	code := m.Run()
-
-	db.Close()
-	os.RemoveAll(dir)
-	os.Exit(code)
+	defer db.Close()
+	if src == "" {
+		if err := seedAcceptance(); err != nil {
+			fmt.Fprintf(os.Stderr, "创建测试数据失败: %v\n", err)
+			return 1
+		}
+	}
+	return m.Run()
 }
 
-func copyFilePlain(src, dst string) error {
-	in, err := os.Open(src)
+func seedAcceptance() error {
+	return db.Tx(context.Background(), func(tx *sql.Tx) error {
+		for i := 1; i <= 32; i++ {
+			id := fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
+			if _, err := tx.Exec(`INSERT INTO media_assets(id, captured_at, file_path, hash, mime_type)
+				VALUES (?, ?, ?, ?, 'image/jpeg')`, id,
+				fmt.Sprintf("2024-06-%02d 12:00:00.000", (i-1)%28+1),
+				fmt.Sprintf("test/%d.jpg", i), []byte(id)); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(`
+			INSERT INTO essay_labels(id, name) VALUES ('11111111-1111-4111-8111-111111111111', '测试');
+			INSERT INTO essay_articles(id, date, content, imgs, labels, messages)
+			VALUES ('22222222-2222-4222-8222-222222222222', '2024-06-01 12:00:00.000', '测试随笔',
+			 '["img_storage/essay/test.jpg"]', '["11111111-1111-4111-8111-111111111111"]', '[{"content":"测试"}]');
+			INSERT INTO essay_year_summaries(year, essay_count, word_count, month_summaries) VALUES (2024, 1, 4, '[]');
+			INSERT INTO booklet_styles(id, start_date, tasks)
+			VALUES ('33333333-3333-4333-8333-333333333333', '2024-06-01 00:00:00.000', '[{"image":"img_storage/booklet/test.jpg"}]');
+			INSERT INTO booklet_records(id, style_id, date, task_completion)
+			VALUES ('44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333', '2024-06-01', '{}');
+			INSERT INTO comic_sites(id, code, name) VALUES (1, 'test', '测试站');
+			INSERT INTO comics(id, title, site_id, site_comic_id, detail_url) VALUES (1, '测试漫画', 1, '1', 'https://example.invalid/1');
+			INSERT INTO comic_chapters(id, comic_id, site_id, chapter_no, title, url, rel_dir)
+			VALUES (1, 1, 1, 1, '第一章', 'https://example.invalid/chapter/1', 'test/001');
+			INSERT INTO comic_images(chapter_id, sort_num, file_name, width, height) VALUES (1, 1, '1.jpg', 100, 200);
+		`)
+		return err
+	})
+}
+
+func copyDatabase(src, dst string) error {
+	abs, err := filepath.Abs(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	out, err := os.Create(dst)
+	source, err := sql.Open("sqlite", "file:"+filepath.ToSlash(abs)+"?mode=ro&_pragma=busy_timeout(10000)")
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
+	defer source.Close()
+	// 包含 WAL 中已提交的数据；源连接只读，测试只修改目标副本。
+	_, err = source.Exec("VACUUM INTO ?", dst)
 	return err
+}
+
+func clearTestVLMJobs(t *testing.T) {
+	t.Helper()
+	if _, err := db.Exec(t.Context(), "DELETE FROM jobs WHERE capability = ?", model.CapVLM); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // sampleMediaID 取一个未删除的媒体 ID。
@@ -230,6 +261,7 @@ func TestAiWrites(t *testing.T) {
 // ---------- AI 任务队列 ----------
 
 func TestAiJobQueue(t *testing.T) {
+	clearTestVLMJobs(t)
 	var mediaIDs []uuid.UUID
 	rows, err := db.Read().Query(
 		`SELECT id FROM media_assets WHERE is_deleted = 0 ORDER BY captured_at DESC LIMIT 300`)
@@ -272,7 +304,7 @@ func TestAiJobQueue(t *testing.T) {
 	if err := ai_repo.FinishDone([]int64{claimed[0].JobID}, "ai1024|ollama:test"); err != nil {
 		t.Fatalf("标记完成失败: %v", err)
 	}
-	if err := ai_repo.FinishFailed([]int64{claimed[1].JobID}, "验收失败原因", 3,
+	if err := ai_repo.FinishFailed([]int64{claimed[1].JobID}, "验收失败原因", 1,
 		"ai1024|ollama:test"); err != nil {
 		t.Fatalf("标记失败失败: %v", err)
 	}
@@ -300,8 +332,9 @@ func TestAiJobQueue(t *testing.T) {
 	}
 }
 
-// TestAiStaleInput 指纹不匹配才重排：失败的任务同样记指纹，否则会被反复重排。
+// TestAiStaleInput 校验指纹差异统计与显式重生成。
 func TestAiStaleInput(t *testing.T) {
+	clearTestVLMJobs(t)
 	mediaIDs := []uuid.UUID{sampleMediaID(t)}
 	const current = "ai1024|ollama:current"
 
@@ -319,16 +352,12 @@ func TestAiStaleInput(t *testing.T) {
 	if n, err := ai_repo.CountStaleInput(model.CapVLM, current); err != nil || n != 0 {
 		t.Fatalf("失败任务不应被判为待重排: n=%d err=%v", n, err)
 	}
-	if n, err := ai_repo.ResetStaleInput(model.CapVLM, current); err != nil || n != 0 {
-		t.Fatalf("失败任务不应被重排: n=%d err=%v", n, err)
-	}
-
 	// 换成另一个执行者后，同一条已完成/已失败的任务应被判为待重排
 	if n, err := ai_repo.CountStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 1 {
 		t.Fatalf("指纹变更应被判为待重排: n=%d err=%v", n, err)
 	}
-	if n, err := ai_repo.ResetStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 1 {
-		t.Fatalf("指纹变更应被重排: n=%d err=%v", n, err)
+	if n, err := ai_repo.RegenerateMedia(model.CapVLM, mediaIDs, "ai1024|ollama:other"); err != nil || n != 1 {
+		t.Fatalf("显式重生成失败: n=%d err=%v", n, err)
 	}
 	if n, err := ai_repo.CountStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 0 {
 		t.Fatalf("重排后不应再判为待重排: n=%d err=%v", n, err)
@@ -338,6 +367,9 @@ func TestAiStaleInput(t *testing.T) {
 // ---------- AI 检索 ----------
 
 func TestAiSearch(t *testing.T) {
+	if _, err := db.Exec(t.Context(), "DELETE FROM media_ai_tags"); err != nil {
+		t.Fatal(err)
+	}
 	mediaID := sampleMediaID(t)
 	if err := ai_repo.SaveOCR(mediaID, "独一无二的验收检索词", "ai1024|rapidocr-ppocr"); err != nil {
 		t.Fatalf("写入 OCR 失败: %v", err)
@@ -379,7 +411,7 @@ func TestAiSearch(t *testing.T) {
 	if _, err := ai_repo.CountMediaMissingAll(); err != nil {
 		t.Fatalf("待处理统计失败: %v", err)
 	}
-	if !ai_repo.SchemaReady(nil) {
+	if !ai_repo.SchemaReady(context.Background()) {
 		t.Fatal("SchemaReady 应为 true")
 	}
 }
@@ -433,14 +465,10 @@ func TestGalleryTagTree(t *testing.T) {
 		t.Fatalf("移动后路径不符: %q", got.FullPath)
 	}
 
-	// 子孙查询与展开
+	// 子孙展开（自身 + 全部子孙）
 	grand, err := gallery_repo.CreateTag("验收孙", &root.ID)
 	if err != nil {
 		t.Fatalf("创建孙标签失败: %v", err)
-	}
-	descendants, err := gallery_repo.FetchDescendantTagIDs(root.ID)
-	if err != nil || len(descendants) != 1 || descendants[0] != grand.ID {
-		t.Fatalf("子孙查询不符: %v err=%v", descendants, err)
 	}
 	expanded, err := gallery_repo.ExpandTagIDs([]uuid.UUID{root.ID})
 	if err != nil || len(expanded) != 2 {
@@ -655,17 +683,14 @@ func TestUserDataReplace(t *testing.T) {
 // ---------- comix 漫画读取与管理字段 ----------
 
 func TestComicRepo(t *testing.T) {
-	meta, err := comic_repo.GetComicMetaData()
-	if err != nil || meta.BookCount == 0 || meta.TotalImageCount == 0 {
-		t.Fatalf("漫画总元数据不符: %+v err=%v", meta, err)
-	}
-	if meta.UpdatedAt.IsZero() {
-		t.Fatal("漫画元数据时间未设置")
+	var bookCount int
+	if err := db.Read().QueryRow(`SELECT COUNT(*) FROM comics`).Scan(&bookCount); err != nil {
+		t.Fatalf("统计漫画总数失败: %v", err)
 	}
 
 	infos, err := comic_repo.GetAllComicInfos()
-	if err != nil || len(infos) != meta.BookCount {
-		t.Fatalf("漫画列表不符: %d/%d err=%v", len(infos), meta.BookCount, err)
+	if err != nil || len(infos) != bookCount {
+		t.Fatalf("漫画列表不符: %d/%d err=%v", len(infos), bookCount, err)
 	}
 	var withChapters *model.ComicInfo
 	for i := range infos {
@@ -722,17 +747,6 @@ func TestComicRepo(t *testing.T) {
 			t.Fatalf("is_public 未生效: %+v", info)
 		}
 	}
-
-	resp, err := comic_repo.SyncReadedStatus([]string{withChapters.ID})
-	if err != nil {
-		t.Fatalf("同步已读失败: %v", err)
-	}
-	if resp.NewChapters[withChapters.ID] != len(chapters) {
-		t.Fatalf("已读同步的章节计数不符: %d/%d", resp.NewChapters[withChapters.ID], len(chapters))
-	}
-	if _, err := comic_repo.SyncReadedStatus([]string{"not-a-number"}); err == nil {
-		t.Fatal("非法漫画 ID 应报错")
-	}
 }
 
 // ---------- 时间列往返 ----------
@@ -783,5 +797,108 @@ func TestWriteRollback(t *testing.T) {
 	}
 	if got.Message == message {
 		t.Fatal("事务失败后写入未回滚")
+	}
+}
+
+// ---------- 任务行唯一性 ----------
+
+// TestAiJobUniqueness 同一 (能力, 媒体) 只能有一行任务：重复入队、单项和
+// 全量重生成都不得多生成记录（否则进度统计与"已入队"判定都会被放大）。
+//
+// 放在文件末尾：其中的全量重生成会清空该能力的产物，只在库副本上执行。
+func TestAiJobUniqueness(t *testing.T) {
+	var mediaIDs []uuid.UUID
+	rows, err := db.Read().Query(
+		`SELECT id FROM media_assets WHERE is_deleted = 0 ORDER BY captured_at DESC LIMIT 200`)
+	if err != nil {
+		t.Fatalf("取样本媒体失败: %v", err)
+	}
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			rows.Close()
+			t.Fatalf("扫描媒体失败: %v", err)
+		}
+		id, _ := uuid.Parse(raw)
+		mediaIDs = append(mediaIDs, id)
+	}
+	rows.Close()
+	if len(mediaIDs) == 0 {
+		t.Skip("跳过：库中没有媒体")
+	}
+
+	const capability = model.CapVLM
+	// 清干净起点：把该能力的任务行退回到待处理，便于按计数断言
+	if _, err := ai_repo.RegenerateMedia(capability, mediaIDs, "sig-a"); err != nil {
+		t.Fatalf("重置任务失败: %v", err)
+	}
+
+	countFor := func() int {
+		var n int
+		if err := db.Read().QueryRow(
+			`SELECT COUNT(*) FROM jobs WHERE capability = ?`, capability).Scan(&n); err != nil {
+			t.Fatalf("统计任务失败: %v", err)
+		}
+		return n
+	}
+
+	// 同一批重复入队（含换指纹）不得新增行
+	before := countFor()
+	if _, err := ai_repo.Enqueue(capability, mediaIDs, "sig-a"); err != nil {
+		t.Fatalf("重复入队失败: %v", err)
+	}
+	if _, err := ai_repo.Enqueue(capability, mediaIDs, "sig-b"); err != nil {
+		t.Fatalf("换指纹重复入队失败: %v", err)
+	}
+	if _, err := ai_repo.RegenerateMedia(capability, mediaIDs, "sig-b"); err != nil {
+		t.Fatalf("重复重生成失败: %v", err)
+	}
+	if after := countFor(); after != before {
+		t.Fatalf("重复入队/重生成多生成了任务行: %d -> %d", before, after)
+	}
+
+	// 全量重生成：未删除媒体的任务行数应等于媒体总数，且仍无重复
+	cleared, enqueued, err := ai_repo.Regenerate(capability, "sig-d", 100)
+	if err != nil {
+		t.Fatalf("全量重生成失败: %v", err)
+	}
+	if cleared < 0 || enqueued <= 0 {
+		t.Fatalf("全量重生成结果异常: cleared=%d enqueued=%d", cleared, enqueued)
+	}
+	var mediaTotal int
+	if err := db.Read().QueryRow(
+		`SELECT COUNT(*) FROM media_assets WHERE is_deleted = 0`).Scan(&mediaTotal); err != nil {
+		t.Fatalf("统计媒体失败: %v", err)
+	}
+	var alive int
+	if err := db.Read().QueryRow(`
+		SELECT COUNT(*) FROM jobs j JOIN media_assets m ON m.id = j.media_id
+		WHERE j.capability = ? AND m.is_deleted = 0`, capability).Scan(&alive); err != nil {
+		t.Fatalf("统计未删除媒体的任务失败: %v", err)
+	}
+	if alive != mediaTotal {
+		t.Fatalf("全量重生成后未删除媒体的任务行数应等于媒体总数: %d != %d", alive, mediaTotal)
+	}
+	before = countFor()
+
+	// 补处理：此时全部未删除媒体都已有任务行，不应再插入
+	// （放在全量重生成之后，否则补处理本来就会为尚未入队的媒体补行）
+	if _, err := ai_repo.EnqueueMissing(capability, 1000, 100, "sig-d"); err != nil {
+		t.Fatalf("补处理失败: %v", err)
+	}
+	if after := countFor(); after != before {
+		t.Fatalf("补处理多生成了任务行: %d -> %d", before, after)
+	}
+
+	// 全局兜底：任何能力都不允许出现重复行
+	var duplicates int
+	if err := db.Read().QueryRow(`
+		SELECT COUNT(*) FROM (
+			SELECT capability, media_id FROM jobs GROUP BY capability, media_id HAVING COUNT(*) > 1
+		)`).Scan(&duplicates); err != nil {
+		t.Fatalf("统计重复任务失败: %v", err)
+	}
+	if duplicates != 0 {
+		t.Fatalf("存在 %d 组重复的 (能力, 媒体) 任务行", duplicates)
 	}
 }

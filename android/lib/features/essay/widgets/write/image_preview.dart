@@ -1,16 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 
 class ImagePreview extends StatelessWidget {
-  final List<File> images;
+  final List<String> images;
   final Function(int) onRemove;
 
-  const ImagePreview({
-    super.key,
-    required this.images,
-    required this.onRemove,
-  });
+  const ImagePreview({super.key, required this.images, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -29,11 +24,11 @@ class ImagePreview extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                images[index],
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
+              child: SizedBox.expand(
+                child: FileImageBuilder(
+                  relativeImagePath: images[index],
+                  isOriginScale: true,
+                ),
               ),
             ),
             Positioned(
@@ -48,11 +43,7 @@ class ImagePreview extends StatelessWidget {
                     color: Colors.black54,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.close,
-                    color: Colors.white,
-                    size: 16,
-                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 16),
                 ),
               ),
             ),

@@ -1,11 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-// 单例模式, 日志输出.
+// 全局日志单例：统一转发到 logging 包，再由 debugPrint 输出。
 class AppLogger {
   static final AppLogger _instance = AppLogger._internal();
 
-  // 工厂构造函数, 外部调用AppLogger()返回同一实例.
   factory AppLogger() => _instance;
 
   final Logger _logger = Logger("App");
@@ -13,12 +12,10 @@ class AppLogger {
   AppLogger._internal() {
     Logger.root.level = Level.ALL;
     Logger.root.onRecord.listen((record) {
-      // 监听到日志消息后的操作 TODO:之后写入日志文件.
       debugPrint('${record.time} [${record.level.name}] ${record.message}');
     });
   }
 
-  // 不同级别的日志记录
   void debug(String message) => _logger.fine(message);
   void info(String message) => _logger.info(message);
   void warning(String message) => _logger.warning(message);

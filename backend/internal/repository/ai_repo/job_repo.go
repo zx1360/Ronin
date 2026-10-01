@@ -25,7 +25,7 @@ type ClaimedJob struct {
 
 // Enqueue 为指定媒体批量入队某能力（重复入队幂等，已存在的任务行不变）。
 //
-// inputSig 为空表示调用方不声明输入档位/执行者（这类任务不参与自动重排判断）。
+// inputSig 为空表示调用方不声明输入档位/执行者。
 func Enqueue(capability string, mediaIDs []uuid.UUID, inputSig string) (int64, error) {
 	if len(mediaIDs) == 0 {
 		return 0, nil
@@ -88,31 +88,6 @@ func EnqueueMissing(capability string, limit int, priority int, inputSig string)
 		ON CONFLICT (capability, media_id) DO NOTHING`, capability, priority, inputSig, capability, limit)
 	if err != nil {
 		return 0, fmt.Errorf("补充入队 AI 任务失败: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	return n, nil
-}
-
-// ResetStaleInput 把"输入档位/执行者已变"的旧产物重新排队。
-//
-// 只处理已完成/已失败的任务行：pending/running 的行本来就会用最新签名重算。
-// 旧版本留下的空签名（input_sig IS NULL）不算不匹配——那会让升级后的第一次
-// reconcile 把全库 28 万条任务一次性重排，代价不可接受；这类历史数据只能由
-// 用户显式"全量重生成"来刷新。
-func ResetStaleInput(capability, inputSig string) (int64, error) {
-	ctx, cancel := db.GetLongCtx()
-	defer cancel()
-	if err := ensureSchema(ctx); err != nil {
-		return 0, err
-	}
-	res, err := db.Exec(ctx, `
-		UPDATE jobs
-		SET status = 'pending', attempts = 0, last_error = NULL,
-		    started_at = NULL, finished_at = NULL, input_sig = ?
-		WHERE capability = ? AND status IN ('done', 'failed')
-		  AND input_sig IS NOT NULL AND input_sig <> ?`, inputSig, capability, inputSig)
-	if err != nil {
-		return 0, fmt.Errorf("重排旧产物失败: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
@@ -343,8 +318,7 @@ func FinishDone(jobIDs []int64, inputSig string) error {
 
 // FinishFailed 记录失败；未超过 maxAttempts 时退回 pending 等待重试，否则置为 failed。
 //
-// 同时写入本次的 input_sig：失败的任务同样"已经用当前档位/执行者尝试过"，
-// 否则它会被自动重排逻辑反复识别为指纹不匹配而无限重排（永不收敛）。
+// 同时记录执行指纹，使差异统计反映失败任务实际使用的档位与执行者。
 func FinishFailed(jobIDs []int64, errMsg string, maxAttempts int, inputSig string) error {
 	if len(jobIDs) == 0 {
 		return nil
@@ -432,6 +406,69 @@ func RetryFailed(capability string, mediaIDs []uuid.UUID) (int64, error) {
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
+}
+
+// FailedJob 一条失败任务及其媒体信息（供界面回答"到底哪些文件处理失败了"）。
+type FailedJob struct {
+	JobID      int64  `json:"job_id"`
+	Capability string `json:"capability"`
+	MediaID    string `json:"media_id"`
+	Attempts   int    `json:"attempts"`
+	LastError  string `json:"last_error"`
+	UpdatedAt  string `json:"updated_at"`
+	FilePath   string `json:"file_path"`
+	MimeType   string `json:"mime_type"`
+	IsDeleted  bool   `json:"is_deleted"`
+	// ThumbPath 缩略图相对路径；为空表示该媒体没有缩略图（界面据此跳过请求）
+	ThumbPath *string `json:"thumb_path"`
+}
+
+// ListFailures 查询失败任务（capability 为空表示全部能力），附带媒体路径与软删除标记。
+func ListFailures(capability string, limit, offset int) ([]FailedJob, int, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	if err := ensureSchema(ctx); err != nil {
+		return nil, 0, err
+	}
+
+	where := "j.status = 'failed'"
+	args := []any{}
+	if capability != "" {
+		where += " AND j.capability = ?"
+		args = append(args, capability)
+	}
+
+	var total int
+	if err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM jobs j WHERE `+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("统计失败任务失败: %w", err)
+	}
+
+	rows, err := db.Read().QueryContext(ctx, `
+		SELECT j.id, j.capability, j.media_id, j.attempts, COALESCE(j.last_error, ''),
+		       COALESCE(j.updated_at, ''), m.file_path, COALESCE(m.mime_type, ''),
+		       m.is_deleted, m.thumb_path
+		FROM jobs j
+		JOIN media_assets m ON m.id = j.media_id
+		WHERE `+where+`
+		ORDER BY j.updated_at DESC, j.id DESC
+		LIMIT ? OFFSET ?`, append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("查询失败任务失败: %w", err)
+	}
+	defer rows.Close()
+
+	items := []FailedJob{}
+	for rows.Next() {
+		var item FailedJob
+		if err := rows.Scan(&item.JobID, &item.Capability, &item.MediaID, &item.Attempts,
+			&item.LastError, &item.UpdatedAt, &item.FilePath, &item.MimeType,
+			&item.IsDeleted, &item.ThumbPath); err != nil {
+			return nil, 0, fmt.Errorf("扫描失败任务失败: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
 }
 
 // Stats 返回各能力的队列计数（按 model.AllCapabilities 顺序补齐缺失项）。
@@ -542,45 +579,6 @@ func PendingCount(capability string) (int, error) {
 		return 0, fmt.Errorf("统计待处理任务失败: %w", err)
 	}
 	return n, nil
-}
-
-// LegacyAutoCapabilities 读取旧版存放在 settings 表里的"入库自动入队能力"。
-//
-// 配置已迁到 STATIC_DIR/data/ai_config.json（见 config.ConfigStore）；这里只在
-// 首次生成该文件时把旧值搬过去一次，之后不再读写。
-func LegacyAutoCapabilities() ([]string, bool) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	if !SchemaReady(ctx) {
-		return nil, false
-	}
-	var raw string
-	if err := db.Read().QueryRowContext(ctx,
-		`SELECT value FROM settings WHERE key = 'auto_capabilities'`).Scan(&raw); err != nil {
-		return nil, false
-	}
-	var caps []string
-	for _, part := range SplitAndTrim(raw) {
-		if model.IsValidCapability(part) {
-			caps = append(caps, part)
-		}
-	}
-	return caps, true
-}
-
-// LegacyVLMModel 读取旧版存放在 settings 表里的 VLM 模型选择（同上，仅迁移用一次）。
-func LegacyVLMModel() (string, bool) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	if !SchemaReady(ctx) {
-		return "", false
-	}
-	var value string
-	if err := db.Read().QueryRowContext(ctx,
-		`SELECT value FROM settings WHERE key = 'ollama_vlm_model'`).Scan(&value); err != nil {
-		return "", false
-	}
-	return strings.TrimSpace(value), true
 }
 
 // int64Args 把 int64 列表转为 SQL 参数。

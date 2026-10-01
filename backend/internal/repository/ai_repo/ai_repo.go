@@ -1,7 +1,7 @@
 // Package ai_repo 提供 AI 处理层的数据访问。
 //
 // 只读写 ai 侧自有表；对 media_assets 仅做只读筛选与外键引用，不修改其任何列
-// 或语义。原 PostgreSQL 的 text[]（vlm_tags）拆为 media_ai_tags 关系表。
+// 或语义。`vlm_tags` 是 media_ai_tags 关系表，不是 media_ai 的列。
 package ai_repo
 
 import (
@@ -69,11 +69,6 @@ func SplitAndTrim(raw string) []string {
 		}
 	}
 	return out
-}
-
-// joinCSV 以逗号拼接（写入 settings 用）。
-func joinCSV(items []string) string {
-	return strings.Join(items, ",")
 }
 
 // placeholders 生成 n 个 `?`（空集合返回 NULL，使 IN 子句恒为空集）。

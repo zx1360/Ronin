@@ -1,3 +1,5 @@
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
+
 /// 媒体标注更新意图
 ///
 /// 只记录"本次要修改的字段", 未设置的字段不会出现在请求体里（服务端保持原值）。
@@ -32,6 +34,16 @@ class MediaPatchIntent {
       editParams == null &&
       !clearEditParams &&
       !markProcessed;
+
+  MediaAsset applyTo(MediaAsset asset) => asset.copyWith(
+    isDeleted: isDeleted,
+    message: message,
+    clearMessage: message == '',
+    groupId: groupId,
+    clearGroupId: clearGroup,
+    editParams: editParams,
+    clearEditParams: clearEditParams,
+  );
 
   /// 合并（[other] 中显式给出的字段覆盖本对象）
   MediaPatchIntent merge(MediaPatchIntent other) {

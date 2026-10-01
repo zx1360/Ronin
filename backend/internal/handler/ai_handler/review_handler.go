@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"monarch/internal/config"
 	"monarch/internal/service/ai"
@@ -92,8 +93,9 @@ type reviewRequest struct {
 	Tone  string `json:"tone"`
 	Focus string `json:"focus"`
 	// 随机抽样条数；0 表示只给统计、不给具体材料。
-	SampleEssays  *int `json:"sample_essays"`
-	SampleRecords *int `json:"sample_records"`
+	SampleEssays    *int        `json:"sample_essays"`
+	SampleRecords   *int        `json:"sample_records"`
+	ExcludeEssayIDs []uuid.UUID `json:"exclude_essay_ids"`
 }
 
 // Review 处理 POST /API/ai/review：确定性统计 + 可选随机素材，交给本地模型写成叙述。
@@ -151,7 +153,7 @@ func Review(c *gin.Context) {
 		return
 	}
 
-	data, err := review.Collect(scope, wantEssays, wantRecords)
+	data, err := review.Collect(scope, wantEssays, wantRecords, req.ExcludeEssayIDs...)
 	if err != nil {
 		fail(c, err)
 		return

@@ -30,7 +30,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   Widget build(BuildContext context) {
     final dbStatsAsync = ref.watch(galleryDbStatsProvider);
     final storageStats = ref.watch(galleryCachedStorageStatsProvider);
-    final uploadStatsAsync = ref.watch(galleryUploadStatsProvider);
+    final processedStatsAsync = ref.watch(galleryProcessedStatsProvider);
     final syncProgress = ref.watch(gallerySyncServiceProvider);
     final serverOverviewAsync = ref.watch(galleryServerOverviewProvider);
 
@@ -173,7 +173,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       const Icon(Icons.cloud_done, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: uploadStatsAsync.when(
+                        child: processedStatsAsync.when(
                           loading: () => const Text("加载中...", style: TextStyle(fontSize: 12)),
                           error: (e, _) => Text("错误: $e", style: const TextStyle(fontSize: 12)),
                           data: (stats) {
@@ -189,7 +189,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       ElevatedButton(
                         onPressed: syncProgress.status != SyncStatus.downloading &&
                                 syncProgress.status != SyncStatus.uploading &&
-                                (uploadStatsAsync.valueOrNull?.hasData ?? false)
+                                (processedStatsAsync.valueOrNull?.mediaCount ?? 0) > 0
                             ? _handleMarkProcessed
                             : null,
                         style: ElevatedButton.styleFrom(
@@ -719,7 +719,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     
     // 刷新统计数据
     ref.invalidate(galleryDbStatsProvider);
-    ref.invalidate(galleryUploadStatsProvider);
+    ref.invalidate(galleryProcessedStatsProvider);
     try {
       await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
     } catch (_) {}
@@ -738,7 +738,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
       // 刷新统计数据（异步，不阻塞 UI）
       ref.invalidate(galleryDbStatsProvider);
-      ref.invalidate(galleryUploadStatsProvider);
+      ref.invalidate(galleryProcessedStatsProvider);
       // 文件扫描较慢，fire-and-forget 避免阻塞
       unawaited(ref.read(galleryCachedStorageStatsProvider.notifier).refresh()
           .catchError((_) {}));

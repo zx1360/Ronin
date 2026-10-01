@@ -8,6 +8,14 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'gallery_api_service.g.dart';
 
+// 原文件执行编辑后 URL 随内容变化，避免图片缓存继续显示旧文件。
+String galleryMediaUrl(
+  String baseUrl,
+  MediaAsset asset, {
+  String type = 'file',
+}) =>
+    '$baseUrl/API/gallery/${asset.id}/$type?v=${Uri.encodeQueryComponent(asset.hash)}';
+
 /// 媒体查询结果
 typedef MediaQueryResult = ({
   List<MediaAsset> mediaAssets,

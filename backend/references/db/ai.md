@@ -7,13 +7,12 @@
 **AI 产物与人工数据物理隔离**：人工标签在 `tags`，AI 关键词在 `media_ai_tags`，
 两者天然可区分，不会互相覆盖。
 
-> **不需要 pgvector**：图像向量以 int8 量化存于 `embeddings.vec`，检索由 Go 服务把
-> 全量向量载入内存做精确余弦扫描（7w × 768 维 ≈ 54MB，SQLite 读取比原 pgx 更快：
-> 0.41s vs 1.23s）。
+> **无专用向量索引**：图像向量以 int8 量化存于 `embeddings.vec`，检索由 Go 服务把
+> 全量向量载入内存做精确余弦扫描（7w × 768 维 ≈ 54MB，载入约 0.4s）。
 >
-> **不需要 pg_trgm**：OCR/描述/AI 标签的关键词检索改为 `LIKE '%kw%'` 全表扫描
-> （media_ai 表窄，7 万行实测 29ms，快于原 pg_trgm 路径）；代价随文本量线性增长，
-> 属已知上限，见 `AGENTS_DB.md`。
+> **无 trigram 索引**：OCR/描述/AI 标签的关键词检索走 `LIKE '%kw%'` 全表扫描
+> （media_ai 表窄，7 万行实测 29ms）；代价随文本量线性增长，属已知上限，
+> 见 `AGENTS_DB.md` 的性能注意。
 
 ## 输入档位与执行者指纹（input_sig）
 
@@ -24,10 +23,8 @@
 - 执行者：进程内实现（`go-dct-phash`）、侧车模型（`siglip2-…` / `insightface-buffalo_l` /
   `rapidocr-ppocr`）、或 Ollama 模型（`ollama:<模型名>`）。
 
-`jobs.input_sig` 记录"这条任务上次是用什么算的"；与当前指纹不一致时由 reconcile 自动重排
-（换 VLM 模型后旧标注会被重算）。三张产物表也各存一份，便于直接看出产物的来源。
-旧版本留下的 NULL 指纹不会被自动重排——否则升级后第一次 reconcile 会把全库 28 万条任务
-一次性重排；这类历史数据要刷新只能走"全量重生成"。
+`jobs.input_sig` 与产物表记录执行时的档位与执行者，差异由状态接口报告。
+reconcile 只补无任务行的媒体，已有结果（包括 NULL 指纹）仅由用户显式重生成。
 
 ## media_ai
 
@@ -48,7 +45,7 @@
 
 ## media_ai_tags
 
-VLM 关键词（替代原 PG 的 `media_ai.vlm_tags text[]`）：一行一个标签，
+VLM 关键词：一行一个标签，
 使「任一命中」与「标签聚合」都退化为普通索引查询。
 
 | 列 | 类型 | 说明 |
@@ -137,15 +134,3 @@ RETURNING id, media_id`：单写者模型下进程内不存在竞争，无需 PG
 | -- | ---- | ---- |
 | media_id | TEXT PRIMARY KEY FK→media_assets ON DELETE CASCADE | |
 | created_at | TEXT | 标记时间 |
-
-## settings
-
-| 列 | 类型 | 说明 |
-| -- | ---- | ---- |
-| key | TEXT PRIMARY KEY | 目前仅 `auto_capabilities` / `ollama_vlm_model`（均为旧版遗留） |
-| value | TEXT | 逗号分隔的能力列表 / 模型名 |
-| updated_at | TEXT (自动更新) | |
-
-> 这两项已迁到 `<STATIC_DIR>/data/ai_config.json`（由桌面端 AI 页读写）。首次生成该
-> 文件时会把这里的旧值搬过去一次，之后不再读写；本表保留原样以便回滚旧版本。
-> 运行时可调项的完整清单见 `AGENTS.md` 的环境变量一节。

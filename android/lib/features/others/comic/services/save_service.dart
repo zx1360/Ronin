@@ -15,18 +15,6 @@ class ComicSaverService {
     return result != null;
   }
 
-  /// 下拉漫画合并保存到外部公共空间
-  static Future<bool> saveScrollImagesToPublic(
-    List<String> imagePaths,
-    String filename,
-  ) async {
-    return PublicStorageService.mergeAndSaveImages(
-      subDir: PublicStorageService.dirComic,
-      imagePaths: imagePaths,
-      fileName: filename,
-    );
-  }
-
   /// 将内存中的图片字节保存到公共空间
   static Future<bool> saveImageBytesToPublic(
     List<int> bytes,

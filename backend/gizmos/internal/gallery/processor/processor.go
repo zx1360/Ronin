@@ -9,6 +9,9 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
+	"image/color/palette"
+	"image/draw"
 	"image/gif"
 	"log"
 	"os"
@@ -235,53 +238,73 @@ func writeGif(path string, g *gif.GIF) error {
 	return file.Close()
 }
 
-// resizeGif 缩放 GIF 所有帧；crop=true 时中心裁剪为正方形。
+// resizeGif 先合成增量帧，再缩放完整画布，保留偏移、透明区域与帧时序。
 func resizeGif(g *gif.GIF, width, height int, crop bool) (*gif.GIF, error) {
 	if len(g.Image) == 0 {
 		return nil, fmt.Errorf("GIF 没有帧")
 	}
-
-	bounds := g.Image[0].Bounds()
-	newWidth, newHeight := width, height
-	if !crop {
-		ratio := float64(bounds.Dx()) / float64(bounds.Dy())
-		if ratio > 1 {
-			newHeight = int(float64(width) / ratio)
-		} else {
-			newWidth = int(float64(height) * ratio)
+	var background color.Color = color.Transparent
+	if int(g.BackgroundIndex) < len(g.Image[0].Palette) {
+		background = g.Image[0].Palette[g.BackgroundIndex]
+	}
+	colors := color.Palette{background}
+	seen := map[[4]uint32]bool{}
+	addColor := func(c color.Color) {
+		r, g, b, a := c.RGBA()
+		key := [4]uint32{r, g, b, a}
+		if !seen[key] {
+			colors = append(colors, c)
+			seen[key] = true
 		}
 	}
-
-	newGif := &gif.GIF{
-		Image:           make([]*image.Paletted, len(g.Image)),
-		Delay:           g.Delay,
-		LoopCount:       g.LoopCount,
-		Disposal:        g.Disposal,
-		BackgroundIndex: g.BackgroundIndex,
-	}
-
-	for i, frame := range g.Image {
-		img := imaging.Clone(frame)
-		var resized image.Image
-		if crop {
-			resized = imaging.Fill(img, newWidth, newHeight, imaging.Center, imaging.Lanczos)
-		} else {
-			resized = imaging.Fit(img, newWidth, newHeight, imaging.Lanczos)
-		}
-
-		palettedImg := image.NewPaletted(resized.Bounds(), frame.Palette)
-		for y := resized.Bounds().Min.Y; y < resized.Bounds().Max.Y; y++ {
-			for x := resized.Bounds().Min.X; x < resized.Bounds().Max.X; x++ {
-				palettedImg.Set(x, y, resized.At(x, y))
+	r, green, b, a := background.RGBA()
+	seen[[4]uint32{r, green, b, a}] = true
+palettes:
+	for _, frame := range g.Image {
+		for _, c := range frame.Palette {
+			addColor(c)
+			if len(colors) > 256 {
+				colors = append(color.Palette{background}, palette.Plan9[:255]...)
+				break palettes
 			}
 		}
-		newGif.Image[i] = palettedImg
 	}
-
-	newGif.Config.Width = newWidth
-	newGif.Config.Height = newHeight
-	newGif.Config.ColorModel = g.Config.ColorModel
-	return newGif, nil
+	canvas := image.NewNRGBA(image.Rect(0, 0, g.Config.Width, g.Config.Height))
+	clear := func(rect image.Rectangle) {
+		draw.Draw(canvas, rect, &image.Uniform{C: background}, image.Point{}, draw.Src)
+	}
+	clear(canvas.Bounds())
+	out := &gif.GIF{Image: make([]*image.Paletted, len(g.Image)), Delay: append([]int(nil), g.Delay...), LoopCount: g.LoopCount, Disposal: make([]byte, len(g.Image))}
+	for i, frame := range g.Image {
+		disposal := byte(0)
+		if i < len(g.Disposal) {
+			disposal = g.Disposal[i]
+		}
+		var previous *image.NRGBA
+		if disposal == gif.DisposalPrevious {
+			previous = imaging.Clone(canvas)
+		}
+		draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
+		var resized *image.NRGBA
+		if crop {
+			resized = imaging.Fill(canvas, width, height, imaging.Center, imaging.Lanczos)
+		} else {
+			resized = imaging.Fit(canvas, width, height, imaging.Lanczos)
+		}
+		paletted := image.NewPaletted(resized.Bounds(), colors)
+		draw.FloydSteinberg.Draw(paletted, paletted.Bounds(), resized, image.Point{})
+		out.Image[i] = paletted
+		out.Disposal[i] = gif.DisposalBackground
+		switch disposal {
+		case gif.DisposalPrevious:
+			canvas = previous
+		case gif.DisposalBackground:
+			clear(frame.Bounds())
+		}
+	}
+	bounds := out.Image[0].Bounds()
+	out.Config = image.Config{ColorModel: colors, Width: bounds.Dx(), Height: bounds.Dy()}
+	return out, nil
 }
 
 // openImageWithFallback 打开图片，原生解码失败时用 ffmpeg 转为标准 JPEG 再解码

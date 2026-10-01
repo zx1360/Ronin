@@ -3,9 +3,9 @@
 // 设计要点：
 //   - 每类 AI 能力对应一个外部进程（Python 侧车）或外部服务（Ollama），
 //     只在有任务时拉起，空闲超时后自动退出，不常驻占用内存；
-//   - 处理单元持久化在 ai.jobs（PostgreSQL），支持失败重试、超时中断与进度查询；
+//   - 处理单元持久化在 ai.jobs，支持失败重试、超时中断与进度查询；
 //   - pHash 由 Go 进程内完成，不依赖任何外部工具；
-//   - 向量检索在 Go 侧对 int8 量化向量做精确扫描，无需 pgvector。
+//   - 向量检索在 Go 侧对 int8 量化向量做精确扫描，无需向量索引扩展。
 package ai
 
 import (
@@ -65,6 +65,8 @@ type Engine struct {
 	cancelRequested atomic.Bool
 	// paused 用户暂停队列：中断当前批次后不再认领新任务，直到 Resume
 	paused atomic.Bool
+	// pauseStore 暂停状态的持久化位置（网页端偏好文件）；为 nil 时只在内存里保持
+	pauseStore *config.OpsStore
 	// clusterRun 串行化重新聚类操作
 	clusterRun sync.Mutex
 
@@ -110,6 +112,9 @@ func New(store *config.ConfigStore, cfg config.AiConfig) *Engine {
 	return e
 }
 
+// SetPauseStore 注入暂停状态的持久化位置（网页端偏好文件）；须在 Start 之前调用。
+func (e *Engine) SetPauseStore(store *config.OpsStore) { e.pauseStore = store }
+
 // Config 返回当前生效的 AI 配置副本。
 func (e *Engine) Config() config.AiConfig { return e.rt.Config() }
 
@@ -131,6 +136,18 @@ func (e *Engine) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	e.cancel = cancel
 	e.started = true
+
+	// 恢复上次的暂停状态（缺省即暂停）：批处理会长时间占满 CPU/GPU，
+	// 不应该在用户没表态时随服务启动自动开跑。
+	e.paused.Store(e.initialPaused())
+	if e.paused.Load() {
+		log.Println("[AI] 任务队列初始为暂停（可在网页端「继续处理」）")
+	}
+
+	// 从未选过标注模型时（首次部署/清空过选择）从本机模型里挑一个并落盘
+	if e.ResolveVLMModel() == "" {
+		log.Println("[AI] 本机没有可用的 Ollama 模型，标注能力将保持不可用")
+	}
 
 	// 服务刚启动，不可能有本进程的任务在跑：把遗留的 running 全部回收
 	if n, err := ai_repo.RecoverStaleRunning(0, cfg.MaxAttempts); err != nil {
@@ -161,6 +178,27 @@ func (e *Engine) Stop() {
 		}
 		e.ollama.Shutdown()
 	})
+}
+
+// initialPaused 读取持久化的暂停状态；没有记录时按"暂停"处理。
+func (e *Engine) initialPaused() bool {
+	if e.pauseStore == nil {
+		return true
+	}
+	if value := e.pauseStore.Snapshot().AiPaused; value != nil {
+		return *value
+	}
+	return true
+}
+
+// persistPaused 把暂停状态写回偏好文件（失败只记日志：状态已生效，不值得为此报错）。
+func (e *Engine) persistPaused(paused bool) {
+	if e.pauseStore == nil {
+		return
+	}
+	if err := e.pauseStore.Update(config.OpsSettings{AiPaused: &paused}); err != nil {
+		log.Printf("[AI] 保存暂停状态失败: %v", err)
+	}
 }
 
 // Wake 唤醒 worker 立即检查队列（入队后调用，避免等待轮询间隔）。
@@ -198,19 +236,6 @@ func ThumbAbsPath(thumbPath *string) string {
 		return ""
 	}
 	return filepath.Join(config.AppConf.GalleryDir, "Thumbs", filepath.FromSlash(*thumbPath))
-}
-
-// firstExisting 返回第一个真实存在的路径（全部不存在时返回空串）。
-func firstExisting(paths ...string) string {
-	for _, p := range paths {
-		if p == "" {
-			continue
-		}
-		if fileExists(p) {
-			return p
-		}
-	}
-	return ""
 }
 
 // resolveItems 按能力档位把媒体 ID 解析为可推理的文件项，并跳过无图源的媒体。

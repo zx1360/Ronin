@@ -13,8 +13,6 @@ func newTestEngine(t *testing.T) *Engine {
 	t.Helper()
 	return New(nil, config.AiConfig{
 		OllamaURL:       "http://127.0.0.1:1", // 不可达：卸载动作在测试里不产生副作用
-		OllamaVLM:       "model-a",
-		OllamaVLMAlt:    "model-b",
 		OllamaKeepAlive: 5 * time.Minute,
 	})
 }

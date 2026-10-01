@@ -35,13 +35,6 @@ class ChatOptions {
   /// 可选上下文档位（与服务端 2048~262144 的取值区间一致）。
   static const List<int> ctxChoices = [0, 8192, 16384, 32768, 65536];
 
-  String ctxLabel(int serverDefault) {
-    if (numCtx == 0) {
-      return serverDefault > 0 ? '后端默认 ($serverDefault)' : '后端默认';
-    }
-    return numCtx >= 1024 ? '${numCtx ~/ 1024}K' : '$numCtx';
-  }
-
   ChatOptions copyWith({
     int? numCtx,
     bool? think,

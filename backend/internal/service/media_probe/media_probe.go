@@ -9,6 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"os"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -29,9 +31,10 @@ const (
 
 // VideoInfo 视频时长与分辨率。
 type VideoInfo struct {
-	DurationMs int64 `json:"duration_ms"`
-	Width      int   `json:"width"`
-	Height     int   `json:"height"`
+	DurationMs    int64 `json:"duration_ms"`
+	Width         int   `json:"width"`
+	Height        int   `json:"height"`
+	frameInterval float64
 }
 
 // ErrToolUnavailable 表示 ffmpeg/ffprobe 不在 PATH 中。
@@ -84,8 +87,22 @@ func (c *boundedCache[K, V]) put(key K, value V) {
 }
 
 type frameCacheKey struct {
-	assetID uuid.UUID
-	step    int64
+	revision mediaRevision
+	step     int64
+}
+
+type mediaRevision struct {
+	assetID        uuid.UUID
+	path           string
+	size, modified int64
+}
+
+func revisionOf(assetID uuid.UUID, path string) (mediaRevision, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return mediaRevision{}, err
+	}
+	return mediaRevision{assetID: assetID, path: path, size: info.Size(), modified: info.ModTime().UnixNano()}, nil
 }
 
 var (
@@ -93,7 +110,7 @@ var (
 	ffmpegPath  string
 	ffprobePath string
 	toolLookErr error
-	videoInfos  = newBoundedCache[uuid.UUID, VideoInfo](256)
+	videoInfos  = newBoundedCache[mediaRevision, VideoInfo](256)
 	frameCache  = newBoundedCache[frameCacheKey, []byte](frameCacheMax)
 )
 
@@ -117,9 +134,13 @@ func resolveTools() (ffmpeg, ffprobe string, err error) {
 	return ffmpegPath, ffprobePath, nil
 }
 
-// ProbeVideo 用 ffprobe 探测视频时长与分辨率（结果按 assetID 缓存）。
+// 缓存随源文件变化失效，编辑后不沿用旧时长和画面。
 func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
-	if info, ok := videoInfos.get(assetID); ok {
+	revision, err := revisionOf(assetID, srcPath)
+	if err != nil {
+		return VideoInfo{}, err
+	}
+	if info, ok := videoInfos.get(revision); ok {
 		return info, nil
 	}
 
@@ -133,7 +154,7 @@ func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 
 	out, err := exec.CommandContext(ctx, ffprobe,
 		"-v", "error",
-		"-show_entries", "format=duration:stream=width,height,codec_type",
+		"-show_entries", "format=duration:stream=width,height,codec_type,duration,avg_frame_rate",
 		"-of", "json",
 		srcPath,
 	).Output()
@@ -146,9 +167,11 @@ func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 			Duration string `json:"duration"`
 		} `json:"format"`
 		Streams []struct {
-			Width  int    `json:"width"`
-			Height int    `json:"height"`
-			Codec  string `json:"codec_type"`
+			Width     int    `json:"width"`
+			Height    int    `json:"height"`
+			Codec     string `json:"codec_type"`
+			Duration  string `json:"duration"`
+			FrameRate string `json:"avg_frame_rate"`
 		} `json:"streams"`
 	}
 	if err := json.Unmarshal(out, &parsed); err != nil {
@@ -160,11 +183,18 @@ func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 	for _, stream := range parsed.Streams {
 		if stream.Codec == "video" {
 			info.Width, info.Height = stream.Width, stream.Height
+			if duration, _ := strconv.ParseFloat(stream.Duration, 64); duration > 0 {
+				info.DurationMs = int64(duration * 1000)
+			}
+			var numerator, denominator float64
+			if _, err := fmt.Sscanf(stream.FrameRate, "%f/%f", &numerator, &denominator); err == nil && numerator > 0 && denominator > 0 {
+				info.frameInterval = denominator / numerator
+			}
 			break
 		}
 	}
 
-	videoInfos.put(assetID, info)
+	videoInfos.put(revision, info)
 	return info, nil
 }
 
@@ -172,10 +202,28 @@ func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 //
 // `-ss` 置于 `-i` 之前做输入侧快进，再解码到目标位置输出单帧：又快又准。
 func ExtractFrame(assetID uuid.UUID, srcPath string, sec float64) ([]byte, error) {
+	return ExtractFrameContext(context.Background(), assetID, srcPath, sec)
+}
+
+func ExtractFrameContext(parent context.Context, assetID uuid.UUID, srcPath string, sec float64) ([]byte, error) {
+	if math.IsNaN(sec) || math.IsInf(sec, 0) {
+		return nil, fmt.Errorf("无效的取帧时间")
+	}
 	if sec < 0 {
 		sec = 0
 	}
-	cacheKey := frameCacheKey{assetID: assetID, step: int64(sec * 1000 / frameSecStep)}
+	revision, err := revisionOf(assetID, srcPath)
+	if err != nil {
+		return nil, err
+	}
+	if info, ok := videoInfos.get(revision); ok && info.DurationMs > 0 {
+		interval := info.frameInterval
+		if interval <= 0 {
+			interval = 0.05
+		}
+		sec = math.Min(sec, math.Max(0, float64(info.DurationMs)/1000-interval-0.001))
+	}
+	cacheKey := frameCacheKey{revision: revision, step: int64(sec * 1000 / frameSecStep)}
 	if data, ok := frameCache.get(cacheKey); ok {
 		return data, nil
 	}
@@ -185,11 +233,11 @@ func ExtractFrame(assetID uuid.UUID, srcPath string, sec float64) ([]byte, error
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), frameTimeout)
+	ctx, cancel := context.WithTimeout(parent, frameTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, ffmpeg,
-		"-ss", strconv.FormatFloat(sec, 'f', 2, 64),
+		"-ss", strconv.FormatFloat(sec, 'f', 6, 64),
 		"-i", srcPath,
 		"-frames:v", "1",
 		"-q:v", "3",

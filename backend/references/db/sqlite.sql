@@ -5,10 +5,10 @@
 --   1. 单文件、应用目录下（backend/data/monarch.db），无外部数据库服务；
 --      SQLite 无 schema 概念，comix 的表统一加 `comic_` 前缀避免与其它模块撞名。
 --   2. 时间统一存**本机本地时区**的 ISO 文本 'YYYY-MM-DD HH:MM:SS.SSS'：
---      与 PostgreSQL 会话时区（= 本机时区）下 DATE()/EXTRACT() 的语义一致，
 --      定宽且无时区后缀，字典序即时间序；SQLite 的 date/strftime 可直接解析。
---   3. UUID 存 36 字符小写 TEXT；BYTEA 存 BLOB；jsonb 与 text[] 存 JSON 文本
---      （vlm_tags 例外：拆到 media_ai_tags，便于按标签索引与聚合）。
+--      日期列存 'YYYY-MM-DD'，Go 侧解析为 UTC 零点（见 AGENTS_DB.md 的取值约定）。
+--   3. UUID 存 36 字符小写 TEXT；布尔存 INTEGER 0/1；BLOB 存二进制；
+--      对象/数组列存 JSON 文本（vlm_tags 例外：拆到 media_ai_tags，便于按标签索引与聚合）。
 --   4. updated_at 由 AFTER UPDATE 触发器维护（SQLite 无 BEFORE 触发器）；
 --      触发器带 `NEW.updated_at IS OLD.updated_at` 守卫，显式赋值时不再覆盖，
 --      同时避免开启 recursive_triggers 后自递归。
@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS essay_articles (
     date       TEXT NOT NULL,
     word_count INTEGER NOT NULL DEFAULT 0,
     content    TEXT NOT NULL DEFAULT '',
+    title      TEXT NOT NULL DEFAULT '',
     imgs       TEXT NOT NULL DEFAULT '[]',
     labels     TEXT NOT NULL DEFAULT '[]',
     messages   TEXT NOT NULL DEFAULT '[]',
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS essay_labels (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     essay_count INTEGER NOT NULL DEFAULT 0,
+    parent_id   TEXT,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')),
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'))
 );
@@ -147,7 +149,7 @@ CREATE INDEX IF NOT EXISTS idx_booklet_records_updated ON booklet_records (updat
 -- =====================================================
 
 -- 输入档位 + 执行者指纹（如 `ai1024|ollama:qwen3.5:4b`）：任务与产物都记录它，
--- 既用于追溯"这条结果是用哪个档位、哪个执行者算出来的"，也用于配置变更后的自动重排。
+-- 用于追溯结果来源与报告配置差异；已有结果仅由用户显式重生成。
 -- 既有库由 internal/service/db/migrate.go 补列（见该文件说明）。
 CREATE TABLE IF NOT EXISTS media_ai (
     media_id          TEXT PRIMARY KEY REFERENCES media_assets(id) ON DELETE CASCADE,
@@ -211,7 +213,7 @@ CREATE INDEX IF NOT EXISTS idx_faces_media_id  ON faces (media_id);
 CREATE INDEX IF NOT EXISTS idx_faces_person_id ON faces (person_id);
 
 -- 任务队列：一行 = 一个 (能力, 媒体)；UNIQUE 保证重复入队幂等。
--- input_sig 记录本次执行使用的输入档位/执行者；与当前配置不符时由 reconcile 自动重排。
+-- input_sig 记录本次执行使用的输入档位/执行者，reconcile 只补无任务行的媒体。
 CREATE TABLE IF NOT EXISTS jobs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     capability  TEXT NOT NULL,

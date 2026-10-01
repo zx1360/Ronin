@@ -22,7 +22,7 @@ class Tag {
   @JsonKey(defaultValue: false)
   final bool isFavorite;
 
-  /// 直接关联的未删除媒体数 (仅 GET /tags 统计, 本地缓存不保存)
+  /// 服务端统计的直接关联未删除媒体数，本地保留最近同步值。
   @JsonKey(defaultValue: 0)
   final int mediaCount;
 
@@ -72,22 +72,24 @@ class Tag {
 
   /// 转换为数据库 Map
   Map<String, dynamic> toDbMap() => {
-        'id': id,
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-        'name': name,
-        'parent_id': parentId,
-        'full_path': fullPath,
-        'is_favorite': isFavorite ? 1 : 0,
-      };
+    'id': id,
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+    'name': name,
+    'parent_id': parentId,
+    'full_path': fullPath,
+    'is_favorite': isFavorite ? 1 : 0,
+    'media_count': mediaCount,
+  };
 
   factory Tag.fromDbMap(Map<String, dynamic> map) => Tag(
-        id: map['id'] as String,
-        createdAt: DateTime.parse(map['created_at'] as String),
-        updatedAt: DateTime.parse(map['updated_at'] as String),
-        name: map['name'] as String,
-        parentId: map['parent_id'] as String?,
-        fullPath: map['full_path'] as String?,
-        isFavorite: (map['is_favorite'] as int? ?? 0) == 1,
-      );
+    id: map['id'] as String,
+    createdAt: DateTime.parse(map['created_at'] as String),
+    updatedAt: DateTime.parse(map['updated_at'] as String),
+    name: map['name'] as String,
+    parentId: map['parent_id'] as String?,
+    fullPath: map['full_path'] as String?,
+    isFavorite: (map['is_favorite'] as int? ?? 0) == 1,
+    mediaCount: map['media_count'] as int? ?? 0,
+  );
 }

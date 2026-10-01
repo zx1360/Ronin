@@ -7,6 +7,8 @@ import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/features/chat/models/review_models.dart';
 import 'package:torrid/features/chat/providers/chat_providers.dart';
 import 'package:torrid/features/chat/services/review_api_service.dart';
+import 'package:torrid/features/essay/models/label_tree.dart';
+import 'package:torrid/features/essay/providers/box_provider.dart';
 
 part 'review_providers.g.dart';
 
@@ -198,23 +200,30 @@ class ReviewDraftController extends _$ReviewDraftController {
     state = const ReviewDraftState(streaming: true);
 
     try {
-      final stream = ref.read(reviewApiProvider).generate(
-        request: {
-          ...scope.toRequestFields(today),
-          'role': preset.role,
-          'tone': preset.tone,
-          if (focus.trim().isNotEmpty) 'focus': focus.trim(),
-          if (options.model.isNotEmpty) 'model': options.model,
-          if (options.numCtx > 0) 'num_ctx': options.numCtx,
-          // 回顾是一次性写作任务：思考链只是拖慢首字，端上也不展示
-          'think': false,
-          'temperature': options.temperature,
-          'keep_alive_seconds': options.customKeepAlive
-              ? options.keepAliveSeconds
-              : null,
-        },
-        cancelToken: cancelToken,
-      );
+      final hidden = hiddenLabelIds(ref.read(labelBoxProvider).values);
+      final stream = ref
+          .read(reviewApiProvider)
+          .generate(
+            request: {
+              ...scope.toRequestFields(today),
+              'exclude_essay_ids': [
+                for (final essay in ref.read(essayBoxProvider).values)
+                  if (essay.labels.any(hidden.contains)) essay.id,
+              ],
+              'role': preset.role,
+              'tone': preset.tone,
+              if (focus.trim().isNotEmpty) 'focus': focus.trim(),
+              if (options.model.isNotEmpty) 'model': options.model,
+              if (options.numCtx > 0) 'num_ctx': options.numCtx,
+              // 回顾是一次性写作任务：思考链只是拖慢首字，端上也不展示
+              'think': false,
+              'temperature': options.temperature,
+              'keep_alive_seconds': options.customKeepAlive
+                  ? options.keepAliveSeconds
+                  : null,
+            },
+            cancelToken: cancelToken,
+          );
 
       await for (final event in stream) {
         switch (event.type) {
@@ -243,7 +252,9 @@ class ReviewDraftController extends _$ReviewDraftController {
         return;
       }
       state = state.copyWith(content: content, streaming: false);
-      await ref.read(reviewHistoryControllerProvider.notifier).add(
+      await ref
+          .read(reviewHistoryControllerProvider.notifier)
+          .add(
             ReviewRecord.create(
               presetName: preset.name,
               span: '${span.from} ~ ${span.to}',

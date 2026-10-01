@@ -1,8 +1,7 @@
 /// 标签树的公共工具：分组、扁平化、搜索命中与祖先判断。
 ///
-/// 原先相册页(immich)的标签面板、画廊的标签列表页与快速打标签浮层各写了一份，
-/// 遍历与排序规则很容易走偏（例如把被过滤掉的中间层误判为可放置目标而形成树环），
-/// 这里统一到一处。
+/// 相册页(immich)、标签列表页与快速打标签浮层共用这一份：遍历与排序规则很容易
+/// 走偏（例如把被过滤掉的中间层误判为可放置目标而形成树环）。
 library;
 
 import 'package:torrid/features/others/gallery/models/tag.dart';
@@ -13,6 +12,13 @@ int compareTagsByName(Tag a, Tag b) => a.name.compareTo(b.name);
 /// 同级排序：按完整路径（层级内等价于按名称，跨层时更符合阅读顺序）。
 int compareTagsByPath(Tag a, Tag b) =>
     (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name);
+
+int compareTagsByMediaCount(Tag a, Tag b) {
+  final count = b.mediaCount.compareTo(a.mediaCount);
+  if (count != 0) return count;
+  final path = compareTagsByPath(a, b);
+  return path != 0 ? path : a.id.compareTo(b.id);
+}
 
 /// 扁平化后的树节点。
 class TagNode {
@@ -32,14 +38,15 @@ class TagNode {
 /// 父级不存在的标签（父级已被删除等）归到根级，否则整棵子树会从界面上消失。
 Map<String, List<Tag>> groupTagsByParent(
   List<Tag> tags, {
-  int Function(Tag, Tag) compare = compareTagsByName,
+  int Function(Tag, Tag) compare = compareTagsByMediaCount,
 }) {
   final byId = {for (final tag in tags) tag.id: tag};
   final map = <String, List<Tag>>{};
   for (final tag in tags) {
     final parentId = tag.parentId;
-    final key =
-        (parentId != null && byId.containsKey(parentId)) ? parentId : '';
+    final key = (parentId != null && byId.containsKey(parentId))
+        ? parentId
+        : '';
     map.putIfAbsent(key, () => []).add(tag);
   }
   for (final list in map.values) {
@@ -75,8 +82,9 @@ List<TagNode> flattenTagTree(
 }
 
 /// id → Tag 索引（树遍历类工具都基于它，调用方通常已有该索引）。
-Map<String, Tag> tagIndex(List<Tag> tags) =>
-    {for (final tag in tags) tag.id: tag};
+Map<String, Tag> tagIndex(List<Tag> tags) => {
+  for (final tag in tags) tag.id: tag,
+};
 
 /// 搜索命中的标签 id 及其全部祖先；空查询返回空集合。
 ///
@@ -87,7 +95,8 @@ Set<String> matchedTagIds(List<Tag> tags, String query) {
   final byId = tagIndex(tags);
   final keep = <String>{};
   for (final tag in tags) {
-    final hit = tag.name.toLowerCase().contains(needle) ||
+    final hit =
+        tag.name.toLowerCase().contains(needle) ||
         (tag.fullPath ?? '').toLowerCase().contains(needle);
     if (!hit) continue;
     keep.add(tag.id);

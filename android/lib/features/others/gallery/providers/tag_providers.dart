@@ -1,8 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/media_providers.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
-import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
 import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
 import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
 import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
@@ -27,14 +28,7 @@ class TagTree extends _$TagTree {
   Future<void> refresh() async {
     final db = ref.read(galleryDatabaseProvider);
     final cached = await db.getAllTags();
-    final counts = {
-      for (final tag in state.valueOrNull ?? const <Tag>[])
-        tag.id: tag.mediaCount,
-    };
-    state = AsyncData([
-      for (final tag in cached)
-        tag.copyWith(mediaCount: counts[tag.id] ?? 0),
-    ]);
+    state = AsyncData(cached);
   }
 
   /// 从服务端拉取标签并镜像到本地缓存（标签管理/immich 页进入时调用）
@@ -133,7 +127,7 @@ class TagTree extends _$TagTree {
   }
 }
 
-/// 快捷标签（收藏标签, 按路径排序）——浮层右栏 / 快捷选择使用
+/// 快捷标签（收藏标签，按绑定媒体数降序）
 @riverpod
 List<Tag> favoriteTags(FavoriteTagsRef ref) {
   final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
@@ -141,15 +135,15 @@ List<Tag> favoriteTags(FavoriteTagsRef ref) {
     for (final tag in tags)
       if (tag.isFavorite) tag,
   ];
-  favorites.sort(
-    (a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name),
-  );
+  favorites.sort(compareTagsByMediaCount);
   return favorites;
 }
 
 /// 当前媒体文件的标签 Provider（读本地缓存）
 @riverpod
 class CurrentMediaTags extends _$CurrentMediaTags {
+  Future<void> _updates = Future.value();
+
   @override
   Future<List<Tag>> build() async {
     final currentMedia = ref.watch(currentMediaAssetProvider);
@@ -159,75 +153,44 @@ class CurrentMediaTags extends _$CurrentMediaTags {
     return await db.getTagsForMedia(currentMedia.id);
   }
 
-  /// 设置标签（全量覆盖）
-  ///
-  /// 本地缓存与 UI 立即生效, 服务端推送后台执行（合并 + 重试 + 失败回滚）。
-  Future<void> setTags(List<String> tagIds) async {
-    final currentMedia = ref.read(currentMediaAssetProvider);
-    if (currentMedia == null) return;
-
-    final db = ref.read(galleryDatabaseProvider);
-    final baseline = await db.getTagIdsForMedia(currentMedia.id);
-    await _applyLocal(currentMedia.id, tagIds);
-
-    ref.read(galleryWriteBufferProvider).queueTags(
-          currentMedia.id,
-          tagIds,
-          baselineTagIds: baseline,
-        );
-    ref.invalidate(mediaIdsWithTagsProvider);
-    await _bumpModifiedCount(currentMedia.id);
+  Future<void> setTags(List<String> tagIds) {
+    final snapshot = tagIds.toSet();
+    return _update((_) => snapshot);
   }
 
-  /// 添加标签
-  Future<void> addTag(String tagId) async {
-    final currentMedia = ref.read(currentMediaAssetProvider);
-    if (currentMedia == null) return;
+  Future<void> addTag(String tagId) => _update((ids) => ids..add(tagId));
 
-    final db = ref.read(galleryDatabaseProvider);
-    final tagIds = await db.getTagIdsForMedia(currentMedia.id);
-    if (tagIds.contains(tagId)) return;
-    tagIds.add(tagId);
-    await setTags(tagIds);
-  }
+  Future<void> removeTag(String tagId) => _update((ids) => ids..remove(tagId));
 
-  /// 移除标签
-  Future<void> removeTag(String tagId) async {
-    final currentMedia = ref.read(currentMediaAssetProvider);
-    if (currentMedia == null) return;
+  Future<void> toggleTag(String tagId) => _update((ids) {
+    if (!ids.remove(tagId)) ids.add(tagId);
+    return ids;
+  });
 
-    final db = ref.read(galleryDatabaseProvider);
-    final tagIds = await db.getTagIdsForMedia(currentMedia.id);
-    if (!tagIds.remove(tagId)) return;
-    await setTags(tagIds);
-  }
-
-  /// 写入本地缓存并同步内存状态（按标签树缓存映射为 Tag 对象）
-  Future<void> _applyLocal(String mediaId, List<String> tagIds) async {
-    final db = ref.read(galleryDatabaseProvider);
-    await db.setTagsForMedia(mediaId, tagIds);
-
-    final allTags = ref.read(tagTreeProvider).valueOrNull;
-    if (allTags == null) {
-      ref.invalidateSelf();
-      return;
-    }
-    final byId = {for (final tag in allTags) tag.id: tag};
-    final mapped = [
-      for (final id in tagIds)
-        if (byId[id] != null) byId[id]!,
-    ]..sort((a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name));
-    state = AsyncData(mapped);
-  }
-
-  /// 记录批次处理游标位置（modified_count）
-  Future<void> _bumpModifiedCount(String mediaId) async {
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final index = assets.indexWhere((a) => a.id == mediaId);
-    if (index < 0) return;
-    final currentModified = ref.read(galleryModifiedCountProvider);
-    if (index > currentModified) {
-      await ref.read(galleryModifiedCountProvider.notifier).update(index);
-    }
+  // 串行读改写，并在排队前固定媒体，避免连续点选或翻页时覆盖标签。
+  Future<void> _update(Set<String> Function(Set<String>) change) {
+    final container = ref.container;
+    final mediaId = container.read(currentMediaAssetProvider)?.id;
+    if (mediaId == null) return Future.value();
+    final keepAlive = ref.keepAlive();
+    final db = container.read(galleryDatabaseProvider);
+    final buffer = container.read(galleryWriteBufferProvider);
+    final pending = _updates.then((_) async {
+      final baseline = await db.getTagIdsForMedia(mediaId);
+      final next = change(baseline.toSet());
+      if (setEquals(baseline.toSet(), next)) return;
+      final tagIds = next.toList();
+      await db.setTagsForMedia(mediaId, tagIds);
+      buffer.queueTags(mediaId, tagIds, baselineTagIds: baseline);
+      if (container.read(currentMediaAssetProvider)?.id == mediaId) {
+        container.invalidate(currentMediaTagsProvider);
+      }
+      container.invalidate(mediaIdsWithTagsProvider);
+      await container
+          .read(mediaAssetListProvider.notifier)
+          .bumpModifiedCount(mediaId);
+    });
+    _updates = pending.then((_) {}, onError: (Object _) {});
+    return pending.whenComplete(keepAlive.close);
   }
 }

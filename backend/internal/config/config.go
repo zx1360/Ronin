@@ -18,9 +18,13 @@ type AppConfig struct {
 }
 
 // NetConfig 网络配置
+//
+// 启动后同时监听两个端口，接口完全一致，只是协议不同：
+// HTTPS（自签证书，供 Android 等局域网消费端）与 HTTP（供本机浏览器打开运维页面，
+// 免得自签证书弹警告）。危险接口由"仅回环可访问"约束，与端口无关。
 type NetConfig struct {
-	LocalPort      string
-	LocalDebugPort string
+	LocalPort     string // HTTPS
+	LocalHTTPPort string // HTTP
 }
 
 // DbConfig SQLite 单文件数据库配置
@@ -34,6 +38,16 @@ type ComixConfig struct {
 	Python      string // python 可执行文件（默认 "python"）
 	Root        string // comix 项目根目录（含 comix 包与 util 包）
 	StorageRoot string // 漫画图片存储根目录（COMIC_STORAGE_ROOT）
+}
+
+// GalleryConfig gallery CLI（gizmos 模块）集成配置
+type GalleryConfig struct {
+	Exe string // gallery CLI 可执行文件（相对路径按 backend/ 解析）
+}
+
+// OpsConfig 网页运维端（ops）配置
+type OpsConfig struct {
+	WebDir string // 网页端静态资源目录（源码在 ops/web/）
 }
 
 // AiConfig 本地 AI 媒体处理配置。
@@ -51,8 +65,6 @@ type AiConfig struct {
 	Workers         int           // 并发批次上限
 	EmbedModel      string        // SigLIP 模型标识
 	OllamaURL       string
-	OllamaVLM       string        // VLM 模型名（默认）
-	OllamaVLMAlt    string        // 备选 VLM 模型（无审查版），两端可在设置里切换
 	OllamaVLMCTX    int           // VLM 请求的上下文长度（token）
 	OllamaKeepAlive time.Duration // 对话请求显式下发的模型驻留时长（前端"后端默认值"即此项）
 	OllamaIdle      time.Duration // 自拉的 ollama serve 空闲多久后回收（应大于模型 keep_alive）
@@ -61,16 +73,15 @@ type AiConfig struct {
 	AutoCaps        []string      // 入库后自动入队的能力（数据库 ai.settings 可覆盖）
 }
 
-// IsLocalMode 运行模式：true=本地开发(HTTP+免鉴权)
-var IsLocalMode bool
-
 // 向外暴露数据对象
 var (
-	AppConf   AppConfig
-	NetConf   NetConfig
-	DbConf    DbConfig
-	ComixConf ComixConfig
-	AiConf    AiConfig
+	AppConf     AppConfig
+	NetConf     NetConfig
+	DbConf      DbConfig
+	ComixConf   ComixConfig
+	GalleryConf GalleryConfig
+	OpsConf     OpsConfig
+	AiConf      AiConfig
 )
 
 // Load 从 .env 与环境变量加载配置，并校验必要项。
@@ -82,7 +93,7 @@ func Load() error {
 	AppConf.GalleryDir = os.Getenv("GALLERY_DIR")
 
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")
-	NetConf.LocalDebugPort = os.Getenv("LOCAL_DEBUG_PORT")
+	NetConf.LocalHTTPPort = os.Getenv("LOCAL_HTTP_PORT")
 
 	// SQLite 单文件数据库：默认 backend/data/monarch.db
 	DbConf.File = envString("DB_FILE", filepath.Join("data", "monarch.db"))
@@ -96,6 +107,12 @@ func Load() error {
 	ComixConf.Root = os.Getenv("COMIX_ROOT")
 	ComixConf.StorageRoot = envAbs("COMIC_STORAGE_ROOT")
 
+	// gallery CLI：默认取 gizmos 模块的构建产物（backend/gizmos/gallery.exe）
+	GalleryConf.Exe = envAbsOr("GALLERY_CLI", filepath.Join("gizmos", "gallery.exe"))
+
+	// 网页运维端静态资源目录（源码在 ops/web/，由后端内置 HTTP 服务托管）
+	OpsConf.WebDir = envAbsOr("OPS_WEB_DIR", filepath.Join("..", "ops", "web"))
+
 	loadAiConfig()
 
 	return Validate()
@@ -106,6 +123,18 @@ func envAbs(key string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return ""
+	}
+	if abs, err := filepath.Abs(value); err == nil {
+		return abs
+	}
+	return value
+}
+
+// envAbsOr 同 envAbs，但环境变量未设置时使用默认值。
+func envAbsOr(key, def string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		value = def
 	}
 	if abs, err := filepath.Abs(value); err == nil {
 		return abs
@@ -127,14 +156,13 @@ func loadAiConfig() {
 	}
 	AiConf.IdleTimeout = envSeconds("AI_IDLE_TIMEOUT", 120)
 	AiConf.JobTimeout = envSeconds("AI_JOB_TIMEOUT", 900)
-	AiConf.BatchSize = envInt("AI_BATCH_SIZE", 16, 1, 512)
+	AiConf.BatchSize = envInt("AI_BATCH_SIZE", 32, 1, 512)
 	AiConf.MaxAttempts = envInt("AI_MAX_ATTEMPTS", 3, 1, 20)
-	AiConf.Workers = envInt("AI_WORKERS", 1, 1, 4)
+	AiConf.Workers = envInt("AI_WORKERS", 2, 1, 4)
 	AiConf.EmbedModel = envString("AI_EMBED_MODEL", "siglip2-base-patch16-224")
 	AiConf.OllamaURL = strings.TrimRight(envString("OLLAMA_URL", "http://127.0.0.1:11434"), "/")
-	AiConf.OllamaVLM = envString("OLLAMA_VLM_MODEL", "qwen3.5:4b")
-	// 备选模型：社区对 Qwen3.5-4B 的无审查（abliteration）版本，保留视觉能力
-	AiConf.OllamaVLMAlt = envString("OLLAMA_VLM_MODEL_ALT", "huihui_ai/qwen3.5-abliterated:4B")
+	// 标注/对话用哪个模型不在这里配置：候选实时来自本机 Ollama，
+	// 选定结果存在 ai_config.json 的 vlm_model 里（从未选过时自动挑一个并落盘）。
 	// 每次请求显式下发上下文窗口，使行为不受 Ollama 应用默认值影响。
 	// 缺省 65,536 对批量标注（实测每张约 220 token）已是数十倍余量。
 	AiConf.OllamaVLMCTX = envInt("OLLAMA_VLM_CTX", 65536, 2048, 262144)
@@ -200,10 +228,11 @@ func splitCSV(raw string) []string {
 // Validate 校验必要配置项，返回缺失项列表
 func Validate() error {
 	required := map[string]string{
-		"STATIC_DIR":  AppConf.StaticDir,
-		"GALLERY_DIR": AppConf.GalleryDir,
-		"LOCAL_PORT":  NetConf.LocalPort,
-		"DB_FILE":     DbConf.File,
+		"STATIC_DIR":      AppConf.StaticDir,
+		"GALLERY_DIR":     AppConf.GalleryDir,
+		"LOCAL_PORT":      NetConf.LocalPort,
+		"LOCAL_HTTP_PORT": NetConf.LocalHTTPPort,
+		"DB_FILE":         DbConf.File,
 	}
 
 	var missing []string
@@ -211,11 +240,6 @@ func Validate() error {
 		if strings.TrimSpace(val) == "" {
 			missing = append(missing, key)
 		}
-	}
-
-	// LOCAL_DEBUG_PORT 仅在 local 模式需要
-	if IsLocalMode && strings.TrimSpace(NetConf.LocalDebugPort) == "" {
-		missing = append(missing, "LOCAL_DEBUG_PORT")
 	}
 
 	if len(missing) > 0 {

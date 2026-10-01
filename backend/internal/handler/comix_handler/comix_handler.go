@@ -1,10 +1,6 @@
 // Package comix_handler 提供 comix 漫画爬虫管理接口。
 //
-// 接口分两类：
-//   - 同步：config / init / sites / list / chapters（秒级完成，直接返回 CLI JSON）
-//   - 异步任务：search / add / add-url / download / update-check / delete / clean
-//     由服务端任务引擎管理生命周期，返回 task_id，状态/日志/结果经 /tasks 查询，
-//     可通过 /tasks/:id/stop 中断。
+// 查询直接读库；爬虫操作由任务引擎托管，状态与日志经 /tasks 查询。
 //
 // 响应约定与 comix 协议一致：业务错误（ok=false，如多候选、未找到）返回
 // HTTP 200 并附带 candidates；仅传输/配置级故障返回 HTTP 500。
@@ -23,6 +19,7 @@ import (
 	"monarch/internal/config"
 	"monarch/internal/repository/comix_repo"
 	"monarch/internal/service/comix"
+	"monarch/internal/service/taskengine"
 )
 
 const syncTimeout = 90 * time.Second
@@ -261,16 +258,16 @@ func Clean(c *gin.Context) {
 func ListTasks(c *gin.Context) {
 	tasks := comix.Manager.List()
 	type summary struct {
-		ID         string           `json:"id"`
-		Name       string           `json:"name"`
-		Command    string           `json:"command"`
-		Status     comix.TaskStatus `json:"status"`
-		PID        int              `json:"pid"`
-		StartedAt  time.Time        `json:"started_at"`
-		FinishedAt *time.Time       `json:"finished_at"`
-		ExitCode   *int             `json:"exit_code"`
-		Error      string           `json:"error"`
-		Result     *comix.Result    `json:"result,omitempty"`
+		ID         string            `json:"id"`
+		Name       string            `json:"name"`
+		Command    string            `json:"command"`
+		Status     taskengine.Status `json:"status"`
+		PID        int               `json:"pid"`
+		StartedAt  time.Time         `json:"started_at"`
+		FinishedAt *time.Time        `json:"finished_at"`
+		ExitCode   *int              `json:"exit_code"`
+		Error      string            `json:"error"`
+		Result     any               `json:"result,omitempty"`
 	}
 	out := make([]summary, 0, len(tasks))
 	for _, t := range tasks {
@@ -300,7 +297,7 @@ func StopTask(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"task_id": taskID, "status": comix.TaskKilled}})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"task_id": taskID, "status": taskengine.StatusKilled}})
 }
 
 // ---- 内部辅助 ----

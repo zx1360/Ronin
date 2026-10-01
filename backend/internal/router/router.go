@@ -1,7 +1,9 @@
 package router
 
 import (
+	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/gin-contrib/cors"
@@ -13,6 +15,7 @@ import (
 	"monarch/internal/handler/comix_handler"
 	"monarch/internal/handler/data_handler"
 	"monarch/internal/handler/gallery_handler"
+	"monarch/internal/handler/ops_handler"
 	"monarch/internal/handler/util_handler"
 )
 
@@ -23,7 +26,7 @@ func SetupRouter() *gin.Engine {
 
 	r := gin.Default()
 
-	// CORS 跨域配置（HTTPS 自签证书场景）
+	// CORS 跨域配置
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -32,13 +35,14 @@ func SetupRouter() *gin.Engine {
 		AllowCredentials: false,
 	}))
 
-	// 选择性鉴权中间件：漫画相关 + 测试接口免验证，其余均需 X-API-Key
-	if !config.IsLocalMode {
-		r.Use(selectiveAuth())
-	}
+	// 选择性鉴权中间件：漫画相关 + 测试接口 + 网页运维端免验证，其余均需 X-API-Key
+	r.Use(selectiveAuth())
 
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)
+
+	// 网页运维端（ops）：由后端内置 HTTP 服务托管，仅本机可打开
+	setupOpsWeb(r)
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -61,19 +65,14 @@ func SetupRouter() *gin.Engine {
 		// 漫画请求相关（免鉴权，由 selectiveAuth 放行）
 		comicGroup := api.Group("/comic")
 		{
-			// 漫画元数据
-			comicGroup.GET("/meta-info", comic_handler.FetchComicMetadata)
 			// 漫画列表 & 详情
 			comicGroup.GET("/comic-info", comic_handler.FetchAllComicInfos)
 			comicGroup.GET("/comic-info/:comic-id", comic_handler.FetchChaptersWithComicId)
 			comicGroup.PUT("/comic-info/:comic-id", comic_handler.UpdateComic)
-			comicGroup.DELETE("/comic-info/:comic-id", comic_handler.DeleteComic)
 			// 章节详情
 			comicGroup.GET("/chapter-info/:chapter-id", comic_handler.FetchImagesWithChapterId)
 			// 下载整本漫画到本地
 			comicGroup.GET("/download/:comic-id", comic_handler.DownloadComic)
-			// 同步已读状态
-			comicGroup.POST("/sync-readed", comic_handler.SyncReadedStatus)
 		}
 
 		// comix 漫画爬虫管理（需鉴权；异步任务由服务端管理生命周期）
@@ -122,6 +121,18 @@ func SetupRouter() *gin.Engine {
 		api.GET("/test", util_handler.Test) // 免鉴权
 		api.GET("/ops/overview", util_handler.SystemOverview)
 
+		// 网页运维端的本机能力（仅回环可用）：路径定位、gallery 任务生命周期、偏好读写
+		opsLocal := api.Group("/ops/local", util_handler.LocalOnly())
+		{
+			opsLocal.GET("/bootstrap", ops_handler.Bootstrap)
+			opsLocal.PUT("/settings", ops_handler.UpdateSettings)
+			opsLocal.POST("/reveal", ops_handler.Reveal)
+			opsLocal.GET("/tasks", ops_handler.ListTasks)
+			opsLocal.POST("/tasks", ops_handler.StartTask)
+			opsLocal.GET("/tasks/:task-id", ops_handler.GetTask)
+			opsLocal.POST("/tasks/:task-id/stop", ops_handler.StopTask)
+		}
+
 		// AI 智能媒体处理层（运维 + 检索 + 组织）
 		aiGroup := api.Group("/ai")
 		{
@@ -129,6 +140,7 @@ func SetupRouter() *gin.Engine {
 			aiGroup.GET("/status", ai_handler.Status)
 			aiGroup.GET("/capabilities", ai_handler.ListCapabilities)
 			aiGroup.GET("/jobs", ai_handler.ListJobs)
+			aiGroup.GET("/failures", ai_handler.ListFailures)
 			aiGroup.POST("/enqueue", ai_handler.Enqueue)
 			aiGroup.POST("/retry", ai_handler.Retry)
 			aiGroup.POST("/regenerate", ai_handler.Regenerate)
@@ -171,4 +183,24 @@ func SetupRouter() *gin.Engine {
 	}
 
 	return r
+}
+
+// setupOpsWeb 托管网页运维端静态资源（/ops/），并重定向到目录形式的首页。
+//
+// 页面与它的本机能力接口一样仅限本机打开：网页端要调用只允许回环的接口，
+func setupOpsWeb(r *gin.Engine) {
+	webDir := config.OpsConf.WebDir
+	if webDir == "" {
+		log.Printf("[ops] OPS_WEB_DIR 未配置，网页运维端不可用")
+		return
+	}
+	if info, err := os.Stat(webDir); err != nil || !info.IsDir() {
+		log.Printf("[ops] 网页运维端目录不可用（%s），请检查 OPS_WEB_DIR", webDir)
+		return
+	}
+
+	group := r.Group("/ops", util_handler.LocalOnly())
+	group.GET("", func(c *gin.Context) { c.Redirect(http.StatusFound, "/ops/") })
+	group.Static("/", webDir)
+	log.Printf("[ops] 网页运维端已挂载: /ops/ -> %s", webDir)
 }

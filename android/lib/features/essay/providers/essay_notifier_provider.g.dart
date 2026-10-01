@@ -6,17 +6,9 @@ part of 'essay_notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$essayServiceHash() => r'd600bd9a5fba188526f0b693fe448fa12eb34e3c';
+String _$essayServiceHash() => r'343481eaaf8c4227321bab272337db82647a4be9';
 
-/// Essay 模块的核心服务
-///
-/// 提供以下功能：
-/// - 随笔 CRUD 操作
-/// - 标签管理
-/// - 年度/月度统计更新
-/// - 数据同步与备份
-///
-/// Copied from [EssayService].
+/// See also [EssayService].
 @ProviderFor(EssayService)
 final essayServiceProvider =
     AutoDisposeNotifierProvider<EssayService, EssayRepository>.internal(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"monarch/internal/model"
@@ -40,6 +41,9 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 		return true, "" // 纯 Go 实现，无外部依赖
 	}
 	if capability == model.CapVLM {
+		if strings.TrimSpace(e.VLMModel()) == "" {
+			return false, "尚未选定标注模型：本机没有可用的 Ollama 模型"
+		}
 		if ok, reason := e.ollama.Ready(ctx, e.VLMModel()); !ok {
 			return false, reason
 		}
@@ -92,15 +96,15 @@ func (e *Engine) sidecarFor(capability string) *Sidecar {
 // CapabilityStatus 单个能力的就绪与运行状态。
 type CapabilityStatus struct {
 	model.CapabilitySpec
-	Ready        bool               `json:"ready"`
-	Reason       string             `json:"reason,omitempty"`
-	Sidecar      *SidecarState      `json:"sidecar,omitempty"`
+	Ready        bool                `json:"ready"`
+	Reason       string              `json:"reason,omitempty"`
+	Sidecar      *SidecarState       `json:"sidecar,omitempty"`
 	Candidates   []ExecutorCandidate `json:"executor_candidates,omitempty"`
-	MissingMedia int                `json:"missing_media"` // 尚无该产物的媒体数
-	StaleMedia   int                `json:"stale_media"`   // 输入档位/执行者已变、待自动重排的媒体数
-	Pending      int                `json:"pending"`
-	Failed       int                `json:"failed"`
-	Done         int                `json:"done"`
+	MissingMedia int                 `json:"missing_media"` // 尚无该产物的媒体数
+	StaleMedia   int                 `json:"stale_media"`   // 输入档位/执行者已变、待显式重生成的媒体数
+	Pending      int                 `json:"pending"`
+	Failed       int                 `json:"failed"`
+	Done         int                 `json:"done"`
 }
 
 // IndexState 向量索引状态。
@@ -130,11 +134,15 @@ type Status struct {
 	Queue            []model.AiCapabilityStat `json:"queue"`
 	PendingTotal     int                      `json:"pending_total"`
 	FailedTotal      int                      `json:"failed_total"`
-	LastRun          *RunInfo                 `json:"last_run,omitempty"`
-	Index            IndexState               `json:"index"`
-	Cluster          ClusterState             `json:"cluster"`
-	Ollama           OllamaState              `json:"ollama"`
-	PersonCount      int                      `json:"person_count"`
+	// MediaTotal 未删除媒体总数：能力进度的分母。
+	// 「尚无产物」是另一个口径（人脸能力里"这张图本来就没有脸"也是正常的 0 产物），
+	// 把它加进分母会把同一批媒体算两遍。
+	MediaTotal  int          `json:"media_total"`
+	LastRun     *RunInfo     `json:"last_run,omitempty"`
+	Index       IndexState   `json:"index"`
+	Cluster     ClusterState `json:"cluster"`
+	Ollama      OllamaState  `json:"ollama"`
+	PersonCount int          `json:"person_count"`
 }
 
 // Status 采集当前状态快照。
@@ -177,6 +185,9 @@ func (e *Engine) Status(ctx context.Context) *Status {
 	if err == nil {
 		status.Queue = stats
 	}
+	if total, err := ai_repo.CountUndeletedMedia(); err == nil {
+		status.MediaTotal = total
+	}
 	if persons, err := ai_repo.ListPersons(); err == nil {
 		status.PersonCount = len(persons)
 	}
@@ -209,7 +220,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 			item.Sidecar = &state
 		}
 		item.MissingMedia = missing[spec.Capability]
-		// 输入档位/执行者变更后待自动重排的数量（见 worker.reconcileLoop）
+		// 输入档位/执行者变更后可显式重生成的数量。
 		if stale, err := ai_repo.CountStaleInput(spec.Capability, spec.InputSig); err == nil {
 			item.StaleMedia = stale
 		}
@@ -220,7 +231,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 
 // ollamaState 采集 Ollama 状态，并补上"当前正在推理的模型"这一运行时信息。
 func (e *Engine) ollamaState(ctx context.Context) OllamaState {
-	state := e.ollama.State(ctx, e.VLMModel(), e.VLMAltModel())
+	state := e.ollama.State(ctx, e.VLMModel())
 	state.ActiveModel = e.ActiveModel()
 	state.LastSwitch = e.LastSwitchNotice()
 	return state
