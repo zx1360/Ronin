@@ -23,6 +23,7 @@ import (
 	"monarch/internal/config"
 	"monarch/internal/repository/comix_repo"
 	"monarch/internal/service/comix"
+	"monarch/internal/service/taskengine"
 )
 
 const syncTimeout = 90 * time.Second
@@ -261,16 +262,16 @@ func Clean(c *gin.Context) {
 func ListTasks(c *gin.Context) {
 	tasks := comix.Manager.List()
 	type summary struct {
-		ID         string           `json:"id"`
-		Name       string           `json:"name"`
-		Command    string           `json:"command"`
-		Status     comix.TaskStatus `json:"status"`
-		PID        int              `json:"pid"`
-		StartedAt  time.Time        `json:"started_at"`
-		FinishedAt *time.Time       `json:"finished_at"`
-		ExitCode   *int             `json:"exit_code"`
-		Error      string           `json:"error"`
-		Result     *comix.Result    `json:"result,omitempty"`
+		ID         string            `json:"id"`
+		Name       string            `json:"name"`
+		Command    string            `json:"command"`
+		Status     taskengine.Status `json:"status"`
+		PID        int               `json:"pid"`
+		StartedAt  time.Time         `json:"started_at"`
+		FinishedAt *time.Time        `json:"finished_at"`
+		ExitCode   *int              `json:"exit_code"`
+		Error      string            `json:"error"`
+		Result     any               `json:"result,omitempty"`
 	}
 	out := make([]summary, 0, len(tasks))
 	for _, t := range tasks {
@@ -300,7 +301,7 @@ func StopTask(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"task_id": taskID, "status": comix.TaskKilled}})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"task_id": taskID, "status": taskengine.StatusKilled}})
 }
 
 // ---- 内部辅助 ----

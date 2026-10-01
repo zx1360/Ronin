@@ -36,6 +36,16 @@ type ComixConfig struct {
 	StorageRoot string // 漫画图片存储根目录（COMIC_STORAGE_ROOT）
 }
 
+// GalleryConfig gallery CLI（gizmos 模块）集成配置
+type GalleryConfig struct {
+	Exe string // gallery CLI 可执行文件（相对路径按 backend/ 解析）
+}
+
+// OpsConfig 网页运维端（ops）配置
+type OpsConfig struct {
+	WebDir string // 网页端静态资源目录（源码在 ops/web/）
+}
+
 // AiConfig 本地 AI 媒体处理配置。
 //
 // AI 能力以外部进程（Python 侧车 / Ollama）方式接入：只在有任务时拉起，
@@ -66,11 +76,13 @@ var IsLocalMode bool
 
 // 向外暴露数据对象
 var (
-	AppConf   AppConfig
-	NetConf   NetConfig
-	DbConf    DbConfig
-	ComixConf ComixConfig
-	AiConf    AiConfig
+	AppConf     AppConfig
+	NetConf     NetConfig
+	DbConf      DbConfig
+	ComixConf   ComixConfig
+	GalleryConf GalleryConfig
+	OpsConf     OpsConfig
+	AiConf      AiConfig
 )
 
 // Load 从 .env 与环境变量加载配置，并校验必要项。
@@ -96,6 +108,12 @@ func Load() error {
 	ComixConf.Root = os.Getenv("COMIX_ROOT")
 	ComixConf.StorageRoot = envAbs("COMIC_STORAGE_ROOT")
 
+	// gallery CLI：默认取 gizmos 模块的构建产物（backend/gizmos/gallery.exe）
+	GalleryConf.Exe = envAbsOr("GALLERY_CLI", filepath.Join("gizmos", "gallery.exe"))
+
+	// 网页运维端静态资源目录（源码在 ops/web/，由后端内置 HTTP 服务托管）
+	OpsConf.WebDir = envAbsOr("OPS_WEB_DIR", filepath.Join("..", "ops", "web"))
+
 	loadAiConfig()
 
 	return Validate()
@@ -106,6 +124,18 @@ func envAbs(key string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return ""
+	}
+	if abs, err := filepath.Abs(value); err == nil {
+		return abs
+	}
+	return value
+}
+
+// envAbsOr 同 envAbs，但环境变量未设置时使用默认值。
+func envAbsOr(key, def string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		value = def
 	}
 	if abs, err := filepath.Abs(value); err == nil {
 		return abs

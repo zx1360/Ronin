@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 
 	"monarch/internal/config"
+	"monarch/internal/handler/ops_handler"
 	"monarch/internal/repository/ai_repo"
 	"monarch/internal/service/ai"
 	"monarch/internal/service/db"
+	"monarch/internal/service/gallery"
 	"monarch/internal/service/server"
 )
 
@@ -38,6 +40,13 @@ func main() {
 	db.Init(config.DbConf)
 	defer db.Close()
 
+	// 网页运维端（ops）的界面偏好存 static/data/ops_web.json，由服务端读写
+	opsStore := config.NewOpsStore(filepath.Join(config.AppConf.StaticDir, "data", "ops_web.json"))
+	if err := opsStore.Load(); err != nil {
+		log.Fatalf("网页端偏好加载失败: %v", err)
+	}
+	ops_handler.SetStore(opsStore)
+
 	migrateLegacyAISettings(store)
 	store.ApplyTo(&config.AiConf)
 
@@ -45,6 +54,9 @@ func main() {
 	ai.Default = ai.New(store, config.AiConf)
 	ai.Default.Start()
 	defer ai.Default.Stop()
+
+	// gallery CLI 任务随服务退出一起中断（任务状态只存在内存里，留着也没人管）
+	defer gallery.Manager.KillAll()
 
 	server.StartServer()
 }
