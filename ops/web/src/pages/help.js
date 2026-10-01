@@ -6,7 +6,7 @@ import { Card } from '../ui.js';
 export default {
   components: { Card },
   setup() {
-    return { state };
+    return { state, origin: window.location.origin };
   },
   template: `
     <div>
@@ -16,11 +16,13 @@ export default {
         <div class="col">
           <div>
             运维页面由 Monarch 自己托管，地址就是当前页面：
-            <span class="mono">{{ state.service.isLocalMode ? 'http://127.0.0.1:7275/ops/' : 'https://127.0.0.1:7274/ops/' }}</span>
+            <span class="mono">{{ origin }}/ops/</span>
           </div>
           <div class="small muted">
-            生产模式使用自签证书，浏览器首次访问需手动信任一次；页面与它的本机能力接口都只接受本机回环地址，
-            局域网客户端打不开（这些操作本来就只在本机才有意义）。
+            Monarch 同时监听两个端口，接口完全一致，只是协议不同：
+            <span class="mono">http://127.0.0.1:7275/ops/</span>（本机浏览器用，无证书警告）与
+            <span class="mono">https://127.0.0.1:7274/ops/</span>（自签证书，首次需信任一次）。
+            页面与它的本机能力接口都只接受本机回环地址，局域网客户端打不开。
           </div>
           <div class="small muted">
             API 密钥由服务端在引导接口里下发（<span class="mono">/API/ops/local/bootstrap</span>），

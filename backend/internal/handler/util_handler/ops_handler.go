@@ -116,16 +116,12 @@ func queryGalleryDBStats(ctx context.Context) galleryDBStats {
 	return stats
 }
 
-// SystemOverview 返回服务端基础运维信息，便于桌面端统一展示。
+// SystemOverview 返回服务端基础运维信息，便于网页运维端统一展示。
 func SystemOverview(c *gin.Context) {
 	galleryStats := queryGalleryDBStats(c.Request.Context())
 
-	currentPort := config.NetConf.LocalPort
-	if config.IsLocalMode {
-		currentPort = config.NetConf.LocalDebugPort
-	}
-	// 桌面端需要直接读写封面等文件，因此必须给出绝对路径：服务端与客户端的
-	// 工作目录不同，相对路径在客户端无法解析。
+	// 网页端需要直接读写文件（如资源管理器定位），因此必须给出绝对路径：
+	// 服务端与浏览器的路径视角不同，相对路径无法解析。
 	staticDir, absErr := filepath.Abs(config.AppConf.StaticDir)
 	staticDirError := ""
 	if absErr != nil {
@@ -151,8 +147,7 @@ func SystemOverview(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"service": gin.H{
-			"isLocalMode":    config.IsLocalMode,
-			"port":           currentPort,
+			"port":           ServedPort(c),
 			"staticDir":      staticDir,
 			"staticDirError": staticDirError,
 		},

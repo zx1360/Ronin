@@ -1,7 +1,7 @@
 // Monarch HTTP 服务入口。
 //
-// 默认以生产模式启动（HTTPS + X-API-Key 鉴权）；`-mode local` 使用本地开发
-// 模式（HTTP 且免鉴权）。
+// 单进程单端口（LOCAL_PORT）：HTTP 监听 + `X-API-Key` 鉴权；网页运维端在 `/ops/`，
+// 与本机能力接口一样只接受回环地址访问。
 package main
 
 import (
@@ -19,11 +19,9 @@ import (
 )
 
 func main() {
-	mode := flag.String("mode", "", "启动模式: local=本地开发(HTTP+无鉴权), 默认生产模式(HTTPS+鉴权)")
+	// 没有命令行参数；保留 flag.Parse() 让 `-h` 能打印用法并退出
+	// （契约快照脚本 references/scripts/generate_refs.ps1 会采集它）。
 	flag.Parse()
-
-	// 先设置运行模式（Validate 依赖此值）
-	config.IsLocalMode = *mode == "local"
 
 	if err := config.Load(); err != nil {
 		log.Fatalf("配置加载失败: %v", err)

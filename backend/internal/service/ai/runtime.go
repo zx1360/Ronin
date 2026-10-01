@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +52,14 @@ func (e *Engine) UpdateRuntime(update config.RuntimeConfig) error {
 	if err := e.rt.store.Update(update); err != nil {
 		return err
 	}
+	// 模型选择由引擎侧单独持有（文件里存的是"人工选择"，空串表示沿用 .env 默认值）：
+	// 不在这里同步的话，界面切换模型只会写进文件，要重启才生效。
+	if update.VLMModel != nil {
+		selected := strings.TrimSpace(*update.VLMModel)
+		e.rt.mu.Lock()
+		e.rt.vlmModel = selected
+		e.rt.mu.Unlock()
+	}
 	return e.reloadRuntime()
 }
 
@@ -60,18 +69,6 @@ func (e *Engine) reloadRuntime() error {
 	e.rt.store.ApplyTo(&cfg)
 	e.rt.mu.Lock()
 	e.rt.snap = cfg
-	e.rt.mu.Unlock()
-	e.Wake()
-	return nil
-}
-
-// SetVLMModel 记录 VLM 标注模型的人工选择（空串 = 恢复 .env 默认）。
-func (e *Engine) SetVLMModel(model string) error {
-	if err := e.rt.store.Update(config.RuntimeConfig{VLMModel: &model}); err != nil {
-		return err
-	}
-	e.rt.mu.Lock()
-	e.rt.vlmModel = model
 	e.rt.mu.Unlock()
 	e.Wake()
 	return nil
@@ -226,8 +223,11 @@ type ExecutorCandidate struct {
 // 其余能力固定一种实现，仍然下发列表以便消费端统一渲染而不必在端上硬编码。
 func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandidate {
 	apply := func(candidates []ExecutorCandidate) []ExecutorCandidate {
+		// current 是能力指纹里的执行者（VLM 形如 `ollama:<模型名>`），
+		// 与候选的模型名对齐时要去掉提供者前缀，且模型名大小写不敏感。
+		currentModel := strings.TrimPrefix(current, "ollama:")
 		for i := range candidates {
-			candidates[i].IsCurrent = candidates[i].Model == current
+			candidates[i].IsCurrent = strings.EqualFold(candidates[i].Model, currentModel)
 			candidates[i].InputsTier = e.inputTier(capability)
 		}
 		return candidates
@@ -244,14 +244,15 @@ func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandid
 		seen := map[string]bool{}
 		candidates := make([]ExecutorCandidate, 0, 2)
 		for _, name := range []string{cfg.OllamaVLM, cfg.OllamaVLMAlt} {
-			if name == "" || seen[name] {
+			key := strings.ToLower(name)
+			if name == "" || seen[key] {
 				continue
 			}
-			seen[name] = true
+			seen[key] = true
 			candidates = append(candidates, ExecutorCandidate{
 				Model:     name,
 				Label:     labelOr(labels[name], name),
-				Installed: installed[name],
+				Installed: installed[key],
 			})
 		}
 		return apply(candidates)
@@ -277,6 +278,9 @@ func labelOr(label, fallback string) string {
 }
 
 // installedModels 返回本机已安装的 Ollama 模型集合（不可达时返回空集合）。
+//
+// 键统一小写：Ollama 的模型名大小写不敏感（`huihui_ai/qwen3.5-abliterated:4b`
+// 与配置里的 `:4B` 是同一个模型），按原样比较会把已安装的候选判成未安装。
 func (e *Engine) installedModels() map[string]bool {
 	names := map[string]bool{}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -286,7 +290,7 @@ func (e *Engine) installedModels() map[string]bool {
 		return names
 	}
 	for _, name := range tags {
-		names[name] = true
+		names[strings.ToLower(name)] = true
 	}
 	return names
 }

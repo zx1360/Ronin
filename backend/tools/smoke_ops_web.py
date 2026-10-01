@@ -1,14 +1,16 @@
 """网页运维端冒烟：逐页 + 逐标签页检查渲染与控制台错误。
 
-用法：``python tools/smoke_ops_web.py``（服务需已运行；默认生产模式地址，见 BASE）。
+用法：``python tools/smoke_ops_web.py``（服务需已运行；地址见 BASE）。
 依赖 playwright + chromium（与 comix 爬虫同一套依赖）。
 """
+import os
 import re
 import sys
 
 from playwright.sync_api import sync_playwright
 
-BASE = "https://127.0.0.1:7274"
+# 默认走无证书警告的 HTTP 端口；临时实例可设 OPS_SMOKE_BASE=http://127.0.0.1:<port>
+BASE = os.environ.get("OPS_SMOKE_BASE", "http://127.0.0.1:7275")
 PAGES = ["/dashboard", "/ai", "/comix", "/tasks", "/logs", "/settings", "/help"]
 # 渲染瑕疵：模板未替换/字段缺失会在页面上留下这些痕迹
 ARTIFACTS = re.compile(r"\bundefined\b|\bNaN\b|\[object Object\]|\{\{")

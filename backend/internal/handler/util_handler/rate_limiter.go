@@ -122,7 +122,10 @@ const timeLayout = "2006-01-02 15:04:05"
 
 func formatTime(t time.Time) string { return t.Format(timeLayout) }
 
-// loadBannedIPs 启动时从日志文件恢复仍在有效期内的封禁记录
+// loadBannedIPs 启动时从日志文件恢复仍在有效期内的封禁记录。
+//
+// 回环地址的记录一律跳过：本机永不封禁（见 [APIKeyAuth]），
+// 历史遗留的本机封禁记录不应再被恢复，否则服务重启后网页端会立刻被挡在门外。
 func (l *IPRateLimiter) loadBannedIPs() {
 	data, err := os.ReadFile(banLogPath)
 	if err != nil {
@@ -133,10 +136,11 @@ func (l *IPRateLimiter) loadBannedIPs() {
 	loaded := 0
 	for _, line := range strings.Split(string(data), "\n") {
 		ip, expiry, ok := parseBanLogLine(line)
-		if ok && now.Before(expiry) {
-			l.bannedIPs[ip] = expiry
-			loaded++
+		if !ok || !now.Before(expiry) || isLoopbackAddr(ip) {
+			continue
 		}
+		l.bannedIPs[ip] = expiry
+		loaded++
 	}
 
 	if loaded > 0 {

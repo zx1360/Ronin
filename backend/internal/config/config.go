@@ -18,9 +18,13 @@ type AppConfig struct {
 }
 
 // NetConfig 网络配置
+//
+// 启动后同时监听两个端口，接口完全一致，只是协议不同：
+// HTTPS（自签证书，供 Android 等局域网消费端）与 HTTP（供本机浏览器打开运维页面，
+// 免得自签证书弹警告）。危险接口由"仅回环可访问"约束，与端口无关。
 type NetConfig struct {
-	LocalPort      string
-	LocalDebugPort string
+	LocalPort     string // HTTPS
+	LocalHTTPPort string // HTTP
 }
 
 // DbConfig SQLite 单文件数据库配置
@@ -71,9 +75,6 @@ type AiConfig struct {
 	AutoCaps        []string      // 入库后自动入队的能力（数据库 ai.settings 可覆盖）
 }
 
-// IsLocalMode 运行模式：true=本地开发(HTTP+免鉴权)
-var IsLocalMode bool
-
 // 向外暴露数据对象
 var (
 	AppConf     AppConfig
@@ -94,7 +95,7 @@ func Load() error {
 	AppConf.GalleryDir = os.Getenv("GALLERY_DIR")
 
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")
-	NetConf.LocalDebugPort = os.Getenv("LOCAL_DEBUG_PORT")
+	NetConf.LocalHTTPPort = os.Getenv("LOCAL_HTTP_PORT")
 
 	// SQLite 单文件数据库：默认 backend/data/monarch.db
 	DbConf.File = envString("DB_FILE", filepath.Join("data", "monarch.db"))
@@ -230,10 +231,11 @@ func splitCSV(raw string) []string {
 // Validate 校验必要配置项，返回缺失项列表
 func Validate() error {
 	required := map[string]string{
-		"STATIC_DIR":  AppConf.StaticDir,
-		"GALLERY_DIR": AppConf.GalleryDir,
-		"LOCAL_PORT":  NetConf.LocalPort,
-		"DB_FILE":     DbConf.File,
+		"STATIC_DIR":      AppConf.StaticDir,
+		"GALLERY_DIR":     AppConf.GalleryDir,
+		"LOCAL_PORT":      NetConf.LocalPort,
+		"LOCAL_HTTP_PORT": NetConf.LocalHTTPPort,
+		"DB_FILE":         DbConf.File,
 	}
 
 	var missing []string
@@ -241,11 +243,6 @@ func Validate() error {
 		if strings.TrimSpace(val) == "" {
 			missing = append(missing, key)
 		}
-	}
-
-	// LOCAL_DEBUG_PORT 仅在 local 模式需要
-	if IsLocalMode && strings.TrimSpace(NetConf.LocalDebugPort) == "" {
-		missing = append(missing, "LOCAL_DEBUG_PORT")
 	}
 
 	if len(missing) > 0 {

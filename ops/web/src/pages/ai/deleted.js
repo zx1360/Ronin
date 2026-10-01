@@ -1,6 +1,7 @@
 // 已软删除：清单与取消软删除。
 //
 // 本页只改数据库标记，不碰任何文件——真正的删除仍由 Gallery CLI 的 execute 执行。
+// 软删除项可能有几百上千条，所以按批累加加载：单批条数写清、总量与已加载量都显示出来。
 
 import { ref, computed } from '../../vue.js';
 import { api } from '../../api.js';
@@ -9,7 +10,7 @@ import { Card, Placeholder } from '../../ui.js';
 import { formatTime } from '../../utils.js';
 import { baseName, num, revealMedia, thumbUrl } from './shared.js';
 
-const PAGE_SIZE = 120;
+const PAGE_SIZE = 60;
 
 export default {
   components: { Card, Placeholder },
@@ -26,6 +27,11 @@ export default {
     const selected = ref([]);
 
     const hasMore = computed(() => items.value.length < total.value);
+    const allSelected = computed(() => items.value.length > 0 && selected.value.length === items.value.length);
+    const unloadedCount = computed(() => Math.max(0, total.value - items.value.length));
+    const rangeText = computed(
+      () => '每批 ' + PAGE_SIZE + ' 条 · 已加载 ' + items.value.length + ' / 共 ' + total.value + ' 项',
+    );
 
     const load = async (more) => {
       if (loading.value) return;
@@ -72,6 +78,7 @@ export default {
       selected.value = [];
     };
 
+    /** 只作用于已加载的条目：未加载的还没进 DOM，不替用户做看不见的选择。 */
     const selectAll = () => {
       selected.value = items.value.map((item) => item.id);
     };
@@ -95,6 +102,7 @@ export default {
 
     return {
       items, total, loaded, loading, busy, error, selected, hasMore,
+      allSelected, unloadedCount, rangeText, PAGE_SIZE,
       load, toggle, isSelected, clearSelection, selectAll, restore, revealMedia,
     };
   },
@@ -103,13 +111,7 @@ export default {
       <Card title="已软删除媒体">
         <template #actions>
           <span class="small muted" v-if="loading">加载中…</span>
-          <span class="small muted" v-if="loaded">共 {{ total }} 个 · 已选 {{ selected.length }}</span>
-          <button class="ghost sm" :disabled="busy || !selected.length" @click="clearSelection()">取消选择</button>
-          <button class="ghost sm" :disabled="busy || !items.length" @click="selectAll()">全选本页</button>
-          <button class="primary sm" :disabled="busy || !selected.length" @click="restore(selected)">
-            取消软删除（{{ selected.length }}）
-          </button>
-          <button class="ghost sm" :disabled="loading" @click="load(false)">{{ loaded ? '刷新' : '加载已删除媒体' }}</button>
+          <span class="small muted" v-if="loaded">共 {{ total }} 项 · 已选 {{ selected.length }}</span>
         </template>
 
         <div class="small muted">
@@ -119,49 +121,60 @@ export default {
           提示：AI 处理层已关闭，但本页只依赖 gallery 接口，仍可正常使用。
         </div>
 
+        <div class="toolbar">
+          <button class="ghost sm" :disabled="loading" @click="load(false)">{{ loaded ? '刷新' : '加载已删除媒体' }}</button>
+          <template v-if="items.length">
+            <button class="ghost sm" v-if="hasMore" :disabled="loading" @click="load(true)">
+              加载更多（每批 {{ PAGE_SIZE }} 条）
+            </button>
+            <button class="ghost sm" :disabled="busy || allSelected" @click="selectAll()">
+              全选已加载的 {{ items.length }} 项
+            </button>
+            <button class="ghost sm" :disabled="busy || !selected.length" @click="clearSelection()">
+              取消选择（{{ selected.length }}）
+            </button>
+            <button class="primary sm" :disabled="busy || !selected.length" @click="restore(selected)">
+              取消软删除（{{ selected.length }}）
+            </button>
+            <span class="grow"></span>
+            <span class="small muted" style="padding-bottom: 8px">{{ rangeText }}</span>
+          </template>
+        </div>
+
         <Placeholder v-if="error" :error="'获取 /API/gallery/media?only_deleted=true 失败: ' + error" />
         <Placeholder v-else-if="!loaded" text="点击「加载已删除媒体」拉取清单" />
         <Placeholder v-else-if="!items.length && !loading" text="没有被软删除的媒体" />
         <template v-else>
-          <table class="data">
-            <thead>
-              <tr><th>缩略图</th><th>文件</th><th>拍摄时间</th><th>类型</th><th></th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in items" :key="item.id" :class="{ selected: isSelected(item.id) }">
-                <td style="width: 72px">
-                  <img
-                    :src="item.thumb"
-                    alt=""
-                    loading="lazy"
-                    style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px"
-                    :style="isSelected(item.id) ? 'outline: 2px solid var(--primary)' : ''"
-                    @click="toggle(item.id)"
-                  />
-                </td>
-                <td>
-                  <div>{{ item.name }}</div>
-                  <div class="small muted mono">{{ item.filePath }}</div>
-                </td>
-                <td class="small">{{ item.captured }}</td>
-                <td class="small mono">{{ item.mimeType || '—' }}</td>
-                <td>
-                  <div class="row">
-                    <button class="ghost sm" @click="revealMedia(item.filePath)">打开所在目录</button>
-                    <button class="ghost sm" :disabled="busy" @click="restore([item.id])">取消软删除</button>
-                    <label class="row small muted" style="gap: 4px">
-                      <input type="checkbox" :checked="isSelected(item.id)" @change="toggle(item.id)" /> 选择
-                    </label>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="small muted" style="margin-bottom: 8px">
+            选择范围仅限已加载的 {{ items.length }} 项<span v-if="unloadedCount">；还有 {{ unloadedCount }} 项未加载，需先「加载更多」才能选中</span>。
+          </div>
 
-          <div class="row" style="margin-top: 10px" v-if="hasMore">
+          <div class="media-grid wide">
+            <div
+              v-for="item in items"
+              :key="item.id"
+              class="media-tile"
+              :class="{ selected: isSelected(item.id) }"
+              @click="toggle(item.id)"
+            >
+              <img :src="item.thumb" alt="" loading="lazy" />
+              <div class="meta">
+                <div :title="item.filePath">{{ item.name }}</div>
+                <div class="small muted">{{ item.captured }}</div>
+                <div class="small muted mono">{{ item.mimeType || '—' }}</div>
+                <div class="row" style="margin-top: 4px">
+                  <button class="ghost sm" :disabled="busy" @click.stop="restore([item.id])">取消软删除</button>
+                  <button class="ghost sm" @click.stop="revealMedia(item.filePath)">打开目录</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pager" v-if="hasMore">
             <button class="ghost sm" :disabled="loading" @click="load(true)">
               加载更多（已显示 {{ items.length }} / {{ total }}）
             </button>
+            <span class="small muted">{{ rangeText }}</span>
           </div>
         </template>
       </Card>

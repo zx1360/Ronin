@@ -13,12 +13,17 @@ import (
 // APIKeyAuth API 密钥验证中间件（含 IP 频控）。
 //
 // 同一 IP 短时间内鉴权失败达到阈值即封禁数天，封禁记录持久化到封禁日志文件；
-// 未设置 API_KEY_SERVER 时视为未启用鉴权，直接放行（本地开发场景）。
+// 未设置 API_KEY_SERVER 时视为未启用鉴权，直接放行。
+//
+// **本机回环地址永不封禁**：网页运维端拿到密钥之前就会有请求打进来（引导阶段、
+// 密钥轮换期），把本机锁在门外既没意义又难以自愈。判定只认 TCP 对端地址，
+// 不看 X-Forwarded-For，避免远端伪造本机地址绕过封禁。
 func APIKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		peerIsLocal := isLoopbackAddr(c.Request.RemoteAddr)
 		clientIP := extractIP(c)
 
-		if limiter.IsBanned(clientIP) {
+		if !peerIsLocal && limiter.IsBanned(clientIP) {
 			respondBanned(c, clientIP)
 			return
 		}
@@ -40,11 +45,13 @@ func APIKeyAuth() gin.HandlerFunc {
 			return
 		}
 
-		limiter.RecordFailure(clientIP)
-		// 本次失败可能刚好触发封禁，此时返回封禁提示而非普通鉴权错误
-		if limiter.IsBanned(clientIP) {
-			respondBanned(c, clientIP)
-			return
+		if !peerIsLocal {
+			limiter.RecordFailure(clientIP)
+			// 本次失败可能刚好触发封禁，此时返回封禁提示而非普通鉴权错误
+			if limiter.IsBanned(clientIP) {
+				respondBanned(c, clientIP)
+				return
+			}
 		}
 
 		if apiKey == "" {

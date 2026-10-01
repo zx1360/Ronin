@@ -35,7 +35,6 @@ func main() {
 	if config.AppConf.StaticDir == "" {
 		config.AppConf.StaticDir = "static"
 	}
-	config.IsLocalMode = true
 
 	r := router.SetupRouter()
 	routeInfos := r.Routes()

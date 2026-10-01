@@ -26,7 +26,7 @@ func SetupRouter() *gin.Engine {
 
 	r := gin.Default()
 
-	// CORS 跨域配置（HTTPS 自签证书场景）
+	// CORS 跨域配置
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -35,10 +35,8 @@ func SetupRouter() *gin.Engine {
 		AllowCredentials: false,
 	}))
 
-	// 选择性鉴权中间件：漫画相关 + 测试接口免验证，其余均需 X-API-Key
-	if !config.IsLocalMode {
-		r.Use(selectiveAuth())
-	}
+	// 选择性鉴权中间件：漫画相关 + 测试接口 + 网页运维端免验证，其余均需 X-API-Key
+	r.Use(selectiveAuth())
 
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)

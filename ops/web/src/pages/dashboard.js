@@ -71,9 +71,7 @@ export default {
           <Card title="服务">
             <div class="col">
               <div class="row">
-                <Badge :kind="overview.service.isLocalMode ? 'info' : 'primary'">
-                  {{ overview.service.isLocalMode ? 'HTTP · 本地模式' : 'HTTPS · 生产模式' }}
-                </Badge>
+                <Badge kind="primary">X-API-Key 鉴权</Badge>
                 <span class="muted">端口 {{ overview.service.port }}</span>
               </div>
               <div class="mono muted">{{ overview.service.staticDir }}</div>

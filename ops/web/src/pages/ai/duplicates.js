@@ -2,12 +2,18 @@
 //
 // 分组计算是内存全量扫描，代价不低，因此与桌面端一致：由用户点击触发。
 // 软删除只改数据库标记，磁盘文件仍在（真正落盘由 Gallery CLI 的 execute 执行）。
+//
+// 一页可能有上千张近重复图：默认每组只渲染前几张预览，分组本身也分批渲染，
+// 否则一次挂上几千个 .media-tile 会连缩略图请求一起拖垮浏览器。
 
 import { ref, computed } from '../../vue.js';
 import { api, assetUrl } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
 import { Card, Placeholder, MediaTile } from '../../ui.js';
 import { baseName, num, revealMedia, thumbUrl } from './shared.js';
+
+const PREVIEW_COUNT = 8; // 折叠时每组渲染的缩略图数
+const GROUP_BATCH = 20; // 分组分批渲染的批大小
 
 export default {
   components: { Card, Placeholder, MediaTile },
@@ -27,6 +33,7 @@ export default {
     const ignoredItems = ref([]);
     const ignoredError = ref('');
     const ignoredLoading = ref(false);
+    const shownGroups = ref(GROUP_BATCH);
 
     const isSelected = (id) => selected.value.indexOf(id) >= 0;
 
@@ -38,9 +45,11 @@ export default {
       selected.value = next;
     };
 
-    const selectedInGroup = (group) => group.items
-      .filter((item) => isSelected(item.id))
-      .map((item) => item.id);
+    // 组卡里 items 可能只是预览子集，选中态必须按整组算
+    const selectedInGroup = (group) => {
+      const list = group.allItems || group.items || [];
+      return list.filter((item) => isSelected(item.id)).map((item) => item.id);
+    };
 
     const load = async () => {
       loaded.value = true;
@@ -58,6 +67,7 @@ export default {
           const files = Array.isArray(group.files) ? group.files : [];
           return {
             distance: num(group.distance),
+            expanded: false,
             items: ids.map((id, index) => ({
               id,
               file: files[index] || '',
@@ -67,6 +77,7 @@ export default {
           };
         });
         ignoredTotal.value = num(data && data.ignored_total);
+        shownGroups.value = GROUP_BATCH;
         selected.value = selected.value.filter((id) => groups.value.some(
           (group) => group.items.some((item) => item.id === id),
         ));
@@ -118,7 +129,8 @@ export default {
     };
 
     const revealSelected = (group) => {
-      const item = group.items.find((entry) => isSelected(entry.id) && entry.file);
+      const list = group.allItems || group.items || [];
+      const item = list.find((entry) => isSelected(entry.id) && entry.file);
       if (!item) {
         toast('请先选中一张带路径的媒体', 'error');
         return;
@@ -164,22 +176,35 @@ export default {
     const groupCards = computed(() => groups.value.map((group, index) => {
       const chosen = selectedInGroup(group);
       const first = group.items.find((item) => item.id === chosen[0]);
+      const expanded = !!group.expanded;
       return {
         index: index + 1,
         distance: group.distance,
         count: group.items.length,
-        items: group.items,
+        allItems: group.items,
+        // 折叠时只挂前 PREVIEW_COUNT 张，缩略图请求随之减少
+        items: expanded ? group.items : group.items.slice(0, PREVIEW_COUNT),
+        hiddenCount: Math.max(0, group.items.length - PREVIEW_COUNT),
+        expanded,
+        toggleExpand: () => { group.expanded = !group.expanded; },
         selectedCount: chosen.length,
         // 预览走 gallery 文件流：只读查看，不进画廊页
         preview: first ? assetUrl('/API/gallery/' + first.id + '/file') : '',
       };
     }));
 
+    const visibleGroupCards = computed(() => groupCards.value.slice(0, shownGroups.value));
+    const hiddenGroupCount = computed(() => Math.max(0, groupCards.value.length - visibleGroupCards.value.length));
+    const showMoreGroups = () => {
+      shownGroups.value += GROUP_BATCH;
+    };
+
     const ignoredIds = computed(() => ignoredItems.value.map((item) => item.id));
     const aiDisabled = computed(() => props.aiDisabled);
 
     return {
-      loaded, loading, busy, error, groups, groupCards, ignoredTotal, maxDistance,
+      loaded, loading, busy, error, groups, groupCards, visibleGroupCards, hiddenGroupCount,
+      showMoreGroups, ignoredTotal, maxDistance,
       selected, isSelected, toggle, selectedInGroup,
       showIgnored, ignoredItems, ignoredIds, ignoredError, ignoredLoading, aiDisabled,
       load, markDeleted, markIgnored, revealSelected, loadIgnored, restoreIgnored,
@@ -213,13 +238,18 @@ export default {
         <Placeholder v-else-if="!loaded" text="点击「计算近重复分组」开始（全量扫描，需要一些时间）" />
         <Placeholder v-else-if="!groupCards.length" text="未发现近重复图片" />
         <div class="col" v-else style="gap: 12px">
-          <div v-for="group in groupCards" :key="group.index" style="border-top: 1px solid var(--surface-variant); padding-top: 10px">
+          <div v-for="group in visibleGroupCards" :key="group.index" style="border-top: 1px solid var(--surface-variant); padding-top: 10px">
             <div class="row between">
               <span class="small">
                 第 {{ group.index }} 组 · {{ group.count }} 张 · 最大差异 {{ group.distance }} 位
                 <span class="muted"> · 组内已选 {{ group.selectedCount }} 张</span>
               </span>
               <span class="row">
+                <button
+                  v-if="group.hiddenCount"
+                  class="ghost sm"
+                  @click="group.toggleExpand()"
+                >{{ group.expanded ? '收起' : '展开全部 ' + group.count + ' 张' }}</button>
                 <a
                   v-if="group.preview"
                   class="badge primary"
@@ -233,16 +263,25 @@ export default {
                 <button class="danger sm" :disabled="busy || !group.selectedCount" @click="markDeleted(selectedInGroup(group))">标记删除</button>
               </span>
             </div>
-            <div class="media-grid" style="margin-top: 8px">
-              <MediaTile
-                v-for="item in group.items"
-                :key="item.id"
-                :src="item.thumb"
-                :caption="item.name"
-                :selected="isSelected(item.id)"
-                @click="toggle(item.id)"
-              />
+            <div :class="{ 'scroll-panel': group.expanded }" style="margin-top: 8px">
+              <div class="media-grid compact">
+                <MediaTile
+                  v-for="item in group.items"
+                  :key="item.id"
+                  :src="item.thumb"
+                  :caption="item.name"
+                  :selected="isSelected(item.id)"
+                  @click="toggle(item.id)"
+                />
+              </div>
             </div>
+          </div>
+
+          <div class="pager" v-if="hiddenGroupCount">
+            <button class="ghost sm" :disabled="loading" @click="showMoreGroups()">
+              显示更多分组（还有 {{ hiddenGroupCount }} 组）
+            </button>
+            <span class="small muted">已显示 {{ visibleGroupCards.length }} / {{ groupCards.length }} 组</span>
           </div>
         </div>
       </Card>
@@ -261,21 +300,24 @@ export default {
               :disabled="busy || !ignoredIds.length"
               @click="restoreIgnored(ignoredIds)"
             >全部恢复</button>
+            <span class="small muted">共 {{ ignoredItems.length }} 条</span>
           </div>
-          <table class="data" style="margin-top: 8px">
-            <tbody>
-              <tr v-for="item in ignoredItems" :key="item.id">
-                <td style="width: 80px"><img :src="item.thumb" alt="" style="width: 64px; border-radius: 4px" /></td>
-                <td>
-                  {{ item.name }}
-                  <div class="small muted mono">{{ item.filePath }}</div>
-                </td>
-                <td class="row">
-                  <button class="ghost sm" @click="restoreIgnored([item.id])">恢复</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="scroll-panel tall" style="margin-top: 8px">
+            <table class="data">
+              <tbody>
+                <tr v-for="item in ignoredItems" :key="item.id">
+                  <td style="width: 80px"><img :src="item.thumb" alt="" loading="lazy" style="width: 64px; border-radius: 4px" /></td>
+                  <td>
+                    {{ item.name }}
+                    <div class="small muted mono">{{ item.filePath }}</div>
+                  </td>
+                  <td class="row">
+                    <button class="ghost sm" @click="restoreIgnored([item.id])">恢复</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </template>
       </Card>
     </div>`,

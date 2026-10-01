@@ -10,6 +10,7 @@ export const state = reactive({
   ready: false,
   bootError: '',
   apiKey: '',
+  // 字段名与服务端 ops_web.json 一致（snake_case），不要另起一套命名
   settings: {
     auto_refresh_seconds: 10,
     ai_refresh_seconds: 3,
@@ -17,7 +18,7 @@ export const state = reactive({
     confirm_destructive: true,
   },
   settingsPath: '',
-  service: { isLocalMode: false, port: '' },
+  service: { port: '' },
   paths: { staticDir: '', galleryDir: '', galleryMedia: '', opsWebDir: '', dbFile: '' },
   cli: {
     gallery: { path: '', available: false, message: '', defaults: {} },
@@ -81,7 +82,7 @@ export function toast(message, kind = 'info') {
 
 /**
  * 二次确认。破坏性操作前调用，返回 Promise<boolean>。
- * 偏好里关掉确认（confirmDestructive=false）时直接放行。
+ * 偏好里关掉确认（confirm_destructive=false）时直接放行。
  */
 export function confirmAction(message, { title = '请确认', danger = false } = {}) {
   if (!state.settings.confirm_destructive) return Promise.resolve(true);
@@ -107,5 +108,5 @@ export async function runAction(action, { errorPrefix = '操作失败' } = {}) {
   }
 }
 
-/** 服务端是否可用的计算属性（供页面按钮禁用）。 */
+/** 服务端是否已就绪（供页面按钮禁用）。 */
 export const serviceOnline = computed(() => state.ready);
