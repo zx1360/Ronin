@@ -1,5 +1,6 @@
-﻿# 近期回顾接口冒烟：用生产库的**副本** + 临时 STATIC_DIR 起一个本地模式服务，
+# 近期回顾接口冒烟：用生产库的**副本** + 临时 STATIC_DIR 起一个临时服务，
 # 只读业务数据、不动生产库；跑完删掉副本、临时目录与日志。
+# 服务是明文 HTTP 单端口，冒烟用的 `/API/ai/review` 需要 X-API-Key（从 .env 读）。
 #
 # 注意：最后一个用例会真的调用本机 Ollama（若已就绪），耗时取决于模型冷启动；
 # 只做参数/预设校验时把 OLLAMA_URL 指到不可达地址即可，用例会走 503 分支。
@@ -13,6 +14,14 @@ $dbFile = Join-Path $base 'monarch_copy.db'
 $log = Join-Path $base 'server.log'
 $port = 7399
 $proc = $null
+
+# 服务端始终要求 X-API-Key（/API/test 等豁免路径除外），冒烟请求统一带上
+$apiKey = ''
+foreach ($line in (Get-Content (Join-Path $root '.env') -ErrorAction SilentlyContinue)) {
+    if ($line -match '^\s*API_KEY_SERVER\s*=\s*(.+?)\s*$') { $apiKey = $Matches[1] }
+}
+$authHeaders = @{}
+if ($apiKey) { $authHeaders['X-API-Key'] = $apiKey }
 
 function New-Result($name, $ok, $detail) {
     [pscustomobject]@{ Case = $name; Ok = $ok; Detail = $detail }
@@ -29,10 +38,10 @@ function Invoke-Api {
     $uri = "http://127.0.0.1:$port$Path"
     try {
         if ($null -eq $Body) {
-            $resp = Invoke-WebRequest -Uri $uri -Method $Method -UseBasicParsing -TimeoutSec $TimeoutSec
+            $resp = Invoke-WebRequest -Uri $uri -Method $Method -Headers $script:authHeaders -UseBasicParsing -TimeoutSec $TimeoutSec
         }
         else {
-            $resp = Invoke-WebRequest -Uri $uri -Method $Method -UseBasicParsing -TimeoutSec $TimeoutSec `
+            $resp = Invoke-WebRequest -Uri $uri -Method $Method -Headers $script:authHeaders -UseBasicParsing -TimeoutSec $TimeoutSec `
                 -ContentType 'application/json' -Body ([System.Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $Body -Depth 6 -Compress)))
         }
         return @{ Status = [int]$resp.StatusCode; Body = (Convert-Body $resp.Content) }
@@ -61,13 +70,12 @@ try {
     $env:GALLERY_DIR = $galleryDir
     $env:DB_FILE = $dbFile
     $env:DB_SCHEMA_FILE = (Join-Path $root 'references\db\sqlite.sql')
-    $env:LOCAL_PORT = "$port"
-    # 本地模式监听的是 LOCAL_DEBUG_PORT（LOCAL_PORT 只在 HTTPS 生产模式生效）
-    $env:LOCAL_DEBUG_PORT = "$port"
+    $env:LOCAL_PORT = "$port"          # HTTPS
+    $env:LOCAL_HTTP_PORT = "$($port + 1)"   # HTTP（双端口同时监听）
     # 只关掉后台 worker，避免冒烟时拉起侧车进程；Ollama 仍可被对话/回顾按需使用
     $env:AI_ENABLED = 'false'
 
-    $proc = Start-Process -FilePath (Join-Path $root 'cmd.exe') -ArgumentList @('-mode', 'local') `
+    $proc = Start-Process -FilePath (Join-Path $root 'cmd.exe') `
         -WorkingDirectory $root -PassThru -WindowStyle Hidden `
         -RedirectStandardOutput $log -RedirectStandardError "$log.err"
 

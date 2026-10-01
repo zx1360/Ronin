@@ -26,8 +26,9 @@ const App = {
   components: { Toasts, ConfirmHost },
   setup() {
     const current = computed(() => routes.find((item) => item.path === state.route) || routes[0]);
-    const modeText = computed(() => (state.service.isLocalMode ? '本地 HTTP · 免鉴权' : 'HTTPS 生产'));
-    const address = computed(() => `127.0.0.1:${state.service.port || '?'}`);
+    // 同一套页面在 7274(HTTPS) 与 7275(HTTP) 上都能打开，显示以实际来源为准
+    const scheme = window.location.protocol.replace(':', '');
+    const address = computed(() => `127.0.0.1:${state.service.port || window.location.port || '?'}`);
 
     const onHashChange = () => {
       state.route = parseRoute();
@@ -40,7 +41,7 @@ const App = {
     });
     onUnmounted(() => window.removeEventListener('hashchange', onHashChange));
 
-    return { state, routes, current, modeText, address, bootstrap, navigate };
+    return { state, routes, current, scheme, address, bootstrap, navigate };
   },
   template: `
     <div class="shell" v-if="state.ready">
@@ -51,16 +52,14 @@ const App = {
              :class="{ active: item.path === state.route }">{{ item.label }}</a>
         </nav>
         <div class="sidebar-foot">
-          <div>{{ modeText }}</div>
+          <div>{{ scheme }} · X-API-Key</div>
           <div>{{ address }}</div>
         </div>
       </aside>
       <div class="main">
         <header class="topbar">
           <strong>{{ current.label }}</strong>
-          <span class="badge" :class="state.service.isLocalMode ? 'info' : 'primary'">
-            {{ state.service.isLocalMode ? 'local' : 'https' }}
-          </span>
+          <span class="badge primary">{{ scheme }}</span>
           <span class="badge" :class="state.cli.gallery.available ? 'success' : 'error'">
             gallery CLI {{ state.cli.gallery.available ? '就绪' : '不可用' }}
           </span>
@@ -78,7 +77,7 @@ const App = {
       <div class="placeholder error" v-if="state.bootError">
         {{ state.bootError }}
 
-请确认 Monarch 正在运行，且本页面通过本机地址访问（生产模式为 https://127.0.0.1:7274/ops/，本地模式为 http://127.0.0.1:7275/ops/）。
+请确认 Monarch 正在运行，并通过本机地址访问本页面：http://127.0.0.1:7274/ops/
       </div>
       <div class="boot" v-else>正在连接 Monarch…</div>
       <div class="content"><button class="primary" @click="bootstrap()">重试</button></div>

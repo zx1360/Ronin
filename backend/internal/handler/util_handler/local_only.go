@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"monarch/internal/config"
 )
 
 // LocalOnly 限制接口仅本机（回环地址）可访问，供网页运维端的本机能力接口使用。
@@ -30,4 +32,20 @@ func isLoopbackAddr(remoteAddr string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// ServedPort 返回本次请求实际落在的监听端口。
+//
+// 服务端同时监听 HTTPS 与 HTTP 两个端口，界面要如实回显"你现在是从哪个地址打开的"，
+// 因此不能固定返回配置里的某一个端口。
+func ServedPort(c *gin.Context) string {
+	if addr, ok := c.Request.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		if _, port, err := net.SplitHostPort(addr.String()); err == nil && port != "" {
+			return port
+		}
+	}
+	if _, port, err := net.SplitHostPort(c.Request.Host); err == nil && port != "" {
+		return port
+	}
+	return config.NetConf.LocalPort
 }

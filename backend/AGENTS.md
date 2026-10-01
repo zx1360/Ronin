@@ -63,23 +63,25 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 ### 技术栈
 
 Go + Gin + **单文件 SQLite**（`modernc.org/sqlite` 纯 Go 驱动，无外部数据库服务）。
-支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁；`<img>` 这类无法带请求头的
-资源可用 `api_key` 查询参数）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
-网页运维端（`/ops/` 与其本机能力接口）不受密钥保护，改由仅回环可访问的 `LocalOnly` 中间件把守。
+**同时监听两个端口，接口完全一致，只有协议不同**：`LOCAL_PORT`(7274) HTTPS（自签证书，供 Android 等
+局域网消费端，mDNS 广播此端口）与 `LOCAL_HTTP_PORT`(7275) HTTP（供本机浏览器打开运维页面，免证书警告）。
+`X-API-Key` 鉴权（含按 IP 的频率封禁；**本机回环地址永不封禁**，封禁日志里的本机记录也不再恢复；
+`<img>` 这类无法带请求头的资源可用 `api_key` 查询参数）。
+网页运维端在 `/ops/`（`http://127.0.0.1:7275/ops/` 或 `https://127.0.0.1:7274/ops/`），
+与其本机能力接口一样不受密钥保护，改由仅回环可访问的 `LocalOnly` 中间件把守（与端口无关）。
 
 ### 快速启动
 
 ```bash
-go run ./cmd -mode local    # 开发模式 (HTTP, 无鉴权)
-go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
+go run ./cmd                # 开发运行（HTTP + X-API-Key 鉴权）
 go build ./cmd              # 产出 cmd.exe（替换旧 exe；避免 go run 触发防火墙确认）
 cd gizmos && go build ./cmd/gallery   # 产出 gizmos/gallery.exe（网页端「任务管理」依赖它）
 ```
 
 ### 环境变量 (.env)
 
-`.env` 只保留"连库（以及拉起侧车进程）之前就必须知道"的项：`LOCAL_PORT`,
-`LOCAL_DEBUG_PORT`, `STATIC_DIR`, `GALLERY_DIR`, `DB_FILE`(默认 `data/monarch.db`),
+`.env` 只保留"连库（以及拉起侧车进程）之前就必须知道"的项：`LOCAL_PORT`(HTTPS),
+`LOCAL_HTTP_PORT`(HTTP), `STATIC_DIR`, `GALLERY_DIR`, `DB_FILE`(默认 `data/monarch.db`),
 `DB_SCHEMA_FILE`(默认 `references/db/sqlite.sql`), `API_KEY_SERVER`；
 comix 集成：`COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`(默认 `gizmos/comix`)
 / `COMIC_STORAGE_ROOT`（漫画图片存储根）。

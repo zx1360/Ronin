@@ -90,9 +90,7 @@ export default {
           <div class="col">
             <div class="small muted">运行模式</div>
             <div>
-              <Badge :kind="state.service.isLocalMode ? 'info' : 'primary'">
-                {{ state.service.isLocalMode ? 'HTTP · 本地模式（免鉴权）' : 'HTTPS · 生产模式（X-API-Key）' }}
-              </Badge>
+              <Badge kind="primary">X-API-Key 鉴权</Badge>
               <span class="muted"> 端口 {{ state.service.port }}</span>
             </div>
             <div class="small muted">本机能力接口仅回环可用：<span class="mono">/API/ops/local/*</span></div>

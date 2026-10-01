@@ -527,3 +527,72 @@ table.data tr:hover td {
   height: 100%;
   background: var(--primary);
 }
+
+/* ---- 大数据量面板 ----
+   数据条数可能远超一屏时，优先「分页 + 主区域滚动 + 表头吸顶」，
+   而不是塞进一个几十像素高的小滚动框。 */
+
+/* 有界滚动面板：确实需要固定高度（分组媒体墙、日志等）时使用 */
+.scroll-panel {
+  min-height: 240px;
+  max-height: calc(100vh - 300px);
+  overflow: auto;
+  border: 1px solid var(--surface-variant);
+  border-radius: var(--radius-s);
+  padding: 8px;
+}
+
+.scroll-panel.flush {
+  border: none;
+  padding: 0;
+}
+
+.scroll-panel.tall {
+  max-height: calc(100vh - 220px);
+}
+
+/* 工具条：筛选/分页控件整行排列，不挤在卡片标题里 */
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.toolbar .grow {
+  flex: 1;
+  min-width: 180px;
+}
+
+/* 表头吸顶（主区域滚动时仍然可见） */
+table.data.sticky thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+/* 分页条 */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* 多选列表：默认高度只能看到两三行，选项多时明显不够用 */
+select[multiple] {
+  min-height: 150px;
+}
+
+/* 更宽松的媒体网格（大屏多列、窄屏自动减列） */
+.media-grid.wide {
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+}
+
+.media-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+

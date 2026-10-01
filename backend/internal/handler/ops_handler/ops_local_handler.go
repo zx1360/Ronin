@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
+	"monarch/internal/handler/util_handler"
 	"monarch/internal/service/comix"
 	"monarch/internal/service/gallery"
 	"monarch/internal/service/taskengine"
@@ -35,11 +36,6 @@ func SetStore(s *config.OpsStore) { store = s }
 // API 密钥由服务端下发而不是让用户手填：网页端与 Monarch 同源同机，
 // 且本接口仅回环可访问，密钥不会离开本机。留空表示服务端未启用鉴权。
 func Bootstrap(c *gin.Context) {
-	port := config.NetConf.LocalPort
-	if config.IsLocalMode {
-		port = config.NetConf.LocalDebugPort
-	}
-
 	galleryOK, galleryMsg := gallery.Available()
 	comixOK, comixMsg := comix.Available()
 
@@ -48,8 +44,7 @@ func Bootstrap(c *gin.Context) {
 		"settings":     store.Snapshot(),
 		"settingsPath": absPath(store.Path()),
 		"service": gin.H{
-			"isLocalMode": config.IsLocalMode,
-			"port":        port,
+			"port": util_handler.ServedPort(c),
 		},
 		"paths": gin.H{
 			"staticDir":    absPath(config.AppConf.StaticDir),
