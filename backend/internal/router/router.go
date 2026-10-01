@@ -1,7 +1,9 @@
 package router
 
 import (
+	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/gin-contrib/cors"
@@ -13,6 +15,7 @@ import (
 	"monarch/internal/handler/comix_handler"
 	"monarch/internal/handler/data_handler"
 	"monarch/internal/handler/gallery_handler"
+	"monarch/internal/handler/ops_handler"
 	"monarch/internal/handler/util_handler"
 )
 
@@ -39,6 +42,9 @@ func SetupRouter() *gin.Engine {
 
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)
+
+	// 网页运维端（ops）：由后端内置 HTTP 服务托管，仅本机可打开
+	setupOpsWeb(r)
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -122,6 +128,18 @@ func SetupRouter() *gin.Engine {
 		api.GET("/test", util_handler.Test) // 免鉴权
 		api.GET("/ops/overview", util_handler.SystemOverview)
 
+		// 网页运维端的本机能力（仅回环可用）：路径定位、gallery 任务生命周期、偏好读写
+		opsLocal := api.Group("/ops/local", util_handler.LocalOnly())
+		{
+			opsLocal.GET("/bootstrap", ops_handler.Bootstrap)
+			opsLocal.PUT("/settings", ops_handler.UpdateSettings)
+			opsLocal.POST("/reveal", ops_handler.Reveal)
+			opsLocal.GET("/tasks", ops_handler.ListTasks)
+			opsLocal.POST("/tasks", ops_handler.StartTask)
+			opsLocal.GET("/tasks/:task-id", ops_handler.GetTask)
+			opsLocal.POST("/tasks/:task-id/stop", ops_handler.StopTask)
+		}
+
 		// AI 智能媒体处理层（运维 + 检索 + 组织）
 		aiGroup := api.Group("/ai")
 		{
@@ -171,4 +189,25 @@ func SetupRouter() *gin.Engine {
 	}
 
 	return r
+}
+
+// setupOpsWeb 托管网页运维端静态资源（/ops/），并重定向到目录形式的首页。
+//
+// 页面与它的本机能力接口一样仅限本机打开：网页端要调用只允许回环的接口，
+// 局域网客户端拿到页面也没法工作，不如直接拒绝。
+func setupOpsWeb(r *gin.Engine) {
+	webDir := config.OpsConf.WebDir
+	if webDir == "" {
+		log.Printf("[ops] OPS_WEB_DIR 未配置，网页运维端不可用")
+		return
+	}
+	if info, err := os.Stat(webDir); err != nil || !info.IsDir() {
+		log.Printf("[ops] 网页运维端目录不可用（%s），请检查 OPS_WEB_DIR", webDir)
+		return
+	}
+
+	group := r.Group("/ops", util_handler.LocalOnly())
+	group.GET("", func(c *gin.Context) { c.Redirect(http.StatusFound, "/ops/") })
+	group.Static("/", webDir)
+	log.Printf("[ops] 网页运维端已挂载: /ops/ -> %s", webDir)
 }

@@ -30,6 +30,11 @@ func APIKeyAuth() gin.HandlerFunc {
 		}
 
 		apiKey := c.GetHeader("X-API-Key")
+		if apiKey == "" {
+			// 浏览器无法给 <img>/<a> 附加请求头，图片等直接嵌入的资源
+			// 只能用查询参数携带密钥（网页运维端与 Monarch 同机同源）。
+			apiKey = c.Query("api_key")
+		}
 		if apiKey == expectedKey {
 			c.Next()
 			return

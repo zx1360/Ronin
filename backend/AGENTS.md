@@ -4,12 +4,17 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 
 ### 模块
 
-- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器，为 Torrid (Android) 和 Northstar (Ops) 提供 REST API。
-- **Gizmos CLI**（`gizmos/`，独立 Go module）：命令行批处理媒体库（`ingest`/`execute`/`refresh`）。
+- **Monarch HTTP**（`cmd/` + `internal/`）：Gin 服务器，为 Torrid (Android) 与 Northstar (Ops 网页端) 提供 REST API，
+  并直接托管网页运维端（`/ops/`，源码在 `ops/web/`）。
+- **Gizmos CLI**（`gizmos/`，独立 Go module）：命令行批处理媒体库（`ingest`/`execute`/`refresh`），
+  由服务端任务引擎托管生命周期（`/API/ops/local/tasks`，同一时刻只允许一个任务）。
 - **comix 爬虫**（`gizmos/comix/`，Python，随本仓库维护）：以子进程方式调用
   （`python -m comix.cli --json <cmd>`，协议见 comix `docs/协议文档.md`），
   提供 `/API/comix/*` 接口并由服务端**任务引擎管理爬虫生命周期**（状态/日志/中断/孤儿回收）。
   comix 的表（`comic_*`）由 comix 项目自行建表与维护，本项目只读写。
+- **子进程任务引擎**（`internal/service/taskengine/`）：通用的"启动进程 + 逐行日志 + 状态/退出码 +
+  kill 进程树"引擎，comix（`service/comix/tasks.go`）与 gallery（`service/gallery/`）都建立在它之上；
+  任务状态只在内存中，服务重启即清空（被托管的 CLI 均无状态或自带孤儿自愈）。
 - **视频探测**（`internal/service/media_probe/`）：以 ffmpeg/ffprobe 取帧与探测时长，供画廊剪辑页使用。
 - **AI 媒体处理层**（`internal/service/ai/` + `internal/repository/ai_repo/` + `handler/ai_handler/`）：
   按需拉起、空闲退出的本地 AI 能力。数据落在 AI 侧自有的 8 张表
@@ -34,7 +39,7 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
     全用在推理上，JSON 输出为空。不传 `keep_alive`，沿用 Ollama 默认（无请求 5 分钟后
     卸载模型）；用户已运行的 Ollama 直接复用，未运行时才自拉 `ollama serve`（靠
     `OLLAMA_MODELS` 指向同一模型库，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收）。
-  - 模型可切换：桌面端选择**标注**用哪个候选（`ai_config.json` 的 `vlm_model`），
+  - 模型可切换：网页端选择**标注**用哪个候选（`ai_config.json` 的 `vlm_model`），
     对话请求可用 `model` 字段逐次指定；候选由 `/API/ai/capabilities` 与 `/API/ai/status`
     的 `executor_candidates` 下发，消费端只渲染列表、不硬编码。
     备选模型可用社区 GGUF 本地构建：`ollama create -f Modelfile` 里必须有**两条 FROM**
@@ -58,8 +63,9 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
 ### 技术栈
 
 Go + Gin + **单文件 SQLite**（`modernc.org/sqlite` 纯 Go 驱动，无外部数据库服务）。
-支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁）。启动时自动通过
-mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
+支持 HTTP/HTTPS（自签证书），`X-API-Key` 鉴权（含按 IP 的频率封禁；`<img>` 这类无法带请求头的
+资源可用 `api_key` 查询参数）。启动时自动通过 mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
+网页运维端（`/ops/` 与其本机能力接口）不受密钥保护，改由仅回环可访问的 `LocalOnly` 中间件把守。
 
 ### 快速启动
 
@@ -67,6 +73,7 @@ mDNS (`_monarch._tcp`) 注册服务，供客户端自动发现。
 go run ./cmd -mode local    # 开发模式 (HTTP, 无鉴权)
 go run ./cmd                # 生产模式 (HTTPS, X-API-Key 鉴权)
 go build ./cmd              # 产出 cmd.exe（替换旧 exe；避免 go run 触发防火墙确认）
+cd gizmos && go build ./cmd/gallery   # 产出 gizmos/gallery.exe（网页端「任务管理」依赖它）
 ```
 
 ### 环境变量 (.env)
@@ -76,6 +83,8 @@ go build ./cmd              # 产出 cmd.exe（替换旧 exe；避免 go run 触
 `DB_SCHEMA_FILE`(默认 `references/db/sqlite.sql`), `API_KEY_SERVER`；
 comix 集成：`COMIX_PYTHON`(默认 `python`) / `COMIX_ROOT`(默认 `gizmos/comix`)
 / `COMIC_STORAGE_ROOT`（漫画图片存储根）。
+网页运维端：`OPS_WEB_DIR`（默认 `../ops/web`，源码目录，由 `/ops/` 托管）；
+gallery CLI 位置固定为 `gizmos/gallery.exe`，需要时可加 `GALLERY_CLI` 覆盖。
 另有一段 `DB_IP/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`：**仅一次性迁移脚本使用**，
 迁移确认无误后可删除（原 PostgreSQL 库保留作回滚）。
 
@@ -83,7 +92,7 @@ AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`A
 `AI_EMBED_MODEL`（换模型会使既有 `embeddings` 作废）、`OLLAMA_URL`、`OLLAMA_MODELS`、
 `OLLAMA_EXE`、`OLLAMA_VLM_MODEL`/`OLLAMA_VLM_MODEL_ALT`（候选模型名）、`OLLAMA_VLM_CTX`、
 `OLLAMA_KEEP_ALIVE`。
-**运行时可调项已迁到 `<STATIC_DIR>/data/ai_config.json`**（由桌面端 AI 页读写，改完即时生效，
+**运行时可调项已迁到 `<STATIC_DIR>/data/ai_config.json`**（由网页端 AI 页读写，改完即时生效，
 不必重启）：`idle_timeout_seconds`、`job_timeout_seconds`、`batch_size`、`max_attempts`、
 `workers`、`device`、`auto_capabilities`、`vlm_model`。首次启动时若配置文件不存在，
 会按 .env 同名项（`AI_IDLE_TIMEOUT` 等，作为种子值）与数据库 `settings` 表的旧值生成它；
@@ -100,6 +109,7 @@ AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`A
 | `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
 | `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）与 `only_deleted`（仅软删除项）；**不传 `vlm_tags` 时完全不触及 AI 侧数据表**，未初始化 AI 层的部署不受影响 |
 | `/API/ops` | `GET /overview` | 系统概览（Ops 用；`service.staticDir` 为 static 绝对路径） |
+| `/API/ops/local` | `GET /bootstrap`, `PUT /settings`, `POST /reveal`, `GET/POST /tasks`, `GET /tasks/:id`, `POST /tasks/:id/stop` | 网页运维端的**本机能力**：密钥与偏好/路径下发、界面偏好写 `<STATIC_DIR>/data/ops_web.json`、资源管理器定位、内置 gallery CLI 任务生命周期。仅回环可访问（`LocalOnly`），且免 API Key |
 | `/API/ai` | `GET /status`, `GET /capabilities`, `GET /jobs`, `POST /enqueue\|retry\|regenerate\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态与输入档位/执行者候选（`capabilities` 为端上唯一真源）、队列与进度、入队、重试失败项、单能力全量重生成（清产物后重排，破坏性）、暂停与继续、模型进程启停、运行时配置读写 |
 | `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `POST /duplicates/ignore\|unignore`, `GET /duplicates/ignored`, `GET /tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组（`ignore` = 人工判定「非重复」，之后不再参与分组，可随时恢复）、AI 标签清单（含出现次数） |
 | `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式（`notice`/`thinking`/`delta`/`done`/`aborted`/`error`），图片可用 `media_ids` 引用库内媒体或内联 base64；`model`/`num_ctx`/`think`/`temperature`/`keep_alive_seconds` 逐次可调 |
@@ -116,6 +126,7 @@ AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`A
 ```bash
 go build ./... && go vet ./... && go test ./...   # 在 backend/ 与 backend/gizmos/ 各执行一次
 python tools/smoke_api.py                         # 服务运行中逐个接口冒烟（详情见 AGENTS_DB.md）
+python tools/smoke_ops_web.py                    # 服务运行中逐页冒烟网页运维端（playwright）
 ```
 
 `go test ./internal/repository` 是数据层端到端验收：把 `data/monarch.db` 复制到临时目录后
