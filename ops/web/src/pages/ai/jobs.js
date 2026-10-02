@@ -105,7 +105,9 @@ export default {
       attempts: num(job.attempts),
       inputSig: job.input_sig || '',
       lastError: job.last_error || '',
+      // created_at 是入队时间，可能已是几天前；updated_at 才是"这个任务最近动过没有"
       created: formatTime(job.created_at, false),
+      updated: formatTime(job.updated_at, false),
     })));
 
     const gotoPage = (target) => {
@@ -198,7 +200,7 @@ export default {
           <table class="data sticky">
             <thead>
               <tr>
-                <th>能力</th><th>状态</th><th>媒体</th><th>尝试</th><th>输入指纹</th><th>创建</th><th>最近错误</th>
+                <th>能力</th><th>状态</th><th>媒体</th><th>尝试</th><th>输入指纹</th><th>入队</th><th>最近更新</th><th>最近错误</th>
               </tr>
             </thead>
             <tbody>
@@ -209,6 +211,7 @@ export default {
                 <td>{{ row.attempts }}</td>
                 <td class="mono">{{ row.inputSig || '—' }}</td>
                 <td class="small">{{ row.created }}</td>
+                <td class="small">{{ row.updated }}</td>
                 <td class="small" style="color: var(--warning)">{{ row.lastError }}</td>
               </tr>
             </tbody>

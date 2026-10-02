@@ -8,11 +8,11 @@ import (
 	"sync"
 )
 
-// 网页运维端（ops）的界面偏好
+// 网页运维端（ops）的偏好
 //
-// 这些是纯展示/交互偏好，不影响服务端行为，因此与 AI 运行时配置分开存放：
-// `STATIC_DIR/data/ops_web.json`。不写用户目录，随应用目录一起迁移与备份。
+// 存在 `STATIC_DIR/data/ops_web.json`，不写用户目录，随应用目录一起迁移与备份。
 // 字段用指针表示"本次请求未涉及该项"，便于界面做局部更新。
+// 例外是 AiPaused：它不只是界面偏好，服务端启动时按它决定任务队列的初始状态。
 
 // OpsSettings 网页运维端偏好（读取后一律已填充为具体值）。
 type OpsSettings struct {
@@ -20,6 +20,8 @@ type OpsSettings struct {
 	AiRefreshSeconds   *int  `json:"ai_refresh_seconds,omitempty"`   // AI 页轮询间隔（秒）
 	LogLineLimit       *int  `json:"log_line_limit,omitempty"`       // 日志页单任务展示行数上限
 	ConfirmDestructive *bool `json:"confirm_destructive,omitempty"`  // 破坏性操作二次确认
+	// AiPaused AI 任务队列是否处于暂停；服务端启动时按它恢复上次的状态（缺省即暂停）
+	AiPaused *bool `json:"ai_paused,omitempty"`
 }
 
 // 偏好的默认值与合法范围。
@@ -27,6 +29,8 @@ const (
 	defaultAutoRefresh = 10
 	defaultAiRefresh   = 3
 	defaultLogLines    = 800
+	// 队列初始为暂停：批处理会长时间吃满 CPU/GPU，不应在用户没表态时随服务启动自动开跑。
+	defaultAiPaused = true
 
 	minAutoRefresh = 5
 	maxAutoRefresh = 3600
@@ -35,6 +39,12 @@ const (
 	minLogLines    = 100
 	maxLogLines    = 5000
 )
+
+// opsSettingsKeys 配置文件里的全部已知键；Load 时缺项会回写一份完整配置。
+var opsSettingsKeys = []string{
+	"auto_refresh_seconds", "ai_refresh_seconds", "log_line_limit",
+	"confirm_destructive", "ai_paused",
+}
 
 // OpsStore 串行化对网页端偏好文件的读写。
 type OpsStore struct {
@@ -70,7 +80,26 @@ func (s *OpsStore) Load() error {
 		return fmt.Errorf("网页端偏好取值非法 (%s): %w", s.path, err)
 	}
 	applyOpsSettings(&s.cur, loaded)
+	// 回写一次补齐文件里缺的键（版本升级新增项时），否则用户看不到该项也改不了
+	if len(missingOpsKeys(raw)) > 0 {
+		return s.saveLocked()
+	}
 	return nil
+}
+
+// missingOpsKeys 返回文件里缺少的已知键；解析失败时不追加写入（Load 已就此报错）。
+func missingOpsKeys(raw []byte) []string {
+	var present map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &present); err != nil {
+		return nil
+	}
+	var missing []string
+	for _, key := range opsSettingsKeys {
+		if _, ok := present[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	return missing
 }
 
 // Snapshot 返回当前偏好的副本。
@@ -127,11 +156,13 @@ func (s *OpsStore) saveLocked() error {
 
 func defaultOpsSettings() OpsSettings {
 	confirm := true
+	paused := defaultAiPaused
 	return OpsSettings{
 		AutoRefreshSeconds: intPtr(defaultAutoRefresh),
 		AiRefreshSeconds:   intPtr(defaultAiRefresh),
 		LogLineLimit:       intPtr(defaultLogLines),
 		ConfirmDestructive: &confirm,
+		AiPaused:           &paused,
 	}
 }
 
@@ -156,6 +187,10 @@ func applyOpsSettings(dst *OpsSettings, update OpsSettings) {
 	if update.ConfirmDestructive != nil {
 		value := *update.ConfirmDestructive
 		dst.ConfirmDestructive = &value
+	}
+	if update.AiPaused != nil {
+		value := *update.AiPaused
+		dst.AiPaused = &value
 	}
 }
 
@@ -194,6 +229,10 @@ func cloneOpsSettings(src OpsSettings) OpsSettings {
 	if src.ConfirmDestructive != nil {
 		value := *src.ConfirmDestructive
 		dst.ConfirmDestructive = &value
+	}
+	if src.AiPaused != nil {
+		value := *src.AiPaused
+		dst.AiPaused = &value
 	}
 	return dst
 }

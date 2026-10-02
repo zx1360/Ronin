@@ -65,6 +65,8 @@ type Engine struct {
 	cancelRequested atomic.Bool
 	// paused 用户暂停队列：中断当前批次后不再认领新任务，直到 Resume
 	paused atomic.Bool
+	// pauseStore 暂停状态的持久化位置（网页端偏好文件）；为 nil 时只在内存里保持
+	pauseStore *config.OpsStore
 	// clusterRun 串行化重新聚类操作
 	clusterRun sync.Mutex
 
@@ -110,6 +112,9 @@ func New(store *config.ConfigStore, cfg config.AiConfig) *Engine {
 	return e
 }
 
+// SetPauseStore 注入暂停状态的持久化位置（网页端偏好文件）；须在 Start 之前调用。
+func (e *Engine) SetPauseStore(store *config.OpsStore) { e.pauseStore = store }
+
 // Config 返回当前生效的 AI 配置副本。
 func (e *Engine) Config() config.AiConfig { return e.rt.Config() }
 
@@ -131,6 +136,13 @@ func (e *Engine) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	e.cancel = cancel
 	e.started = true
+
+	// 恢复上次的暂停状态（缺省即暂停）：批处理会长时间占满 CPU/GPU，
+	// 不应该在用户没表态时随服务启动自动开跑。
+	e.paused.Store(e.initialPaused())
+	if e.paused.Load() {
+		log.Println("[AI] 任务队列初始为暂停（可在网页端「继续处理」）")
+	}
 
 	// 服务刚启动，不可能有本进程的任务在跑：把遗留的 running 全部回收
 	if n, err := ai_repo.RecoverStaleRunning(0, cfg.MaxAttempts); err != nil {
@@ -161,6 +173,27 @@ func (e *Engine) Stop() {
 		}
 		e.ollama.Shutdown()
 	})
+}
+
+// initialPaused 读取持久化的暂停状态；没有记录时按"暂停"处理。
+func (e *Engine) initialPaused() bool {
+	if e.pauseStore == nil {
+		return true
+	}
+	if value := e.pauseStore.Snapshot().AiPaused; value != nil {
+		return *value
+	}
+	return true
+}
+
+// persistPaused 把暂停状态写回偏好文件（失败只记日志：状态已生效，不值得为此报错）。
+func (e *Engine) persistPaused(paused bool) {
+	if e.pauseStore == nil {
+		return
+	}
+	if err := e.pauseStore.Update(config.OpsSettings{AiPaused: &paused}); err != nil {
+		log.Printf("[AI] 保存暂停状态失败: %v", err)
+	}
 }
 
 // Wake 唤醒 worker 立即检查队列（入队后调用，避免等待轮询间隔）。

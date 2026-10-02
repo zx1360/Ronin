@@ -15,11 +15,21 @@ export function num(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-/** 处理进度百分比（「尚无产物」也计入分母，与桌面端一致）。 */
-export function progressPercent(done, pending, missing) {
-  const total = num(done) + num(pending) + num(missing);
-  if (total <= 0) return 0;
-  return Math.min(100, Math.round((num(done) / total) * 100));
+/** 处理进度百分比：分母是媒体总数。
+ *
+ * 「尚无产物」不能计入分母——人脸这类能力里"这张图本来就没有脸"同样算处理成功，
+ * 加进去会把同一批媒体算两遍（该能力显示成 70087/109821 就是这么来的）。 */
+export function progressPercent(done, total) {
+  const all = num(total);
+  if (all <= 0) return 0;
+  return Math.min(100, Math.round((num(done) / all) * 100));
+}
+
+/** 已处理条数：任务行数可能略多于媒体数（删掉的媒体也留着行），显示时夹到总数。 */
+export function doneCount(done, total) {
+  const all = num(total);
+  const value = num(done);
+  return all > 0 ? Math.min(value, all) : value;
 }
 
 /** 取库内相对路径的文件名。 */

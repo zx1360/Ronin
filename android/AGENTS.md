@@ -67,6 +67,8 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
   流式增量只更新内存，一轮结束（或失败）才落库。
 - 请求经 `features/chat/services/chat_api_service.dart`（`POST /API/ai/chat`，逐行解析 NDJSON）；
   对话设置（模型/上下文/思考/温度/自定义卸载超时）存 SharedPreferences，随每次请求下发。
+  可选模型不做端上硬编码：取 `/API/ai/capabilities` 的 `executor_candidates`（服务端实时从本机
+  Ollama 取，含 `installed`/`vision`）；本地保存的模型已被删除时自动清空为"跟随后端"。
 - 流式事件里 `notice` 用 SnackBar 提示、`aborted`（被另一个模型抢占）标为"已中断 + 继续"而不是
   错误；气泡文本不可选中（长按复制），避免文本选择器抢走上下拖动。
 - 消息列表只有处于"贴底"状态才跟随流式输出，用户上滑翻阅历史时不强拉，并给出"回到最新"按钮。
@@ -83,6 +85,8 @@ Flutter 目标平台仅为安卓移动端的应用，Ronin 三端架构的消费
 
 - 统计与抽样全在**后端**（booklet/essay 数据只在那里），端上只选角色/语气预设与时间范围，
   再消费 NDJSON 流：`stats` 事件（本次依据的确定性统计，页面上可展开核对）→ `delta` 逐字正文。
+- 沿用对话设置的模型/上下文/温度/卸载超时；**思考链固定关闭**（一次性写作，思考只拖慢首字且端上
+  不展示），设置页已注明。
 - 生成结果**只存本机**（Hive `reviewHistory`，见 `_HistoryDrawer`），可回看与删除，不上传；
   载入历史不会覆盖草稿以外的任何数据。
 - 角色/语气预设以服务端 `<STATIC_DIR>/data/review_presets.json` 为权威：读取时先用 Hive 镜像

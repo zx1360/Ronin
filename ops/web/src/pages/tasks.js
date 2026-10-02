@@ -41,6 +41,8 @@ export default {
     };
 
     const hasRunning = computed(() => tasks.value.some((task) => task.status === 'running'));
+    // enabled 只在"有任务在跑"时为真，因此每次操作后都必须经 poller.trigger() 走一遍：
+    // 它才是那个会按 enabled 续期轮询的入口，直接调 load() 会让页面停在启动前的快照上。
     const poller = usePolling(load, { interval: () => 2, enabled: () => hasRunning.value });
     onMounted(() => poller.trigger());
 
@@ -61,10 +63,20 @@ export default {
 
       starting.value = true;
       try {
-        const payload = { ...form.value };
+        // resize 系列只在 refresh 模式合法：其它模式带上会被服务端判为非法参数
+        const payload = {
+          mode: form.value.mode,
+          concurrency: form.value.concurrency,
+          batch: form.value.batch,
+        };
+        if (form.value.mode === 'refresh') {
+          payload.resize = form.value.resize;
+          payload.resizePreview = form.value.resizePreview;
+          payload.resizeThumb = form.value.resizeThumb;
+        }
         const data = await api.post('/API/ops/local/tasks', payload, { timeoutMs: 20000 });
         toast(`任务已启动: ${data?.data?.task_id || ''}`, 'success');
-        await load();
+        await poller.trigger();
       } catch (err) {
         toast(`启动失败: ${err.message}`, 'error');
       } finally {
@@ -78,7 +90,7 @@ export default {
       try {
         await api.post(`/API/ops/local/tasks/${task.id}/stop`);
         toast('已发送中断命令', 'success');
-        await load();
+        await poller.trigger();
       } catch (err) {
         toast(`中断失败: ${err.message}`, 'error');
       }
@@ -89,9 +101,14 @@ export default {
       return formatDuration(end - new Date(task.started_at));
     };
 
+    /** 退出码文案：未结束/未记录时显示占位符（模板里不用 ??）。 */
+    const exitCodeText = (task) => (
+      task.exit_code === null || task.exit_code === undefined ? '—' : String(task.exit_code)
+    );
+
     return {
       state, form, tasks, error, starting, hasRunning, canStart, currentMode, MODES,
-      start, stop, load, duration, formatTime, navigate,
+      start, stop, poller, duration, exitCodeText, formatTime, navigate,
     };
   },
   template: `
@@ -155,7 +172,7 @@ export default {
 
       <Card title="Gallery 任务">
         <template #actions>
-          <button class="ghost sm" @click="load()">刷新</button>
+          <button class="ghost sm" @click="poller.trigger()">刷新</button>
         </template>
         <Placeholder v-if="error" :error="'获取任务列表失败: ' + error" />
         <Placeholder v-else-if="!tasks.length" text="暂无任务" />
@@ -175,7 +192,7 @@ export default {
               <td>{{ task.pid || '—' }}</td>
               <td class="small">{{ formatTime(task.started_at, false) }}</td>
               <td class="small">{{ duration(task) }}</td>
-              <td>{{ task.exit_code ?? '—' }}</td>
+              <td>{{ exitCodeText(task) }}</td>
               <td class="mono muted">{{ task.command }}</td>
               <td class="row">
                 <button class="ghost sm" @click="navigate('/logs')">日志</button>

@@ -434,6 +434,69 @@ func RetryFailed(capability string, mediaIDs []uuid.UUID) (int64, error) {
 	return n, nil
 }
 
+// FailedJob 一条失败任务及其媒体信息（供界面回答"到底哪些文件处理失败了"）。
+type FailedJob struct {
+	JobID      int64   `json:"job_id"`
+	Capability string  `json:"capability"`
+	MediaID    string  `json:"media_id"`
+	Attempts   int     `json:"attempts"`
+	LastError  string  `json:"last_error"`
+	UpdatedAt  string  `json:"updated_at"`
+	FilePath   string  `json:"file_path"`
+	MimeType   string  `json:"mime_type"`
+	IsDeleted  bool    `json:"is_deleted"`
+	// ThumbPath 缩略图相对路径；为空表示该媒体没有缩略图（界面据此跳过请求）
+	ThumbPath *string `json:"thumb_path"`
+}
+
+// ListFailures 查询失败任务（capability 为空表示全部能力），附带媒体路径与软删除标记。
+func ListFailures(capability string, limit, offset int) ([]FailedJob, int, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	if err := ensureSchema(ctx); err != nil {
+		return nil, 0, err
+	}
+
+	where := "j.status = 'failed'"
+	args := []any{}
+	if capability != "" {
+		where += " AND j.capability = ?"
+		args = append(args, capability)
+	}
+
+	var total int
+	if err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM jobs j WHERE `+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("统计失败任务失败: %w", err)
+	}
+
+	rows, err := db.Read().QueryContext(ctx, `
+		SELECT j.id, j.capability, j.media_id, j.attempts, COALESCE(j.last_error, ''),
+		       COALESCE(j.updated_at, ''), m.file_path, COALESCE(m.mime_type, ''),
+		       m.is_deleted, m.thumb_path
+		FROM jobs j
+		JOIN media_assets m ON m.id = j.media_id
+		WHERE `+where+`
+		ORDER BY j.updated_at DESC, j.id DESC
+		LIMIT ? OFFSET ?`, append(args, limit, offset)...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("查询失败任务失败: %w", err)
+	}
+	defer rows.Close()
+
+	items := []FailedJob{}
+	for rows.Next() {
+		var item FailedJob
+		if err := rows.Scan(&item.JobID, &item.Capability, &item.MediaID, &item.Attempts,
+			&item.LastError, &item.UpdatedAt, &item.FilePath, &item.MimeType,
+			&item.IsDeleted, &item.ThumbPath); err != nil {
+			return nil, 0, fmt.Errorf("扫描失败任务失败: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
 // Stats 返回各能力的队列计数（按 model.AllCapabilities 顺序补齐缺失项）。
 func Stats() ([]model.AiCapabilityStat, error) {
 	ctx, cancel := db.GetDefaultCtx()

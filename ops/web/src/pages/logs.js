@@ -91,13 +91,17 @@ export default {
     });
 
     const lines = computed(() => {
-      const logs = detail.value?.logs || [];
+      const logs = (detail.value && detail.value.logs) || [];
       const limit = state.settings.log_line_limit || 800;
       const sliced = logs.length > limit ? logs.slice(logs.length - limit) : logs;
       const word = keyword.value.trim().toLowerCase();
       if (!word) return sliced;
       return sliced.filter((item) => (item.text || '').toLowerCase().includes(word));
     });
+
+    /** 模板里不用 `?.`：命令行与总行数在 setup 里算好（未选中任务时为空）。 */
+    const commandText = computed(() => ((selected.value && selected.value.command) || '—'));
+    const rawLineCount = computed(() => (((detail.value && detail.value.logs) || []).length));
 
     const copyAll = async () => {
       const text = lines.value
@@ -114,6 +118,7 @@ export default {
     return {
       state, tasks, selectedKey, selected, detail, keyword, autoScroll, lines, listError,
       viewRef, runningSelected, loadDetail, copyAll, formatClock, taskStatusText, SOURCES,
+      commandText, rawLineCount,
     };
   },
   template: `
@@ -150,9 +155,9 @@ export default {
           </div>
 
           <div class="small muted" style="margin-bottom: 8px">
-            命令: <span class="mono">{{ selected?.command }}</span>
+            命令: <span class="mono">{{ commandText }}</span>
             <span v-if="keyword" class="badge warning" style="margin-left: 8px">
-              过滤后 {{ lines.length }} 行（原 {{ (detail?.logs || []).length }} 行）
+              过滤后 {{ lines.length }} 行（原 {{ rawLineCount }} 行）
             </span>
           </div>
 
