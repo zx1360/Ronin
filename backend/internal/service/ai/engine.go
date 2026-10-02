@@ -144,6 +144,11 @@ func (e *Engine) Start() {
 		log.Println("[AI] 任务队列初始为暂停（可在网页端「继续处理」）")
 	}
 
+	// 从未选过标注模型时（首次部署/清空过选择）从本机模型里挑一个并落盘
+	if e.ResolveVLMModel() == "" {
+		log.Println("[AI] 本机没有可用的 Ollama 模型，标注能力将保持不可用")
+	}
+
 	// 服务刚启动，不可能有本进程的任务在跑：把遗留的 running 全部回收
 	if n, err := ai_repo.RecoverStaleRunning(0, cfg.MaxAttempts); err != nil {
 		log.Printf("[AI] 回收孤儿任务失败: %v", err)

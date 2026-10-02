@@ -65,8 +65,6 @@ type AiConfig struct {
 	Workers         int           // 并发批次上限
 	EmbedModel      string        // SigLIP 模型标识
 	OllamaURL       string
-	OllamaVLM       string        // VLM 模型名（默认）
-	OllamaVLMAlt    string        // 备选 VLM 模型（无审查版），两端可在设置里切换
 	OllamaVLMCTX    int           // VLM 请求的上下文长度（token）
 	OllamaKeepAlive time.Duration // 对话请求显式下发的模型驻留时长（前端"后端默认值"即此项）
 	OllamaIdle      time.Duration // 自拉的 ollama serve 空闲多久后回收（应大于模型 keep_alive）
@@ -163,9 +161,8 @@ func loadAiConfig() {
 	AiConf.Workers = envInt("AI_WORKERS", 1, 1, 4)
 	AiConf.EmbedModel = envString("AI_EMBED_MODEL", "siglip2-base-patch16-224")
 	AiConf.OllamaURL = strings.TrimRight(envString("OLLAMA_URL", "http://127.0.0.1:11434"), "/")
-	AiConf.OllamaVLM = envString("OLLAMA_VLM_MODEL", "qwen3.5:4b")
-	// 备选模型：社区对 Qwen3.5-4B 的无审查（abliteration）版本，保留视觉能力
-	AiConf.OllamaVLMAlt = envString("OLLAMA_VLM_MODEL_ALT", "huihui_ai/qwen3.5-abliterated:4B")
+	// 标注/对话用哪个模型不在这里配置：候选实时来自本机 Ollama，
+	// 选定结果存在 ai_config.json 的 vlm_model 里（从未选过时自动挑一个并落盘）。
 	// 每次请求显式下发上下文窗口，使行为不受 Ollama 应用默认值影响。
 	// 缺省 65,536 对批量标注（实测每张约 220 token）已是数十倍余量。
 	AiConf.OllamaVLMCTX = envInt("OLLAMA_VLM_CTX", 65536, 2048, 262144)

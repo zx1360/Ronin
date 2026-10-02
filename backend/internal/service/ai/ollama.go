@@ -642,11 +642,9 @@ func (o *Ollama) Shutdown() {
 // OllamaState Ollama 运行状态快照。
 type OllamaState struct {
 	URL string `json:"url"`
-	// Model 当前生效的 VLM 标注模型；ModelDefault/ModelAlt 为两个候选（默认 / 无审查版）
-	Model        string `json:"model"`
-	ModelDefault string `json:"model_default"`
-	ModelAlt     string `json:"model_alt"`
-	ActiveModel  string `json:"active_model"` // 当前正在推理的模型（空 = 空闲）
+	// Model 当前选定的 VLM 标注模型（空 = 尚未选定）
+	Model       string `json:"model"`
+	ActiveModel string `json:"active_model"` // 当前正在推理的模型（空 = 空闲）
 	// LastSwitch 最近一次"后台批次被前台对话抢占"的说明（空 = 无）
 	LastSwitch  string   `json:"last_switch,omitempty"`
 	NumCtx      int      `json:"num_ctx"`
@@ -668,14 +666,12 @@ type OllamaState struct {
 	Thinking bool `json:"thinking"`
 }
 
-// State 返回 Ollama 状态快照；model 为当前生效的 VLM 模型。
-func (o *Ollama) State(ctx context.Context, model, modelAlt string) OllamaState {
+// State 返回 Ollama 状态快照；model 为当前选定的 VLM 模型。
+func (o *Ollama) State(ctx context.Context, model string) OllamaState {
 	cfg := o.currentConfig()
 	state := OllamaState{
 		URL:                     cfg.OllamaURL,
 		Model:                   model,
-		ModelDefault:            cfg.OllamaVLM,
-		ModelAlt:                modelAlt,
 		NumCtx:                  cfg.OllamaVLMCTX,
 		KeepAlive:               fmt.Sprintf("对话请求下发 %ds；批量标注沿用 Ollama 默认（无请求 5 分钟后卸载模型）", int(cfg.OllamaKeepAlive.Seconds())),
 		KeepAliveDefaultSeconds: int(cfg.OllamaKeepAlive.Seconds()),

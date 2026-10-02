@@ -28,7 +28,7 @@ type RuntimeConfig struct {
 	Workers            *int      `json:"workers,omitempty"`
 	Device             *string   `json:"device,omitempty"`            // auto / cpu
 	AutoCapabilities   *[]string `json:"auto_capabilities,omitempty"` // 入库后自动执行的能力
-	VLMModel           *string   `json:"vlm_model,omitempty"`         // 空字符串 = 用 .env 默认模型
+	VLMModel           *string   `json:"vlm_model,omitempty"`         // 标注/对话选定的模型；空 = 尚未选定
 }
 
 // ConfigStore 串行化对配置文件的读写。
@@ -276,7 +276,7 @@ func applySnapshotTo(cfg *AiConfig, runtime RuntimeConfig) {
 	if runtime.AutoCapabilities != nil {
 		cfg.AutoCaps = append([]string{}, (*runtime.AutoCapabilities)...)
 	}
-	// VLMModel 选择在引擎侧维护（默认模型仍取 cfg.OllamaVLM），此处不覆盖。
+	// VLMModel 选择在引擎侧维护（标注/对话用哪个模型），此处不覆盖。
 }
 
 // cloneRuntime 深拷贝运行时配置（切片字段不能共享底层数组）。

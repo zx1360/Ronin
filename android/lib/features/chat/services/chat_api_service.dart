@@ -36,20 +36,18 @@ class ChatStreamEvent {
 /// 一个可选的对话模型（由服务端下发，实时来自本机 Ollama 的已安装模型）。
 class ChatModelOption {
   final String model;
-  final String label;
 
   /// 本机是否已安装（服务端判定，端上不再自己做名称比较）。
   final bool installed;
 
-  /// 是否带视觉能力：不带的话发图片提问会答非所问，标注任务更不能选。
+  /// 是否带视觉能力：不带的话发图片提问会答非所问。
   final bool vision;
 
-  /// 服务端当前生效的模型。
+  /// 服务端当前选定的模型。
   final bool current;
 
   const ChatModelOption({
     required this.model,
-    required this.label,
     required this.installed,
     required this.vision,
     required this.current,
@@ -58,13 +56,13 @@ class ChatModelOption {
 
 /// 服务端对话相关默认值（`/API/ai/status` 的 ollama 段 + `/API/ai/capabilities`）。
 class ChatServerInfo {
-  /// 当前生效的 VLM 标注模型。
+  /// 当前选定的标注模型（即不逐次指定 model 时使用的那个）。
   final String model;
 
   /// 当前正在推理的模型（空 = 空闲）。
   final String activeModel;
 
-  /// 可选的对话模型候选。
+  /// 可选的对话模型候选（服务端拿不到本机模型时为空）。
   final List<ChatModelOption> candidates;
 
   final int numCtx;
@@ -88,15 +86,10 @@ final chatServerInfoProvider = FutureProvider<ChatServerInfo>((ref) async {
     final response = await client.get('/API/ai/status');
     final data = response.data as Map<String, dynamic>;
     final ollama = data['ollama'] as Map<String, dynamic>? ?? const {};
-    final installed = [
-      for (final item in (ollama['models'] as List? ?? const []))
-        item.toString(),
-    ];
 
-    // 候选以服务端下发的执行者候选为准（服务端实时从本机 Ollama 取，
-    // 用户自行 pull/rm 模型后无需改端上代码）；拿不到时退回状态里的两个候选。
-    final candidates = await _fetchCandidates(client) ??
-        _fallbackCandidates(ollama, installed);
+    // 候选就是本机已安装的模型（服务端实时从 Ollama 取，用户自行 pull/rm 后无需改端上代码）；
+    // 拿不到清单时给空列表，页面如实显示"无法获取模型清单"，不凭空造候选。
+    final candidates = await _fetchCandidates(client) ?? const <ChatModelOption>[];
 
     return ChatServerInfo(
       model: (ollama['model'] ?? '').toString(),
@@ -126,7 +119,6 @@ Future<List<ChatModelOption>?> _fetchCandidates(ApiClient client) async {
         for (final candidate in raw)
           ChatModelOption(
             model: (candidate['model'] ?? '').toString(),
-            label: (candidate['label'] ?? candidate['model'] ?? '').toString(),
             installed: candidate['installed'] == true,
             vision: candidate['vision'] == true,
             current: candidate['is_current'] == true,
@@ -137,44 +129,6 @@ Future<List<ChatModelOption>?> _fetchCandidates(ApiClient client) async {
   } catch (_) {
     return null;
   }
-}
-
-/// 能力清单不可用时的兜底候选（老版本服务端的 model_default / model_alt）。
-List<ChatModelOption> _fallbackCandidates(
-  Map<String, dynamic> ollama,
-  List<String> installed,
-) {
-  final current = (ollama['model'] ?? '').toString();
-  final entries = <List<String>>[
-    ['标准版', (ollama['model_default'] ?? '').toString()],
-    ['无审查版', (ollama['model_alt'] ?? '').toString()],
-  ];
-  final seen = <String>{};
-  final out = <ChatModelOption>[];
-  for (final entry in entries) {
-    final name = entry[1];
-    if (name.isEmpty || !seen.add(name.toLowerCase())) continue;
-    out.add(ChatModelOption(
-      model: name,
-      label: entry[0],
-      // 模型名大小写不敏感（配置里是 :4B，Ollama 里存的是 :4b）
-      installed: _installedIn(installed, name),
-      vision: true,
-      current: name.toLowerCase() == current.toLowerCase(),
-    ));
-  }
-  return out;
-}
-
-/// 判断模型是否在已安装列表里（容忍大小写与 tag 差异）。
-bool _installedIn(List<String> installed, String model) {
-  final target = model.toLowerCase();
-  if (target.isEmpty) return false;
-  for (final item in installed) {
-    final name = item.toLowerCase();
-    if (name == target || name.startsWith('$target:')) return true;
-  }
-  return false;
 }
 
 class ChatApiService {

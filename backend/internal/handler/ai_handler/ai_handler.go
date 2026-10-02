@@ -325,7 +325,7 @@ func StartModel(c *gin.Context) {
 
 	switch capability {
 	case model.CapVLM:
-		if err := e.OllamaProvider().EnsureReady(ctx, e.VLMModel()); err != nil {
+		if err := e.OllamaProvider().EnsureReady(ctx, e.ResolveVLMModel()); err != nil {
 			fail(c, err)
 			return
 		}
@@ -858,7 +858,6 @@ func ListCapabilities(c *gin.Context) {
 			"device":               cfg.Device,
 			"auto_capabilities":    e.AutoCapabilities(),
 			"vlm_model":            e.VLMModel(),
-			"vlm_model_default":    cfg.OllamaVLM,
 			"config_path":          e.ConfigPath(),
 		},
 	})
@@ -875,8 +874,6 @@ func GetSettings(c *gin.Context) {
 		"auto_capabilities":    e.AutoCapabilities(),
 		"all_capabilities":     model.AllCapabilities,
 		"vlm_model":            e.VLMModel(),
-		"vlm_model_default":    cfg.OllamaVLM,
-		"vlm_model_alt":        e.VLMAltModel(),
 		"idle_timeout_seconds": int(cfg.IdleTimeout.Seconds()),
 		"job_timeout_seconds":  int(cfg.JobTimeout.Seconds()),
 		"batch_size":           cfg.BatchSize,
@@ -919,16 +916,13 @@ func UpdateSettings(c *gin.Context) {
 			}
 		}
 	}
-	if req.VLMModel != nil {
-		// 只接受本机已安装的模型（空串 = 恢复 .env 默认模型）。
-		// 归一化后再落库，避免配置里的大小写（:4B）与库里的实际名字（:4b）不一致。
+	if req.VLMModel != nil && strings.TrimSpace(*req.VLMModel) != "" {
+		// 只接受本机已安装的模型；传空串表示清除选择（下面交给服务端重新自动挑一个）。
+		// 归一化后再落库，避免大小写（:4B / :4b）不一致。
 		normalized, err := e.NormalizeModel(*req.VLMModel)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
-		}
-		if strings.TrimSpace(*req.VLMModel) == "" {
-			normalized = ""
 		}
 		req.VLMModel = &normalized
 	}
@@ -947,6 +941,10 @@ func UpdateSettings(c *gin.Context) {
 		// 取值非法属于客户端错误，如实回 400 并给出范围提示
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	// 选择被清空时立刻从实时列表重新挑一个：否则标注与对话会在"没有模型"的状态下卡住
+	if req.VLMModel != nil && strings.TrimSpace(*req.VLMModel) == "" {
+		e.ResolveVLMModel()
 	}
 	e.Wake()
 

@@ -86,7 +86,7 @@ func TestKeepAliveMapping(t *testing.T) {
 	}
 }
 
-// TestSupportsThinking 带命名空间的社区模型（无审查版）同样要能开启"深度思考"。
+// TestSupportsThinking 带命名空间的社区重打包模型（如 abliteration 版）同样要能开启"深度思考"。
 func TestSupportsThinking(t *testing.T) {
 	cases := map[string]bool{
 		"qwen3.5:4b":                       true,

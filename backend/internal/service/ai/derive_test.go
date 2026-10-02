@@ -52,7 +52,13 @@ func TestAIDerivedPath(t *testing.T) {
 // 且 VLM 的执行者随所选模型变化（这正是自动重排的依据）。
 func TestCapabilitySpecs(t *testing.T) {
 	config.AppConf.GalleryDir = filepath.Join("C:", "Gallery")
-	e := New(nil, config.AiConfig{EmbedModel: "siglip2-base-patch16-224", OllamaVLM: "model-a"})
+	// 模型选择存在配置文件里（临时文件，不碰真实配置）
+	selected := "model-a"
+	store := config.NewConfigStore(filepath.Join(t.TempDir(), "ai_config.json"), config.AiConfig{})
+	if err := store.Update(config.RuntimeConfig{VLMModel: &selected}); err != nil {
+		t.Fatalf("写入模型选择失败: %v", err)
+	}
+	e := New(store, config.AiConfig{EmbedModel: "siglip2-base-patch16-224"})
 
 	specs := map[string]string{}
 	tiers := map[string]string{}
@@ -77,7 +83,7 @@ func TestCapabilitySpecs(t *testing.T) {
 		}
 	}
 
-	// 未指定模型时用配置里的默认模型
+	// 未显式指定模型时用当前选定的模型
 	if got := specs[model.CapVLM]; got != "ai1024|ollama:model-a" {
 		t.Fatalf("VLM 指纹不符: %q", got)
 	}
