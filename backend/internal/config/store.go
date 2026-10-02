@@ -14,10 +14,9 @@ import (
 //
 // `.env` 只保留"连库（以及拉起侧车进程）之前就必须知道"的项：数据库位置、静态目录、
 // 监听端口、鉴权密钥、侧车解释器位置。其余用户会接触并修改的 AI 配置放在
-// `STATIC_DIR/data/ai_config.json`，由桌面端界面读写，改完立即生效、不必重启。
+// `STATIC_DIR/data/ai_config.json`，由ops端界面读写，改完立即生效、不必重启。
 //
-// `.env` 中同名项退化为"首次初始化的种子值"：文件里已有该项时以文件为准，
-// 因此不会出现"界面改了、重启又被 .env 覆盖"的错觉。
+// `.env` 中同名项退化为"首次初始化的种子值"：文件里已有该项时以文件为准.
 
 // RuntimeConfig AI 处理层的运行时可调项。指针字段表示"本次请求未涉及该项"，
 // 用于界面上的局部更新；文件里读到的值一律已填充为具体数值。
@@ -27,8 +26,8 @@ type RuntimeConfig struct {
 	BatchSize          *int      `json:"batch_size,omitempty"`
 	MaxAttempts        *int      `json:"max_attempts,omitempty"`
 	Workers            *int      `json:"workers,omitempty"`
-	Device             *string   `json:"device,omitempty"`           // auto / cpu
-	AutoCapabilities   *[]string `json:"auto_capabilities,omitempty"` // 入库后自动入队的能力
+	Device             *string   `json:"device,omitempty"`            // auto / cpu
+	AutoCapabilities   *[]string `json:"auto_capabilities,omitempty"` // 入库后自动执行的能力
 	VLMModel           *string   `json:"vlm_model,omitempty"`         // 空字符串 = 用 .env 默认模型
 }
 
@@ -38,23 +37,22 @@ type ConfigStore struct {
 	defaults AiConfig
 	mu       sync.RWMutex
 	runtime  RuntimeConfig
-	// firstLoad 记录本次 Load 是否"此前没有配置文件"，
-	// 供调用方把旧版存在数据库里的设置迁移过来。
+	// 记录本次 Load 是否"此前没有配置文件"，
 	firstLoad bool
 }
 
 // 运行时项的合法范围（与界面下发的候选一致，非法值直接拒绝而不是静默夹取）。
 const (
-	minIdleSeconds  = 5
-	maxIdleSeconds  = 86400
-	minJobSeconds   = 30
-	maxJobSeconds   = 86400
-	minBatchSize    = 1
-	maxBatchSize    = 512
-	minMaxAttempts  = 1
-	maxMaxAttempts  = 20
-	minWorkers      = 1
-	maxWorkers      = 4
+	minIdleSeconds = 5
+	maxIdleSeconds = 86400
+	minJobSeconds  = 30
+	maxJobSeconds  = 86400
+	minBatchSize   = 1
+	maxBatchSize   = 512
+	minMaxAttempts = 1
+	maxMaxAttempts = 20
+	minWorkers     = 1
+	maxWorkers     = 4
 )
 
 // NewConfigStore 读取配置文件（缺失或损坏时按默认值新建）。
@@ -93,8 +91,7 @@ func (s *ConfigStore) Load() error {
 	return nil
 }
 
-// FirstLoad 报告配置文件此前是否存在（不存在意味着这是一次新初始化，
-// 调用方可借机把旧版存放在别处的设置迁移过来）。
+// FirstLoad 报告配置文件此前是否存在（不存在意味着这是一次新初始化）。
 func (s *ConfigStore) FirstLoad() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

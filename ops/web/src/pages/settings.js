@@ -44,8 +44,6 @@ export default {
   },
   template: `
     <div>
-      <h1 class="page-title">设置</h1>
-
       <Card title="界面偏好">
         <template #actions>
           <button class="primary sm" :disabled="saving" @click="save()">{{ saving ? '保存中…' : '保存' }}</button>

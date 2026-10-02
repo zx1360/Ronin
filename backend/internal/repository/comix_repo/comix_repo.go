@@ -44,7 +44,7 @@ type Comic struct {
 	MaxChapterNo  int    `json:"max_chapter_no"`
 	// 封面：cover_url 为站点原始地址（可能为空，如 xmanhua 站点未解析到）；
 	// cover_image 为本地相对路径 comics/{id}/{chapter_id}/{file}（空表示无可用封面）。
-	// 客户端用 cover_image 经 /static/{cover_image} 展示缩略图。
+	// 客户端用 cover_image 经 /_static/{cover_image} 展示缩略图。
 	CoverURL   string `json:"cover_url"`
 	CoverImage string `json:"cover_image"`
 	// IsLegacy：legacy 站点的本地历史资源，不参与追更（Python 端同样跳过）。

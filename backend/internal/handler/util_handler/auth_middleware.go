@@ -47,7 +47,6 @@ func APIKeyAuth() gin.HandlerFunc {
 
 		if !peerIsLocal {
 			limiter.RecordFailure(clientIP)
-			// 本次失败可能刚好触发封禁，此时返回封禁提示而非普通鉴权错误
 			if limiter.IsBanned(clientIP) {
 				respondBanned(c, clientIP)
 				return

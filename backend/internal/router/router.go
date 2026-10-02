@@ -192,7 +192,6 @@ func SetupRouter() *gin.Engine {
 // setupOpsWeb 托管网页运维端静态资源（/ops/），并重定向到目录形式的首页。
 //
 // 页面与它的本机能力接口一样仅限本机打开：网页端要调用只允许回环的接口，
-// 局域网客户端拿到页面也没法工作，不如直接拒绝。
 func setupOpsWeb(r *gin.Engine) {
 	webDir := config.OpsConf.WebDir
 	if webDir == "" {

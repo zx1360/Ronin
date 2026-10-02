@@ -51,18 +51,12 @@ const App = {
           <a v-for="item in routes" :key="item.path" :href="'#' + item.path"
              :class="{ active: item.path === state.route }">{{ item.label }}</a>
         </nav>
-        <div class="sidebar-foot">
-          <div>{{ scheme }} · X-API-Key</div>
-          <div>{{ address }}</div>
-        </div>
       </aside>
       <div class="main">
         <header class="topbar">
-          <strong>{{ current.label }}</strong>
-          <span class="badge primary">{{ scheme }}</span>
-          <span class="badge" :class="state.cli.gallery.available ? 'success' : 'error'">
-            gallery CLI {{ state.cli.gallery.available ? '就绪' : '不可用' }}
-          </span>
+          <h1>
+            <strong>{{ current.label }}</strong>
+          </h1>
           <span class="grow"></span>
           <button class="ghost sm" @click="bootstrap()">重新连接</button>
         </header>
@@ -76,8 +70,7 @@ const App = {
     <div v-else>
       <div class="placeholder error" v-if="state.bootError">
         {{ state.bootError }}
-
-请确认 Monarch 正在运行，并通过本机地址访问本页面：http://127.0.0.1:7274/ops/
+        请确认 Monarch 正在运行, 并通过本机地址访问本页面: http://127.0.0.1:7275
       </div>
       <div class="boot" v-else>正在连接 Monarch…</div>
       <div class="content"><button class="primary" @click="bootstrap()">重试</button></div>

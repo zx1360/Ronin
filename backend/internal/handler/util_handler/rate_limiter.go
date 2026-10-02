@@ -19,7 +19,7 @@ const (
 // banLogPath 封禁日志路径，由 [SetBanLogPath] 在配置加载后设置。
 // 该文件同时作为封禁状态的持久化载体：进程重启时据此恢复仍在有效期内的封禁。
 var (
-	banLogPath = "./static/logs.txt"
+	banLogPath = "../_static/logs.txt"
 )
 
 // IPRateLimiter IP 级别的鉴权失败频控器

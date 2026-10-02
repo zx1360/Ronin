@@ -152,7 +152,6 @@ export default {
   template: `
     <div>
       <div class="row between">
-        <h1 class="page-title">AI 媒体处理</h1>
         <div class="row">
           <span class="small muted" v-if="loading">刷新中…</span>
           <span class="small muted" v-if="!active && status && !disabled">无排队任务，已停止轮询</span>

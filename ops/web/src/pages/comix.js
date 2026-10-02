@@ -24,8 +24,6 @@ export default {
   },
   template: `
     <div>
-      <h1 class="page-title">漫画资源</h1>
-
       <div class="tabs">
         <button v-for="item in TABS" :key="item.value"
                 :class="{ active: tab === item.value }" @click="selectTab(item.value)">
