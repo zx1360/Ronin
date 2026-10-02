@@ -2,6 +2,8 @@ package ai
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -215,11 +217,14 @@ type ExecutorCandidate struct {
 	Installed  bool   `json:"installed"`
 	IsCurrent  bool   `json:"is_current"`
 	InputsTier string `json:"input_tier"`
+	// Vision 该模型是否带视觉能力（供界面提示：非视觉模型不适合跑 VLM 标注）
+	Vision bool `json:"vision"`
 }
 
-// executorCandidates 返回该能力的执行者候选与当前选择。
+// ExecutorCandidates 返回该能力的执行者候选与当前选择。
 //
-// 只有 VLM 有多个候选（标准版 / 无审查版，同一模型承接标注与对话）；
+// VLM 的候选实时来自本机 Ollama 已安装模型（配置里的两个候选始终保留，未安装时标注出来），
+// 因此用户自行 ollama pull/rm 增删模型后无需改代码或重启：两端都只渲染这里下发的列表。
 // 其余能力固定一种实现，仍然下发列表以便消费端统一渲染而不必在端上硬编码。
 func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandidate {
 	apply := func(candidates []ExecutorCandidate) []ExecutorCandidate {
@@ -236,24 +241,44 @@ func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandid
 	switch capability {
 	case model.CapVLM:
 		cfg := e.rt.Config()
-		installed := e.installedModels()
+		installed := e.installedModelInfo()
+		// 配置里的两个候选保留友好名称；其余（用户自行拉的）直接用模型名。
 		labels := map[string]string{
-			cfg.OllamaVLM:    "标准版",
-			cfg.OllamaVLMAlt: "无审查版",
+			strings.ToLower(cfg.OllamaVLM):    "标准版",
+			strings.ToLower(cfg.OllamaVLMAlt): "无审查版",
 		}
 		seen := map[string]bool{}
-		candidates := make([]ExecutorCandidate, 0, 2)
-		for _, name := range []string{cfg.OllamaVLM, cfg.OllamaVLMAlt} {
-			key := strings.ToLower(name)
-			if name == "" || seen[key] {
-				continue
+		candidates := make([]ExecutorCandidate, 0, len(installed)+2)
+		// add 以"已安装时的真实模型名"为准：Ollama 的模型名大小写不敏感，
+		// 用配置里的写法发请求会与该模型在库里的名字对不上。
+		add := func(configName string, info ModelInfo, ok bool) {
+			key := strings.ToLower(strings.TrimSpace(configName))
+			if key == "" || seen[key] {
+				return
 			}
 			seen[key] = true
+			name := strings.TrimSpace(configName)
+			if ok {
+				name = info.Name
+			}
 			candidates = append(candidates, ExecutorCandidate{
 				Model:     name,
-				Label:     labelOr(labels[name], name),
-				Installed: installed[key],
+				Label:     labelOr(labels[key], name),
+				Installed: ok,
+				Vision:    ok && info.Vision,
 			})
+		}
+		for _, name := range []string{cfg.OllamaVLM, cfg.OllamaVLMAlt} {
+			info, ok := installed[strings.ToLower(strings.TrimSpace(name))]
+			add(name, info, ok)
+		}
+		names := make([]string, 0, len(installed))
+		for key := range installed {
+			names = append(names, key)
+		}
+		sort.Strings(names)
+		for _, key := range names {
+			add(installed[key].Name, installed[key], true)
 		}
 		return apply(candidates)
 	default:
@@ -277,20 +302,52 @@ func labelOr(label, fallback string) string {
 	return fallback
 }
 
-// installedModels 返回本机已安装的 Ollama 模型集合（不可达时返回空集合）。
+// installedModelInfo 返回本机已安装的 Ollama 模型（键为小写模型名；不可达时返回空集合）。
 //
 // 键统一小写：Ollama 的模型名大小写不敏感（`huihui_ai/qwen3.5-abliterated:4b`
 // 与配置里的 `:4B` 是同一个模型），按原样比较会把已安装的候选判成未安装。
-func (e *Engine) installedModels() map[string]bool {
-	names := map[string]bool{}
+func (e *Engine) installedModelInfo() map[string]ModelInfo {
+	models := map[string]ModelInfo{}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	tags, err := e.ollama.ListModels(ctx)
+	infos, err := e.ollama.ListModelInfo(ctx)
 	if err != nil {
-		return names
+		return models
 	}
-	for _, name := range tags {
-		names[strings.ToLower(name)] = true
+	for _, info := range infos {
+		models[strings.ToLower(info.Name)] = info
 	}
+	return models
+}
+
+// NormalizeModel 校验客户端指定的模型并归一化为本机实际使用的模型名。
+//
+// 空串表示沿用当前生效模型；非空时必须是本机已安装的模型（Ollama 不可达时无法确认，
+// 直接拒绝并说明），因此用户增删模型后两端都能立刻切换，不需要改代码。
+func (e *Engine) NormalizeModel(requested string) (string, error) {
+	selected := strings.TrimSpace(requested)
+	if selected == "" {
+		return e.VLMModel(), nil
+	}
+	for _, candidate := range e.ExecutorCandidates(model.CapVLM, "ollama:"+e.VLMModel()) {
+		if strings.EqualFold(candidate.Model, selected) && candidate.Installed {
+			return candidate.Model, nil
+		}
+	}
+	available := e.installedModelNames()
+	if len(available) == 0 {
+		return "", fmt.Errorf("模型 %s 不可用：本机 Ollama 未运行或未安装任何模型", selected)
+	}
+	return "", fmt.Errorf("模型 %s 不可用（本机已安装: %s）", selected, strings.Join(available, "、"))
+}
+
+// installedModelNames 返回本机已安装模型名（按名称排序，供错误提示）。
+func (e *Engine) installedModelNames() []string {
+	installed := e.installedModelInfo()
+	names := make([]string, 0, len(installed))
+	for _, info := range installed {
+		names = append(names, info.Name)
+	}
+	sort.Strings(names)
 	return names
 }

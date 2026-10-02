@@ -828,6 +828,19 @@ func ListVLMTags(limit int) ([]VLMTagCount, error) {
 	return out, rows.Err()
 }
 
+// CountUndeletedMedia 返回未删除媒体总数（能力进度的分母）。
+func CountUndeletedMedia() (int, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	var n int
+	err := db.Read().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM media_assets WHERE is_deleted = 0`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("统计媒体总数失败: %w", err)
+	}
+	return n, nil
+}
+
 // CountMediaMissingAll 一次扫描算出各能力"尚无产物"的未删除媒体数。
 //
 // 用 LEFT JOIN 而非 5 个相关 EXISTS：三次哈希连接远快于五个逐行子计划。

@@ -92,8 +92,37 @@ func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
 	return true, ""
 }
 
+// ModelInfo 本机 Ollama 里的一个已安装模型。
+type ModelInfo struct {
+	Name string
+	// Vision 该模型是否带视觉能力：文本模型同样能承接对话，但拿去跑 VLM 标注会整批失败。
+	Vision bool
+	// Thinking 该模型是否支持思考链（决定客户端是否展示"深度思考"开关）。
+	Thinking bool
+}
+
+// visionFamilies 带视觉编码器的模型族；仅在 Ollama 未上报 capabilities 时作为兜底判断。
+var visionFamilies = map[string]bool{
+	"clip": true, "mllama": true, "llava": true, "vision": true, "siglip": true,
+	"qwen2vl": true, "qwen3vl": true, "gemma3": true, "minicpmv": true,
+	"pixtral": true, "mistral3": true,
+}
+
 // ListModels 返回本地已安装模型名。
 func (o *Ollama) ListModels(ctx context.Context) ([]string, error) {
+	models, err := o.ListModelInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(models))
+	for _, m := range models {
+		names = append(names, m.Name)
+	}
+	return names, nil
+}
+
+// ListModelInfo 返回本地已安装模型及其能力信息（模型列表的唯一真源）。
+func (o *Ollama) ListModelInfo(ctx context.Context) ([]ModelInfo, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -112,17 +141,47 @@ func (o *Ollama) ListModels(ctx context.Context) ([]string, error) {
 
 	var parsed struct {
 		Models []struct {
-			Name string `json:"name"`
+			Name         string   `json:"name"`
+			Capabilities []string `json:"capabilities"`
+			Details      struct {
+				Family   string   `json:"family"`
+				Families []string `json:"families"`
+			} `json:"details"`
 		} `json:"models"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("解析 Ollama 模型列表失败: %w", err)
 	}
-	names := make([]string, 0, len(parsed.Models))
+	models := make([]ModelInfo, 0, len(parsed.Models))
 	for _, m := range parsed.Models {
-		names = append(names, m.Name)
+		info := ModelInfo{Name: m.Name}
+		if len(m.Capabilities) > 0 {
+			info.Vision = hasCapability(m.Capabilities, "vision")
+			info.Thinking = hasCapability(m.Capabilities, "thinking")
+		} else {
+			// 老版本 Ollama 不上报 capabilities：退回模型族与名称的启发式判断
+			families := append([]string{m.Details.Family}, m.Details.Families...)
+			for _, family := range families {
+				if visionFamilies[strings.ToLower(strings.TrimSpace(family))] {
+					info.Vision = true
+					break
+				}
+			}
+			info.Thinking = SupportsThinking(m.Name)
+		}
+		models = append(models, info)
 	}
-	return names, nil
+	return models, nil
+}
+
+// hasCapability 判断 Ollama 上报的 capabilities 里是否含某项（大小写不敏感）。
+func hasCapability(capabilities []string, want string) bool {
+	for _, item := range capabilities {
+		if strings.EqualFold(strings.TrimSpace(item), want) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveExe 解析 ollama 可执行文件（未配置时从 PATH 查找）。
@@ -598,6 +657,9 @@ type OllamaState struct {
 	PID         int      `json:"pid"`
 	IdleSeconds int      `json:"idle_seconds"`
 	Models      []string `json:"models,omitempty"`
+	// ModelRoot 自拉的 ollama serve 会使用的模型目录（OLLAMA_MODELS，未配置时为默认目录）；
+	// 服务不可达时它是排查"拉起来了却看不到模型"的第一线索。
+	ModelRoot string `json:"model_root"`
 	// KeepAlive 说明模型驻留策略（沿用 Ollama 默认，不再逐次卸载）
 	KeepAlive string `json:"keep_alive"`
 	// KeepAliveDefaultSeconds 对话请求未指定时的模型驻留时长（"后端默认值"）
@@ -618,6 +680,7 @@ func (o *Ollama) State(ctx context.Context, model, modelAlt string) OllamaState 
 		KeepAlive:               fmt.Sprintf("对话请求下发 %ds；批量标注沿用 Ollama 默认（无请求 5 分钟后卸载模型）", int(cfg.OllamaKeepAlive.Seconds())),
 		KeepAliveDefaultSeconds: int(cfg.OllamaKeepAlive.Seconds()),
 		Thinking:                SupportsThinking(model),
+		ModelRoot:               o.modelRoot(),
 	}
 
 	o.mu.Lock()
@@ -630,16 +693,32 @@ func (o *Ollama) State(ctx context.Context, model, modelAlt string) OllamaState 
 	}
 	o.mu.Unlock()
 
-	models, err := o.ListModels(ctx)
+	models, err := o.ListModelInfo(ctx)
 	if err != nil {
 		state.Error = err.Error()
+		// 服务未运行但可按需拉起时把话说完：否则界面只看到"不可达"，
+		// 用户不知道点一下"启动模型"就能用。
+		if o.resolveExe() != "" {
+			state.Error = fmt.Sprintf("%s；可按需拉起（点「启动模型」，模型目录 %s）", state.Error, state.ModelRoot)
+		}
 		return state
 	}
 	state.Reachable = true
-	state.Models = models
-	state.ModelReady = o.modelInList(models, model)
+	names := make([]string, 0, len(models))
+	for _, info := range models {
+		names = append(names, info.Name)
+	}
+	state.Models = names
+	state.ModelReady = o.modelInList(names, model)
 	if !state.ModelReady {
 		state.Error = fmt.Sprintf("模型 %s 未安装", model)
+	}
+	// 思考能力以 Ollama 上报为准（拿不到该模型时保留按名称判断的结果）
+	for _, info := range models {
+		if strings.EqualFold(info.Name, model) {
+			state.Thinking = info.Thinking
+			break
+		}
 	}
 	return state
 }

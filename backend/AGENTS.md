@@ -39,12 +39,14 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
     全用在推理上，JSON 输出为空。不传 `keep_alive`，沿用 Ollama 默认（无请求 5 分钟后
     卸载模型）；用户已运行的 Ollama 直接复用，未运行时才自拉 `ollama serve`（靠
     `OLLAMA_MODELS` 指向同一模型库，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收）。
-  - 模型可切换：网页端选择**标注**用哪个候选（`ai_config.json` 的 `vlm_model`），
-    对话请求可用 `model` 字段逐次指定；候选由 `/API/ai/capabilities` 与 `/API/ai/status`
-    的 `executor_candidates` 下发，消费端只渲染列表、不硬编码。
+  - 模型可切换：**候选实时来自本机 Ollama**（`/api/tags`：名字 + `capabilities` 判视觉，
+    旧版无 `capabilities` 时退回模型族启发式），配置里的 `OLLAMA_VLM_MODEL` / `_ALT` 始终保留
+    （未安装时标注出来），因此用户自行 `ollama pull/rm` 后无需改代码或重启。候选由
+    `/API/ai/capabilities` 与 `/API/ai/status` 的 `executor_candidates` 下发，消费端只渲染列表、
+    不硬编码；`chat`/`review` 的 `model` 与网页端标注模型（`ai_config.json` 的 `vlm_model`）
+    都只接受**本机已安装**的模型（`Engine.NormalizeModel` 负责校验并归一化大小写）。
     备选模型可用社区 GGUF 本地构建：`ollama create -f Modelfile` 里必须有**两条 FROM**
-    （文本 GGUF + `mmproj`），否则丢失视觉能力；`SupportsThinking` 会剥掉 `命名空间/`
-    前缀再判断，社区重打包的 Qwen 模型同样能开"深度思考"。
+    （文本 GGUF + `mmproj`），否则丢失视觉能力。
   - 模型仲裁（`models.go`）：本地只有一块 GPU，同一时刻只跑一个模型。**前台对话抢占**
     后台标注（中断批次 + 卸载旧模型，任务退回队列不计失败），**后台标注等前台**结束
     （超时才接管），避免边聊天边被反复打断。
@@ -109,8 +111,8 @@ AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`A
 | `/API/gallery` | `GET/POST /tags`, `PUT/DELETE /tags/:id` | 标签树增删改查（含 `is_favorite`, 服务端权威） |
 | `/API/gallery` | `GET/PATCH /media`, `POST /media/tags`, `PUT /media/:id/tags` | 媒体查询、标注（软删除/备注/捆绑/编辑参数/处理游标）、标签关系增删与全量替换。`GET /media` 支持 `vlm_tags`（AI 标签，任一命中，只读）与 `only_deleted`（仅软删除项）；**不传 `vlm_tags` 时完全不触及 AI 侧数据表**，未初始化 AI 层的部署不受影响 |
 | `/API/ops` | `GET /overview` | 系统概览（Ops 用；`service.staticDir` 为 static 绝对路径） |
-| `/API/ops/local` | `GET /bootstrap`, `PUT /settings`, `POST /reveal`, `GET/POST /tasks`, `GET /tasks/:id`, `POST /tasks/:id/stop` | 网页运维端的**本机能力**：密钥与偏好/路径下发、界面偏好写 `<STATIC_DIR>/data/ops_web.json`、资源管理器定位、内置 gallery CLI 任务生命周期。仅回环可访问（`LocalOnly`），且免 API Key |
-| `/API/ai` | `GET /status`, `GET /capabilities`, `GET /jobs`, `POST /enqueue\|retry\|regenerate\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态与输入档位/执行者候选（`capabilities` 为端上唯一真源）、队列与进度、入队、重试失败项、单能力全量重生成（清产物后重排，破坏性）、暂停与继续、模型进程启停、运行时配置读写 |
+| `/API/ops/local` | `GET /bootstrap`, `PUT /settings`, `POST /reveal`, `GET/POST /tasks`, `GET /tasks/:id`, `POST /tasks/:id/stop` | 网页运维端的**本机能力**：密钥与偏好/路径下发、界面偏好写 `<STATIC_DIR>/data/ops_web.json`（含 `ai_paused`：服务端启动时据此恢复队列的暂停状态，缺省即暂停）、资源管理器定位、内置 gallery CLI 任务生命周期。仅回环可访问（`LocalOnly`），且免 API Key |
+| `/API/ai` | `GET /status`, `GET /capabilities`, `GET /jobs`, `GET /failures`, `POST /enqueue\|retry\|regenerate\|cancel\|resume`, `POST /process/:cap/start\|stop`, `POST /index/rebuild`, `GET/PUT /settings` | AI 运维：能力就绪状态与输入档位/执行者候选（`capabilities` 为端上唯一真源）、队列与进度（`status.media_total` 是进度分母，不含「尚无产物」）、失败项清单（含媒体路径/缩略图标记，供界面做软删除）、入队、重试失败项、单能力全量重生成（清产物后重排，破坏性）、暂停与继续、模型进程启停、运行时配置读写 |
 | `/API/ai` | `GET /search`, `POST /search/image`, `GET /similar/:id`, `GET /media/:id`, `GET /duplicates`, `POST /duplicates/ignore\|unignore`, `GET /duplicates/ignored`, `GET /tags` | 检索与去重：文本搜图、以图搜图、组合筛选、近重复分组（`ignore` = 人工判定「非重复」，之后不再参与分组，可随时恢复）、AI 标签清单（含出现次数） |
 | `/API/ai` | `POST /chat` | 交互式对话：NDJSON 流式（`notice`/`thinking`/`delta`/`done`/`aborted`/`error`），图片可用 `media_ids` 引用库内媒体或内联 base64；`model`/`num_ctx`/`think`/`temperature`/`keep_alive_seconds` 逐次可调 |
 | `/API/ai` | `POST /review`, `GET/PUT /review/presets` | 近期回顾：后端从 booklet/essay 数据算**确定性统计**（+ 可选随机抽样素材）后交本地模型叙述，NDJSON 流（正文前先下发一条 `stats` 事件供端上展示"本次依据"）。统计口径见 `service/review/`：essay 按本地日历日、booklet 按日历日标记（UTC 零点）归日，两者混用会整体错一天。预设（角色/语气）存 `<STATIC_DIR>/data/review_presets.json`，服务端权威、端上只做镜像；生成结果不落库，由端上本地缓存 |

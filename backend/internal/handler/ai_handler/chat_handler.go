@@ -26,7 +26,7 @@ const (
 
 // chatTuning 一次流式对话的可调项，/chat 与 /review 共用。
 type chatTuning struct {
-	// Model 为空表示使用当前生效的 VLM 模型；只接受 默认/备选 两个候选
+	// Model 为空表示使用当前生效的 VLM 模型；非空时必须是本机已安装的模型
 	Model string `json:"model"`
 	// 以下为可选项，缺省时沿用服务端配置。
 	NumCtx           int      `json:"num_ctx"`
@@ -54,13 +54,10 @@ func (t chatTuning) resolve(e *ai.Engine) (string, ai.ChatOptions, error) {
 		options.KeepAliveSeconds = *t.KeepAliveSeconds
 	}
 
-	modelName := strings.TrimSpace(t.Model)
-	if modelName == "" {
-		return e.VLMModel(), options, nil
-	}
-	if modelName != e.VLMModel() && modelName != e.VLMAltModel() {
-		// 只接受两个候选（默认 / 无审查版），避免客户端塞进任意模型名
-		return "", options, errors.New("未知模型: " + modelName)
+	// 模型清单由服务端下发给两端，这里只做"必须是本机已安装模型"的校验（并归一化大小写）
+	modelName, err := e.NormalizeModel(t.Model)
+	if err != nil {
+		return "", options, err
 	}
 	return modelName, options, nil
 }

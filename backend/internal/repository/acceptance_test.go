@@ -785,3 +785,118 @@ func TestWriteRollback(t *testing.T) {
 		t.Fatal("事务失败后写入未回滚")
 	}
 }
+
+// ---------- 任务行唯一性 ----------
+
+// TestAiJobUniqueness 同一 (能力, 媒体) 只能有一行任务：重复入队、换模型重排、
+// 全量重生成都不得多生成记录（否则进度统计与"已入队"判定都会被放大）。
+//
+// 放在文件末尾：其中的全量重生成会清空该能力的产物，只在库副本上执行。
+func TestAiJobUniqueness(t *testing.T) {
+	var mediaIDs []uuid.UUID
+	rows, err := db.Read().Query(
+		`SELECT id FROM media_assets WHERE is_deleted = 0 ORDER BY captured_at DESC LIMIT 200`)
+	if err != nil {
+		t.Fatalf("取样本媒体失败: %v", err)
+	}
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			rows.Close()
+			t.Fatalf("扫描媒体失败: %v", err)
+		}
+		id, _ := uuid.Parse(raw)
+		mediaIDs = append(mediaIDs, id)
+	}
+	rows.Close()
+	if len(mediaIDs) == 0 {
+		t.Skip("跳过：库中没有媒体")
+	}
+
+	const capability = model.CapVLM
+	// 清干净起点：把该能力的任务行退回到待处理，便于按计数断言
+	if _, err := ai_repo.RegenerateMedia(capability, mediaIDs, "sig-a"); err != nil {
+		t.Fatalf("重置任务失败: %v", err)
+	}
+
+	countFor := func() int {
+		var n int
+		if err := db.Read().QueryRow(
+			`SELECT COUNT(*) FROM jobs WHERE capability = ?`, capability).Scan(&n); err != nil {
+			t.Fatalf("统计任务失败: %v", err)
+		}
+		return n
+	}
+
+	// 同一批重复入队（含换指纹）不得新增行
+	before := countFor()
+	if _, err := ai_repo.Enqueue(capability, mediaIDs, "sig-a"); err != nil {
+		t.Fatalf("重复入队失败: %v", err)
+	}
+	if _, err := ai_repo.Enqueue(capability, mediaIDs, "sig-b"); err != nil {
+		t.Fatalf("换指纹重复入队失败: %v", err)
+	}
+	if _, err := ai_repo.RegenerateMedia(capability, mediaIDs, "sig-b"); err != nil {
+		t.Fatalf("重复重生成失败: %v", err)
+	}
+	if after := countFor(); after != before {
+		t.Fatalf("重复入队/重生成多生成了任务行: %d -> %d", before, after)
+	}
+
+	// 换模型：只应把已有行重新排队，不新增行
+	if n, err := ai_repo.ResetStaleInput(capability, "sig-c"); err != nil {
+		t.Fatalf("换模型重排失败: %v", err)
+	} else if n > 0 {
+		if again, err := ai_repo.ResetStaleInput(capability, "sig-c"); err != nil || again != 0 {
+			t.Fatalf("重排应先有条数、再为 0: again=%d err=%v", again, err)
+		}
+	}
+	if after := countFor(); after != before {
+		t.Fatalf("换模型重排多生成了任务行: %d -> %d", before, after)
+	}
+
+	// 全量重生成：未删除媒体的任务行数应等于媒体总数，且仍无重复
+	cleared, enqueued, err := ai_repo.Regenerate(capability, "sig-d", 100)
+	if err != nil {
+		t.Fatalf("全量重生成失败: %v", err)
+	}
+	if cleared < 0 || enqueued <= 0 {
+		t.Fatalf("全量重生成结果异常: cleared=%d enqueued=%d", cleared, enqueued)
+	}
+	var mediaTotal int
+	if err := db.Read().QueryRow(
+		`SELECT COUNT(*) FROM media_assets WHERE is_deleted = 0`).Scan(&mediaTotal); err != nil {
+		t.Fatalf("统计媒体失败: %v", err)
+	}
+	var alive int
+	if err := db.Read().QueryRow(`
+		SELECT COUNT(*) FROM jobs j JOIN media_assets m ON m.id = j.media_id
+		WHERE j.capability = ? AND m.is_deleted = 0`, capability).Scan(&alive); err != nil {
+		t.Fatalf("统计未删除媒体的任务失败: %v", err)
+	}
+	if alive != mediaTotal {
+		t.Fatalf("全量重生成后未删除媒体的任务行数应等于媒体总数: %d != %d", alive, mediaTotal)
+	}
+	before = countFor()
+
+	// 补处理：此时全部未删除媒体都已有任务行，不应再插入
+	// （放在全量重生成之后，否则补处理本来就会为尚未入队的媒体补行）
+	if _, err := ai_repo.EnqueueMissing(capability, 1000, 100, "sig-d"); err != nil {
+		t.Fatalf("补处理失败: %v", err)
+	}
+	if after := countFor(); after != before {
+		t.Fatalf("补处理多生成了任务行: %d -> %d", before, after)
+	}
+
+	// 全局兜底：任何能力都不允许出现重复行
+	var duplicates int
+	if err := db.Read().QueryRow(`
+		SELECT COUNT(*) FROM (
+			SELECT capability, media_id FROM jobs GROUP BY capability, media_id HAVING COUNT(*) > 1
+		)`).Scan(&duplicates); err != nil {
+		t.Fatalf("统计重复任务失败: %v", err)
+	}
+	if duplicates != 0 {
+		t.Fatalf("存在 %d 组重复的 (能力, 媒体) 任务行", duplicates)
+	}
+}

@@ -8,7 +8,13 @@ import { ref, computed, watch } from '../../vue.js';
 import { api } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
 import { Card, Placeholder, Badge } from '../../ui.js';
-import { capabilityLabel, num, progressPercent } from './shared.js';
+import { formatTime } from '../../utils.js';
+import {
+  baseName, capabilityLabel, doneCount, num, progressPercent, revealMedia, thumbUrl,
+} from './shared.js';
+
+/** 失败项单批加载条数：处理失败通常是个位数，留出足够的排查余地即可。 */
+const FAILURE_PAGE_SIZE = 60;
 
 export default {
   components: { Card, Placeholder, Badge },
@@ -62,41 +68,44 @@ export default {
       };
     });
 
-    const cards = computed(() => (props.capabilities || []).map((cap) => {
-      const source = cap || {};
-      const sidecar = source.sidecar || null;
-      const done = num(source.done);
-      const pending = num(source.pending);
-      const missing = num(source.missing_media);
-      const failed = num(source.failed);
-      return {
-        name: source.capability || '',
-        label: source.label || source.capability || '',
-        description: source.description || '',
-        tier: source.input_tier || '',
-        tierNote: source.tier_note || '',
-        executor: source.executor || '',
-        inputSig: source.input_sig || '',
-        ready: source.ready === true,
-        reason: source.reason || '',
-        stale: num(source.stale_media),
-        done,
-        pending,
-        missing,
-        failed,
-        total: done + pending + missing,
-        percent: progressPercent(done, pending, missing),
-        // 侧车能力（embed/face/ocr）由服务端下发 sidecar；无 sidecar 的能力不提供进程按钮
-        hasSidecar: !!sidecar,
-        running: !!(sidecar && sidecar.running === true),
-        pid: sidecar ? num(sidecar.pid) : 0,
-        idleSeconds: sidecar ? num(sidecar.idle_seconds) : 0,
-        idleTimeout: sidecar ? num(sidecar.idle_timeout_seconds) : 0,
-        probeError: (sidecar && sidecar.probe_error) || '',
-        missingModels: sidecar && Array.isArray(sidecar.missing_models) ? sidecar.missing_models : [],
-        isVlm: source.capability === 'vlm',
-      };
-    }));
+    const cards = computed(() => {
+      const mediaTotal = num(props.status && props.status.media_total);
+      return (props.capabilities || []).map((cap) => {
+        const source = cap || {};
+        const sidecar = source.sidecar || null;
+        const done = doneCount(source.done, mediaTotal);
+        const pending = num(source.pending);
+        const missing = num(source.missing_media);
+        const failed = num(source.failed);
+        return {
+          name: source.capability || '',
+          label: source.label || source.capability || '',
+          description: source.description || '',
+          tier: source.input_tier || '',
+          tierNote: source.tier_note || '',
+          executor: source.executor || '',
+          inputSig: source.input_sig || '',
+          ready: source.ready === true,
+          reason: source.reason || '',
+          stale: num(source.stale_media),
+          done,
+          pending,
+          missing,
+          failed,
+          total: mediaTotal,
+          percent: progressPercent(done, mediaTotal),
+          // 侧车能力（embed/face/ocr）由服务端下发 sidecar；无 sidecar 的能力不提供进程按钮
+          hasSidecar: !!sidecar,
+          running: !!(sidecar && sidecar.running === true),
+          pid: sidecar ? num(sidecar.pid) : 0,
+          idleSeconds: sidecar ? num(sidecar.idle_seconds) : 0,
+          idleTimeout: sidecar ? num(sidecar.idle_timeout_seconds) : 0,
+          probeError: (sidecar && sidecar.probe_error) || '',
+          missingModels: sidecar && Array.isArray(sidecar.missing_models) ? sidecar.missing_models : [],
+          isVlm: source.capability === 'vlm',
+        };
+      });
+    });
 
     const lastRun = computed(() => {
       const source = props.status && props.status.last_run ? props.status.last_run : null;
@@ -152,6 +161,7 @@ export default {
         owned: source.owned_server === true,
         pid: num(source.pid),
         idleSeconds: num(source.idle_seconds),
+        modelRoot: source.model_root || '',
         modelCount: models.length,
       };
     });
@@ -166,6 +176,8 @@ export default {
         + ' · 重试上限 ' + num(source.max_attempts);
     });
 
+    // 候选模型实时来自本机 Ollama（/API/ai/capabilities 下发）；不可达时全部标为未安装，
+    // 因此界面上要先把"服务没起"说清楚，而不是让用户以为模型丢了。
     const vlmCandidates = computed(() => {
       const cap = (props.capabilities || []).find((item) => item && item.capability === 'vlm');
       const list = cap && Array.isArray(cap.executor_candidates) ? cap.executor_candidates : [];
@@ -173,6 +185,7 @@ export default {
         model: item.model || '',
         label: item.label || item.model || '',
         installed: item.installed === true,
+        vision: item.vision === true,
         current: item.is_current === true,
       }));
     });
@@ -195,6 +208,121 @@ export default {
     });
 
     const inAuto = (name) => autoCapabilities.value.indexOf(name) >= 0;
+
+    // ---- 失败项 ----
+
+    const failureCap = ref('');
+    const failures = ref([]);
+    const failureTotal = ref(0);
+    const failureError = ref('');
+    const failureLoading = ref(false);
+    const failureSelected = ref([]);
+
+    const failureLabel = computed(
+      () => capabilityLabel(props.capabilities, failureCap.value) || failureCap.value,
+    );
+    const failureHasMore = computed(() => failures.value.length < failureTotal.value);
+
+    /** 取某个能力"到底哪些文件失败了"；失败项通常是个位数，按批加载即可。 */
+    const loadFailures = async (more) => {
+      if (!failureCap.value || failureLoading.value) return;
+      if (more && !failureHasMore.value) return;
+      failureLoading.value = true;
+      failureError.value = '';
+      const offset = more ? failures.value.length : 0;
+      try {
+        const data = await api.get(
+          '/API/ai/failures?capability=' + encodeURIComponent(failureCap.value)
+          + '&limit=' + FAILURE_PAGE_SIZE + '&offset=' + offset,
+        );
+        const page = (Array.isArray(data && data.failures) ? data.failures : []).map((item) => ({
+          mediaId: item.media_id || '',
+          name: baseName(item.file_path) || String(item.media_id || '').slice(0, 8),
+          filePath: item.file_path || '',
+          mimeType: item.mime_type || '',
+          attempts: num(item.attempts),
+          lastError: item.last_error || '',
+          updated: formatTime(item.updated_at, false),
+          // 没有缩略图的媒体（视频、源文件已缺失）直接给占位，省掉一次必 404 的请求
+          thumb: item.thumb_path ? thumbUrl(item.media_id) : '',
+          thumbFailed: !item.thumb_path,
+          isDeleted: item.is_deleted === true,
+        }));
+        failures.value = more ? failures.value.concat(page) : page;
+        failureTotal.value = num(data && data.total);
+        const alive = failures.value.map((item) => item.mediaId);
+        failureSelected.value = failureSelected.value.filter((id) => alive.indexOf(id) >= 0);
+      } catch (err) {
+        failureError.value = err.message;
+      } finally {
+        failureLoading.value = false;
+      }
+    };
+
+    const openFailures = (card) => {
+      if (failureCap.value === card.name) {
+        closeFailures();
+        return;
+      }
+      failureCap.value = card.name;
+      failures.value = [];
+      failureTotal.value = 0;
+      failureSelected.value = [];
+      return loadFailures(false);
+    };
+
+    const closeFailures = () => {
+      failureCap.value = '';
+      failures.value = [];
+      failureTotal.value = 0;
+      failureSelected.value = [];
+      failureError.value = '';
+    };
+
+    const toggleFailure = (id) => {
+      const next = failureSelected.value.slice();
+      const position = next.indexOf(id);
+      if (position >= 0) next.splice(position, 1);
+      else next.push(id);
+      failureSelected.value = next;
+    };
+
+    const isFailureSelected = (id) => failureSelected.value.indexOf(id) >= 0;
+
+    /** 缩略图加载失败（媒体没有缩略图或源文件已缺失）：退回文字占位，别留破图。 */
+    const markThumbMissing = (item) => {
+      item.thumbFailed = true;
+    };
+
+    /** 只作用于已加载的条目：没进 DOM 的不替用户做看不见的选择。 */
+    const selectAllFailures = () => {
+      failureSelected.value = failures.value.map((item) => item.mediaId);
+    };
+
+    const clearFailureSelection = () => {
+      failureSelected.value = [];
+    };
+
+    /**
+     * 标记软删除：复用 gallery 的软删除标记，磁盘文件不动。
+     *
+     * 失败项往往就是"这个文件本身没救"（损坏、非图片、源文件缺失），
+     * 标掉之后既不会再被补处理反复排队，也能在「已删除」页恢复。
+     */
+    const softDeleteFailures = async (ids) => {
+      if (!ids.length) return;
+      const ok = await confirmAction(
+        '将把选中的 ' + ids.length + ' 个文件标记为软删除（只改数据库标记，磁盘文件仍在，可在「已删除」页恢复）。',
+        { title: '确认标记软删除', danger: true },
+      );
+      if (!ok) return;
+      await act('', async () => {
+        await api.patch('/API/gallery/media', { media_ids: ids, is_deleted: true });
+        toast('已标记软删除 ' + ids.length + ' 个文件', 'success');
+        failureSelected.value = [];
+        await loadFailures(false);
+      });
+    };
 
     // ---- 能力卡片动作 ----
 
@@ -356,6 +484,11 @@ export default {
       vlmCandidates, autoCapabilities, capabilityOptions, configPath, inAuto,
       retryFailed, enqueueMissing, regenerate, toggleProcess, unloadVlm,
       togglePause, rebuildIndex, switchVlmModel, toggleAuto,
+      failureCap, failures, failureTotal, failureError, failureLoading, failureSelected,
+      failureLabel, failureHasMore, openFailures, closeFailures, toggleFailure,
+      isFailureSelected, selectAllFailures, clearFailureSelection, softDeleteFailures,
+      loadFailures, markThumbMissing,
+      revealMedia, FAILURE_PAGE_SIZE,
       markDirty, saveConfig, resetConfig, doRefresh,
     };
   },
@@ -454,7 +587,80 @@ export default {
                 :disabled="busy || card.failed === 0"
                 @click="retryFailed(card)"
               >重试失败项 {{ card.failed }}</button>
+              <button
+                class="ghost sm"
+                :disabled="busy || card.failed === 0"
+                @click="openFailures(card)"
+              >{{ failureCap === card.name ? '收起失败项' : '查看失败项 ' + card.failed }}</button>
               <button class="danger sm" :disabled="busy" @click="regenerate(card)">全量重生成</button>
+            </div>
+
+            <div v-if="failureCap === card.name">
+              <div class="row between">
+                <span class="small muted">
+                  处理失败的媒体清单（{{ failureLabel }}）· 每批最多 {{ FAILURE_PAGE_SIZE }} 条 ·
+                  已加载 {{ failures.length }} / 共 {{ failureTotal }} 项
+                </span>
+                <span class="row">
+                  <button class="ghost sm" :disabled="failureLoading" @click="loadFailures(false)">刷新</button>
+                  <button class="ghost sm" :disabled="failureLoading" @click="closeFailures()">关闭</button>
+                </span>
+              </div>
+
+              <Placeholder v-if="failureError" :error="'获取 /API/ai/failures 失败: ' + failureError" />
+              <Placeholder v-else-if="failureLoading && !failures.length" text="正在读取失败项…" />
+              <Placeholder v-else-if="!failures.length" text="没有失败项" />
+              <template v-else>
+                <div class="row" style="margin: 6px 0">
+                  <button
+                    class="ghost sm"
+                    :disabled="busy"
+                    @click="selectAllFailures()"
+                  >全选已加载的 {{ failures.length }} 项</button>
+                  <button
+                    class="ghost sm"
+                    :disabled="busy || !failureSelected.length"
+                    @click="clearFailureSelection()"
+                  >取消选择（{{ failureSelected.length }}）</button>
+                  <button
+                    class="danger sm"
+                    :disabled="busy || !failureSelected.length"
+                    @click="softDeleteFailures(failureSelected)"
+                  >标记软删除（{{ failureSelected.length }}）</button>
+                  <span class="grow"></span>
+                  <button
+                    class="ghost sm"
+                    v-if="failureHasMore"
+                    :disabled="failureLoading"
+                    @click="loadFailures(true)"
+                  >加载更多</button>
+                </div>
+
+                <div class="media-grid wide">
+                  <div
+                    v-for="item in failures"
+                    :key="item.mediaId"
+                    class="media-tile"
+                    :class="{ selected: isFailureSelected(item.mediaId) }"
+                    @click="toggleFailure(item.mediaId)"
+                  >
+                    <img v-if="!item.thumbFailed" :src="item.thumb" alt="" loading="lazy" @error="markThumbMissing(item)" />
+                    <div v-else class="thumb-missing">无缩略图</div>
+                    <div class="meta">
+                      <div :title="item.filePath">{{ item.name }}</div>
+                      <div class="small muted">{{ item.updated }} · 尝试 {{ item.attempts }} 次</div>
+                      <div class="small" v-if="item.isDeleted">已标记软删除</div>
+                      <div class="small clamp-2" style="color: var(--warning)" :title="item.lastError">{{ item.lastError }}</div>
+                      <div class="row" style="margin-top: 4px">
+                        <button class="danger sm" :disabled="busy" @click.stop="softDeleteFailures([item.mediaId])">
+                          标记软删除
+                        </button>
+                        <button class="ghost sm" @click.stop="revealMedia(item.filePath)">打开目录</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </Card>
@@ -495,6 +701,7 @@ export default {
                   </span>
                 </td>
               </tr>
+              <tr><th>Ollama 模型目录</th><td class="mono small">{{ ollama.modelRoot || '—' }}</td></tr>
               <tr><th>worker 配置</th><td class="small">{{ workerText }}</td></tr>
               <tr><th>配置文件</th><td class="mono">{{ configPath || '（未启用）' }}</td></tr>
             </tbody>
@@ -508,6 +715,10 @@ export default {
               </span>
             </div>
             <div class="small" style="color: var(--warning)" v-if="ollama.lastSwitch">最近模型切换：{{ ollama.lastSwitch }}</div>
+            <div class="small" style="color: var(--warning)" v-if="!ollama.reachable">
+              本机 Ollama 未运行：模型清单暂时读不到，下面的候选会全部显示为「未安装」。点上面的
+              「启动模型」由服务端按需拉起（模型目录 {{ ollama.modelRoot || '默认' }}）。
+            </div>
             <div class="small muted" v-if="!vlmCandidates.length">未获取到模型候选，请刷新状态</div>
             <div class="row" v-else>
               <button
@@ -518,9 +729,13 @@ export default {
                 :disabled="busy || !candidate.installed || candidate.current"
                 :title="candidate.installed ? candidate.model : '未安装：请先执行 ollama pull ' + candidate.model"
                 @click="switchVlmModel(candidate)"
-              >{{ candidate.label }}{{ candidate.installed ? '' : '（未安装）' }}</button>
+              >{{ candidate.label }}{{ candidate.installed ? '' : '（未安装）' }}{{ candidate.installed && !candidate.vision ? '（非视觉模型）' : '' }}</button>
             </div>
-            <div class="small muted">换模型后该能力的旧产物会被服务端自动重排（输入档位/执行者不匹配即重排）。</div>
+            <div class="small muted">
+              候选实时来自本机 Ollama 的已安装模型（ollama pull/rm 后刷新即可，无需改配置）；
+              换模型后该能力的旧产物会被服务端自动重排（输入档位/执行者不匹配即重排）。
+              标注必须有视觉能力，只有对话模型时请勿切到它。
+            </div>
 
             <div class="row">
               <span class="small">入库自动处理</span>

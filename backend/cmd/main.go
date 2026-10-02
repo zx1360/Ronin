@@ -48,6 +48,8 @@ func main() {
 
 	// AI 处理层：未启用或 ai schema 缺失时自行降级，不影响主服务启动
 	ai.Default = ai.New(store, config.AiConf)
+	// 任务队列的暂停状态随网页端偏好一起持久化：服务重启后不默认开跑
+	ai.Default.SetPauseStore(opsStore)
 	ai.Default.Start()
 	defer ai.Default.Stop()
 

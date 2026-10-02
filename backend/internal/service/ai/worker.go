@@ -544,6 +544,7 @@ func firstNonEmpty(values ...string) string {
 // 就是"点了中断但还在跑"。返回是否确实中断到了一个正在执行的批次。
 func (e *Engine) PauseRun() bool {
 	e.paused.Store(true)
+	e.persistPaused(true)
 
 	e.runMu.Lock()
 	hasRun := e.lastRun != nil && e.lastRun.Running
@@ -566,6 +567,7 @@ func (e *Engine) PauseRun() bool {
 // ResumeRun 解除暂停并唤醒 worker。
 func (e *Engine) ResumeRun() {
 	e.paused.Store(false)
+	e.persistPaused(false)
 	e.Wake()
 }
 

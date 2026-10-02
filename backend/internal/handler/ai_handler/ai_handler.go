@@ -74,6 +74,30 @@ func ListJobs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"jobs": jobs, "total": total, "limit": limit, "offset": offset})
 }
 
+// ListFailures 处理 GET /API/ai/failures
+//
+// 回答"到底哪些媒体文件处理失败了"：返回失败任务 + 媒体路径 + 软删除标记，
+// 界面据此展示缩略图、定位文件，并把确认无用的直接标记软删除（复用 gallery 的软删除）。
+func ListFailures(c *gin.Context) {
+	if !schemaGuard(c) {
+		return
+	}
+	capability := strings.TrimSpace(c.Query("capability"))
+	if capability != "" && !model.IsValidCapability(capability) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "未知能力: " + capability})
+		return
+	}
+	limit := queryInt(c, "limit", 60, 1, 500)
+	offset := queryInt(c, "offset", 0, 0, 1<<30)
+
+	items, total, err := ai_repo.ListFailures(capability, limit, offset)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"failures": items, "total": total, "limit": limit, "offset": offset})
+}
+
 // enqueueRequest POST /API/ai/enqueue 请求体。
 type enqueueRequest struct {
 	Capabilities []string `json:"capabilities"`
@@ -896,12 +920,17 @@ func UpdateSettings(c *gin.Context) {
 		}
 	}
 	if req.VLMModel != nil {
-		selected := strings.TrimSpace(*req.VLMModel)
-		// 只接受两个候选：默认模型（可用空串恢复）与备选的无审查版
-		if selected != "" && selected != e.Config().OllamaVLM && selected != e.VLMAltModel() {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "未知模型: " + selected})
+		// 只接受本机已安装的模型（空串 = 恢复 .env 默认模型）。
+		// 归一化后再落库，避免配置里的大小写（:4B）与库里的实际名字（:4b）不一致。
+		normalized, err := e.NormalizeModel(*req.VLMModel)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		if strings.TrimSpace(*req.VLMModel) == "" {
+			normalized = ""
+		}
+		req.VLMModel = &normalized
 	}
 
 	update := config.RuntimeConfig{
@@ -999,9 +1028,16 @@ func buildSearchRequest(c *gin.Context) (ai.SearchRequest, error) {
 	return req, nil
 }
 
+// parseTime 解析带时区的 RFC3339 或不带时区的本机时间。
+//
+// 时间戳按本机本地时区存库（见 AGENTS_DB.md）；不带时区的写法必须按本地解析，
+// 否则 `2024-05-31` 会被当成 UTC 零点，在 UTC+8 下整体偏移 8 小时。
 func parseTime(raw string) (time.Time, error) {
-	for _, layout := range []string{time.RFC3339, "2006-01-02", "2006-01-02 15:04:05"} {
-		if parsed, err := time.Parse(layout, raw); err == nil {
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return parsed, nil
+	}
+	for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05"} {
+		if parsed, err := time.ParseInLocation(layout, raw, time.Local); err == nil {
 			return parsed, nil
 		}
 	}
@@ -1020,10 +1056,19 @@ func parseUUIDParams(c *gin.Context, key string) ([]string, error) {
 }
 
 // parseOptionalTime 解析可选的 from/to 时间参数；未提供时返回 nil。
+//
+// 只写日期（界面上的日期选择器）时按本地日历日解释，且 to 取该日末尾：
+// 否则"到 5 月 31 日"会把 5 月 31 日整天排除在外。
 func parseOptionalTime(c *gin.Context, key string) (*time.Time, error) {
 	raw := strings.TrimSpace(c.Query(key))
 	if raw == "" {
 		return nil, nil
+	}
+	if parsed, err := time.ParseInLocation("2006-01-02", raw, time.Local); err == nil {
+		if key == "to" {
+			parsed = parsed.AddDate(0, 0, 1).Add(-time.Millisecond)
+		}
+		return &parsed, nil
 	}
 	parsed, err := parseTime(raw)
 	if err != nil {

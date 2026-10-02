@@ -130,11 +130,15 @@ type Status struct {
 	Queue            []model.AiCapabilityStat `json:"queue"`
 	PendingTotal     int                      `json:"pending_total"`
 	FailedTotal      int                      `json:"failed_total"`
-	LastRun          *RunInfo                 `json:"last_run,omitempty"`
-	Index            IndexState               `json:"index"`
-	Cluster          ClusterState             `json:"cluster"`
-	Ollama           OllamaState              `json:"ollama"`
-	PersonCount      int                      `json:"person_count"`
+	// MediaTotal 未删除媒体总数：能力进度的分母。
+	// 「尚无产物」是另一个口径（人脸能力里"这张图本来就没有脸"也是正常的 0 产物），
+	// 把它加进分母会把同一批媒体算两遍。
+	MediaTotal  int          `json:"media_total"`
+	LastRun     *RunInfo     `json:"last_run,omitempty"`
+	Index       IndexState   `json:"index"`
+	Cluster     ClusterState `json:"cluster"`
+	Ollama      OllamaState  `json:"ollama"`
+	PersonCount int          `json:"person_count"`
 }
 
 // Status 采集当前状态快照。
@@ -176,6 +180,9 @@ func (e *Engine) Status(ctx context.Context) *Status {
 	stats, err := ai_repo.Stats()
 	if err == nil {
 		status.Queue = stats
+	}
+	if total, err := ai_repo.CountUndeletedMedia(); err == nil {
+		status.MediaTotal = total
 	}
 	if persons, err := ai_repo.ListPersons(); err == nil {
 		status.PersonCount = len(persons)

@@ -145,6 +145,7 @@ func SetupRouter() *gin.Engine {
 			aiGroup.GET("/status", ai_handler.Status)
 			aiGroup.GET("/capabilities", ai_handler.ListCapabilities)
 			aiGroup.GET("/jobs", ai_handler.ListJobs)
+			aiGroup.GET("/failures", ai_handler.ListFailures)
 			aiGroup.POST("/enqueue", ai_handler.Enqueue)
 			aiGroup.POST("/retry", ai_handler.Retry)
 			aiGroup.POST("/regenerate", ai_handler.Regenerate)

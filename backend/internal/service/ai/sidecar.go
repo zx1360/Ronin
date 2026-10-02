@@ -287,10 +287,14 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 	var readErr error
 	done := make(chan struct{})
 
+	// 读取协程只能持有管道本身：中断路径会在它还在读的时候把 s.stdout 置空
+	// （killLocked/stopLocked），再去读字段就会踩空指针把整个服务打崩。
+	reader := s.stdout
+
 	go func() {
 		defer close(done)
 		for len(results) < expected {
-			line, err := s.stdout.ReadBytes('\n')
+			line, err := reader.ReadBytes('\n')
 			if err != nil {
 				readErr = err
 				return

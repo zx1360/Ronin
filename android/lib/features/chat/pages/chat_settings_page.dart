@@ -40,9 +40,29 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
       final info = await ref.read(chatServerInfoProvider.future);
       if (!mounted) return;
       setState(() => _server = info);
+      _dropUnavailableModel(info);
     } catch (_) {
       // 服务端不可达时只影响"默认值/已安装"的展示，不影响设置项本身
     }
+  }
+
+  /// 本地保存的模型可能已被删掉（后端 ollama rm）：清空表示"跟随后端"，
+  /// 否则每一轮对话都会因该模型不可用而失败。
+  void _dropUnavailableModel(ChatServerInfo info) {
+    final options = ref.read(chatOptionsControllerProvider);
+    if (options.model.isEmpty || info.candidates.isEmpty) return;
+    for (final candidate in info.candidates) {
+      if (candidate.installed &&
+          candidate.model.toLowerCase() == options.model.toLowerCase()) {
+        return;
+      }
+    }
+    ref
+        .read(chatOptionsControllerProvider.notifier)
+        .update(options.copyWith(model: ''));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${options.model} 已不可用，已切回跟随后端')),
+    );
   }
 
   @override
@@ -50,8 +70,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
     final options = ref.watch(chatOptionsControllerProvider);
     final controller = ref.read(chatOptionsControllerProvider.notifier);
     final server = _server;
-    final defaultModel = server?.modelDefault ?? '';
-    final altModel = server?.modelAlt ?? '';
+    final selectedModel = options.model.toLowerCase();
 
     return Scaffold(
       appBar: AppBar(title: const Text('对话设置')),
@@ -61,33 +80,41 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
           _section(
             '模型',
             [
-              _ModelOption(
-                title: '标准版',
-                model: defaultModel.isEmpty ? '跟随后端' : defaultModel,
-                installed: server == null || server.isInstalled(defaultModel),
-                selected: options.model.isEmpty || options.model == defaultModel,
-                active: server != null && server.activeModel == defaultModel,
-                onTap: () => controller.update(
-                  options.copyWith(model: defaultModel),
-                ),
-              ),
-              _ModelOption(
-                title: '无审查版',
-                model: altModel.isEmpty ? '未知（后端不可达）' : altModel,
-                installed: server == null || server.isInstalled(altModel),
-                selected: altModel.isNotEmpty && options.model == altModel,
-                active: server != null && server.activeModel == altModel,
-                // 未安装的模型不允许选中：选中后每次对话都会失败
-                onTap: altModel.isEmpty || (server != null && !server.isInstalled(altModel))
-                    ? null
-                    : () => controller.update(
-                          options.copyWith(model: altModel),
-                        ),
-              ),
+              if (server == null)
+                const Text(
+                  '未能读取服务端模型清单（服务端不可达）。',
+                  style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
+                )
+              else if (server.candidates.isEmpty)
+                const Text(
+                  '服务端未下发模型候选；请确认后端已启用 AI 且本机 Ollama 可访问。',
+                  style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
+                )
+              else
+                for (final candidate in server.candidates)
+                  _ModelOption(
+                    title: candidate.label,
+                    model: candidate.model,
+                    installed: candidate.installed,
+                    vision: candidate.vision,
+                    // 未显式选过模型（model 为空）时以服务端当前生效的模型为准
+                    selected: selectedModel.isEmpty
+                        ? candidate.current
+                        : selectedModel == candidate.model.toLowerCase(),
+                    active: server.activeModel.toLowerCase() ==
+                        candidate.model.toLowerCase(),
+                    // 未安装的模型不允许选中：选中后每次对话都会失败
+                    onTap: candidate.installed
+                        ? () => controller.update(
+                              options.copyWith(model: candidate.model),
+                            )
+                        : null,
+                  ),
               const SizedBox(height: 4),
               const Text(
-                '未安装的模型需先在后端执行 ollama pull；两端选用不同模型时，'
-                '对话会抢占后台标注并释放显存（原任务会被中断，之后自动重排）。',
+                '候选实时来自本机 Ollama 的已安装模型（在后端 ollama pull / rm 后刷新即可）。'
+                '未安装的模型需先拉取；两端选用不同模型时，对话会抢占后台标注并释放显存'
+                '（原任务会被中断，之后自动重排）。',
                 style: TextStyle(
                   fontSize: 12,
                   color: AppTheme.onSurfaceVariant,
@@ -126,6 +153,10 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
           _section(
             '思考深度',
             [
+              const Text(
+                '「近期回顾」是一次性写作，固定不使用思考链；本开关只影响对话。',
+                style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
+              ),
               SwitchListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
@@ -255,6 +286,7 @@ class _ModelOption extends StatelessWidget {
     required this.title,
     required this.model,
     required this.installed,
+    required this.vision,
     required this.selected,
     required this.active,
     required this.onTap,
@@ -263,6 +295,7 @@ class _ModelOption extends StatelessWidget {
   final String title;
   final String model;
   final bool installed;
+  final bool vision;
   final bool selected;
   final bool active;
   final VoidCallback? onTap;
@@ -281,7 +314,14 @@ class _ModelOption extends StatelessWidget {
       ),
       title: Row(
         children: [
-          Text(title, style: const TextStyle(fontSize: 14)),
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
           if (active) ...[
             const SizedBox(width: 6),
             const Text(
@@ -294,6 +334,12 @@ class _ModelOption extends StatelessWidget {
             const Text(
               '未安装',
               style: TextStyle(fontSize: 11, color: AppTheme.errorVivid),
+            ),
+          ] else if (!vision) ...[
+            const SizedBox(width: 6),
+            const Text(
+              '无视觉',
+              style: TextStyle(fontSize: 11, color: AppTheme.onSurfaceVariant),
             ),
           ],
         ],
