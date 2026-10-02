@@ -544,45 +544,6 @@ func PendingCount(capability string) (int, error) {
 	return n, nil
 }
 
-// LegacyAutoCapabilities 读取旧版存放在 settings 表里的"入库自动入队能力"。
-//
-// 配置已迁到 STATIC_DIR/data/ai_config.json（见 config.ConfigStore）；这里只在
-// 首次生成该文件时把旧值搬过去一次，之后不再读写。
-func LegacyAutoCapabilities() ([]string, bool) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	if !SchemaReady(ctx) {
-		return nil, false
-	}
-	var raw string
-	if err := db.Read().QueryRowContext(ctx,
-		`SELECT value FROM settings WHERE key = 'auto_capabilities'`).Scan(&raw); err != nil {
-		return nil, false
-	}
-	var caps []string
-	for _, part := range SplitAndTrim(raw) {
-		if model.IsValidCapability(part) {
-			caps = append(caps, part)
-		}
-	}
-	return caps, true
-}
-
-// LegacyVLMModel 读取旧版存放在 settings 表里的 VLM 模型选择（同上，仅迁移用一次）。
-func LegacyVLMModel() (string, bool) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	if !SchemaReady(ctx) {
-		return "", false
-	}
-	var value string
-	if err := db.Read().QueryRowContext(ctx,
-		`SELECT value FROM settings WHERE key = 'ollama_vlm_model'`).Scan(&value); err != nil {
-		return "", false
-	}
-	return strings.TrimSpace(value), true
-}
-
 // int64Args 把 int64 列表转为 SQL 参数。
 func int64Args(values []int64) []any {
 	args := make([]any, len(values))

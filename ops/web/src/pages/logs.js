@@ -118,8 +118,6 @@ export default {
   },
   template: `
     <div>
-      <h1 class="page-title">日志</h1>
-
       <Card title="任务输出">
         <template #actions>
           <span class="badge" v-if="selected" :class="runningSelected ? 'info' : ''">

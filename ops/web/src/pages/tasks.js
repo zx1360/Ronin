@@ -96,8 +96,6 @@ export default {
   },
   template: `
     <div>
-      <h1 class="page-title">任务管理</h1>
-
       <Card title="Gallery CLI">
         <template #actions>
           <span class="badge" :class="state.cli.gallery.available ? 'success' : 'error'">

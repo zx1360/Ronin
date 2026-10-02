@@ -94,11 +94,9 @@ AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`A
 `AI_EMBED_MODEL`（换模型会使既有 `embeddings` 作废）、`OLLAMA_URL`、`OLLAMA_MODELS`、
 `OLLAMA_EXE`、`OLLAMA_VLM_MODEL`/`OLLAMA_VLM_MODEL_ALT`（候选模型名）、`OLLAMA_VLM_CTX`、
 `OLLAMA_KEEP_ALIVE`。
-**运行时可调项已迁到 `<STATIC_DIR>/data/ai_config.json`**（由网页端 AI 页读写，改完即时生效，
-不必重启）：`idle_timeout_seconds`、`job_timeout_seconds`、`batch_size`、`max_attempts`、
-`workers`、`device`、`auto_capabilities`、`vlm_model`。首次启动时若配置文件不存在，
-会按 .env 同名项（`AI_IDLE_TIMEOUT` 等，作为种子值）与数据库 `settings` 表的旧值生成它；
-之后 .env 里的运行项不再参与。`config/store.go` 负责读写与取值范围校验。
+**运行时可调项已迁到 `<STATIC_DIR>/data/ai_config.json`**：`idle_timeout_seconds`、`job_timeout_seconds`、`batch_size`、`max_attempts`、
+`workers`、`device`、`auto_capabilities`、`vlm_model`。首次启动时若配置文件不存在，会按 .env 同名项（`AI_IDLE_TIMEOUT` 等，作为种子值）生成它；
+`config/store.go` 负责读写与取值范围校验。
 
 ### API 概览
 

@@ -137,15 +137,3 @@ RETURNING id, media_id`：单写者模型下进程内不存在竞争，无需 PG
 | -- | ---- | ---- |
 | media_id | TEXT PRIMARY KEY FK→media_assets ON DELETE CASCADE | |
 | created_at | TEXT | 标记时间 |
-
-## settings
-
-| 列 | 类型 | 说明 |
-| -- | ---- | ---- |
-| key | TEXT PRIMARY KEY | 目前仅 `auto_capabilities` / `ollama_vlm_model`（均为旧版遗留） |
-| value | TEXT | 逗号分隔的能力列表 / 模型名 |
-| updated_at | TEXT (自动更新) | |
-
-> 这两项已迁到 `<STATIC_DIR>/data/ai_config.json`（由桌面端 AI 页读写）。首次生成该
-> 文件时会把这里的旧值搬过去一次，之后不再读写；本表保留原样以便回滚旧版本。
-> 运行时可调项的完整清单见 `AGENTS.md` 的环境变量一节。

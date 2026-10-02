@@ -1,4 +1,4 @@
-package com.example.torrid
+package ax.puzzled.torrid
 
 import io.flutter.embedding.android.FlutterActivity
 import javax.net.ssl.HttpsURLConnection

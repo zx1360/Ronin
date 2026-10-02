@@ -57,7 +57,6 @@ export default {
   template: `
     <div>
       <div class="row between">
-        <h1 class="page-title">仪表盘</h1>
         <div class="row">
           <span class="muted small" v-if="updatedAt">更新于 {{ formatTime(updatedAt) }}</span>
           <button class="ghost sm" :disabled="loading" @click="load()">{{ loading ? '刷新中…' : '刷新' }}</button>
