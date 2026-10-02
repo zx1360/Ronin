@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -76,19 +77,47 @@ func (e *Engine) reloadRuntime() error {
 	return nil
 }
 
-// VLMModel 返回当前生效的 VLM 模型（人工选择优先，其次 .env 默认值）。
+// VLMModel 返回当前选定的 VLM 标注模型（空串 = 尚未选定；纯读，不做任何写入）。
 func (e *Engine) VLMModel() string {
 	e.rt.mu.RLock()
 	model := e.rt.vlmModel
 	e.rt.mu.RUnlock()
-	if model != "" {
-		return model
-	}
-	return e.rt.Config().OllamaVLM
+	return model
 }
 
-// VLMAltModel 返回备选（无审查版）模型名。
-func (e *Engine) VLMAltModel() string { return e.rt.Config().OllamaVLMAlt }
+// ResolveVLMModel 返回当前选定的标注模型；从未选定时从本机已安装模型里挑一个并落盘。
+//
+// 只处理"从未选过"（首次部署、或界面清空选择）：挑一次之后不再自动改选——否则一次
+// `ollama rm` 就会静默换掉执行者，进而按指纹把全库旧标注重排一遍。选定的模型已不在
+// 本机时保留原值，由 CapabilityReady 如实报"未安装"，等用户自己重新选。
+func (e *Engine) ResolveVLMModel() string {
+	if current := e.VLMModel(); current != "" {
+		return current
+	}
+	// 优先带视觉能力的模型：标注必须有视觉，纯文本模型会整批失败。
+	pick := ""
+	for _, candidate := range e.ExecutorCandidates(model.CapVLM, "") {
+		if !candidate.Installed {
+			continue
+		}
+		if candidate.Vision {
+			pick = candidate.Model
+			break
+		}
+		if pick == "" {
+			pick = candidate.Model
+		}
+	}
+	if pick == "" {
+		return ""
+	}
+	if err := e.UpdateRuntime(config.RuntimeConfig{VLMModel: &pick}); err != nil {
+		log.Printf("[AI] 保存自动选定的标注模型失败: %v", err)
+		return pick
+	}
+	log.Printf("[AI] 未选定标注模型，已自动选用 %s（可在网页端切换）", pick)
+	return pick
+}
 
 // AutoCapabilities 返回"入库后自动入队"的能力列表。
 func (e *Engine) AutoCapabilities() []string {
@@ -212,8 +241,8 @@ func (e *Engine) InputSignature(capability string) string {
 
 // ExecutorCandidate 一个可选的执行者（模型）。
 type ExecutorCandidate struct {
-	Model      string `json:"model"`
-	Label      string `json:"label"`
+	Model string `json:"model"`
+	// Installed 本机是否已安装（候选只列已安装模型，该字段恒为 true，留着便于端上统一渲染）
 	Installed  bool   `json:"installed"`
 	IsCurrent  bool   `json:"is_current"`
 	InputsTier string `json:"input_tier"`
@@ -223,8 +252,8 @@ type ExecutorCandidate struct {
 
 // ExecutorCandidates 返回该能力的执行者候选与当前选择。
 //
-// VLM 的候选实时来自本机 Ollama 已安装模型（配置里的两个候选始终保留，未安装时标注出来），
-// 因此用户自行 ollama pull/rm 增删模型后无需改代码或重启：两端都只渲染这里下发的列表。
+// VLM 的候选**实时来自本机 Ollama**（按模型名排序，只列已安装的），
+// 因此用户自行 ollama pull/rm 增删模型后无需改配置、改代码或重启：两端都只渲染这里下发的列表。
 // 其余能力固定一种实现，仍然下发列表以便消费端统一渲染而不必在端上硬编码。
 func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandidate {
 	apply := func(candidates []ExecutorCandidate) []ExecutorCandidate {
@@ -240,45 +269,20 @@ func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandid
 
 	switch capability {
 	case model.CapVLM:
-		cfg := e.rt.Config()
 		installed := e.installedModelInfo()
-		// 配置里的两个候选保留友好名称；其余（用户自行拉的）直接用模型名。
-		labels := map[string]string{
-			strings.ToLower(cfg.OllamaVLM):    "标准版",
-			strings.ToLower(cfg.OllamaVLMAlt): "无审查版",
-		}
-		seen := map[string]bool{}
-		candidates := make([]ExecutorCandidate, 0, len(installed)+2)
-		// add 以"已安装时的真实模型名"为准：Ollama 的模型名大小写不敏感，
-		// 用配置里的写法发请求会与该模型在库里的名字对不上。
-		add := func(configName string, info ModelInfo, ok bool) {
-			key := strings.ToLower(strings.TrimSpace(configName))
-			if key == "" || seen[key] {
-				return
-			}
-			seen[key] = true
-			name := strings.TrimSpace(configName)
-			if ok {
-				name = info.Name
-			}
-			candidates = append(candidates, ExecutorCandidate{
-				Model:     name,
-				Label:     labelOr(labels[key], name),
-				Installed: ok,
-				Vision:    ok && info.Vision,
-			})
-		}
-		for _, name := range []string{cfg.OllamaVLM, cfg.OllamaVLMAlt} {
-			info, ok := installed[strings.ToLower(strings.TrimSpace(name))]
-			add(name, info, ok)
-		}
 		names := make([]string, 0, len(installed))
 		for key := range installed {
 			names = append(names, key)
 		}
 		sort.Strings(names)
+		candidates := make([]ExecutorCandidate, 0, len(names))
 		for _, key := range names {
-			add(installed[key].Name, installed[key], true)
+			info := installed[key]
+			candidates = append(candidates, ExecutorCandidate{
+				Model:     info.Name,
+				Installed: true,
+				Vision:    info.Vision,
+			})
 		}
 		return apply(candidates)
 	default:
@@ -288,24 +292,15 @@ func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandid
 		}
 		return apply([]ExecutorCandidate{{
 			Model:     spec.Executor,
-			Label:     spec.Executor,
 			Installed: true,
 		}})
 	}
 }
 
-// labelOr 返回标签，空则退回模型名。
-func labelOr(label, fallback string) string {
-	if label != "" {
-		return label
-	}
-	return fallback
-}
-
 // installedModelInfo 返回本机已安装的 Ollama 模型（键为小写模型名；不可达时返回空集合）。
 //
-// 键统一小写：Ollama 的模型名大小写不敏感（`huihui_ai/qwen3.5-abliterated:4b`
-// 与配置里的 `:4B` 是同一个模型），按原样比较会把已安装的候选判成未安装。
+// 键统一小写：Ollama 的模型名大小写不敏感（同一模型可能被写成 `:4b` 或 `:4B`），
+// 按原样比较会把同一个模型判成两个。
 func (e *Engine) installedModelInfo() map[string]ModelInfo {
 	models := map[string]ModelInfo{}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -322,12 +317,15 @@ func (e *Engine) installedModelInfo() map[string]ModelInfo {
 
 // NormalizeModel 校验客户端指定的模型并归一化为本机实际使用的模型名。
 //
-// 空串表示沿用当前生效模型；非空时必须是本机已安装的模型（Ollama 不可达时无法确认，
+// 空串表示沿用当前选定的模型；非空时必须是本机已安装的模型（Ollama 不可达时无法确认，
 // 直接拒绝并说明），因此用户增删模型后两端都能立刻切换，不需要改代码。
 func (e *Engine) NormalizeModel(requested string) (string, error) {
 	selected := strings.TrimSpace(requested)
 	if selected == "" {
-		return e.VLMModel(), nil
+		if current := e.VLMModel(); current != "" {
+			return current, nil
+		}
+		return "", fmt.Errorf("尚未选定模型：本机没有可用的 Ollama 模型")
 	}
 	for _, candidate := range e.ExecutorCandidates(model.CapVLM, "ollama:"+e.VLMModel()) {
 		if strings.EqualFold(candidate.Model, selected) && candidate.Installed {

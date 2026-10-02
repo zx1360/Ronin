@@ -87,17 +87,16 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                 )
               else if (server.candidates.isEmpty)
                 const Text(
-                  '服务端未下发模型候选；请确认后端已启用 AI 且本机 Ollama 可访问。',
+                  '未能获取可用模型清单：请确认后端已启用 AI 且本机 Ollama 可访问（后端页面可一键拉起）。',
                   style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
                 )
               else
                 for (final candidate in server.candidates)
                   _ModelOption(
-                    title: candidate.label,
                     model: candidate.model,
                     installed: candidate.installed,
                     vision: candidate.vision,
-                    // 未显式选过模型（model 为空）时以服务端当前生效的模型为准
+                    // 未显式选过模型（model 为空）时以服务端当前选定的模型为准
                     selected: selectedModel.isEmpty
                         ? candidate.current
                         : selectedModel == candidate.model.toLowerCase(),
@@ -113,8 +112,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               const SizedBox(height: 4),
               const Text(
                 '候选实时来自本机 Ollama 的已安装模型（在后端 ollama pull / rm 后刷新即可）。'
-                '未安装的模型需先拉取；两端选用不同模型时，对话会抢占后台标注并释放显存'
-                '（原任务会被中断，之后自动重排）。',
+                '两端选用不同模型时，对话会抢占后台标注并释放显存（原任务会被中断，之后自动重排）。',
                 style: TextStyle(
                   fontSize: 12,
                   color: AppTheme.onSurfaceVariant,
@@ -280,10 +278,9 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
   }
 }
 
-/// 单个模型选项：名称 + 模型标识 + 已安装/运行中状态。
+/// 单个模型选项：模型名 + 已安装/运行中/无视觉标识。
 class _ModelOption extends StatelessWidget {
   const _ModelOption({
-    required this.title,
     required this.model,
     required this.installed,
     required this.vision,
@@ -292,7 +289,6 @@ class _ModelOption extends StatelessWidget {
     required this.onTap,
   });
 
-  final String title;
   final String model;
   final bool installed;
   final bool vision;
@@ -316,7 +312,7 @@ class _ModelOption extends StatelessWidget {
         children: [
           Flexible(
             child: Text(
-              title,
+              model,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 14),
@@ -343,12 +339,6 @@ class _ModelOption extends StatelessWidget {
             ),
           ],
         ],
-      ),
-      subtitle: Text(
-        model,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 11),
       ),
     );
   }

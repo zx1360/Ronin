@@ -33,20 +33,20 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
     空闲 `ai_config.json` 的 `idle_timeout_seconds` 后自动退出释放内存，进程降为 BelowNormal
     优先级（`priority_windows.go`）。`device=auto` 时 `face`/`ocr` 走 DirectML，向量编码
     固定 CPU——换执行提供者会改变向量数值、使既有 `embeddings` 失效（`ronin_ai/providers.py`）。
-  - `vlm`：调用本机 Ollama（`OLLAMA_VLM_MODEL`，默认 `qwen3.5:4b`；备选
-    `OLLAMA_VLM_MODEL_ALT` = 社区 abliteration 的无审查版，同样保留视觉能力）。请求必须带
+  - `vlm`：调用本机 Ollama，用哪个模型由 `ai_config.json` 的 `vlm_model` 决定。请求必须带
     `think=false` 与显式 `num_ctx`（`OLLAMA_VLM_CTX`）：思考型模型会把 `num_predict`
     全用在推理上，JSON 输出为空。不传 `keep_alive`，沿用 Ollama 默认（无请求 5 分钟后
     卸载模型）；用户已运行的 Ollama 直接复用，未运行时才自拉 `ollama serve`（靠
     `OLLAMA_MODELS` 指向同一模型库，空闲 `OLLAMA_IDLE_TIMEOUT` 秒后回收）。
-  - 模型可切换：**候选实时来自本机 Ollama**（`/api/tags`：名字 + `capabilities` 判视觉，
-    旧版无 `capabilities` 时退回模型族启发式），配置里的 `OLLAMA_VLM_MODEL` / `_ALT` 始终保留
-    （未安装时标注出来），因此用户自行 `ollama pull/rm` 后无需改代码或重启。候选由
-    `/API/ai/capabilities` 与 `/API/ai/status` 的 `executor_candidates` 下发，消费端只渲染列表、
-    不硬编码；`chat`/`review` 的 `model` 与网页端标注模型（`ai_config.json` 的 `vlm_model`）
-    都只接受**本机已安装**的模型（`Engine.NormalizeModel` 负责校验并归一化大小写）。
-    备选模型可用社区 GGUF 本地构建：`ollama create -f Modelfile` 里必须有**两条 FROM**
-    （文本 GGUF + `mmproj`），否则丢失视觉能力。
+  - 模型可切换且**不写死**：候选实时来自本机 Ollama（`/api/tags`：名字 + `capabilities` 判视觉，
+    旧版无 `capabilities` 时退回模型族启发式），由 `/API/ai/capabilities` 与 `/API/ai/status`
+    的 `executor_candidates` 下发，消费端只渲染列表、不硬编码，因此 `ollama pull/rm` 增删模型后
+    两端刷新即可用。选定结果存 `ai_config.json` 的 `vlm_model`（从未选过时自动挑一个带视觉能力的
+    并落盘；选定模型后来被删掉**不自动改选**，只如实报未安装，避免一次 `ollama rm` 触发全库重排）；
+    `chat`/`review` 的 `model` 与网页端的模型切换都只接受**本机已安装**的模型
+    （`Engine.NormalizeModel` 校验并归一化大小写）。
+    本地构建 VLM：`ollama create -f Modelfile` 里必须有**两条 FROM**（文本 GGUF + `mmproj`），
+    否则丢失视觉能力。
   - 模型仲裁（`models.go`）：本地只有一块 GPU，同一时刻只跑一个模型。**前台对话抢占**
     后台标注（中断批次 + 卸载旧模型，任务退回队列不计失败），**后台标注等前台**结束
     （超时才接管），避免边聊天边被反复打断。
@@ -93,9 +93,9 @@ gallery CLI 位置固定为 `gizmos/gallery.exe`，需要时可加 `GALLERY_CLI`
 迁移确认无误后可删除（原 PostgreSQL 库保留作回滚）。
 
 AI 的安装期项仍在 .env：`AI_ENABLED`（`false` = 完全不启用）、`AI_PYTHON`、`AI_SIDECAR_DIR`、
-`AI_EMBED_MODEL`（换模型会使既有 `embeddings` 作废）、`OLLAMA_URL`、`OLLAMA_MODELS`、
-`OLLAMA_EXE`、`OLLAMA_VLM_MODEL`/`OLLAMA_VLM_MODEL_ALT`（候选模型名）、`OLLAMA_VLM_CTX`、
-`OLLAMA_KEEP_ALIVE`。
+`AI_EMBED_MODEL`（换模型会使既有 `embeddings` 作废）、`OLLAMA_URL`、
+`OLLAMA_MODELS`（**必须指向 Ollama 应用实际使用的模型目录**，否则自拉的 `ollama serve` 看不到任何模型）、
+`OLLAMA_EXE`、`OLLAMA_VLM_CTX`、`OLLAMA_KEEP_ALIVE`。**模型名不在这里配置**（见上"模型可切换"）。
 **运行时可调项已迁到 `<STATIC_DIR>/data/ai_config.json`**：`idle_timeout_seconds`、`job_timeout_seconds`、`batch_size`、`max_attempts`、
 `workers`、`device`、`auto_capabilities`、`vlm_model`。首次启动时若配置文件不存在，会按 .env 同名项（`AI_IDLE_TIMEOUT` 等，作为种子值）生成它；
 `config/store.go` 负责读写与取值范围校验。

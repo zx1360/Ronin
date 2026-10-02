@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"monarch/internal/model"
@@ -40,6 +41,9 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 		return true, "" // 纯 Go 实现，无外部依赖
 	}
 	if capability == model.CapVLM {
+		if strings.TrimSpace(e.VLMModel()) == "" {
+			return false, "尚未选定标注模型：本机没有可用的 Ollama 模型"
+		}
 		if ok, reason := e.ollama.Ready(ctx, e.VLMModel()); !ok {
 			return false, reason
 		}
@@ -227,7 +231,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 
 // ollamaState 采集 Ollama 状态，并补上"当前正在推理的模型"这一运行时信息。
 func (e *Engine) ollamaState(ctx context.Context) OllamaState {
-	state := e.ollama.State(ctx, e.VLMModel(), e.VLMAltModel())
+	state := e.ollama.State(ctx, e.VLMModel())
 	state.ActiveModel = e.ActiveModel()
 	state.LastSwitch = e.LastSwitchNotice()
 	return state

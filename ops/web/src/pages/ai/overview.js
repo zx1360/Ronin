@@ -150,8 +150,6 @@ export default {
       return {
         url: source.url || '',
         model: source.model || '',
-        modelDefault: source.model_default || '',
-        modelAlt: source.model_alt || '',
         activeModel: source.active_model || '',
         lastSwitch: source.last_switch || '',
         numCtx: num(source.num_ctx),
@@ -176,14 +174,13 @@ export default {
         + ' · 重试上限 ' + num(source.max_attempts);
     });
 
-    // 候选模型实时来自本机 Ollama（/API/ai/capabilities 下发）；不可达时全部标为未安装，
-    // 因此界面上要先把"服务没起"说清楚，而不是让用户以为模型丢了。
+    // 候选模型就是本机已安装的模型（/API/ai/capabilities 下发，按名称排序）；
+    // 不可达时列表为空，界面先把"服务没起"说清楚，而不是列一堆点不动的名字。
     const vlmCandidates = computed(() => {
       const cap = (props.capabilities || []).find((item) => item && item.capability === 'vlm');
       const list = cap && Array.isArray(cap.executor_candidates) ? cap.executor_candidates : [];
       return list.map((item) => ({
         model: item.model || '',
-        label: item.label || item.model || '',
         installed: item.installed === true,
         vision: item.vision === true,
         current: item.is_current === true,
@@ -716,20 +713,20 @@ export default {
             </div>
             <div class="small" style="color: var(--warning)" v-if="ollama.lastSwitch">最近模型切换：{{ ollama.lastSwitch }}</div>
             <div class="small" style="color: var(--warning)" v-if="!ollama.reachable">
-              本机 Ollama 未运行：模型清单暂时读不到，下面的候选会全部显示为「未安装」。点上面的
-              「启动模型」由服务端按需拉起（模型目录 {{ ollama.modelRoot || '默认' }}）。
+              本机 Ollama 未运行（或没有已安装模型）：模型清单此刻是空的，点上面的「启动模型」由服务端
+              按需拉起（模型目录 {{ ollama.modelRoot || '默认' }}）。
             </div>
-            <div class="small muted" v-if="!vlmCandidates.length">未获取到模型候选，请刷新状态</div>
+            <div class="small muted" v-if="!vlmCandidates.length">当前没有可用模型，因此没有可选清单</div>
             <div class="row" v-else>
               <button
                 v-for="candidate in vlmCandidates"
                 :key="candidate.model"
                 class="sm"
                 :class="candidate.current ? 'primary' : 'ghost'"
-                :disabled="busy || !candidate.installed || candidate.current"
-                :title="candidate.installed ? candidate.model : '未安装：请先执行 ollama pull ' + candidate.model"
+                :disabled="busy || candidate.current"
+                :title="candidate.model"
                 @click="switchVlmModel(candidate)"
-              >{{ candidate.label }}{{ candidate.installed ? '' : '（未安装）' }}{{ candidate.installed && !candidate.vision ? '（非视觉模型）' : '' }}</button>
+              >{{ candidate.model }}{{ candidate.vision ? '' : '（非视觉模型）' }}</button>
             </div>
             <div class="small muted">
               候选实时来自本机 Ollama 的已安装模型（ollama pull/rm 后刷新即可，无需改配置）；
