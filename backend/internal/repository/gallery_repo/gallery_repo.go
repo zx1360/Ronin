@@ -552,13 +552,6 @@ func FetchTagByID(id uuid.UUID) (*model.Tag, error) {
 	return &tag, nil
 }
 
-// FetchDescendantTagIDs 递归获取指定标签的所有子孙 ID（不含自身）
-func FetchDescendantTagIDs(id uuid.UUID) ([]uuid.UUID, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	return descendantIDs(ctx, db.Read(), id)
-}
-
 // descendantIDs 递归查询子孙标签 ID（rootID 的下一层起）。
 func descendantIDs(ctx context.Context, q interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
@@ -626,7 +619,7 @@ func ExpandTagIDs(ids []uuid.UUID) ([]uuid.UUID, error) {
 	return expanded, nil
 }
 
-// ============ 标签路径维护（原 PostgreSQL 触发器上移到 Go） ============
+// ============ 标签路径维护 ============
 
 // tagRow 标签树节点（仅路径计算所需字段）。
 type tagRow struct {
@@ -639,8 +632,7 @@ type tagRow struct {
 // rebuildTagPaths 依据 (name, parent_id) 重算全树 full_path，仅写入变化的行。
 //
 // 标签树规模很小（百级），整体重算比逐级级联更新更简单可靠，且天然容忍历史
-// 遗留的错误路径；等价于原 PostgreSQL 的 tags_before_ins_upd / tags_after_upd
-// 两个触发器函数。
+// 遗留的错误路径。
 func rebuildTagPaths(ctx context.Context, tx *sql.Tx) error {
 	rows, err := tx.QueryContext(ctx, `SELECT id, name, parent_id, COALESCE(full_path, '') FROM tags`)
 	if err != nil {

@@ -38,7 +38,7 @@ export default {
           <div>AI 运行时配置：<span class="mono">static/data/ai_config.json</span></div>
           <div>数据库：<span class="mono">{{ state.paths.dbFile }}</span></div>
           <div>媒体库：<span class="mono">{{ state.paths.galleryDir }}</span></div>
-          <div class="muted">全部随应用目录一起迁移/备份，不写用户目录。(TODO:)</div>
+          <div class="muted">全部随应用目录一起迁移/备份，不写用户目录。</div>
         </div>
       </Card>
     </div>`,

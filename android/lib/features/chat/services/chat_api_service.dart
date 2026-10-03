@@ -37,7 +37,7 @@ class ChatStreamEvent {
 class ChatModelOption {
   final String model;
 
-  /// 本机是否已安装（服务端判定，端上不再自己做名称比较）。
+  /// 本机是否已安装（由服务端判定，端上不自行比较名称）。
   final bool installed;
 
   /// 是否带视觉能力：不带的话发图片提问会答非所问。

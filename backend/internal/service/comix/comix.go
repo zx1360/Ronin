@@ -154,10 +154,7 @@ func StoragePath(relDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	relative := relDir
-	if strings.HasPrefix(relative, "comics/") {
-		relative = relative[len("comics/"):]
-	}
+	relative := strings.TrimPrefix(relDir, "comics/")
 	return filepath.Join(root, filepath.FromSlash(relative)), nil
 }
 

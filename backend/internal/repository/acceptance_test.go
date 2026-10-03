@@ -6,6 +6,7 @@
 package repository_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -38,7 +39,7 @@ func TestMain(m *testing.M) {
 	}
 	src = filepath.FromSlash(src)
 	if _, err := os.Stat(src); err != nil {
-		fmt.Fprintf(os.Stderr, "跳过数据层验收：未找到源数据库 %s（设置 MONARCH_DB_SRC 或先执行迁移）\n", src)
+		fmt.Fprintf(os.Stderr, "跳过数据层验收：未找到源数据库 %s（用 MONARCH_DB_SRC 指定）\n", src)
 		os.Exit(0)
 	}
 
@@ -379,7 +380,7 @@ func TestAiSearch(t *testing.T) {
 	if _, err := ai_repo.CountMediaMissingAll(); err != nil {
 		t.Fatalf("待处理统计失败: %v", err)
 	}
-	if !ai_repo.SchemaReady(nil) {
+	if !ai_repo.SchemaReady(context.Background()) {
 		t.Fatal("SchemaReady 应为 true")
 	}
 }
@@ -433,14 +434,10 @@ func TestGalleryTagTree(t *testing.T) {
 		t.Fatalf("移动后路径不符: %q", got.FullPath)
 	}
 
-	// 子孙查询与展开
+	// 子孙展开（自身 + 全部子孙）
 	grand, err := gallery_repo.CreateTag("验收孙", &root.ID)
 	if err != nil {
 		t.Fatalf("创建孙标签失败: %v", err)
-	}
-	descendants, err := gallery_repo.FetchDescendantTagIDs(root.ID)
-	if err != nil || len(descendants) != 1 || descendants[0] != grand.ID {
-		t.Fatalf("子孙查询不符: %v err=%v", descendants, err)
 	}
 	expanded, err := gallery_repo.ExpandTagIDs([]uuid.UUID{root.ID})
 	if err != nil || len(expanded) != 2 {
@@ -655,17 +652,14 @@ func TestUserDataReplace(t *testing.T) {
 // ---------- comix 漫画读取与管理字段 ----------
 
 func TestComicRepo(t *testing.T) {
-	meta, err := comic_repo.GetComicMetaData()
-	if err != nil || meta.BookCount == 0 || meta.TotalImageCount == 0 {
-		t.Fatalf("漫画总元数据不符: %+v err=%v", meta, err)
-	}
-	if meta.UpdatedAt.IsZero() {
-		t.Fatal("漫画元数据时间未设置")
+	var bookCount int
+	if err := db.Read().QueryRow(`SELECT COUNT(*) FROM comics`).Scan(&bookCount); err != nil {
+		t.Fatalf("统计漫画总数失败: %v", err)
 	}
 
 	infos, err := comic_repo.GetAllComicInfos()
-	if err != nil || len(infos) != meta.BookCount {
-		t.Fatalf("漫画列表不符: %d/%d err=%v", len(infos), meta.BookCount, err)
+	if err != nil || len(infos) != bookCount {
+		t.Fatalf("漫画列表不符: %d/%d err=%v", len(infos), bookCount, err)
 	}
 	var withChapters *model.ComicInfo
 	for i := range infos {
@@ -721,17 +715,6 @@ func TestComicRepo(t *testing.T) {
 		if info.ID == withChapters.ID && info.IsPublic != target {
 			t.Fatalf("is_public 未生效: %+v", info)
 		}
-	}
-
-	resp, err := comic_repo.SyncReadedStatus([]string{withChapters.ID})
-	if err != nil {
-		t.Fatalf("同步已读失败: %v", err)
-	}
-	if resp.NewChapters[withChapters.ID] != len(chapters) {
-		t.Fatalf("已读同步的章节计数不符: %d/%d", resp.NewChapters[withChapters.ID], len(chapters))
-	}
-	if _, err := comic_repo.SyncReadedStatus([]string{"not-a-number"}); err == nil {
-		t.Fatal("非法漫画 ID 应报错")
 	}
 }
 

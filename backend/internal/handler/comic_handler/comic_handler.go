@@ -1,31 +1,18 @@
-// Package comic_handler 提供 Android 端"漫画"模块的接口（legacy 书库 + 在线章节）。
+// Package comic_handler 提供 Android 端"漫画"模块的接口（书库浏览 + 在线章节下载）。
 //
-// 数据来自 comix schema 中由爬虫维护的视图；管理字段更新仍写回数据库。
+// 数据来自 comix 侧由爬虫维护的 `comic_*` 表；管理字段更新也写回同一批表。
 package comic_handler
 
 import (
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/gin-gonic/gin"
 
-	"monarch/internal/config"
 	"monarch/internal/model"
 	"monarch/internal/repository/comic_repo"
 )
-
-// FetchComicMetadata 获取漫画汇总元数据。
-func FetchComicMetadata(c *gin.Context) {
-	metadata, err := comic_repo.GetComicMetaData()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, metadata)
-}
 
 // FetchAllComicInfos 获取全部漫画列表。
 func FetchAllComicInfos(c *gin.Context) {
@@ -94,56 +81,4 @@ func UpdateComic(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
-}
-
-// DeleteComic 删除漫画：先删数据库记录，再清理文件系统资源。
-//
-// 文件布局有两套，都要覆盖（目录不存在时 RemoveAll 返回 nil，无需预判）：
-// legacy 资源为 {STATIC_DIR}/comics/{title}，爬虫资源为 {STATIC_DIR}/{rel_dir}。
-func DeleteComic(c *gin.Context) {
-	title, relDir, err := comic_repo.DeleteComic(c.Param("comic-id"))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	targets := make([]string, 0, 2)
-	if relDir != "" {
-		targets = append(targets, filepath.Join(config.AppConf.StaticDir, filepath.FromSlash(relDir)))
-	}
-	if title != "" {
-		targets = append(targets, filepath.Join(config.AppConf.StaticDir, "comics", title))
-	}
-
-	var failed []string
-	for _, dir := range targets {
-		if err := os.RemoveAll(dir); err != nil {
-			failed = append(failed, fmt.Sprintf("%s: %v", dir, err))
-		}
-	}
-	if len(failed) > 0 {
-		// 文件清理失败不阻塞响应，但要如实告知客户端
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "partial",
-			"message": fmt.Sprintf("数据库记录已删除，但文件清理失败: %v", failed),
-			"deleted": title,
-		})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "deleted": title})
-}
-
-// SyncReadedStatus 同步已读状态，并返回各漫画的服务器章节总数（供客户端判断增量）。
-func SyncReadedStatus(c *gin.Context) {
-	var req model.SyncReadedRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式无效: " + err.Error()})
-		return
-	}
-	resp, err := comic_repo.SyncReadedStatus(req.ReadedIds)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, resp)
 }

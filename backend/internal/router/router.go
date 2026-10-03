@@ -65,19 +65,14 @@ func SetupRouter() *gin.Engine {
 		// 漫画请求相关（免鉴权，由 selectiveAuth 放行）
 		comicGroup := api.Group("/comic")
 		{
-			// 漫画元数据
-			comicGroup.GET("/meta-info", comic_handler.FetchComicMetadata)
 			// 漫画列表 & 详情
 			comicGroup.GET("/comic-info", comic_handler.FetchAllComicInfos)
 			comicGroup.GET("/comic-info/:comic-id", comic_handler.FetchChaptersWithComicId)
 			comicGroup.PUT("/comic-info/:comic-id", comic_handler.UpdateComic)
-			comicGroup.DELETE("/comic-info/:comic-id", comic_handler.DeleteComic)
 			// 章节详情
 			comicGroup.GET("/chapter-info/:chapter-id", comic_handler.FetchImagesWithChapterId)
 			// 下载整本漫画到本地
 			comicGroup.GET("/download/:comic-id", comic_handler.DownloadComic)
-			// 同步已读状态
-			comicGroup.POST("/sync-readed", comic_handler.SyncReadedStatus)
 		}
 
 		// comix 漫画爬虫管理（需鉴权；异步任务由服务端管理生命周期）

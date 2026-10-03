@@ -9,11 +9,6 @@
 |---|---|---|
 | `check_updates.py` | 全量更新检查（计划任务追更） | `--download` 自动追更 / `--latest N` / `--json` |
 | `import_legacy.py` | 导入旧资源（存储根下的名称目录） | `--dry-run` / `--execute` / `--limit N` / `--json` |
-| `backfill_images.py` | 为已下载但**缺图片记录**的章节补齐（含封面） | `--comic-id N` / `--json` |
-
-> `backfill_images.py` 只处理 `status=done` 且 `comic_images` 无记录的章节
-> （legacy 导入与下载回填已写记录的自动跳过，避免重扫 12 万文件）；
-> 同时为 `cover_image` 为空的漫画补第一章第一图。
 
 ## 关键约定与陷阱（踩过的坑）
 
@@ -38,5 +33,4 @@ pip install -r requirements.txt
 python -m playwright install chromium        # 漫画鱼/奈斯需要
 python -m comix.cli init                      # 建表（读 backend/references/db/sqlite.sql）+ 注册站点
 python scripts/import_legacy.py --execute     # 导入旧资源（如有）
-python scripts/backfill_images.py             # 补齐存量下载章节的图片记录
 ```

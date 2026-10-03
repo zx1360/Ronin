@@ -1,7 +1,8 @@
 // Monarch HTTP 服务入口。
 //
-// 单进程单端口（LOCAL_PORT）：HTTP 监听 + `X-API-Key` 鉴权；网页运维端在 `/ops/`，
-// 与本机能力接口一样只接受回环地址访问。
+// 同时监听两个端口（LOCAL_PORT HTTPS / LOCAL_HTTP_PORT HTTP），接口完全一致；
+// HTTP 监听带 `X-API-Key` 鉴权。网页运维端在 `/ops/`，与本机能力接口一样
+// 只接受回环地址访问。
 package main
 
 import (
@@ -12,6 +13,7 @@ import (
 	"monarch/internal/config"
 	"monarch/internal/handler/ops_handler"
 	"monarch/internal/service/ai"
+	"monarch/internal/service/comix"
 	"monarch/internal/service/db"
 	"monarch/internal/service/gallery"
 	"monarch/internal/service/server"
@@ -53,8 +55,9 @@ func main() {
 	ai.Default.Start()
 	defer ai.Default.Stop()
 
-	// gallery CLI 任务随服务退出一起中断（任务状态只存在内存里，留着也没人管）
+	// 被托管的子进程随服务退出一起中断（任务状态只存在内存里，留着也没人管）
 	defer gallery.Manager.KillAll()
+	defer comix.Manager.KillAll()
 
 	server.StartServer()
 }

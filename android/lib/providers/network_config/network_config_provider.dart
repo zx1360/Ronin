@@ -128,8 +128,8 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 
   /// 同步读取持久化配置并组装状态
   ///
-  /// 本 Provider 是服务器连接配置的唯一真相源；[ApiClientManager]
-  /// 通过监听本状态派生 ApiClient，因此这里不再需要手动向 ApiClient 推送。
+  /// 本 Provider 是服务器连接配置的唯一真相源；[ApiClientManager] 通过监听本状态
+  /// 派生 ApiClient，任何手动推送都会与之冲突。
   NetworkConfigState _loadState() {
     try {
       final prefs = PrefsService().prefs;

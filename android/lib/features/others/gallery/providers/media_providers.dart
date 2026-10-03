@@ -138,8 +138,8 @@ class MediaAssetList extends _$MediaAssetList {
 
   /// 「本地立即生效 → 写缓冲合并推送」这一条写路径的唯一实现。
   ///
-  /// 详情页、图片编辑页、视频剪辑页原先各抄一遍（还各漏了几项），统一到这里：
   /// 本地落库 + 内存态同步 + 服务端经缓冲推送，失败由缓冲层回滚。
+  /// 页面不要自己写 `updateMediaAsset + queuePatch`（会漏掉内存态同步）。
   Future<void> _applyLocalAndQueue(
     MediaAsset updated,
     MediaAsset baseline,

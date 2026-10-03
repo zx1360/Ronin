@@ -670,8 +670,8 @@ func BuildSearchWhere(f SearchFilters) (string, []any) {
 		conditions = append(conditions, "m.is_deleted = 0")
 	}
 	if strings.TrimSpace(f.Keyword) != "" {
-		// SQLite 的 LIKE 对 ASCII 大小写不敏感，与 PG 的 ILIKE 在本数据集上等价；
-		// 无 pg_trgm 索引，这里对 media_ai 做一次全表扫描（见 AGENTS_DB.md 的性能说明）。
+		// SQLite 的 LIKE 对 ASCII 大小写不敏感，正好覆盖关键词检索；
+		// 无 trigram 索引，这里对 media_ai 做一次全表扫描（见 AGENTS_DB.md 的性能说明）。
 		pattern := "%" + strings.TrimSpace(f.Keyword) + "%"
 		args = append(args, pattern, pattern, pattern)
 		conditions = append(conditions, `m.id IN (

@@ -18,15 +18,21 @@
 
 **==因此, 应当自行做好数据的管理防止丢失数据==**
 
-## 数据库(PostgreSQL)
+## 数据库(SQLite)
 
-> PostgreSQL18.0
+> SQLite 3.50 单文件数据库(`modernc.org/sqlite` 纯 Go 驱动, 无需 cgo)
 
-漫画/媒体等资源管理需本地运行一个postgres数据库, **(自用场景后台运行可忽略性能占用)**.
+漫画/媒体/随笔/打卡等全部业务数据存于一个文件: `backend/data/monarch.db`。
+Monarch、gizmos CLI 与 comix 爬虫三方共用同一文件(WAL + 单写者模型, 跨进程由 busy_timeout 兜底)。
 
-## 桌面应用(Flutter)
+**==数据即文件, 备份就是复制这一个 db 文件(连同 -wal/-shm)==**
 
-> 提供图形化界面操作, 通过本地http与后端服务器交互.
+## 网页运维端(Northstar)
+
+> 随 Monarch 一起运行, 无需单独部署或构建, 浏览器打开即用.
+
+托管在 `/ops/`, 提供资源处理、漫画库、任务与日志、AI 能力等运维操作。
+仅本机回环可访问: `http://127.0.0.1:7275/ops/`(HTTP, 无证书警告) 或 `https://127.0.0.1:7274/ops/`。
 
 ## 安卓应用(Flutter)
 

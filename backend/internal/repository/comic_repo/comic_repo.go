@@ -1,8 +1,7 @@
 // Package comic_repo 提供 Android 端"漫画"模块的只读查询与管理字段写入。
 //
 // 数据对象为 comix 侧由爬虫维护的表（comics / comic_chapters / comic_images）；
-// 本包不做爬虫操作。原 PostgreSQL 的桥接视图（id::text / dir_name / image_path）
-// 在 SQLite 中不再需要，投影与类型转换在 SQL 表达式与 Go 侧完成。
+// 本包不做爬虫操作，投影与类型转换在 SQL 表达式与 Go 侧完成。
 package comic_repo
 
 import (
@@ -12,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"monarch/internal/model"
 	"monarch/internal/service/db"
@@ -23,24 +21,6 @@ func withDB[T any](fn func(ctx context.Context, conn *sql.DB) (T, error)) (T, er
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 	return fn(ctx, db.Read())
-}
-
-// GetComicMetaData 读取漫画总计数元数据（实时聚合）。
-func GetComicMetaData() (*model.ComicTotalMetaData, error) {
-	return withDB(func(ctx context.Context, conn *sql.DB) (*model.ComicTotalMetaData, error) {
-		var metadata model.ComicTotalMetaData
-		err := conn.QueryRowContext(ctx, `
-			SELECT
-				(SELECT COUNT(*) FROM comics),
-				(SELECT COUNT(*) FROM comic_chapters),
-				(SELECT COUNT(*) FROM comic_images)
-		`).Scan(&metadata.BookCount, &metadata.TotalChapterCount, &metadata.TotalImageCount)
-		if err != nil {
-			return nil, fmt.Errorf("查询漫画总元数据失败: %w", err)
-		}
-		metadata.UpdatedAt = time.Now()
-		return &metadata, nil
-	})
 }
 
 // GetAllComicInfos 获取所有漫画的总览信息（章节数/图片数实时聚合）。
@@ -260,89 +240,6 @@ func UpdateComicMeta(comicId string, req model.UpdateComicRequest) error {
 	return nil
 }
 
-// DeleteComic 删除漫画及级联数据，返回标题与存储相对路径(rel_dir)供调用方清理文件。
-//
-// 两者都需要：legacy 资源的目录以标题命名（comics/{title}），爬虫登记的资源以主键
-// 命名（comics/{comic_id}）；只用标题删目录会残留整本漫画文件。
-func DeleteComic(comicId string) (title string, relDir string, err error) {
-	id, err := parseComicID(comicId)
-	if err != nil {
-		return "", "", err
-	}
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	if err := db.Read().QueryRowContext(ctx,
-		`SELECT title, rel_dir FROM comics WHERE id = ?`, id,
-	).Scan(&title, &relDir); err != nil {
-		return "", "", fmt.Errorf("查询漫画标题失败: %w", err)
-	}
-
-	// comic_images → comic_chapters → comics 均为 CASCADE 外键，删主表即可
-	if _, err := db.Exec(ctx, `DELETE FROM comics WHERE id = ?`, id); err != nil {
-		return "", "", fmt.Errorf("删除漫画失败: %w", err)
-	}
-	return title, filepath.ToSlash(relDir), nil
-}
-
-// SyncReadedStatus 批量标记已读，并返回每本漫画的服务器章节总数（供客户端判断增量）。
-func SyncReadedStatus(readedIds []string) (*model.SyncReadedResponse, error) {
-	ids, err := parseComicIDs(readedIds)
-	if err != nil {
-		return nil, err
-	}
-	return withDB(func(ctx context.Context, conn *sql.DB) (*model.SyncReadedResponse, error) {
-		resp := &model.SyncReadedResponse{NewChapters: make(map[string]int)}
-
-		if len(ids) > 0 {
-			clause := "IN (" + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + ")"
-			args := make([]any, len(ids))
-			for i, id := range ids {
-				args[i] = id
-			}
-			res, err := db.Exec(ctx,
-				`UPDATE comics SET readed = 1 WHERE id `+clause, args...)
-			if err != nil {
-				return nil, fmt.Errorf("批量更新已读状态失败: %w", err)
-			}
-			resp.UpdatedCount = int(rowsAffected(res))
-		}
-
-		rows, err := conn.QueryContext(ctx, `
-			SELECT CAST(b.id AS TEXT), COUNT(ch.id)
-			FROM comics b
-			LEFT JOIN comic_chapters ch ON ch.comic_id = b.id
-			GROUP BY b.id
-		`)
-		if err != nil {
-			return nil, fmt.Errorf("查询漫画章节计数失败: %w", err)
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var comicID string
-			var count int
-			if err := rows.Scan(&comicID, &count); err != nil {
-				return nil, fmt.Errorf("扫描章节计数失败: %w", err)
-			}
-			resp.NewChapters[comicID] = count
-		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("迭代章节计数结果失败: %w", err)
-		}
-		return resp, nil
-	})
-}
-
-// rowsAffected 读取受影响行数（忽略驱动错误）。
-func rowsAffected(res sql.Result) int64 {
-	if res == nil {
-		return 0
-	}
-	n, _ := res.RowsAffected()
-	return n
-}
-
 // parseComicID 把客户端传来的漫画/章节 ID（字符串）解析为整数主键。
 func parseComicID(raw string) (int64, error) {
 	id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
@@ -350,21 +247,4 @@ func parseComicID(raw string) (int64, error) {
 		return 0, fmt.Errorf("漫画 ID 非法: %s", raw)
 	}
 	return id, nil
-}
-
-// parseComicIDs 批量解析 ID（忽略空项与非法项）。
-func parseComicIDs(raw []string) ([]int64, error) {
-	ids := make([]int64, 0, len(raw))
-	for _, item := range raw {
-		item = strings.TrimSpace(item)
-		if item == "" {
-			continue
-		}
-		id, err := strconv.ParseInt(item, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("漫画 ID 非法: %s", item)
-		}
-		ids = append(ids, id)
-	}
-	return ids, nil
 }
