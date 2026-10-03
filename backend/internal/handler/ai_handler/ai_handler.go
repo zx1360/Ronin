@@ -1010,9 +1010,7 @@ func buildSearchRequest(c *gin.Context) (ai.SearchRequest, error) {
 		return req, err
 	}
 	req.PersonIDs = personIDs
-	for _, raw := range ai_repo.SplitAndTrim(c.Query("vlm_tags")) {
-		req.VLMTags = append(req.VLMTags, raw)
-	}
+	req.VLMTags = append(req.VLMTags, ai_repo.SplitAndTrim(c.Query("vlm_tags"))...)
 	from, err := parseOptionalTime(c, "from")
 	if err != nil {
 		return req, err

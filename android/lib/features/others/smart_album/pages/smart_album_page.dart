@@ -12,7 +12,7 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 智能相册页：文本搜图 / 以图搜图 / 人物分组 / AI 分析结果查看。
 ///
-/// 与画廊页同为一级入口（见 `pages_data.dart`），不再依赖画廊网格页跳转。
+/// 与画廊页同为一级入口（见 `pages_data.dart`）。
 /// 只消费服务端 AI 能力：结果按需拉取，不写入本地缓存，也不改动画廊的下载与标注链路；
 /// 页面内不出现人工标签——人工标签归相册(immich)页。
 /// 本页只做渲染与导航，检索状态与编排在 `smart_album_providers.dart`。

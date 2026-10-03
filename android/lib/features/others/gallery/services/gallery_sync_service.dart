@@ -192,8 +192,7 @@ class GallerySyncService extends _$GallerySyncService {
           throw Exception('下载已取消');
         }
 
-        // 注意: 原图不再下载到本地，改为实时请求并通过 cached_network_image 缓存
-        // 仅下载缩略图和预览图
+        // 只下缩略图与预览图；原图实时请求，由 cached_network_image 缓存
 
         // 下载缩略图
         if (asset.thumbPath != null) {

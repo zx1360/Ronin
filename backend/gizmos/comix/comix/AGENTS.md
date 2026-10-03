@@ -36,8 +36,7 @@ Python 核心层，无状态设计。调用链：`cli.py` → `scheduler.py` →
    `本地已下载 X/Y 章`——只报"已是最新"会把"登记了但一章都没下"的漫画
    伪装成已完成（真实数据 comic 126/131）。
 9. **cover_image 必须显式维护**（`comics.cover_image` 是普通列，不是视图投影）。
-   维护点：下载完成 `_ensure_cover_image`、legacy 导入时写入、`backfill_images.py`
-   封面补齐、`sync`（`repair_covers`）。
+   维护点：下载完成 `_ensure_cover_image`、legacy 导入时写入、`sync`（`repair_covers`）。
    **cover_url 由适配器 `get_chapters` 解析**（`BaseAdapter.extract_cover_url`，
    站点可覆盖 `cover_xpaths`），经 `db.set_cover_url` 落库；
    注意站点 logo/占位图在封面之前，选择器必须精确，否则会写入错误封面。

@@ -2,8 +2,9 @@
 # 只读业务数据、不动生产库；跑完删掉副本、临时目录与日志。
 # 服务是明文 HTTP 单端口，冒烟用的 `/API/ai/review` 需要 X-API-Key（从 .env 读）。
 #
-# 注意：最后一个用例会真的调用本机 Ollama（若已就绪），耗时取决于模型冷启动；
-# 只做参数/预设校验时把 OLLAMA_URL 指到不可达地址即可，用例会走 503 分支。
+# 注意：本脚本用**临时** STATIC_DIR，因此 ai_config.json 是全新生成的、vlm_model 为空；
+# 而自动选定模型的时机是 AI worker 启动（`AI_ENABLED=false` 时不会发生）或网页端显式切换，
+# 所以最后一个用例通常走"尚未选定模型"的 400 分支——那也算链路通，用例据此判定。
 $ErrorActionPreference = 'Stop'
 
 $root = 'D:\products\Ronin\backend'
@@ -12,7 +13,8 @@ $staticDir = Join-Path $base 'static'
 $galleryDir = Join-Path $base 'gallery'
 $dbFile = Join-Path $base 'monarch_copy.db'
 $log = Join-Path $base 'server.log'
-$port = 7399
+$port = 7399            # HTTPS（LOCAL_PORT）
+$httpPort = $port + 1   # HTTP（LOCAL_HTTP_PORT）；本脚本的请求一律走明文端口
 $proc = $null
 
 # 服务端始终要求 X-API-Key（/API/test 等豁免路径除外），冒烟请求统一带上
@@ -33,15 +35,21 @@ function Convert-Body($content) {
     return [string]$content
 }
 
+# pwsh7 的 Invoke-WebRequest 在 4xx/5xx 上抛异常，且异常里的响应内容已被释放；
+# 有 -SkipHttpErrorCheck 时直接用，才能拿到服务端返回的可读错误文案。
+$skipHttpErrorCheck = (Get-Command Invoke-WebRequest).Parameters.ContainsKey('SkipHttpErrorCheck')
+
 function Invoke-Api {
     param([string]$Method, [string]$Path, $Body, [int]$TimeoutSec = 20)
-    $uri = "http://127.0.0.1:$port$Path"
+    $uri = "http://127.0.0.1:$httpPort$Path"
+    $extra = @{}
+    if ($skipHttpErrorCheck) { $extra['SkipHttpErrorCheck'] = $true }
     try {
         if ($null -eq $Body) {
-            $resp = Invoke-WebRequest -Uri $uri -Method $Method -Headers $script:authHeaders -UseBasicParsing -TimeoutSec $TimeoutSec
+            $resp = Invoke-WebRequest -Uri $uri -Method $Method -Headers $script:authHeaders -UseBasicParsing -TimeoutSec $TimeoutSec @extra
         }
         else {
-            $resp = Invoke-WebRequest -Uri $uri -Method $Method -Headers $script:authHeaders -UseBasicParsing -TimeoutSec $TimeoutSec `
+            $resp = Invoke-WebRequest -Uri $uri -Method $Method -Headers $script:authHeaders -UseBasicParsing -TimeoutSec $TimeoutSec @extra `
                 -ContentType 'application/json' -Body ([System.Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $Body -Depth 6 -Compress)))
         }
         return @{ Status = [int]$resp.StatusCode; Body = (Convert-Body $resp.Content) }
@@ -83,7 +91,7 @@ try {
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Milliseconds 500
         try {
-            $probe = Invoke-WebRequest -Uri "http://127.0.0.1:$port/API/test" -UseBasicParsing -TimeoutSec 3
+            $probe = Invoke-WebRequest -Uri "http://127.0.0.1:$httpPort/API/test" -UseBasicParsing -TimeoutSec 3
             if ($probe.StatusCode -eq 200) { $ready = $true; break }
         }
         catch { }
@@ -142,12 +150,12 @@ try {
         [void]$results.Add((New-Result $item.Name ($r.Status -eq 400) "HTTP $($r.Status)"))
     }
 
-    # 7. 合法请求：模型就绪则产出 stats 事件 + 正文，未就绪则 503（都算链路通）
+    # 7. 合法请求：模型已选定则产出 stats 事件 + 正文；未选定则 400/503 的可读提示（都算链路通）
     $valid = Invoke-Api -Method POST -Path '/API/ai/review' -TimeoutSec 600 -Body @{
         role = '你是冒烟测试'; tone = '简洁'; days = 30; sample_essays = 2; sample_records = 2
     }
-    if ($valid.Status -eq 503) {
-        [void]$results.Add((New-Result '合法请求（模型未就绪）返回可读提示' $true "HTTP 503: $($valid.Body)"))
+    if ($valid.Status -eq 400 -or $valid.Status -eq 503) {
+        [void]$results.Add((New-Result '合法请求（模型未就绪）返回可读提示' $true "HTTP $($valid.Status): $($valid.Body)"))
     }
     else {
         $events = @($valid.Body -split "`n" | Where-Object { $_.Trim() } | ForEach-Object { ConvertFrom-Json $_ })

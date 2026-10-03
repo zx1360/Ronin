@@ -1,17 +1,5 @@
 package model
 
-import (
-	"time"
-)
-
-// ComicTotalMetaData 漫画总元数据（实时聚合）。
-type ComicTotalMetaData struct {
-	BookCount         int       `json:"book_count"`
-	TotalChapterCount int       `json:"total_chapter_count"`
-	TotalImageCount   int       `json:"total_image_count"`
-	UpdatedAt         time.Time `json:"updated_at"`
-}
-
 // ComicInfo 漫画概览；chapter_count / image_count 由 SQL 实时聚合。
 type ComicInfo struct {
 	ID           string `json:"id"`
@@ -38,17 +26,6 @@ type ImageInfo struct {
 	Path   string `json:"path"`
 	Width  int32  `json:"width"`
 	Height int32  `json:"height"`
-}
-
-// SyncReadedRequest 同步已读状态请求
-type SyncReadedRequest struct {
-	ReadedIds []string `json:"readed_ids"` // 标记为已读的漫画ID列表
-}
-
-// SyncReadedResponse 同步已读状态响应
-type SyncReadedResponse struct {
-	UpdatedCount int            `json:"updated_count"`
-	NewChapters  map[string]int `json:"new_chapters"` // comic_id → 服务器章节总数
 }
 
 // UpdateComicRequest 更新漫画元数据请求

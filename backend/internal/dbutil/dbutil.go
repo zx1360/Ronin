@@ -1,8 +1,7 @@
 // Package dbutil 收纳 SQLite 存储层的取值约定：时间文本、占位符与忙等判定。
 //
 // 时间列统一存本机本地时区的定宽文本 'YYYY-MM-DD HH:MM:SS.mmm'（毫秒，无时区后缀）：
-// 字典序即时间序，SQLite 的 date()/strftime() 可直接解析，且与 PostgreSQL 会话时区
-// （= 本机时区）下 DATE()/EXTRACT() 的语义一致。
+// 字典序即时间序，SQLite 的 date()/strftime() 可直接解析。
 package dbutil
 
 import (
@@ -31,14 +30,6 @@ func TS(t time.Time) string {
 	return t.Local().Format(TimeLayout)
 }
 
-// TSPtr 可空时间：nil / 零值返回 nil，便于直接作为 SQL 参数。
-func TSPtr(t *time.Time) any {
-	if t == nil || t.IsZero() {
-		return nil
-	}
-	return TS(*t)
-}
-
 // ParseTS 解析存储文本为本地时间；空串返回零值。
 func ParseTS(raw string) (time.Time, error) {
 	s := strings.TrimSpace(raw)
@@ -62,19 +53,10 @@ func Time(raw string) time.Time {
 	return t
 }
 
-// TimePtr 解析可空存储文本。
-func TimePtr(raw *string) *time.Time {
-	if raw == nil || strings.TrimSpace(*raw) == "" {
-		return nil
-	}
-	t := Time(*raw)
-	return &t
-}
-
 // Date 解析日期列（存储为 'YYYY-MM-DD'），返回 UTC 零点。
 //
-// 与原 PostgreSQL 的 DATE 语义保持一致：pgx 返回的 DATE 即 UTC 零点，
-// 上游据此用 .UTC().Format("2006-01-02") 还原日历日期。
+// 固定 UTC 零点是个不变量：上游据此用 .UTC().Format("2006-01-02") 还原日历日期，
+// 改成本地零点会让所有按日聚合的结果整体错一天。
 func Date(raw string) time.Time {
 	s := strings.TrimSpace(raw)
 	if s == "" {
@@ -92,15 +74,6 @@ func Placeholders(n int) string {
 		return "NULL"
 	}
 	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
-}
-
-// Strings 把任意值切片转成 []any 参数（UUID 等已实现 String() 的类型请先自行转换）。
-func Strings(values []string) []any {
-	args := make([]any, len(values))
-	for i, v := range values {
-		args[i] = v
-	}
-	return args
 }
 
 // IsBusy 报告错误是否为 SQLite 写锁竞争（单写者模型下需退避重试）。

@@ -21,7 +21,7 @@ final aiApiProvider = Provider<AiApiService>((ref) {
 /// 检索模式：与后端 `mode` 参数一致。
 ///
 /// `auto`（智能）在有文本查询时走语义检索，语义链路不可用时自动退化为关键词，
-/// 因此不再单独暴露 `semantic`。
+/// 所以枚举里不单独暴露 `semantic`。
 enum AiSearchMode {
   auto('auto', '智能'),
   keyword('keyword', '文字'),

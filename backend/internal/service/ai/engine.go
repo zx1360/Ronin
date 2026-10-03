@@ -3,9 +3,9 @@
 // 设计要点：
 //   - 每类 AI 能力对应一个外部进程（Python 侧车）或外部服务（Ollama），
 //     只在有任务时拉起，空闲超时后自动退出，不常驻占用内存；
-//   - 处理单元持久化在 ai.jobs（PostgreSQL），支持失败重试、超时中断与进度查询；
+//   - 处理单元持久化在 ai.jobs，支持失败重试、超时中断与进度查询；
 //   - pHash 由 Go 进程内完成，不依赖任何外部工具；
-//   - 向量检索在 Go 侧对 int8 量化向量做精确扫描，无需 pgvector。
+//   - 向量检索在 Go 侧对 int8 量化向量做精确扫描，无需向量索引扩展。
 package ai
 
 import (
@@ -236,19 +236,6 @@ func ThumbAbsPath(thumbPath *string) string {
 		return ""
 	}
 	return filepath.Join(config.AppConf.GalleryDir, "Thumbs", filepath.FromSlash(*thumbPath))
-}
-
-// firstExisting 返回第一个真实存在的路径（全部不存在时返回空串）。
-func firstExisting(paths ...string) string {
-	for _, p := range paths {
-		if p == "" {
-			continue
-		}
-		if fileExists(p) {
-			return p
-		}
-	}
-	return ""
 }
 
 // resolveItems 按能力档位把媒体 ID 解析为可推理的文件项，并跳过无图源的媒体。

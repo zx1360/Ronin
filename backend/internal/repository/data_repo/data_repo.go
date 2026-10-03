@@ -2,7 +2,7 @@
 //
 // 写入统一走"事务内全量替换"：客户端提交完整数据集，服务端在同一事务里
 // 删除多余行并 upsert 新行，因此失败必定整体回滚，不会留下半套数据。
-// 原 PostgreSQL 的 text[] / jsonb 列在 SQLite 中统一存 JSON 文本。
+// 数组/对象列统一存 JSON 文本，读写整列。
 package data_repo
 
 import (

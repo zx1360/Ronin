@@ -67,7 +67,7 @@ class GalleryDatabaseService {
     }
   }
 
-  /// 创建表结构 - 与服务端 PostgreSQL 保持一致
+  /// 创建表结构 - 与服务端字段保持一致（仅本地缓存，权威在服务端）
   Future<void> _onCreate(Database db, int version) async {
     // 媒体文件表
     await db.execute('''
@@ -596,13 +596,6 @@ class GalleryDatabaseService {
     });
   }
 
-  /// 获取所有媒体-标签关联
-  Future<List<MediaTagLink>> getAllMediaTagLinks() async {
-    final db = await database;
-    final maps = await db.query('media_tag_links');
-    return maps.map((m) => MediaTagLink.fromDbMap(m)).toList();
-  }
-
   /// 用服务端结果整批覆盖若干媒体的标签关联（仅处理本地已缓存的媒体）
   Future<void> replaceTagsForMediaBatch(
     Map<String, List<String>> tagIdsByMedia,
@@ -717,15 +710,6 @@ class GalleryDatabaseService {
       await txn.delete('media_assets');
     });
     AppLogger().info('Gallery 数据库已清空');
-  }
-
-  /// 获取待上传的数据包 (全量 - 已废弃，使用 getPartialDataForUpload)
-  Future<({List<MediaAsset> assets, List<Tag> tags, List<MediaTagLink> links})>
-      getDataForUpload() async {
-    final assets = await getMediaAssets(includeGroupMembers: true);
-    final tags = await getAllTags();
-    final links = await getAllMediaTagLinks();
-    return (assets: assets, tags: tags, links: links);
   }
 
   /// 获取待上传的部分数据包 (基于当前索引位置)

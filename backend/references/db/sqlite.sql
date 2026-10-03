@@ -5,10 +5,10 @@
 --   1. 单文件、应用目录下（backend/data/monarch.db），无外部数据库服务；
 --      SQLite 无 schema 概念，comix 的表统一加 `comic_` 前缀避免与其它模块撞名。
 --   2. 时间统一存**本机本地时区**的 ISO 文本 'YYYY-MM-DD HH:MM:SS.SSS'：
---      与 PostgreSQL 会话时区（= 本机时区）下 DATE()/EXTRACT() 的语义一致，
 --      定宽且无时区后缀，字典序即时间序；SQLite 的 date/strftime 可直接解析。
---   3. UUID 存 36 字符小写 TEXT；BYTEA 存 BLOB；jsonb 与 text[] 存 JSON 文本
---      （vlm_tags 例外：拆到 media_ai_tags，便于按标签索引与聚合）。
+--      日期列存 'YYYY-MM-DD'，Go 侧解析为 UTC 零点（见 AGENTS_DB.md 的取值约定）。
+--   3. UUID 存 36 字符小写 TEXT；布尔存 INTEGER 0/1；BLOB 存二进制；
+--      对象/数组列存 JSON 文本（vlm_tags 例外：拆到 media_ai_tags，便于按标签索引与聚合）。
 --   4. updated_at 由 AFTER UPDATE 触发器维护（SQLite 无 BEFORE 触发器）；
 --      触发器带 `NEW.updated_at IS OLD.updated_at` 守卫，显式赋值时不再覆盖，
 --      同时避免开启 recursive_triggers 后自递归。

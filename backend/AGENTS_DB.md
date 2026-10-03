@@ -8,7 +8,6 @@
 | 驱动 | `modernc.org/sqlite`（纯 Go，无 cgo；`CGO_ENABLED=0` 亦可构建） |
 | 写入模型 | 单写者：写连接池固定 1 连接 + `BEGIN IMMEDIATE`；WAL + `busy_timeout=10s` + 退避重试 |
 | 三方共用 | Monarch(Go) / gizmos(Go CLI) / comix(Python) 读写同一文件 |
-| 回滚 | 迁移前的 PostgreSQL 原库原样保留；回滚即改回 `DB_*` 配置（见 `tools/migrate_pg_to_sqlite.py`） |
 
 SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀。
 
@@ -19,28 +18,28 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 | AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md`。`jobs` 与 `media_ai`/`embeddings`/`faces` 各有 `input_sig` 列（输入档位 + 执行者指纹，用于追溯与自动重排） |
 | 漫画 | `comic_sites` / `comics` / `comic_chapters` / `comic_images` / `comic_download_tasks` / `comic_aliases` | 见 `comix.md` |
 
-## 类型与取值约定
+## 取值约定
 
-| PostgreSQL | SQLite | 约定 |
-|---|---|---|
-| `UUID` | `TEXT` | 36 字符小写规范形式 |
-| `TIMESTAMPTZ` | `TEXT` | **本机本地时区**定宽毫秒 `YYYY-MM-DD HH:MM:SS.mmm`：字典序即时间序，`date()`/`strftime()` 可直接解析，且与原 PG 会话时区下的 `DATE()`/`EXTRACT()` 语义一致 |
-| `DATE` | `TEXT` | `YYYY-MM-DD`；Go 侧解析为 **UTC 零点**（与 pgx 返回 DATE 的行为一致） |
-| `BYTEA` | `BLOB` | |
-| `JSONB` | `TEXT` | JSON 文本，读写整列 |
-| `TEXT[]` / `UUID[]` / `REAL[]` | `TEXT` | JSON 数组文本 |
-| `BOOLEAN` | `INTEGER` | 0/1 |
-| `BIGSERIAL` / `SERIAL` | `INTEGER PRIMARY KEY AUTOINCREMENT` | 迁移时显式带入原 id |
+| 存储类型 | 约定 |
+|---|---|
+| `TEXT`（时间戳） | **本机本地时区**定宽毫秒 `YYYY-MM-DD HH:MM:SS.mmm`：字典序即时间序，`date()`/`strftime()` 可直接解析 |
+| `TEXT`（日期） | `YYYY-MM-DD`；Go 侧解析为 **UTC 零点**（上游用 `.UTC().Format("2006-01-02")` 还原日历日） |
+| `TEXT`（UUID） | 36 字符小写规范形式 |
+| `TEXT`（JSONB / 数组） | JSON 文本，读写整列 |
+| `BLOB` | 向量与人脸特征（小端 float32 拼接） |
+| `INTEGER` | 布尔 0/1；主键 `INTEGER PRIMARY KEY AUTOINCREMENT` |
 
-## 触发器（替代原 PG 触发器/存储过程）
+## 自动维护约定
 
-- `updated_at` 自动维护：每条业务表的 `AFTER UPDATE` 触发器，带
-  `WHEN NEW.updated_at IS OLD.updated_at` 守卫——SQLite 无 `BEFORE UPDATE`，
-  守卫同时保证「显式赋值不被覆盖」与「不触发自递归」。
-  与 PG 的差异：原 `BEFORE UPDATE` 会无条件覆盖 `updated_at`，此处显式赋值优先。
-- **标签 `full_path` 级联上移到 Go**（`gallery_repo.rebuildTagPaths`）：原 PG 的
-  `tags_before_ins_upd` / `tags_after_upd` 两个触发器函数不再需要。标签树规模小
-  （百级），写操作后整体重算并只更新变化的行，天然容忍历史遗留的错误路径。
+- `updated_at`：每条业务表的 `AFTER UPDATE` 触发器，带 `WHEN NEW.updated_at IS OLD.updated_at`
+  守卫——SQLite 无 `BEFORE UPDATE`，守卫同时保证「显式赋值不被覆盖」与「不触发自递归」。
+- 标签 `full_path` 级联在 Go（`gallery_repo.rebuildTagPaths`）而非触发器：标签树只有百级，
+  写操作后整体重算并只更新变化的行，天然容忍历史遗留的错误路径。
+- 新增列不能靠 `sqlite.sql` 的 `CREATE TABLE IF NOT EXISTS` 补上，统一在
+  `internal/service/db/migrate.go` 的 `addedColumns` 里声明（先查 `pragma_table_info` 再
+  `ALTER TABLE ADD COLUMN`），同时更新 `sqlite.sql` 让全新库直接建好；Monarch 启动时执行。
+  当前新增列：`jobs.input_sig`、`media_ai.{phash,ocr,caption}_input_sig`、
+  `embeddings.input_sig`、`faces.input_sig`。
 
 ## 索引要点
 
@@ -52,68 +51,22 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
   （后两个 + `input_sig` 支撑"指纹不匹配则重排"的扫描）。
 - `comic_chapters.url`、`comic_images(chapter_id, sort_num)` 等唯一约束沿用原语义。
 
-## 列迁移
+## 性能注意（70k 媒体 / 124k 漫画图 / 280k AI 任务 / 71k 向量实测）
 
-`sqlite.sql` 只能 `CREATE TABLE IF NOT EXISTS`，给既有表补列不会生效。新增列统一在
-`internal/service/db/migrate.go` 的 `addedColumns` 里声明（先查 `pragma_table_info` 再
-`ALTER TABLE ADD COLUMN`），同时更新 `sqlite.sql` 让全新库直接建好；Monarch 启动时执行。
-当前新增列：`jobs.input_sig`、`media_ai.{phash,ocr,caption}_input_sig`、
-`embeddings.input_sig`、`faces.input_sig`。
-
-## 与 PostgreSQL 方案的性能比对
-
-`python tools/bench_pg_vs_sqlite.py`（同一份生产数据、同一台机器，取多次最快值：
-70k 媒体 / 124k 漫画图 / 280k AI 任务 / 71k 向量）：
-
-| 场景 | PG | SQLite | 倍数 |
-|---|---|---|---|
-| gallery 总览聚合 | 159 ms | 37 ms | 0.23 |
-| batch 分页（首页） | 0.3 ms | 0.1 ms | 0.26 |
-| batch 尾页（OFFSET 70000） | 63 ms | 329 ms | 5.2 |
-| 标签（含子孙）筛选媒体 | 0.5 ms | 0.0 ms | 0.08 |
-| AI 任务列表（280k 行） | 0.2 ms | 0.0 ms | 0.19 |
-| AI 任务队列统计 | 170 ms | 93 ms | 0.55 |
-| AI 待处理统计（3 路 LEFT JOIN） | 226 ms | 337 ms | 1.50 |
-| 模糊检索：关键词（pg_trgm vs LIKE 全扫） | 194 ms | 29 ms | 0.15 |
-| 模糊检索：文件名 | 0.8 ms | 0.0 ms | 0.06 |
-| AI 标签聚合（unnest vs 关系表） | 209 ms | 0.1 ms | ~0 |
-| 载入全部向量（54MB） | 1225 ms | 414 ms | 0.34 |
-| 载入全部人脸特征（58MB） | 1438 ms | 383 ms | 0.27 |
-| comix 整本章节+图片（2807 行） | 11 ms | 4 ms | 0.38 |
-| 批量插入 2000 条媒体（事务） | 118 ms | 178 ms | 1.51 |
-| 批量更新 500 条媒体 | 8.8 ms | 34 ms | 3.9 |
-| 批量入队 500 条任务 | 22 ms | 20 ms | 0.89 |
-
-**不得不接受的取舍**（其余场景持平或更快）：
-
-1. **深度 OFFSET 分页**比 PG 慢约 5 倍（尾页 329ms vs 63ms）。PG 的索引扫描 +
-   可见性判断在跳过大量行时更便宜；SQLite 需逐行走索引。首页与常用页码无差异，
-   70k 规模下绝对值可接受，未改为键集分页（会改动 API 语义）。
-2. **批量 UPDATE 的 IN 列表**比 PG 的 `= ANY(array)` 慢约 4 倍（34ms vs 9ms）。
-3. **失去 pg_trgm 索引**：模糊检索退化为 `LIKE '%kw%'` 全表扫描。实测在本数据集上
-   反而更快（media_ai 表窄、行数 7 万），但**代价随文本量线性增长**，属于必须留意的
-   隐性上限；若将来 OCR/描述体量大幅增长，再引入 FTS5(trigram) 虚拟表。
-4. **AI 待处理统计**（3 路 LEFT JOIN）慢 1.5 倍，且该聚合由 `/API/ai/status` 每 30s
-   后台刷新一次；已用 `(is_deleted, id)` 覆盖索引压到 0.3s。
-
-原 PG 侧的 pg_trgm / 数组 / 触发器能力替代方式见上文「类型与取值约定」「触发器」。
-
-## 迁移与校验
-
-```powershell
-python tools/migrate_pg_to_sqlite.py --check          # 探测源库
-python tools/migrate_pg_to_sqlite.py                  # 导入并抽样校验
-python tools/migrate_pg_to_sqlite.py --verify-only    # 只校验
-python tools/bench_pg_vs_sqlite.py                    # 两方案耗时对比
-```
-
-迁移是只读源库 + 重建目标库，可重复执行；覆盖已有目标库需 `--force`
-（旧库改名为 `.bak`；**迁移前必须停掉 Monarch**，否则文件被占用无法改名）。
-校验覆盖全部表的行数与内容（小表全量、大表按主键随机抽样，默认 3000 行）。
+- **深度 OFFSET 分页**：尾页（OFFSET 70000）约 330ms，是首页的千倍量级；常用页码无差异，
+  绝对值可接受，未改键集分页（会改动 API 语义）。
+- **模糊检索退化为 `LIKE '%kw%'` 全表扫描**（无 pg_trgm/FTS 索引）：`media_ai` 表窄、
+  7 万行实测 29ms 反而更快，但**代价随文本量线性增长**，是必须留意的隐性上限；
+  OCR/描述体量大幅增长时再引入 FTS5(trigram) 虚拟表。
+- **批量 UPDATE 的 IN 列表**（500 条约 34ms）比 `= ANY(array)` 慢，批量写优先用事务。
+- AI 待处理统计是 3 路 LEFT JOIN，由 `/API/ai/status` 每 30s 刷新一次，靠上述覆盖索引压到 0.3s。
 
 ## 验收
 
 ```powershell
-go test ./...                                  # 含 internal/repository 数据层端到端验收（在库副本上跑全部写路径）
-python tools/smoke_api.py                      # 对运行中的服务逐个接口冒烟（--write 追加写用例，仅测试库）
+go test ./...          # 含 internal/repository 数据层端到端验收
 ```
+
+`internal/repository` 的验收会把数据库复制到临时目录后在副本上跑遍全部写路径（AI 产物、
+标签树级联、事务性全量替换、comix 管理字段），**绝不触碰真实数据**。缺省取
+`backend/data/monarch.db`，可用 `MONARCH_DB_SRC` 指定其它库。

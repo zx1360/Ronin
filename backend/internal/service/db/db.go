@@ -114,11 +114,6 @@ func Read() *sql.DB {
 	return readPool
 }
 
-// Write 返回写连接池（固定单连接）。
-func Write() *sql.DB {
-	return writePool
-}
-
 // Ping 探测数据库可用性。
 func Ping(ctx context.Context) error {
 	if writePool == nil {

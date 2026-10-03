@@ -212,7 +212,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
         return;
       }
 
-      // 保存图片 (将imagePaths替换为复制之后的新路径了!)
+      // saveImages 会把 imagePaths 就地改写为复制后的新路径
       await saveImages();
 
       // 构建任务列表

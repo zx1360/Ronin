@@ -1,12 +1,12 @@
 # AGENTS.md —— comix 漫画下载管理系统（总览）
 
 自用漫画下载管理系统：多站协同爬取 + 单文件 SQLite 管理 + 增量追更，
-通过无状态 CLI 被 Monarch（Go 服务器）与 Northstar（Flutter 桌面端）调用。
+通过无状态 CLI 被 Monarch（Go 服务器）调用（消费端为 Northstar 网页运维端与 Torrid 安卓端）。
 
 ## 架构总览（3 层）
 
 ```
-Flutter 桌面应用
+Northstar 网页端 / Torrid 安卓端
    └─ Monarch Go HTTP 服务（子进程调用，JSON 协议）
         └─ python -m comix.cli --json <command>   ← 唯一入口（无状态，每次独立进程）
              └─ comix.scheduler（调度）
@@ -47,7 +47,7 @@ Flutter 桌面应用
    （下载进度由 `util.common.QUIET` 开关抑制）。
 6. **SQLite 布尔**：列存 0/1，对外 JSON 需要 bool 的地方（如站点 `enabled`）在
    `db.py` 里显式转换，保持 CLI 契约不变。
-7. **幂等/回退**：批量脚本（导入、补齐）每单元一个事务 + 失败回退；重复执行安全。
+7. **幂等/回退**：批量脚本（导入/更新检查）每单元一个事务 + 失败回退；重复执行安全。
 8. **宽高解析**用 `util/image_size.py`（纯 Python，禁引 Pillow）。
 
 ## 分支 AGENTS.md（按需查阅）
@@ -56,9 +56,9 @@ Flutter 桌面应用
 |---|---|---|
 | `comix/AGENTS.md` | 核心层：db/scheduler/cli/models/config 职责与约定 | 改调度/数据访问/命令 |
 | `comix/adapters/AGENTS.md` | 适配器接口、新增站点步骤、各站要点 | 改爬虫/加站点 |
-| `scripts/AGENTS.md` | 运维脚本（导入/补齐/更新检查）职责与陷阱 | 跑脚本/改脚本 |
+| `scripts/AGENTS.md` | 运维脚本（导入/更新检查）职责与陷阱 | 跑脚本/改脚本 |
 | `util/AGENTS.md` | 通用工具（common/image_size） | 复用工具函数 |
-| `docs/协议文档.md` | Monarch 对接协议（命令/JSON 格式） | 动 Go/Flutter 侧 |
+| `docs/协议文档.md` | Monarch 对接协议（命令/JSON 格式） | 动 Go/端上侧 |
 
 ## 常用命令
 
@@ -73,5 +73,4 @@ python -m comix.cli clean                                  # 回收中断残留
 python -m comix.cli sync --all                             # 按站点校正章节序号/补登记 + 修复封面
 python -m comix.cli sync --all --force-covers               # 强制用站点封面刷新 cover_url
 python scripts/import_legacy.py --execute                  # 导入旧资源（幂等可回退）
-python scripts/backfill_images.py                          # 补齐图片记录
 ```

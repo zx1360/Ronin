@@ -7,13 +7,12 @@
 **AI 产物与人工数据物理隔离**：人工标签在 `tags`，AI 关键词在 `media_ai_tags`，
 两者天然可区分，不会互相覆盖。
 
-> **不需要 pgvector**：图像向量以 int8 量化存于 `embeddings.vec`，检索由 Go 服务把
-> 全量向量载入内存做精确余弦扫描（7w × 768 维 ≈ 54MB，SQLite 读取比原 pgx 更快：
-> 0.41s vs 1.23s）。
+> **无专用向量索引**：图像向量以 int8 量化存于 `embeddings.vec`，检索由 Go 服务把
+> 全量向量载入内存做精确余弦扫描（7w × 768 维 ≈ 54MB，载入约 0.4s）。
 >
-> **不需要 pg_trgm**：OCR/描述/AI 标签的关键词检索改为 `LIKE '%kw%'` 全表扫描
-> （media_ai 表窄，7 万行实测 29ms，快于原 pg_trgm 路径）；代价随文本量线性增长，
-> 属已知上限，见 `AGENTS_DB.md`。
+> **无 trigram 索引**：OCR/描述/AI 标签的关键词检索走 `LIKE '%kw%'` 全表扫描
+> （media_ai 表窄，7 万行实测 29ms）；代价随文本量线性增长，属已知上限，
+> 见 `AGENTS_DB.md` 的性能注意。
 
 ## 输入档位与执行者指纹（input_sig）
 
