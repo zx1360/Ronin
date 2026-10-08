@@ -156,9 +156,9 @@ func loadAiConfig() {
 	}
 	AiConf.IdleTimeout = envSeconds("AI_IDLE_TIMEOUT", 120)
 	AiConf.JobTimeout = envSeconds("AI_JOB_TIMEOUT", 900)
-	AiConf.BatchSize = envInt("AI_BATCH_SIZE", 16, 1, 512)
+	AiConf.BatchSize = envInt("AI_BATCH_SIZE", 32, 1, 512)
 	AiConf.MaxAttempts = envInt("AI_MAX_ATTEMPTS", 3, 1, 20)
-	AiConf.Workers = envInt("AI_WORKERS", 1, 1, 4)
+	AiConf.Workers = envInt("AI_WORKERS", 2, 1, 4)
 	AiConf.EmbedModel = envString("AI_EMBED_MODEL", "siglip2-base-patch16-224")
 	AiConf.OllamaURL = strings.TrimRight(envString("OLLAMA_URL", "http://127.0.0.1:11434"), "/")
 	// 标注/对话用哪个模型不在这里配置：候选实时来自本机 Ollama，
