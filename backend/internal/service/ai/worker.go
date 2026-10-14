@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,8 +41,7 @@ var capabilityPriority = map[string]int{
 
 // ---------- 入库自动触发 ----------
 
-// reconcileLoop 周期性把"尚无任务行"的媒体补进队列，并把输入档位/执行者已变
-// （换 VLM 模型等）的旧产物自动重排。
+// reconcileLoop 周期性把"尚无任务行"的媒体补进队列。
 //
 // 这是"媒体入库后自动触发处理流水线"的唯一实现：不依赖入库方的任何配合，
 // 幂等且自愈——无论媒体是何时、由哪个工具写入的，最终都会被覆盖到。
@@ -54,46 +54,34 @@ func (e *Engine) reconcileLoop(ctx context.Context) {
 		case <-time.After(next):
 		}
 
-		autoCaps := e.AutoCapabilities()
-		specs := map[string]string{}
-		for _, spec := range e.CapabilitySpecs() {
-			specs[spec.Capability] = spec.InputSig
-		}
-		inserted := int64(0)
-		for _, capability := range autoCaps {
-			n, err := ai_repo.EnqueueMissing(capability, reconcileBatch,
-				capabilityPriority[capability], specs[capability])
-			if err != nil {
-				log.Printf("[AI] 补充入队 %s 失败: %v", capability, err)
-				continue
-			}
-			inserted += n
-		}
-		// 输入档位/执行者变更后自动重排：按全部能力检查，不限于"自动处理"清单——
-		// 换模型只影响该能力已有的那批产物，正是用户期望被重算的范围
-		// （未启用自动处理的能力同样如此，否则换模型后旧产物会一直留着）。
-		requeued := int64(0)
-		for _, capability := range model.AllCapabilities {
-			n, err := ai_repo.ResetStaleInput(capability, specs[capability])
-			if err != nil {
-				log.Printf("[AI] 重排 %s 旧产物失败: %v", capability, err)
-				continue
-			}
-			if n > 0 {
-				log.Printf("[AI] %s 的输入档位/执行者已变更，%d 条旧产物已重新排队", capability, n)
-			}
-			requeued += n
-		}
-		if inserted > 0 {
-			log.Printf("[AI] 入库自动入队 %d 条任务（能力: %v）", inserted, autoCaps)
-		}
-		if inserted > 0 || requeued > 0 {
-			e.Wake()
-			next = reconcileActiveInterval
-		} else {
-			next = reconcileIdleInterval
-		}
+		next = e.reconcileOnce()
 	}
+}
+
+func (e *Engine) reconcileOnce() time.Duration {
+	autoCaps := e.AutoCapabilities()
+	inserted := int64(0)
+	failed := false
+	for _, capability := range autoCaps {
+		n, err := ai_repo.EnqueueMissing(capability, reconcileBatch,
+			capabilityPriority[capability], e.InputSignature(capability))
+		if err != nil {
+			log.Printf("[AI] 补充入队 %s 失败: %v", capability, err)
+			failed = true
+			continue
+		}
+		inserted += n
+	}
+	// 已有产物由用户显式重生成，补队列不重排历史结果。
+	if inserted > 0 {
+		log.Printf("[AI] 入库自动入队 %d 条任务（能力: %v）", inserted, autoCaps)
+		e.Wake()
+		return reconcileActiveInterval
+	}
+	if failed {
+		return reconcileActiveInterval
+	}
+	return reconcileIdleInterval
 }
 
 // ---------- 任务调度 ----------
@@ -106,6 +94,10 @@ func (e *Engine) workerLoop(ctx context.Context) {
 			return
 		case <-e.wake:
 		case <-time.After(workerIdleInterval):
+		}
+		if e.index.ReleaseIdle(e.Config().IdleTimeout) {
+			// 大索引回收时归还堆页，不在每次空闲轮询中触发 GC。
+			debug.FreeOSMemory()
 		}
 		for ctx.Err() == nil {
 			worked, err := e.runOneBatch(ctx)
@@ -131,15 +123,14 @@ func (e *Engine) runOneBatch(ctx context.Context) (bool, error) {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
-		if ready, _ := e.CapabilityReady(ctx, capability); !ready {
-			continue
-		}
-
 		pending, err := ai_repo.PendingCount(capability)
 		if err != nil {
 			return false, err
 		}
 		if pending == 0 {
+			continue
+		}
+		if ready, _ := e.CapabilityReady(ctx, capability); !ready {
 			continue
 		}
 

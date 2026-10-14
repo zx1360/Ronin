@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"monarch/internal/config"
-	"monarch/internal/handler/util_handler"
 	"monarch/internal/router"
 	"monarch/internal/service/mdns"
 	"monarch/internal/service/tls"
@@ -21,9 +20,6 @@ import (
 // 不需要"启动模式"开关：网页运维端与它的本机能力接口只接受回环地址
 // （见 router 的 LocalOnly），与走哪个端口无关；其余接口两个端口都要 X-API-Key。
 func StartServer() {
-	// 后台预热目录用量缓存（ops/overview 毫秒级响应）
-	util_handler.StartDirUsageRefresher()
-
 	r := router.SetupRouter()
 
 	httpsPort := config.NetConf.LocalPort
