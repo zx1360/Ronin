@@ -28,10 +28,9 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
   （`GALLERY_DIR/AI/<年-月>/<基础名>_ai.jpg`，与既有的 6.9 万张同构）。派生档按需生成
   （优先生成自原图，退而用预览档）并缓存；生成失败退回 256 档而不是让任务失败。
   不新增档位，也不改动 `media_assets.preview_path` 的语义与用途。
-- **可追溯与自动重排**：每个能力有"输入档位 + 执行者"指纹（`input_sig`，如
-  `ai1024|ollama:qwen3.5:4b`），`jobs` 与三张产物表都记录它。reconcile 发现某能力的
-  指纹与现有产物不一致时自动重排（换 VLM 模型后旧标注会被重算），NULL 指纹的历史数据
-  不会被自动重排（避免升级后一次性重排 28 万条），需要刷新时用"全量重生成"。
+- **可追溯与显式重生成**：每个能力有"输入档位 + 执行者"指纹（`input_sig`，如
+  `ai1024|ollama:qwen3.5:4b`），`jobs` 与三张产物表都记录它。指纹不一致由状态接口报告；
+  已有产物只在用户显式重生成时刷新。reconcile 只补无任务行的媒体，不自动重排历史结果。
 - `phash` 是纯 Go 感知哈希（对预览图算 DCT pHash），无外部进程。
   `embed`/`face`/`ocr` 是 Python 侧车（`tools/ai/`）批量处理，一个能力一个进程，
   空闲 `ai_config.json` 的 `idle_timeout_seconds` 后自动退出释放内存，进程降为 BelowNormal
@@ -61,7 +60,8 @@ Ronin 三端架构的"唯一真理"层，Go 语言开发。
   AI 档派生图）或内联 base64，不读写 AI 侧数据表。
 - 任务队列持久化在 `jobs`，支持失败重试、批次超时、暂停/继续与进度查询；
   入库自动触发由 reconcile 循环（`EnqueueMissing`）实现，幂等自愈。
-- 检索不需要 pgvector：向量 int8 量化存 `embeddings`，Go 侧内存精确扫描。
+- 检索不需要 pgvector：向量 int8 量化存 `embeddings`，Go 侧内存精确扫描；索引懒加载，
+  空闲沿用 `idle_timeout_seconds` 回收，下次检索自动重建。
 - 未启用 AI 能力时（`AI_ENABLED=false`）不启动 worker，`/API/ai/status` 仍可用并如实
   回报 `enabled=false`，两端界面据此降级提示而不是报错。
 

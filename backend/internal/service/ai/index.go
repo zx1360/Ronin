@@ -23,7 +23,8 @@ const vectorStaleCheck = 30 * time.Second
 // 载入内存做精确扫描。7w × 768 维 int8 ≈ 54MB，单次查询数十毫秒，对个人规模
 // 足够快，且索引可随时丢弃重建，不引入任何外部扩展。
 type Index struct {
-	model string
+	model  string
+	loadMu sync.Mutex
 
 	mu         sync.RWMutex
 	ids        []uuid.UUID
@@ -32,6 +33,7 @@ type Index struct {
 	dim        int
 	loaded     bool
 	lastCheck  time.Time
+	lastUsed   time.Time
 	phashes    map[uuid.UUID]int64
 	phashReady bool
 	// ignores 人工标记为"非重复"的媒体，分组时直接排除
@@ -65,10 +67,30 @@ func (ix *Index) Loaded() bool {
 // Invalidate 丢弃缓存（下次检索时重建）。
 func (ix *Index) Invalidate() {
 	ix.mu.Lock()
+	ix.clearLocked()
+	ix.mu.Unlock()
+}
+
+func (ix *Index) clearLocked() {
 	ix.loaded = false
 	ix.phashReady = false
+	ix.ignoresReady = false
 	ix.ids, ix.vecs, ix.scales = nil, nil, nil
-	ix.mu.Unlock()
+	ix.phashes, ix.ignores = nil, nil
+	ix.dim = 0
+}
+
+// ReleaseIdle 由现有 worker 回收可重建缓存；状态查询不延长驻留。
+func (ix *Index) ReleaseIdle(timeout time.Duration) bool {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	if timeout <= 0 || ix.lastUsed.IsZero() || time.Since(ix.lastUsed) < timeout {
+		return false
+	}
+	hadCache := len(ix.vecs) > 0 || len(ix.phashes) > 0 || len(ix.ignores) > 0
+	ix.clearLocked()
+	ix.lastUsed = time.Time{}
+	return hadCache
 }
 
 // InvalidateIgnores 丢弃"非重复"标记缓存（标记变更后调用）。
@@ -81,10 +103,13 @@ func (ix *Index) InvalidateIgnores() {
 // EnsureLoaded 确保向量索引可用；每隔 vectorStaleCheck 抽查一次数据库条数，
 // 发现变化（例如批量处理完成后）则整体重建。
 func (ix *Index) EnsureLoaded() error {
-	ix.mu.RLock()
+	ix.loadMu.Lock()
+	defer ix.loadMu.Unlock()
+	ix.mu.Lock()
+	ix.lastUsed = time.Now()
 	loaded := ix.loaded
 	fresh := time.Since(ix.lastCheck) < vectorStaleCheck
-	ix.mu.RUnlock()
+	ix.mu.Unlock()
 	if loaded && fresh {
 		return nil
 	}
@@ -102,11 +127,17 @@ func (ix *Index) EnsureLoaded() error {
 			return nil
 		}
 	}
-	return ix.Reload()
+	return ix.reload()
 }
 
 // Reload 从数据库整体重建向量索引。
 func (ix *Index) Reload() error {
+	ix.loadMu.Lock()
+	defer ix.loadMu.Unlock()
+	return ix.reload()
+}
+
+func (ix *Index) reload() error {
 	rows, err := ai_repo.LoadEmbeddings("image", ix.model)
 	if err != nil {
 		return err
@@ -114,18 +145,24 @@ func (ix *Index) Reload() error {
 
 	ids := make([]uuid.UUID, 0, len(rows))
 	var vecs []int8
-	var scales []float32
+	scales := make([]float32, 0, len(rows))
 	dim := 0
 
 	for _, row := range rows {
+		if row.Dim <= 0 || len(row.Vec) != row.Dim {
+			continue
+		}
 		if dim == 0 {
 			dim = row.Dim
+			vecs = make([]int8, 0, len(rows)*dim)
 		}
-		if row.Dim != dim || len(row.Vec) != dim {
+		if row.Dim != dim {
 			continue // 跨模型的脏数据直接跳过
 		}
 		ids = append(ids, row.MediaID)
-		vecs = append(vecs, bytesToInt8(row.Vec)...)
+		for _, b := range row.Vec {
+			vecs = append(vecs, int8(b))
+		}
 		scales = append(scales, row.Scale)
 	}
 
@@ -134,6 +171,7 @@ func (ix *Index) Reload() error {
 	ix.dim = dim
 	ix.loaded = true
 	ix.lastCheck = time.Now()
+	ix.lastUsed = ix.lastCheck
 	ix.mu.Unlock()
 
 	log.Printf("[AI] 向量索引已载入: %d 条 × %d 维", len(ids), dim)
@@ -149,6 +187,7 @@ func (ix *Index) PutVector(mediaID uuid.UUID, dim int, scale float32, vec []byte
 		ix.loaded = false // 维度不一致或未加载：下次检索时重建
 		return
 	}
+	ix.lastUsed = time.Now()
 	for i, id := range ix.ids {
 		if id == mediaID {
 			copy(ix.vecs[i*dim:(i+1)*dim], bytesToInt8(vec))
@@ -168,6 +207,7 @@ func (ix *Index) PutPHash(mediaID uuid.UUID, hash int64) {
 	if !ix.phashReady {
 		return
 	}
+	ix.lastUsed = time.Now()
 	ix.phashes[mediaID] = hash
 }
 
@@ -244,9 +284,12 @@ func (ix *Index) dimOf() int {
 
 // EnsurePHashes 载入全部感知哈希。
 func (ix *Index) EnsurePHashes() error {
-	ix.mu.RLock()
+	ix.loadMu.Lock()
+	defer ix.loadMu.Unlock()
+	ix.mu.Lock()
+	ix.lastUsed = time.Now()
 	ready := ix.phashReady
-	ix.mu.RUnlock()
+	ix.mu.Unlock()
 	if ready {
 		return nil
 	}
@@ -258,15 +301,19 @@ func (ix *Index) EnsurePHashes() error {
 	ix.mu.Lock()
 	ix.phashes = hashes
 	ix.phashReady = true
+	ix.lastUsed = time.Now()
 	ix.mu.Unlock()
 	return nil
 }
 
 // EnsureIgnores 载入"非重复"标记集合。
 func (ix *Index) EnsureIgnores() error {
-	ix.mu.RLock()
+	ix.loadMu.Lock()
+	defer ix.loadMu.Unlock()
+	ix.mu.Lock()
+	ix.lastUsed = time.Now()
 	ready := ix.ignoresReady
-	ix.mu.RUnlock()
+	ix.mu.Unlock()
 	if ready {
 		return nil
 	}
@@ -278,6 +325,7 @@ func (ix *Index) EnsureIgnores() error {
 	ix.mu.Lock()
 	ix.ignores = ignores
 	ix.ignoresReady = true
+	ix.lastUsed = time.Now()
 	ix.mu.Unlock()
 	return nil
 }

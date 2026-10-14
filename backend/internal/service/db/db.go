@@ -26,6 +26,8 @@ const (
 	busyTimeoutMS = 10000
 	// 写事务重试次数与退避基数。
 	writeRetries = 5
+	// 页缓存按连接分配；并发读连接只在有请求时保留。
+	pageCacheKiB = 8192
 )
 
 var (
@@ -52,7 +54,7 @@ func Init(conf config.DbConfig) {
 
 	base := fmt.Sprintf("file:%s?_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)"+
 		"&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)"+
-		"&_pragma=cache_size(-65536)", filepath.ToSlash(abs), busyTimeoutMS)
+		"&_pragma=cache_size(-%d)", filepath.ToSlash(abs), busyTimeoutMS, pageCacheKiB)
 
 	if writePool, err = sql.Open("sqlite", base+"&_txlock=immediate"); err != nil {
 		log.Fatalf("打开数据库（写）失败: %v", err)
@@ -65,7 +67,8 @@ func Init(conf config.DbConfig) {
 		log.Fatalf("打开数据库（读）失败: %v", err)
 	}
 	readPool.SetMaxOpenConns(8)
-	readPool.SetMaxIdleConns(4)
+	readPool.SetMaxIdleConns(1)
+	readPool.SetConnMaxIdleTime(time.Minute)
 	readPool.SetConnMaxLifetime(0)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

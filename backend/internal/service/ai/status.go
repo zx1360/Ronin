@@ -96,15 +96,15 @@ func (e *Engine) sidecarFor(capability string) *Sidecar {
 // CapabilityStatus 单个能力的就绪与运行状态。
 type CapabilityStatus struct {
 	model.CapabilitySpec
-	Ready        bool               `json:"ready"`
-	Reason       string             `json:"reason,omitempty"`
-	Sidecar      *SidecarState      `json:"sidecar,omitempty"`
+	Ready        bool                `json:"ready"`
+	Reason       string              `json:"reason,omitempty"`
+	Sidecar      *SidecarState       `json:"sidecar,omitempty"`
 	Candidates   []ExecutorCandidate `json:"executor_candidates,omitempty"`
-	MissingMedia int                `json:"missing_media"` // 尚无该产物的媒体数
-	StaleMedia   int                `json:"stale_media"`   // 输入档位/执行者已变、待自动重排的媒体数
-	Pending      int                `json:"pending"`
-	Failed       int                `json:"failed"`
-	Done         int                `json:"done"`
+	MissingMedia int                 `json:"missing_media"` // 尚无该产物的媒体数
+	StaleMedia   int                 `json:"stale_media"`   // 输入档位/执行者已变、待显式重生成的媒体数
+	Pending      int                 `json:"pending"`
+	Failed       int                 `json:"failed"`
+	Done         int                 `json:"done"`
 }
 
 // IndexState 向量索引状态。
@@ -220,7 +220,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 			item.Sidecar = &state
 		}
 		item.MissingMedia = missing[spec.Capability]
-		// 输入档位/执行者变更后待自动重排的数量（见 worker.reconcileLoop）
+		// 输入档位/执行者变更后可显式重生成的数量。
 		if stale, err := ai_repo.CountStaleInput(spec.Capability, spec.InputSig); err == nil {
 			item.StaleMedia = stale
 		}

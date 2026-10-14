@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	dst := filepath.Join(dir, "monarch_test.db")
-	if err := copyFilePlain(src, dst); err != nil {
+	if err := copyDatabase(src, dst); err != nil {
 		fmt.Fprintf(os.Stderr, "复制数据库失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -62,19 +62,26 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func copyFilePlain(src, dst string) error {
-	in, err := os.Open(src)
+func copyDatabase(src, dst string) error {
+	abs, err := filepath.Abs(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	out, err := os.Create(dst)
+	source, err := sql.Open("sqlite", "file:"+filepath.ToSlash(abs)+"?mode=ro&_pragma=busy_timeout(10000)")
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
+	defer source.Close()
+	// 包含 WAL 中已提交的数据；源连接只读，测试只修改目标副本。
+	_, err = source.Exec("VACUUM INTO ?", dst)
 	return err
+}
+
+func clearTestVLMJobs(t *testing.T) {
+	t.Helper()
+	if _, err := db.Exec(t.Context(), "DELETE FROM jobs WHERE capability = ?", model.CapVLM); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // sampleMediaID 取一个未删除的媒体 ID。
@@ -231,6 +238,7 @@ func TestAiWrites(t *testing.T) {
 // ---------- AI 任务队列 ----------
 
 func TestAiJobQueue(t *testing.T) {
+	clearTestVLMJobs(t)
 	var mediaIDs []uuid.UUID
 	rows, err := db.Read().Query(
 		`SELECT id FROM media_assets WHERE is_deleted = 0 ORDER BY captured_at DESC LIMIT 300`)
@@ -273,7 +281,7 @@ func TestAiJobQueue(t *testing.T) {
 	if err := ai_repo.FinishDone([]int64{claimed[0].JobID}, "ai1024|ollama:test"); err != nil {
 		t.Fatalf("标记完成失败: %v", err)
 	}
-	if err := ai_repo.FinishFailed([]int64{claimed[1].JobID}, "验收失败原因", 3,
+	if err := ai_repo.FinishFailed([]int64{claimed[1].JobID}, "验收失败原因", 1,
 		"ai1024|ollama:test"); err != nil {
 		t.Fatalf("标记失败失败: %v", err)
 	}
@@ -303,6 +311,7 @@ func TestAiJobQueue(t *testing.T) {
 
 // TestAiStaleInput 指纹不匹配才重排：失败的任务同样记指纹，否则会被反复重排。
 func TestAiStaleInput(t *testing.T) {
+	clearTestVLMJobs(t)
 	mediaIDs := []uuid.UUID{sampleMediaID(t)}
 	const current = "ai1024|ollama:current"
 
@@ -339,6 +348,9 @@ func TestAiStaleInput(t *testing.T) {
 // ---------- AI 检索 ----------
 
 func TestAiSearch(t *testing.T) {
+	if _, err := db.Exec(t.Context(), "DELETE FROM media_ai_tags"); err != nil {
+		t.Fatal(err)
+	}
 	mediaID := sampleMediaID(t)
 	if err := ai_repo.SaveOCR(mediaID, "独一无二的验收检索词", "ai1024|rapidocr-ppocr"); err != nil {
 		t.Fatalf("写入 OCR 失败: %v", err)
