@@ -28,6 +28,7 @@ func (ft *FlexTime) UnmarshalJSON(data []byte) error {
 		"2006-01-02T15:04:05.999999",
 		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05",
+		"2006-01-02",
 	}
 
 	var err error

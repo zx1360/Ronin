@@ -56,6 +56,7 @@ class MediaAssetList extends _$MediaAssetList {
 
     // 本地缓存同样级联标记（与服务端行为一致）
     final db = ref.read(galleryDatabaseProvider);
+    final members = await db.getGroupMembers(id);
     await db.markMediaAssetDeleted(id, deleted: deleted);
     ref.invalidate(mediaIdsWithTagsProvider);
     ref
@@ -64,147 +65,104 @@ class MediaAssetList extends _$MediaAssetList {
           id,
           MediaPatchIntent(isDeleted: deleted),
           baselineAsset: previous,
+          baselineMembers: members,
         );
     await bumpModifiedCount(id);
     return state.valueOrNull ?? [];
   }
 
-  /// 批量标记删除/恢复（乐观更新 + 单次服务端请求, 失败整体回滚）
+  /// 批量操作在服务端确认后更新缓存。
   Future<List<MediaAsset>> batchMarkDeleted(
     List<String> ids, {
     bool deleted = true,
   }) async {
     if (ids.isEmpty) return state.valueOrNull ?? [];
-
-    final selectedIds = ids.toSet();
-    final db = ref.read(galleryDatabaseProvider);
+    await _flushWrites();
     final api = ref.read(galleryApiProvider);
-    final currentList = state.valueOrNull ?? [];
-    final previousById = {
-      for (final asset in currentList)
-        if (selectedIds.contains(asset.id)) asset.id: asset,
-    };
-
-    await db.batchMarkMediaAssetDeleted(ids, deleted: deleted);
-    state = AsyncData([
-      for (final asset in currentList)
-        selectedIds.contains(asset.id)
-            ? asset.copyWith(isDeleted: deleted)
-            : asset,
-    ]);
+    await retryServerWrite(
+      () => api.patchMedia(
+        mediaIds: ids,
+        intent: MediaPatchIntent(isDeleted: deleted),
+      ),
+    );
+    await ref
+        .read(galleryDatabaseProvider)
+        .batchMarkMediaAssetDeleted(ids, deleted: deleted);
     ref.invalidate(mediaIdsWithTagsProvider);
-
-    try {
-      await retryServerWrite(
-        () => api.patchMedia(
-          mediaIds: ids,
-          intent: MediaPatchIntent(isDeleted: deleted),
-        ),
-      );
-    } catch (e) {
-      for (final previous in previousById.values) {
-        await db.updateMediaAsset(previous);
-      }
-      state = AsyncData([
-        for (final asset in currentList) previousById[asset.id] ?? asset,
-      ]);
-      rethrow;
-    }
-
+    await refresh();
     for (final id in ids) {
       await bumpModifiedCount(id);
     }
     return state.valueOrNull ?? [];
   }
 
-  /// 设置备注（空串清空）。
+  /// 空串清空备注。
   Future<void> setMessage(MediaAsset target, String message) =>
-      _applyLocalAndQueue(
-        target.copyWith(
-          message: message.isEmpty ? null : message,
-          clearMessage: message.isEmpty,
-        ),
-        target,
-        MediaPatchIntent(message: message),
-      );
+      _applyLocalAndQueue(target, MediaPatchIntent(message: message));
 
-  /// 保存编辑参数（图片旋转/裁切、视频剪辑共用）；[params] 为空表示清除编辑记录。
   Future<void> setEditParams(MediaAsset target, String? params) =>
       _applyLocalAndQueue(
-        target.copyWith(
-          editParams: params,
-          clearEditParams: params == null || params.isEmpty,
-        ),
         target,
         params == null || params.isEmpty
             ? const MediaPatchIntent(clearEditParams: true)
             : MediaPatchIntent(editParams: params),
       );
 
-  /// 「本地立即生效 → 写缓冲合并推送」这一条写路径的唯一实现。
-  ///
-  /// 本地落库 + 内存态同步 + 服务端经缓冲推送，失败由缓冲层回滚。
-  /// 页面不要自己写 `updateMediaAsset + queuePatch`（会漏掉内存态同步）。
+  /// 同步内存与本地缓存，再合并推送。
   Future<void> _applyLocalAndQueue(
-    MediaAsset updated,
-    MediaAsset baseline,
+    MediaAsset target,
     MediaPatchIntent intent,
   ) async {
     final currentList = state.valueOrNull ?? [];
-    final index = currentList.indexWhere((a) => a.id == updated.id);
+    final index = currentList.indexWhere((a) => a.id == target.id);
+    final baseline = index < 0 ? target : currentList[index];
+    final updated = intent.applyTo(baseline);
     if (index >= 0) {
       state = AsyncData(List<MediaAsset>.from(currentList)..[index] = updated);
     }
 
     final db = ref.read(galleryDatabaseProvider);
-    await db.updateMediaAsset(updated);
+    try {
+      await db.updateMediaAsset(updated);
+    } catch (_) {
+      replaceAsset(baseline);
+      rethrow;
+    }
     ref
         .read(galleryWriteBufferProvider)
         .queuePatch(updated.id, intent, baselineAsset: baseline);
   }
 
-  /// 捆绑媒体文件（组成员写入 group_id）
-  Future<void> bundleMedia(String leadId, List<String> memberIds) async {
-    if (memberIds.isEmpty) return;
-
-    final db = ref.read(galleryDatabaseProvider);
-    final api = ref.read(galleryApiProvider);
-
-    await db.setMediaGroupId(memberIds, leadId);
-    await refresh();
-
-    try {
-      await retryServerWrite(
-        () => api.patchMedia(
-          mediaIds: memberIds,
-          intent: MediaPatchIntent(groupId: leadId),
-        ),
-      );
-    } catch (e) {
-      await db.setMediaGroupId(memberIds, null);
-      await refresh();
-      rethrow;
+  Future<void> _flushWrites() async {
+    if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
+      throw StateError('部分修改未同步，请确认后重试');
     }
-    await bumpModifiedCount(leadId);
   }
 
-  /// 解除捆绑
-  Future<void> unbundleMedia(List<String> memberIds) async {
+  /// 捆绑或解绑在服务端确认后更新缓存。
+  Future<void> _setGroup(List<String> memberIds, String? leadId) async {
     if (memberIds.isEmpty) return;
-
-    final db = ref.read(galleryDatabaseProvider);
+    await _flushWrites();
     final api = ref.read(galleryApiProvider);
-
-    await db.setMediaGroupId(memberIds, null);
-    await refresh();
-
     await retryServerWrite(
       () => api.patchMedia(
         mediaIds: memberIds,
-        intent: const MediaPatchIntent(clearGroup: true),
+        intent: leadId == null
+            ? const MediaPatchIntent(clearGroup: true)
+            : MediaPatchIntent(groupId: leadId),
       ),
     );
+    await ref.read(galleryDatabaseProvider).setMediaGroupId(memberIds, leadId);
+    await refresh();
   }
+
+  Future<void> bundleMedia(String leadId, List<String> memberIds) async {
+    await _setGroup(memberIds, leadId);
+    await bumpModifiedCount(leadId);
+  }
+
+  Future<void> unbundleMedia(List<String> memberIds) =>
+      _setGroup(memberIds, null);
 
   /// 更新 modified_count（批次处理游标）
   Future<void> bumpModifiedCount(String mediaId) async {

@@ -348,8 +348,9 @@ func ReplaceBookletData(data BookletBackupData) error {
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO booklet_records (id, style_id, date, message, task_completion, mood)
 				VALUES (?, ?, ?, ?, ?, ?)
-				ON CONFLICT (style_id, date) DO UPDATE SET
-					id = excluded.id, message = excluded.message,
+				ON CONFLICT DO UPDATE SET
+					id = excluded.id, style_id = excluded.style_id, date = excluded.date,
+					message = excluded.message,
 					task_completion = excluded.task_completion, mood = excluded.mood
 			`, r.ID, r.StyleID, r.Date.Time().Format("2006-01-02"), r.Message,
 				encodeJSON(r.TaskCompletion, "{}"), r.Mood); err != nil {

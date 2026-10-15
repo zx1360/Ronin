@@ -17,6 +17,15 @@ enum TransferTarget {
   preferences, // 偏好数据
 }
 
+extension TransferTargetName on TransferTarget {
+  String get displayName => switch (this) {
+    TransferTarget.booklet => '打卡',
+    TransferTarget.essay => '随笔',
+    TransferTarget.preferences => '偏好',
+    TransferTarget.all => '所有',
+  };
+}
+
 /// 传输状态
 enum TransferStatus {
   idle, // 空闲
@@ -79,12 +88,7 @@ class TransferProgress {
   }
 
   String get typeName => type == TransferType.sync ? '同步' : '备份';
-  String get targetName => switch (target) {
-    TransferTarget.booklet => '打卡',
-    TransferTarget.essay => '随笔',
-    TransferTarget.preferences => '偏好',
-    TransferTarget.all => '所有',
-  };
+  String get targetName => target.displayName;
   String get statusName => switch (status) {
     TransferStatus.idle => '就绪',
     TransferStatus.preparing => '准备中',

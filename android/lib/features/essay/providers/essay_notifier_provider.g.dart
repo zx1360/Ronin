@@ -6,7 +6,7 @@ part of 'essay_notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$essayServiceHash() => r'd600bd9a5fba188526f0b693fe448fa12eb34e3c';
+String _$essayServiceHash() => r'15bd60b14e5b38952b53e2dfe1ea61ecc79631c1';
 
 /// Essay 模块的核心服务
 ///

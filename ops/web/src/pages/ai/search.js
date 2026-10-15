@@ -4,7 +4,7 @@
 // （只读，与人工标签物理隔离）、person_ids、mime_type、from/to。
 // 一页 60 条由服务端 limit/offset 分页，命中数可能远多于 60，故结果区自己滚动并支持续取。
 
-import { ref, computed, onMounted } from '../../vue.js';
+import { ref, computed, onMounted, onUnmounted } from '../../vue.js';
 import { api, assetUrl } from '../../api.js';
 import { toast } from '../../store.js';
 import { Card, Placeholder, Badge, MediaTile } from '../../ui.js';
@@ -160,80 +160,70 @@ export default {
       }
     };
 
-    const runSearch = async (offset, append) => {
-      if (append) loadingMore.value = true;
-      else loading.value = true;
+    let requestId = 0;
+    onUnmounted(() => requestId++);
+
+    const requestResults = async (action, source, offset = 0, append = false) => {
+      const id = ++requestId;
+      loading.value = !append && source !== 'image';
+      uploading.value = !append && source === 'image';
+      loadingMore.value = append;
       error.value = '';
       try {
-        const data = await api.get('/API/ai/search?' + buildQuery(true, offset), { timeoutMs: 600000 });
+        const data = await action();
+        if (id !== requestId) return false;
         nextOffset.value = num(offset) + applyResult(data, append);
-        resultSource.value = 'search';
-        // 检索发起后收起筛选区，让结果区立刻落在视口内
+        resultSource.value = source;
         if (!append) filtersOpen.value = false;
+        return true;
       } catch (err) {
-        failRequest(err, append);
+        if (id === requestId) failRequest(err, append);
+        return false;
       } finally {
-        loading.value = false;
-        loadingMore.value = false;
+        if (id === requestId) {
+          loading.value = false;
+          uploading.value = false;
+          loadingMore.value = false;
+        }
       }
     };
 
+    const runSearch = (offset, append) => requestResults(
+      () => api.get('/API/ai/search?' + buildQuery(true, offset), { timeoutMs: 600000 }),
+      'search', offset, append,
+    );
     const search = () => runSearch(0, false);
 
-    /** 以图搜图：multipart 上传（字段名 image，与后端一致），条件与分页走 URL。 */
-    const runImageSearch = async (offset, append) => {
+    const runImageSearch = (offset, append) => {
       const file = imageFile.value;
       if (!file) {
         error.value = '请先选择用于检索的图片';
-        return;
+        return Promise.resolve(false);
       }
-      if (append) loadingMore.value = true;
-      else uploading.value = true;
-      error.value = '';
-      try {
-        const form = new FormData();
-        form.append('image', file, file.name);
-        const url = assetUrl('/API/ai/search/image?' + buildQuery(false, offset));
+      const form = new FormData();
+      form.append('image', file, file.name);
+      const url = assetUrl('/API/ai/search/image?' + buildQuery(false, offset));
+      return requestResults(async () => {
         const response = await fetch(url, { method: 'POST', body: form, cache: 'no-store' });
-        const text = await response.text();
-        let payload = null;
-        try {
-          payload = text ? JSON.parse(text) : null;
-        } catch (err) {
-          payload = null;
-        }
-        if (!response.ok) {
-          const detailText = payload && payload.error ? ': ' + payload.error : '';
-          throw new Error('HTTP ' + response.status + detailText);
-        }
-        nextOffset.value = num(offset) + applyResult(payload, append);
-        resultSource.value = 'image';
-        if (!append) filtersOpen.value = false;
-      } catch (err) {
-        failRequest(err, append);
-      } finally {
-        uploading.value = false;
-        loadingMore.value = false;
-      }
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error('HTTP ' + response.status + (payload && payload.error ? ': ' + payload.error : ''));
+        if (!payload) throw new Error('检索响应为空或格式无效');
+        return payload;
+      }, 'image', offset, append);
     };
 
     const similarTo = async (id) => {
-      loading.value = true;
-      error.value = '';
-      try {
-        const data = await api.get('/API/ai/similar/' + id + '?limit=' + SIMILAR_LIMIT, { timeoutMs: 600000 });
-        applyResult(data, false);
-        resultSource.value = 'similar';
-        nextOffset.value = 0;
-        toast('已按所选图片查找相似媒体', 'success');
-      } catch (err) {
-        failRequest(err, false);
-      } finally {
-        loading.value = false;
-      }
+      if (await requestResults(
+        () => api.get('/API/ai/similar/' + id + '?limit=' + SIMILAR_LIMIT, { timeoutMs: 600000 }),
+        'similar',
+      )) toast('已按所选图片查找相似媒体', 'success');
     };
 
     const clearResult = () => {
+      requestId++;
+      loading.value = false;
+      uploading.value = false;
+      loadingMore.value = false;
       hits.value = [];
       total.value = 0;
       resultMode.value = '';
@@ -327,11 +317,13 @@ export default {
     const selectedHit = computed(() => hitCards.value.find((item) => item.selected) || null);
 
     const selectHit = async (card) => {
+      const id = requestId;
       selectedId.value = card.id;
       detail.value = null;
       detailError.value = '';
       try {
         const data = await api.get('/API/ai/media/' + card.id);
+        if (id !== requestId || selectedId.value !== card.id) return;
         const source = data || {};
         const faces = Array.isArray(source.faces) ? source.faces : [];
         detail.value = {
@@ -343,6 +335,7 @@ export default {
           faceCount: faces.length,
         };
       } catch (err) {
+        if (id !== requestId || selectedId.value !== card.id) return;
         detailError.value = err.message;
       }
     };

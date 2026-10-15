@@ -6,6 +6,7 @@ library;
 import 'dart:convert';
 
 import 'package:hive/hive.dart';
+import 'package:torrid/core/services/storage/box_replace.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
@@ -48,6 +49,7 @@ class EssayService extends _$EssayService {
       labelBox: ref.read(labelBoxProvider),
     );
   }
+
   /// 按当前随笔数据重算全部年度/月度统计，并补齐缺失的年度
   Future<void> refreshYear() async {
     final allEssays = state.essayBox.values;
@@ -91,6 +93,7 @@ class EssayService extends _$EssayService {
       await state.labelBox.putAll(corrected);
     }
   }
+
   /// 写入新随笔
   ///
   /// 同时更新相关标签计数和年度/月度统计信息。
@@ -164,10 +167,12 @@ class EssayService extends _$EssayService {
       );
     }
   }
+
   /// 对某篇随笔的标签进行切换（添加/移除）
   ///
   /// 确保每篇随笔至少有一个标签。
-  Future<void> retag(String essayId, String labelId) async {    final originalEssay = state.essayBox.get(essayId);
+  Future<void> retag(String essayId, String labelId) async {
+    final originalEssay = state.essayBox.get(essayId);
     final originalLabel = state.labelBox.get(labelId);
     if (originalEssay == null || originalLabel == null) return;
 
@@ -235,11 +240,8 @@ class EssayService extends _$EssayService {
       await state.labelBox.deleteAll(orphans);
     }
   }
-  /// 从服务器同步数据（整体替换本地数据）
-  ///
-  /// 先把全部数据解析校验完，再清空并写入本地：任何一条数据非法都直接抛出，
-  /// 不会留下"已清空但未导入"的空库。
-  /// 图片下载由 TransferController 统一处理（带进度），此处仅导入数据。
+
+  /// 整体替换数据，图片由传输控制器处理。
   Future<void> syncData(dynamic json) async {
     final summaries = <String, YearSummary>{};
     for (final raw in json['year_summaries'] as List) {
@@ -259,12 +261,11 @@ class EssayService extends _$EssayService {
       essays[essay.id] = essay;
     }
 
-    await state.summaryBox.clear();
-    await state.labelBox.clear();
-    await state.essayBox.clear();
-    await state.summaryBox.putAll(summaries);
-    await state.labelBox.putAll(labels);
-    await state.essayBox.putAll(essays);
+    await replaceBoxes({
+      state.summaryBox: summaries,
+      state.labelBox: labels,
+      state.essayBox: essays,
+    });
   }
 
   /// 打包本地数据用于备份

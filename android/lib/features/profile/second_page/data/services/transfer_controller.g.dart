@@ -7,13 +7,9 @@ part of 'transfer_controller.dart';
 // **************************************************************************
 
 String _$transferControllerHash() =>
-    r'198d6aa155f71226938342a77911d1c712cb6a34';
+    r'8e6839eda81451df6d6be0fdfb4f636de4b21d47';
 
-/// 数据传输控制器
-///
-/// 提供同步和备份功能，管理传输状态。
-///
-/// Copied from [TransferController].
+/// See also [TransferController].
 @ProviderFor(TransferController)
 final transferControllerProvider =
     AutoDisposeNotifierProvider<TransferController, TransferProgress>.internal(
