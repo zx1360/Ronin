@@ -45,8 +45,9 @@ class EssayCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 日期和标签
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 Text(
                   dateFormat.format(essay.date),
@@ -54,28 +55,27 @@ class EssayCard extends ConsumerWidget {
                     context,
                   ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
-                if (labelNames.isNotEmpty)
-                  Row(
-                    children: labelNames
-                        .map(
-                          (label) => Padding(
-                            padding: const EdgeInsets.only(left: 8.0),
-                            child: Text(
-                              label,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context).primaryColor,
-                                  ),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                for (final label in labelNames)
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).primaryColor,
+                    ),
                   ),
               ],
             ),
 
             const SizedBox(height: 12),
 
+            if (essay.title.trim().isNotEmpty) ...[
+              Text(
+                essay.title,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+            ],
             // 内容预览
             Text(
               previewText,
@@ -142,7 +142,7 @@ class EssayCard extends ConsumerWidget {
                       ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
                     ),
                     // 心情显示
-                    if (essay.mood != null) ...[                    
+                    if (essay.mood != null) ...[
                       const SizedBox(width: 12),
                       MoodDisplay(mood: essay.mood, iconSize: 16),
                     ],

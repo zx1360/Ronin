@@ -31,7 +31,7 @@ func FetchAllEssayArticles() ([]model.EssayArticle, error) {
 	defer cancel()
 
 	rows, err := db.Read().QueryContext(ctx, `
-		SELECT id, date, word_count, content, imgs, labels, messages, mood, created_at, updated_at
+		SELECT id, date, word_count, content, title, imgs, labels, messages, mood, created_at, updated_at
 		FROM essay_articles
 		ORDER BY date DESC
 	`)
@@ -49,7 +49,7 @@ func FetchAllEssayArticles() ([]model.EssayArticle, error) {
 			messages []byte
 		)
 		if err := rows.Scan(
-			&a.ID, &a.Date, &a.WordCount, &a.Content,
+			&a.ID, &a.Date, &a.WordCount, &a.Content, &a.Title,
 			&imgs, &labels, &messages, &a.Mood,
 			&a.CreatedAt, &a.UpdatedAt,
 		); err != nil {
@@ -69,7 +69,7 @@ func FetchAllEssayLabels() ([]model.EssayLabel, error) {
 	defer cancel()
 
 	rows, err := db.Read().QueryContext(ctx,
-		`SELECT id, name, essay_count, created_at, updated_at FROM essay_labels ORDER BY essay_count DESC`)
+		`SELECT id, name, essay_count, parent_id, created_at, updated_at FROM essay_labels ORDER BY essay_count DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("查询标签列表失败: %w", err)
 	}
@@ -78,12 +78,12 @@ func FetchAllEssayLabels() ([]model.EssayLabel, error) {
 	var labels []model.EssayLabel
 	for rows.Next() {
 		var l model.EssayLabel
-		if err := rows.Scan(&l.ID, &l.Name, &l.EssayCount, &l.CreatedAt, &l.UpdatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.Name, &l.EssayCount, &l.ParentID, &l.CreatedAt, &l.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("扫描标签行失败: %w", err)
 		}
 		labels = append(labels, l)
 	}
-	return labels, rows.Err()
+	return model.EnsureHiddenEssayLabel(labels), rows.Err()
 }
 
 // FetchAllEssayYearSummaries 获取所有年度汇总
@@ -263,6 +263,14 @@ type BookletBackupData struct {
 
 // ReplaceEssayData 在事务中替换全部随笔数据
 func ReplaceEssayData(data EssayBackupData) error {
+	data.Labels = model.EnsureHiddenEssayLabel(data.Labels)
+	if err := model.ValidateEssayLabels(data.Labels); err != nil {
+		return err
+	}
+	data.LabelIDs = nil
+	for _, label := range data.Labels {
+		data.LabelIDs = append(data.LabelIDs, label.ID)
+	}
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 
@@ -279,13 +287,13 @@ func ReplaceEssayData(data EssayBackupData) error {
 
 		for _, a := range data.Articles {
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO essay_articles (id, date, word_count, content, imgs, labels, messages, mood)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT INTO essay_articles (id, date, word_count, content, title, imgs, labels, messages, mood)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT (id) DO UPDATE SET
 					date = excluded.date, word_count = excluded.word_count,
-					content = excluded.content, imgs = excluded.imgs,
+					content = excluded.content, title = excluded.title, imgs = excluded.imgs,
 					labels = excluded.labels, messages = excluded.messages, mood = excluded.mood
-			`, a.ID, dbutil.TS(a.Date.Time()), a.WordCount, a.Content,
+			`, a.ID, dbutil.TS(a.Date.Time()), a.WordCount, a.Content, a.Title,
 				encodeStrings(a.Imgs), encodeStrings(a.Labels), encodeJSON(a.Messages, "[]"), a.Mood); err != nil {
 				return fmt.Errorf("写入随笔 %s 失败: %w", a.ID, err)
 			}
@@ -293,10 +301,10 @@ func ReplaceEssayData(data EssayBackupData) error {
 
 		for _, l := range data.Labels {
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO essay_labels (id, name, essay_count)
-				VALUES (?, ?, ?)
-				ON CONFLICT (id) DO UPDATE SET name = excluded.name, essay_count = excluded.essay_count
-			`, l.ID, l.Name, l.EssayCount); err != nil {
+				INSERT INTO essay_labels (id, name, essay_count, parent_id)
+				VALUES (?, ?, ?, ?)
+				ON CONFLICT (id) DO UPDATE SET name = excluded.name, essay_count = excluded.essay_count, parent_id = excluded.parent_id
+			`, l.ID, l.Name, l.EssayCount, l.ParentID); err != nil {
 				return fmt.Errorf("写入标签 %s 失败: %w", l.ID, err)
 			}
 		}

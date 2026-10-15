@@ -6,9 +6,9 @@ part of 'tag_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$favoriteTagsHash() => r'f9b1921b24d700e0a047642e0f188a6163107606';
+String _$favoriteTagsHash() => r'747a59d96e0aacc3ccfcb987f027011146b0fef2';
 
-/// 快捷标签（收藏标签, 按路径排序）——浮层右栏 / 快捷选择使用
+/// 快捷标签（收藏标签，按绑定媒体数降序）
 ///
 /// Copied from [favoriteTags].
 @ProviderFor(favoriteTags)
@@ -22,7 +22,7 @@ final favoriteTagsProvider = AutoDisposeProvider<List<Tag>>.internal(
 );
 
 typedef FavoriteTagsRef = AutoDisposeProviderRef<List<Tag>>;
-String _$tagTreeHash() => r'c8df66a1cfb7c6e4635cbd62a0ca47ca610c57cc';
+String _$tagTreeHash() => r'da14089aef1b68862f075ca42af58b5d9b9a5971';
 
 /// 标签树 Provider
 ///

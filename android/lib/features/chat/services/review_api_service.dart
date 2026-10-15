@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/chat/models/review_models.dart';
 import 'package:torrid/features/chat/services/chat_api_service.dart';
+import 'package:torrid/features/essay/services/essay_contract.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 服务端回顾接口（`/API/ai/review*`）。
@@ -19,8 +20,18 @@ class ReviewApiService {
   Stream<ChatStreamEvent> generate({
     required Map<String, dynamic> request,
     CancelToken? cancelToken,
-  }) {
-    return streamNdjsonEvents(
+  }) async* {
+    try {
+      final response = await _client.postJson(
+        '/API/user-data/check-images/essay',
+        data: {'filenames': <String>[]},
+        cancelToken: cancelToken,
+      );
+      requireEssaySchema(response.data);
+    } catch (e) {
+      throw ApiClient.mapError(e);
+    }
+    yield* streamNdjsonEvents(
       _client,
       '/API/ai/review',
       request,

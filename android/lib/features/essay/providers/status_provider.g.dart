@@ -6,7 +6,7 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$labelsHash() => r'7d512e7c726681c92e1be11a3aa7e0b77849db0c';
+String _$labelsHash() => r'e835979ac8f061670ba042dbda006d3107740b49';
 
 /// 所有标签列表（按随笔数量降序排列）
 ///
@@ -22,7 +22,7 @@ final labelsProvider = AutoDisposeProvider<List<Label>>.internal(
 );
 
 typedef LabelsRef = AutoDisposeProviderRef<List<Label>>;
-String _$idMapHash() => r'e9610658a70dc1ad4da555431b922f231b93c8bf';
+String _$idMapHash() => r'5cf27ecf870f0b54ea7611b82f29edc194d963c3';
 
 /// 标签 ID 到名称的映射表
 ///
@@ -40,7 +40,7 @@ final idMapProvider = AutoDisposeProvider<Map<String, String>>.internal(
 );
 
 typedef IdMapRef = AutoDisposeProviderRef<Map<String, String>>;
-String _$summariesHash() => r'a9e795004271222afa1cde7a74fc91b60820bd9a';
+String _$summariesHash() => r'c8c94888f864f9b5251359d1b37ecca403d8d65e';
 
 /// 所有年度统计数据（按年份降序排列，每年内月份按升序排列）
 ///
@@ -56,7 +56,7 @@ final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
 );
 
 typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'4b19ae4615ec9ca40153dc4b77100d06b7840402';
+String _$filteredEssaysHash() => r'3c233bcd6644491dee25ca4c00e243bddd6b8a13';
 
 /// 经过筛选和排序的随笔列表
 ///

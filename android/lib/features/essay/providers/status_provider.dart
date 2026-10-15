@@ -8,6 +8,7 @@ library;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
+import 'package:torrid/features/essay/models/label_tree.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
@@ -21,7 +22,8 @@ List<Label> labels(LabelsRef ref) {
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  final source = asyncVal.asData?.value ?? const <Label>[];
+  final source =
+      asyncVal.asData?.value ?? ref.read(labelBoxProvider).values.toList();
   return List<Label>.of(source)
     ..sort((a, b) => b.essayCount.compareTo(a.essayCount));
 }
@@ -32,23 +34,25 @@ List<Label> labels(LabelsRef ref) {
 @riverpod
 Map<String, String> idMap(IdMapRef ref) {
   final allLabels = ref.watch(labelsProvider);
-  return {for (final label in allLabels) label.id: label.name};
+  return {for (final label in allLabels) label.id: labelPath(label, allLabels)};
 }
 
 /// 所有年度统计数据（按年份降序排列，每年内月份按升序排列）
 @riverpod
 List<YearSummary> summaries(SummariesRef ref) {
-  final asyncVal = ref.watch(summaryStreamProvider);
+  final asyncVal = ref.watch(essayStreamProvider);
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  final source = asyncVal.asData?.value ?? const <YearSummary>[];
-
-  final sorted = source.map((summary) {
-    final months = List<MonthSummary>.of(summary.monthSummaries)
-      ..sort((a, b) => int.parse(a.month).compareTo(int.parse(b.month)));
-    return summary.copyWith(monthSummaries: months);
-  }).toList();
+  final source = asyncVal.asData?.value ?? const <Essay>[];
+  final labels = ref.watch(labelsProvider);
+  final settings = ref.watch(browseManagerProvider);
+  final visible = settings.showHidden ? source : visibleEssays(source, labels);
+  final sorted = visible
+      .map((e) => e.year.toString())
+      .toSet()
+      .map((year) => YearSummary.fromEssays(year, visible))
+      .toList();
 
   sorted.sort((a, b) => int.parse(b.year).compareTo(int.parse(a.year)));
   return sorted;
@@ -59,18 +63,20 @@ List<YearSummary> summaries(SummariesRef ref) {
 /// 根据 [BrowseManager] 的设置进行标签筛选和排序。
 @riverpod
 Future<List<Essay>> filteredEssays(FilteredEssaysRef ref) async {
-  final essays = await ref.watch(essayStreamProvider.future);
   final settings = ref.watch(browseManagerProvider);
+  final labels = ref.watch(labelsProvider);
+  final essays = await ref.watch(essayStreamProvider.future);
 
   // 始终从副本出发排序/洗牌，避免改动 Box 流中的共享列表
-  var filtered = List<Essay>.of(essays);
+  var filtered = settings.showHidden
+      ? List<Essay>.of(essays)
+      : visibleEssays(essays, labels);
 
   if (settings.selectedLabels.isNotEmpty) {
+    final selected = labelSubtree(labels, settings.selectedLabels);
     filtered = filtered
         .where(
-          (essay) => settings.selectedLabels.any(
-            (labelId) => essay.labels.contains(labelId),
-          ),
+          (essay) => selected.any((labelId) => essay.labels.contains(labelId)),
         )
         .toList();
   }

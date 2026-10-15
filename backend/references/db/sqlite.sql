@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS essay_articles (
     date       TEXT NOT NULL,
     word_count INTEGER NOT NULL DEFAULT 0,
     content    TEXT NOT NULL DEFAULT '',
+    title      TEXT NOT NULL DEFAULT '',
     imgs       TEXT NOT NULL DEFAULT '[]',
     labels     TEXT NOT NULL DEFAULT '[]',
     messages   TEXT NOT NULL DEFAULT '[]',
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS essay_labels (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     essay_count INTEGER NOT NULL DEFAULT 0,
+    parent_id   TEXT,
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')),
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'))
 );

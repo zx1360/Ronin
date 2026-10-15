@@ -50,11 +50,7 @@ class EssayContentWidget extends ConsumerWidget {
                 // 心情显示
                 if (essay.mood != null) ...[
                   const SizedBox(width: 8),
-                  MoodDisplay(
-                    mood: essay.mood,
-                    iconSize: 18,
-                    showLabel: true,
-                  ),
+                  MoodDisplay(mood: essay.mood, iconSize: 18, showLabel: true),
                 ],
               ],
             ),
@@ -69,7 +65,13 @@ class EssayContentWidget extends ConsumerWidget {
                 // 复制文本按钮.
                 IconButton(
                   onPressed: () {
-                    Clipboard.setData(ClipboardData(text: essay.content));
+                    Clipboard.setData(
+                      ClipboardData(
+                        text: essay.title.trim().isEmpty
+                            ? essay.content
+                            : '${essay.title}\n\n${essay.content}',
+                      ),
+                    );
                     ScaffoldMessenger.of(
                       context,
                     ).showSnackBar(SnackBar(content: Text("已复制随笔内容.")));
@@ -138,28 +140,11 @@ class EssayContentWidget extends ConsumerWidget {
               ),
             if (isToday)
               IconButton(
-                onPressed: () => showConfirmDialog(
-                  context: context,
-                  title: "确认重写",
-                  content: "如果继续, 将首先删除本随笔, 请确保妥善处理新随笔!",
-                  confirmFunc: () async {
-                    await ref
-                        .read(essayServiceProvider.notifier)
-                        .deleteEssay(essay);
-                    if (context.mounted) {
-                      context.pop();
-                      // 前往write页.
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EssayWritePage(
-                            initialContent: essay.content,
-                            initialLabels: essay.labels,
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EssayWritePage(original: essay),
+                  ),
                 ),
                 icon: Icon(
                   const IconData(0xe60c, fontFamily: "iconfont"),
@@ -167,13 +152,16 @@ class EssayContentWidget extends ConsumerWidget {
                 ),
                 padding: EdgeInsets.zero,
                 splashRadius: 16,
-                tooltip: "重写随笔(当天可用)",
+                tooltip: "编辑随笔(当天可用，原文保留至保存)",
               ),
           ],
         ),
         const SizedBox(height: 20),
 
-        // 是否展示可编辑.
+        if (essay.title.trim().isNotEmpty) ...[
+          Text(essay.title, style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 16),
+        ],
 
         // 内容
         Text(

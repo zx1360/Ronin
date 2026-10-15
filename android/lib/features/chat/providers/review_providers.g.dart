@@ -48,7 +48,7 @@ final reviewHistoryControllerProvider =
 
 typedef _$ReviewHistoryController = Notifier<List<ReviewRecord>>;
 String _$reviewDraftControllerHash() =>
-    r'5b4c9f157b3939f24ccbde82aee8a8a3ae7179ad';
+    r'6eca25f1413999943236dc1936aafad9299cc6cc';
 
 /// 回顾生成控制器。
 ///

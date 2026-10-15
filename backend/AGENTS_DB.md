@@ -39,7 +39,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
   `internal/service/db/migrate.go` 的 `addedColumns` 里声明（先查 `pragma_table_info` 再
   `ALTER TABLE ADD COLUMN`），同时更新 `sqlite.sql` 让全新库直接建好；Monarch 启动时执行。
   当前新增列：`jobs.input_sig`、`media_ai.{phash,ocr,caption}_input_sig`、
-  `embeddings.input_sig`、`faces.input_sig`。
+  `embeddings.input_sig`、`faces.input_sig`、`essay_articles.title`、`essay_labels.parent_id`。
 
 ## 索引要点
 
