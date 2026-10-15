@@ -58,14 +58,21 @@ class SmartAlbumState {
 
 @riverpod
 class SmartAlbumController extends _$SmartAlbumController {
+  int _requestId = 0;
+
   @override
-  SmartAlbumState build() => const SmartAlbumState();
+  SmartAlbumState build() {
+    ref.onDispose(() => _requestId++);
+    return const SmartAlbumState();
+  }
 
   /// 切换检索方式；旧结果不再对应，直接清掉避免误读。
   void setMode(AiSearchMode mode) {
     if (mode == state.mode) return;
+    _requestId++;
     state = state.copyWith(
       mode: mode,
+      loading: false,
       result: AiSearchResult.empty,
       clearError: true,
     );
@@ -82,47 +89,57 @@ class SmartAlbumController extends _$SmartAlbumController {
 
   /// 以图搜图。
   Future<void> searchSimilar(String mediaId) => _run(
-        () => ref.read(aiApiProvider).similar(mediaId),
-        queryText: '与所选图片相似',
-      );
+    () => ref.read(aiApiProvider).similar(mediaId),
+    queryText: '与所选图片相似',
+  );
 
   /// 按人物筛选其全部媒体。
   Future<void> searchByPerson(AiPerson person) => _run(
-        () => ref.read(aiApiProvider).searchByPerson(person.id),
-        queryText: person.displayName,
-      );
+    () => ref.read(aiApiProvider).searchByPerson(person.id),
+    queryText: person.displayName,
+  );
 
   /// 加载人物分组（首次切到"人物"页时调用）。
   Future<void> loadPersons() async {
+    final requestId = ++_requestId;
     state = state.copyWith(loading: true, clearError: true);
     try {
       final persons = await ref.read(aiApiProvider).fetchPersons();
+      if (requestId != _requestId) return;
       state = state.copyWith(persons: persons, loading: false);
     } catch (e) {
+      if (requestId != _requestId) return;
       state = state.copyWith(loading: false, error: aiFriendlyError(e));
     }
   }
 
   /// 清空当前结果（清空输入框时）。
   void clearResult() {
-    state = state.copyWith(result: AiSearchResult.empty, clearError: true);
+    _requestId++;
+    state = state.copyWith(
+      result: AiSearchResult.empty,
+      loading: false,
+      clearError: true,
+    );
   }
 
   Future<void> _run(
     Future<AiSearchResult> Function() action, {
     String? queryText,
   }) async {
+    final requestId = ++_requestId;
     state = state.copyWith(loading: true, clearError: true);
     try {
       final result = await action();
+      if (requestId != _requestId) return;
       state = state.copyWith(
         result: result,
         loading: false,
         queryText: queryText,
-        queryRevision:
-            queryText == null ? null : state.queryRevision + 1,
+        queryRevision: queryText == null ? null : state.queryRevision + 1,
       );
     } catch (e) {
+      if (requestId != _requestId) return;
       state = state.copyWith(loading: false, error: aiFriendlyError(e));
     }
   }

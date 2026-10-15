@@ -24,9 +24,11 @@ GalleryWriteBuffer galleryWriteBuffer(GalleryWriteBufferRef ref) {
     onRevert: (mediaId, baseline) async {
       if (baseline.asset != null) {
         await db.updateMediaAsset(baseline.asset!);
-        ref
-            .read(mediaAssetListProvider.notifier)
-            .replaceAsset(baseline.asset!);
+        ref.read(mediaAssetListProvider.notifier).replaceAsset(baseline.asset!);
+      }
+      await db.updateMediaAssetsLocal(baseline.members);
+      for (final member in baseline.members) {
+        ref.read(mediaAssetListProvider.notifier).replaceAsset(member);
       }
       if (baseline.tagIds != null) {
         await db.setTagsForMedia(mediaId, baseline.tagIds!);

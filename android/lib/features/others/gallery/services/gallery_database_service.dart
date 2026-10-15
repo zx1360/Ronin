@@ -3,7 +3,6 @@ import 'package:sqflite/sqflite.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
-import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
 
 /// Gallery 模块数据库服务 - 单例模式
 /// 管理 media_assets, tags, media_tag_links 三张表
@@ -140,18 +139,29 @@ class GalleryDatabaseService {
 
   /// 插入或更新媒体文件记录 (批量)
   Future<void> upsertMediaAssets(List<MediaAsset> assets) async {
+    if (assets.isEmpty) return;
     final db = await database;
-    final batch = db.batch();
-
-    for (final asset in assets) {
-      batch.insert(
-        'media_assets',
-        asset.toDbMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-
-    await batch.commit(noResult: true);
+    await db.transaction((txn) async {
+      await txn.execute('PRAGMA defer_foreign_keys = ON');
+      final existing = {
+        for (final row in await txn.query('media_assets', columns: ['id']))
+          row['id'] as String,
+      };
+      final batch = txn.batch();
+      for (final asset in assets) {
+        if (existing.add(asset.id)) {
+          batch.insert('media_assets', asset.toDbMap());
+        } else {
+          batch.update(
+            'media_assets',
+            asset.toDbMap(),
+            where: 'id = ?',
+            whereArgs: [asset.id],
+          );
+        }
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   /// 获取所有媒体文件 (按 captured_at 升序)
@@ -445,23 +455,6 @@ class GalleryDatabaseService {
   }
 
   // MediaTagLink CRUD
-
-  /// 插入媒体-标签关联 (批量)
-  Future<void> upsertMediaTagLinks(List<MediaTagLink> links) async {
-    if (links.isEmpty) return;
-    final db = await database;
-    final batch = db.batch();
-
-    for (final link in links) {
-      batch.insert(
-        'media_tag_links',
-        link.toDbMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-
-    await batch.commit(noResult: true);
-  }
 
   /// 获取媒体文件关联的所有标签 ID
   Future<List<String>> getTagIdsForMedia(String mediaId) async {

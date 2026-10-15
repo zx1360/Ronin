@@ -1,8 +1,4 @@
-// Package repository_test 是数据层的端到端验收：在**数据库副本**上跑遍全部读写
-// 场景（AI 产物写入、标签树级联、事务性全量替换、comix 管理字段）。
-//
-// 需要一份已迁移的 SQLite 数据库；缺省取 backend/data/monarch.db，可用
-// MONARCH_DB_SRC 指定。测试先把库复制到临时目录再操作，绝不触碰真实数据。
+// 数据层验收默认使用独立测试数据；MONARCH_DB_SRC 可指定只读源库做快照兼容性验收。
 package repository_test
 
 import (
@@ -26,40 +22,67 @@ import (
 	"monarch/internal/service/db"
 )
 
-const (
-	sourceDB   = "../../data/monarch.db"
-	schemaFile = "../../references/db/sqlite.sql"
-)
+const schemaFile = "../../references/db/sqlite.sql"
 
-// TestMain 复制一份数据库副本供全部用例共用（每个用例各复制一次 340MB 太浪费）。
 func TestMain(m *testing.M) {
-	src := os.Getenv("MONARCH_DB_SRC")
-	if src == "" {
-		src = sourceDB
-	}
-	src = filepath.FromSlash(src)
-	if _, err := os.Stat(src); err != nil {
-		fmt.Fprintf(os.Stderr, "跳过数据层验收：未找到源数据库 %s（用 MONARCH_DB_SRC 指定）\n", src)
-		os.Exit(0)
-	}
+	os.Exit(runAcceptance(m))
+}
 
+func runAcceptance(m *testing.M) int {
 	dir, err := os.MkdirTemp("", "monarch-acceptance")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "创建临时目录失败: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	defer os.RemoveAll(dir)
 	dst := filepath.Join(dir, "monarch_test.db")
-	if err := copyDatabase(src, dst); err != nil {
-		fmt.Fprintf(os.Stderr, "复制数据库失败: %v\n", err)
-		os.Exit(1)
+	src := os.Getenv("MONARCH_DB_SRC")
+	if src != "" {
+		if err := copyDatabase(src, dst); err != nil {
+			fmt.Fprintf(os.Stderr, "复制数据库失败: %v\n", err)
+			return 1
+		}
 	}
 	db.Init(config.DbConfig{File: dst, SchemaFile: schemaFile})
+	defer db.Close()
+	if src == "" {
+		if err := seedAcceptance(); err != nil {
+			fmt.Fprintf(os.Stderr, "创建测试数据失败: %v\n", err)
+			return 1
+		}
+	}
+	return m.Run()
+}
 
-	code := m.Run()
-
-	db.Close()
-	os.RemoveAll(dir)
-	os.Exit(code)
+func seedAcceptance() error {
+	return db.Tx(context.Background(), func(tx *sql.Tx) error {
+		for i := 1; i <= 32; i++ {
+			id := fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
+			if _, err := tx.Exec(`INSERT INTO media_assets(id, captured_at, file_path, hash, mime_type)
+				VALUES (?, ?, ?, ?, 'image/jpeg')`, id,
+				fmt.Sprintf("2024-06-%02d 12:00:00.000", (i-1)%28+1),
+				fmt.Sprintf("test/%d.jpg", i), []byte(id)); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(`
+			INSERT INTO essay_labels(id, name) VALUES ('11111111-1111-4111-8111-111111111111', '测试');
+			INSERT INTO essay_articles(id, date, content, imgs, labels, messages)
+			VALUES ('22222222-2222-4222-8222-222222222222', '2024-06-01 12:00:00.000', '测试随笔',
+			 '["img_storage/essay/test.jpg"]', '["11111111-1111-4111-8111-111111111111"]', '[{"content":"测试"}]');
+			INSERT INTO essay_year_summaries(year, essay_count, word_count, month_summaries) VALUES (2024, 1, 4, '[]');
+			INSERT INTO booklet_styles(id, start_date, tasks)
+			VALUES ('33333333-3333-4333-8333-333333333333', '2024-06-01 00:00:00.000', '[{"image":"img_storage/booklet/test.jpg"}]');
+			INSERT INTO booklet_records(id, style_id, date, task_completion)
+			VALUES ('44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333', '2024-06-01', '{}');
+			INSERT INTO comic_sites(id, code, name) VALUES (1, 'test', '测试站');
+			INSERT INTO comics(id, title, site_id, site_comic_id, detail_url) VALUES (1, '测试漫画', 1, '1', 'https://example.invalid/1');
+			INSERT INTO comic_chapters(id, comic_id, site_id, chapter_no, title, url, rel_dir)
+			VALUES (1, 1, 1, 1, '第一章', 'https://example.invalid/chapter/1', 'test/001');
+			INSERT INTO comic_images(chapter_id, sort_num, file_name, width, height) VALUES (1, 1, '1.jpg', 100, 200);
+		`)
+		return err
+	})
 }
 
 func copyDatabase(src, dst string) error {

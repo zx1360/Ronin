@@ -88,10 +88,7 @@ class GallerySyncService extends _$GallerySyncService {
     state = const SyncProgress(status: SyncStatus.idle, message: '已取消');
   }
 
-  /// 下载一批媒体文件
-  /// 1. 获取 batch 数据 (媒体信息 + tags + links)
-  /// 2. 存储数据到本地数据库
-  /// 3. 下载媒体文件 (原图 + 缩略图 + 预览图)
+  /// 下载一批媒体记录及缩略图、预览图。
   Future<bool> downloadBatch({int limit = 50}) async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
@@ -104,15 +101,17 @@ class GallerySyncService extends _$GallerySyncService {
     final apiClient = ref.read(apiClientManagerProvider);
 
     try {
-      // 1. 获取当前本地记录数作为 offset
-      final offset = await db.getMediaAssetCount();
-
       state = SyncProgress(
         status: SyncStatus.downloading,
         message: '正在获取数据...',
         current: 0,
         total: 0,
       );
+
+      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
+        throw StateError('部分修改未同步，请确认后重试');
+      }
+      final offset = await db.getMediaAssetCount();
 
       // 2. 请求 batch 数据（携带筛选/排序参数）
       final mimeFilter = ref.read(galleryDownloadMimeFilterProvider);
@@ -163,9 +162,13 @@ class GallerySyncService extends _$GallerySyncService {
       await db.upsertMediaAssets(assets);
       // 标签以服务端为权威, 整表镜像到本地缓存
       await db.syncTagsCache(tags);
-      if (links.isNotEmpty) {
-        await db.upsertMediaTagLinks(links);
+      final tagsByMedia = <String, List<String>>{
+        for (final asset in assets) asset.id: [],
+      };
+      for (final link in links) {
+        tagsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
       }
+      await db.replaceTagsForMediaBatch(tagsByMedia);
 
       // 4. 下载媒体文件 (仅缩略图和预览图，原图通过网络实时加载)
       final totalFiles = assets.length * 2; // 每个 asset 有2个文件 (缩略图+预览图)
@@ -311,6 +314,10 @@ class GallerySyncService extends _$GallerySyncService {
         status: SyncStatus.uploading,
         message: '正在准备数据...',
       );
+
+      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
+        throw StateError('部分修改未同步，请确认后重试');
+      }
 
       final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
       final upperIndex = processedUpperIndex(

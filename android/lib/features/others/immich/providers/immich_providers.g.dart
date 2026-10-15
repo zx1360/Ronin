@@ -25,7 +25,7 @@ final immichFilterNotifierProvider =
 );
 
 typedef _$ImmichFilterNotifier = AutoDisposeNotifier<ImmichFilter>;
-String _$immichMediaHash() => r'064e76e7008e30f1421ca6d87aceceb7569571c9';
+String _$immichMediaHash() => r'3b897f9a968db554bcbdbf2aa9a2fc1070966f61';
 
 /// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
 ///

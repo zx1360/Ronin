@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:hive/hive.dart';
+import 'package:torrid/core/services/storage/box_replace.dart';
 
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
@@ -118,10 +119,7 @@ class RoutineService extends _$RoutineService {
 
   // 数据同步
 
-  /// 数据同步：整体替换本地数据
-  ///
-  /// 先完整解析校验再清空写入，避免"已清空但解析失败"造成本地数据丢失。
-  /// 图片下载由 TransferController 统一处理（带进度），此处仅导入数据。
+  /// 整体替换数据，图片由传输控制器处理。
   Future<void> syncData(dynamic json) async {
     final styles = <String, Style>{};
     for (final raw in json['styles'] as List) {
@@ -135,10 +133,7 @@ class RoutineService extends _$RoutineService {
       records[record.id] = record;
     }
 
-    await state.styleBox.clear();
-    await state.recordBox.clear();
-    await state.styleBox.putAll(styles);
-    await state.recordBox.putAll(records);
+    await replaceBoxes({state.styleBox: styles, state.recordBox: records});
   }
 
   /// 备份数据，打包 JSON

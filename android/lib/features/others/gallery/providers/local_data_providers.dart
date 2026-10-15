@@ -38,6 +38,9 @@ class GalleryLocalDataController extends _$GalleryLocalDataController {
   Future<void> _run(Future<void> Function() action) async {
     state = true;
     try {
+      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
+        throw StateError('部分修改未同步，请确认后重试');
+      }
       await action();
     } finally {
       state = false;

@@ -155,25 +155,37 @@ final immichAiTagsProvider = FutureProvider<List<AiTagCount>>((ref) async {
 /// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
 @riverpod
 class ImmichMedia extends _$ImmichMedia {
+  int _requestId = 0;
+  int? _reloadLimit;
+
   @override
   Future<ImmichMediaPage> build() async {
+    final requestId = ++_requestId;
+    ref.onDispose(() => _requestId++);
     final filter = ref.watch(immichFilterNotifierProvider);
-    return _fetch(filter, 0);
+    final limit = _reloadLimit ?? _kPageSize;
+    _reloadLimit = null;
+    return _fetch(filter, 0, requestId: requestId, limit: limit);
   }
 
   Future<void> loadMore() async {
+    if (state.isLoading) return;
     final current = state.valueOrNull;
     if (current == null || !current.hasMore || current.loadingMore) return;
 
+    final requestId = ++_requestId;
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final next = await _fetch(
         ref.read(immichFilterNotifierProvider),
         current.assets.length,
+        requestId: requestId,
         previous: current,
       );
+      if (requestId != _requestId) return;
       state = AsyncData(next);
     } catch (e) {
+      if (requestId != _requestId) return;
       state = AsyncData(current.copyWith(loadingMore: false));
       rethrow;
     }
@@ -187,16 +199,14 @@ class ImmichMedia extends _$ImmichMedia {
   /// 重新拉取并保持已加载条数（批量操作后刷新, 不退回第一页）
   Future<void> reloadKeepingLength() async {
     final loaded = state.valueOrNull?.assets.length ?? _kPageSize;
-    final filter = ref.read(immichFilterNotifierProvider);
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => _fetch(filter, 0, limit: loaded.clamp(_kPageSize, 1000)),
-    );
+    _reloadLimit = loaded.clamp(_kPageSize, 1000);
+    await refresh();
   }
 
   Future<ImmichMediaPage> _fetch(
     ImmichFilter filter,
     int offset, {
+    required int requestId,
     ImmichMediaPage? previous,
     int limit = _kPageSize,
   }) async {
@@ -213,18 +223,21 @@ class ImmichMedia extends _$ImmichMedia {
       offset: offset,
     );
 
-    // 写回本地缓存（仅更新已缓存的行, 保持画廊页一致）
-    await db.updateMediaAssetsLocal(result.mediaAssets);
-    final tagIdsByMedia = <String, List<String>>{...?previous?.tagIdsByMedia};
+    final pageTags = <String, List<String>>{
+      for (final asset in result.mediaAssets) asset.id: [],
+    };
     for (final link in result.mediaTagLinks) {
-      tagIdsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
+      pageTags.putIfAbsent(link.mediaId, () => []).add(link.tagId);
     }
-    await db.replaceTagsForMediaBatch(tagIdsByMedia);
+    if (requestId == _requestId) {
+      await db.updateMediaAssetsLocal(result.mediaAssets);
+      await db.replaceTagsForMediaBatch(pageTags);
+    }
 
     final assets = [...?previous?.assets, ...result.mediaAssets];
     return ImmichMediaPage(
       assets: assets,
-      tagIdsByMedia: tagIdsByMedia,
+      tagIdsByMedia: {...?previous?.tagIdsByMedia, ...pageTags},
       total: result.total,
     );
   }

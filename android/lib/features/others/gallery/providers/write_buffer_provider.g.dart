@@ -7,7 +7,7 @@ part of 'write_buffer_provider.dart';
 // **************************************************************************
 
 String _$galleryWriteBufferHash() =>
-    r'16eb922b7bab5a37d2a502778ce696df0b6b1318';
+    r'521f8a26f012b1cd204de7afa274ea4cbcc38f72';
 
 /// 乐观写缓冲 Provider
 ///

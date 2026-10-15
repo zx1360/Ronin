@@ -66,6 +66,5 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 go test ./...          # 含 internal/repository 数据层端到端验收
 ```
 
-`internal/repository` 的验收会把数据库复制到临时目录后在副本上跑遍全部写路径（AI 产物、
-标签树级联、事务性全量替换、comix 管理字段），**绝不触碰真实数据**。缺省取
-`backend/data/monarch.db`，可用 `MONARCH_DB_SRC` 指定其它库。
+`internal/repository` 默认在临时库中生成测试数据，覆盖 AI 写入、标签级联、整体替换和漫画字段。
+设置 `MONARCH_DB_SRC` 可在指定库的只读快照上验收；测试不写源库。
