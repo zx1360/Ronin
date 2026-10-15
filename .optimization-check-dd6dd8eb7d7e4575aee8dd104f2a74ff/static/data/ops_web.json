@@ -1,7 +1,0 @@
-{
-  "auto_refresh_seconds": 10,
-  "ai_refresh_seconds": 3,
-  "log_line_limit": 800,
-  "confirm_destructive": true,
-  "ai_paused": true
-}
