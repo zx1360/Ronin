@@ -170,24 +170,12 @@ class _GridTileState extends ConsumerState<_GridTile> {
                 ),
               ),
 
-            if (widget.asset.groupId != null)
-              Positioned(
-                bottom: 4,
-                left: 4,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.amber,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(Icons.layers, color: Colors.white, size: 12),
-                ),
-              ),
+            _GroupBadge(asset: widget.asset),
 
             if (widget.hasTags && !widget.isSelectionMode)
               Positioned(
                 bottom: 4,
-                left: widget.asset.groupId != null ? 24 : 4,
+                left: 4,
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -225,6 +213,42 @@ class _GridTileState extends ConsumerState<_GridTile> {
       child: Icon(
         widget.asset.isVideo ? Icons.videocam : Icons.image,
         color: Colors.grey[600],
+      ),
+    );
+  }
+}
+
+class _GroupBadge extends ConsumerWidget {
+  final MediaAsset asset;
+  const _GroupBadge({required this.asset});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count =
+        ref.watch(mediaGroupSizesProvider).valueOrNull?[asset.id] ?? 0;
+    if (count < 2) return const SizedBox.shrink();
+    return Positioned(
+      top: asset.isDeleted ? 26 : 4,
+      left: 4,
+      child: Tooltip(
+        message: '分组共 $count 项，可在详情中查看',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.layers, size: 12, color: Colors.amber),
+              const SizedBox(width: 2),
+              Text(
+                '$count',
+                style: const TextStyle(color: Colors.white, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

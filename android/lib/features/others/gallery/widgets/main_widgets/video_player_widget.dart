@@ -4,17 +4,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:video_player/video_player.dart';
 
-/// 视频播放器组件（自实现播放控制，不依赖 chewie）
-///
-/// 功能：播放/暂停、后退/快进 10 秒、**可拖动进度条**（松手按实际松手位置
-/// 精确落点，修复了 chewie 内置进度条"快速拖动落点偏短（只能到 ~80%）"的
-/// 问题）、时间显示、3 秒无操作自动隐藏控制条（点按视频显示/隐藏）。
-///
-/// 外层结构保持不变：网络视频播放、旋转、本地预览图占位、错误态。
+/// 网络视频播放、进度控制与旋转。
 class VideoPlayerWidget extends ConsumerStatefulWidget {
   final MediaAsset asset;
   final int rotationQuarterTurns;
@@ -56,7 +51,7 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
   void didUpdateWidget(covariant VideoPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     // 如果 asset 变化，重新初始化视频控制器
-    if (oldWidget.asset.id != widget.asset.id) {
+    if (oldWidget.asset.id != widget.asset.id || oldWidget.asset.hash != widget.asset.hash) {
       _disposeControllers();
       _initVideoPlayer();
     }
@@ -81,12 +76,13 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
     _isInitializing = true;
     // 记录本次初始化的目标 asset，防止快速切换时旧初始化结果覆盖新 asset
     final targetAssetId = widget.asset.id;
+    final targetHash = widget.asset.hash;
 
     try {
       final apiClient = ref.read(apiClientManagerProvider);
       final baseUrl = apiClient.baseUrl;
       final headers = apiClient.headers;
-      final videoUrl = '$baseUrl/API/gallery/${widget.asset.id}/file';
+      final videoUrl = galleryMediaUrl(baseUrl, widget.asset);
 
       final controller = VideoPlayerController.networkUrl(
         Uri.parse(videoUrl),
@@ -95,7 +91,9 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
 
       await controller.initialize();
 
-      if (!mounted || widget.asset.id != targetAssetId) {
+      if (!mounted ||
+          widget.asset.id != targetAssetId ||
+          widget.asset.hash != targetHash) {
         controller.dispose();
         return;
       }
@@ -107,19 +105,25 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
         await controller.play().catchError((_) {});
       }
 
-      if (mounted) {
+      if (mounted && widget.asset.id == targetAssetId && widget.asset.hash == targetHash) {
         setState(() {
           _isVideoInitialized = true;
         });
       }
     } catch (e) {
-      if (mounted && widget.asset.id == targetAssetId) {
+      if (mounted &&
+          widget.asset.id == targetAssetId &&
+          widget.asset.hash == targetHash) {
         setState(() {
           _videoError = e.toString();
         });
       }
     } finally {
-      _isInitializing = false;
+      if (mounted &&
+          widget.asset.id == targetAssetId &&
+          widget.asset.hash == targetHash) {
+        _isInitializing = false;
+      }
     }
   }
 

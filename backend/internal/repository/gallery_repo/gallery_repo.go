@@ -699,6 +699,7 @@ var (
 	ErrTagEmptyName      = errors.New("标签名不能为空")
 	ErrMediaNotFound     = errors.New("媒体不存在")
 	ErrMediaSelfGroup    = errors.New("媒体不能捆绑到自身")
+	ErrMediaGroupLead    = errors.New("主文件必须为未删除的独立媒体")
 )
 
 // TagPatch 标签更新意图（nil 字段表示不修改）
@@ -1041,97 +1042,125 @@ type MediaPatch struct {
 	MarkProcessed   bool // sync_count + 1
 }
 
-// expandWithGroupMembers 展开为"给定媒体 + 以它们为主文件的组成员"
-func expandWithGroupMembers(ids []uuid.UUID) ([]uuid.UUID, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
+// UNION 同时处理旧的嵌套分组，并防止循环关系导致无限展开。
+func expandWithGroupMembers(ctx context.Context, tx *sql.Tx, ids []uuid.UUID) ([]uuid.UUID, error) {
 	clause, args := inClause(ids)
-	rows, err := db.Read().QueryContext(ctx, `
-		SELECT id FROM media_assets
-		WHERE id `+clause+` OR group_id `+clause, append(args, args...)...)
+	rows, err := tx.QueryContext(ctx, `
+        WITH RECURSIVE members(id) AS (
+            SELECT id FROM media_assets WHERE id `+clause+`
+            UNION SELECT m.id FROM media_assets m JOIN members g ON m.group_id = g.id
+        ) SELECT id FROM members`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("展开捆绑组成员失败: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
-
-	expanded := []uuid.UUID{}
+	var expanded []uuid.UUID
 	for rows.Next() {
 		var id uuid.UUID
 		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("扫描媒体 ID 失败: %w", err)
+			return nil, err
 		}
 		expanded = append(expanded, id)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("遍历媒体 ID 失败: %w", err)
-	}
-	return uniqueUUIDs(expanded), nil
+	return expanded, rows.Err()
 }
 
-// PatchMediaAssets 按 [MediaPatch] 批量更新媒体标注，返回更新后的行
+// 分组保持单层；删除/恢复级联组成员，其余标注仅修改指定文件。
 func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 	ids := uniqueUUIDs(patch.MediaIDs)
 	if len(ids) == 0 {
 		return []model.MediaAsset{}, nil
 	}
-
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
-
-	// 先校验目标媒体存在：后续展开组成员会掩盖"ID 不存在"的情况
-	if err := ensureMediaExist(ctx, db.Read(), ids); err != nil {
-		return nil, err
-	}
-
-	var b setBuilder
-	if patch.IsDeleted != nil {
-		// 软删除/恢复主文件时, 其捆绑组成员一并处理（与客户端本地缓存语义一致）
-		expanded, err := expandWithGroupMembers(ids)
-		if err != nil {
-			return nil, err
+	var assets []model.MediaAsset
+	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		if err := ensureMediaExist(ctx, tx, ids); err != nil {
+			return err
 		}
-		ids = expanded
-		b.add("is_deleted = ?", *patch.IsDeleted)
-	}
-	if patch.Message != nil {
-		var message *string
-		if trimmed := strings.TrimSpace(*patch.Message); trimmed != "" {
-			message = &trimmed
+		affected := ids
+		var expanded []uuid.UUID
+		if patch.IsDeleted != nil || patch.GroupID != nil {
+			var err error
+			expanded, err = expandWithGroupMembers(ctx, tx, ids)
+			if err != nil {
+				return err
+			}
+			affected = uniqueUUIDs(append(append([]uuid.UUID{}, ids...), expanded...))
 		}
-		b.add("message = ?", message)
-	}
-	if patch.GroupID != nil {
-		for _, id := range ids {
-			if id == *patch.GroupID {
-				return nil, ErrMediaSelfGroup
+		update := func(targets []uuid.UUID, b setBuilder) error {
+			if b.isEmpty() {
+				return nil
+			}
+			clause, args := inClause(targets)
+			query, args := b.build("media_assets", "id "+clause, args...)
+			_, err := tx.ExecContext(ctx, query, args...)
+			return err
+		}
+		if patch.GroupID != nil {
+			for _, id := range expanded {
+				if id == *patch.GroupID {
+					return ErrMediaSelfGroup
+				}
+			}
+			var parent sql.NullString
+			var deleted bool
+			err := tx.QueryRowContext(ctx, `SELECT group_id, is_deleted FROM media_assets WHERE id = ?`, *patch.GroupID).Scan(&parent, &deleted)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrMediaNotFound
+			}
+			if err != nil {
+				return err
+			}
+			if parent.Valid || deleted {
+				return ErrMediaGroupLead
+			}
+			var group setBuilder
+			group.add("group_id = ?", *patch.GroupID)
+			if err := update(expanded, group); err != nil {
+				return err
+			}
+		} else if patch.ClearGroup {
+			var group setBuilder
+			group.raw("group_id = NULL")
+			if err := update(ids, group); err != nil {
+				return err
 			}
 		}
-		b.add("group_id = ?", *patch.GroupID)
-	} else if patch.ClearGroup {
-		b.raw("group_id = NULL")
-	}
-	if patch.SetEditParams != nil {
-		b.add("edit_params = ?", *patch.SetEditParams)
-	} else if patch.ClearEditParams {
-		b.raw("edit_params = NULL")
-	}
-	if patch.MarkProcessed {
-		b.raw("sync_count = sync_count + 1")
-	}
-
-	if b.isEmpty() {
-		return FetchMediaAssetsByIDs(ids)
-	}
-
-	clause, idArgs := inClause(ids)
-	query, args := b.build("media_assets", "id "+clause, idArgs...)
-	res, err := db.Exec(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("更新媒体标注失败: %w", err)
-	}
-	if n, _ := res.RowsAffected(); int(n) != len(ids) {
-		return nil, ErrMediaNotFound
-	}
-	return FetchMediaAssetsByIDs(ids)
+		if patch.IsDeleted != nil {
+			var deletion setBuilder
+			deletion.add("is_deleted = ?", *patch.IsDeleted)
+			if err := update(expanded, deletion); err != nil {
+				return err
+			}
+		}
+		var b setBuilder
+		if patch.Message != nil {
+			var message *string
+			if trimmed := strings.TrimSpace(*patch.Message); trimmed != "" {
+				message = &trimmed
+			}
+			b.add("message = ?", message)
+		}
+		if patch.SetEditParams != nil {
+			b.add("edit_params = ?", *patch.SetEditParams)
+		} else if patch.ClearEditParams {
+			b.raw("edit_params = NULL")
+		}
+		if patch.MarkProcessed {
+			b.raw("sync_count = sync_count + 1")
+		}
+		if err := update(ids, b); err != nil {
+			return err
+		}
+		clause, args := inClause(affected)
+		rows, err := tx.QueryContext(ctx, `SELECT `+mediaAssetColumns("")+` FROM media_assets WHERE id `+clause, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		assets, err = scanMediaAssets(rows)
+		return err
+	})
+	return assets, err
 }

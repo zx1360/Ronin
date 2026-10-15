@@ -203,24 +203,12 @@ class _WaterfallCellState extends ConsumerState<_WaterfallCell> {
                 ),
               ),
 
-            if (widget.asset.groupId != null)
-              Positioned(
-                bottom: 4,
-                left: 4,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.amber,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(Icons.layers, color: Colors.white, size: 12),
-                ),
-              ),
+            _GroupBadge(asset: widget.asset),
 
             if (widget.hasTags && !widget.isSelectionMode)
               Positioned(
                 bottom: 4,
-                left: widget.asset.groupId != null ? 24 : 4,
+                left: 4,
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(

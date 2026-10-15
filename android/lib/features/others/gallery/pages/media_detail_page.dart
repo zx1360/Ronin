@@ -13,14 +13,10 @@ import 'package:torrid/features/others/gallery/services/gallery_storage_service.
 import 'package:torrid/features/others/gallery/widgets/fullscreen_image_viewer.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
-/// 媒体文件详情页 - 更紧凑的UI设计
 class MediaDetailPage extends ConsumerStatefulWidget {
   final MediaAsset asset;
 
-  const MediaDetailPage({
-    super.key,
-    required this.asset,
-  });
+  const MediaDetailPage({super.key, required this.asset});
 
   @override
   ConsumerState<MediaDetailPage> createState() => _MediaDetailPageState();
@@ -30,46 +26,67 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
   late TextEditingController _messageController;
   bool _isSaving = false;
   bool _isDownloading = false;
-  
-  /// 捆绑的组成员列表 (包括主文件)
+  bool _isGroupUpdating = false;
+  final _pages = PageController();
+  final Map<String, String> _messageDrafts = {};
+
   List<MediaAsset> _groupMembers = [];
-  
-  /// 当前显示的组成员索引
+
   int _currentGroupIndex = 0;
-  
-  /// 当前显示的媒体文件
-  MediaAsset get _currentAsset => 
-      _groupMembers.isNotEmpty ? _groupMembers[_currentGroupIndex] : widget.asset;
+
+  MediaAsset get _currentAsset => _groupMembers.isNotEmpty
+      ? _groupMembers[_currentGroupIndex]
+      : widget.asset;
 
   @override
   void initState() {
     super.initState();
-    _messageController = TextEditingController(text: widget.asset.message ?? '');
+    _messageController = TextEditingController(
+      text: widget.asset.message ?? '',
+    );
     _loadGroupMembers();
   }
-  
-  /// 加载组成员
+
   Future<void> _loadGroupMembers() async {
-    final db = ref.read(galleryDatabaseProvider);
-    final members = await db.getGroupMembers(widget.asset.id);
-    
-    setState(() {
-      _groupMembers = [widget.asset, ...members];
-    });
+    try {
+      final db = ref.read(galleryDatabaseProvider);
+      final leadId = widget.asset.groupId ?? widget.asset.id;
+      final lead = await db.getMediaAssetById(leadId) ?? widget.asset;
+      final members = await db.getGroupMembers(lead.id);
+      if (!mounted) return;
+      setState(() {
+        _groupMembers = [lead, ...members];
+        final index = _groupMembers.indexWhere((a) => a.id == widget.asset.id);
+        _currentGroupIndex = index < 0 ? 0 : index;
+        _messageController.text =
+            _messageDrafts[_currentAsset.id] ?? _currentAsset.message ?? '';
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pages.hasClients) _pages.jumpToPage(_currentGroupIndex);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('分组加载失败: $e')));
+      }
+    }
   }
 
-  /// 切换当前查看的组成员，并同步备注输入框（备注是逐文件的）
   void _selectGroupIndex(int index) {
     if (index < 0 || index >= _groupMembers.length) return;
+    _messageDrafts[_currentAsset.id] = _messageController.text;
     setState(() {
       _currentGroupIndex = index;
-      _messageController.text = _currentAsset.message ?? '';
+      _messageController.text =
+          _messageDrafts[_currentAsset.id] ?? _currentAsset.message ?? '';
     });
   }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _pages.dispose();
     super.dispose();
   }
 
@@ -79,7 +96,10 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_getFileName(_currentAsset.filePath), style: const TextStyle(fontSize: 14)),
+        title: Text(
+          _getFileName(_currentAsset.filePath),
+          style: const TextStyle(fontSize: 14),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.auto_awesome, size: 20),
@@ -92,10 +112,16 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
           ),
           IconButton(
             icon: _isDownloading
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.download, size: 20),
             tooltip: '下载',
-            onPressed: _isDownloading ? null : () => _downloadToGallery(storage),
+            onPressed: _isDownloading
+                ? null
+                : () => _downloadToGallery(storage),
           ),
         ],
       ),
@@ -104,27 +130,35 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. 图片展示区 + 组内导航
             _buildImageSection(storage),
 
             const SizedBox(height: 12),
 
-            // 2. 留言区域 (紧凑型)
             _buildMessageSection(),
 
             const SizedBox(height: 12),
 
-            // 3. 基本信息 + 状态信息 (合并为更紧凑)
             _buildCompactInfoSection(),
 
             const SizedBox(height: 12),
 
-            // 4. 系统信息 (常驻展开)
             _buildFixedSection('系统信息', [
               _buildInfoRow('ID', _currentAsset.id, fontSize: 11),
-              _buildInfoRow('创建', _formatDateTime(_currentAsset.createdAt), fontSize: 11),
-              _buildInfoRow('更新', _formatDateTime(_currentAsset.updatedAt), fontSize: 11),
-              _buildInfoRow('同步', _currentAsset.syncCount.toString(), fontSize: 11),
+              _buildInfoRow(
+                '创建',
+                _formatDateTime(_currentAsset.createdAt),
+                fontSize: 11,
+              ),
+              _buildInfoRow(
+                '更新',
+                _formatDateTime(_currentAsset.updatedAt),
+                fontSize: 11,
+              ),
+              _buildInfoRow(
+                '同步',
+                _currentAsset.syncCount.toString(),
+                fontSize: 11,
+              ),
               _buildInfoRow('哈希', _currentAsset.hash, fontSize: 11),
             ]),
           ],
@@ -133,29 +167,35 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
   }
 
-  /// 构建图片展示区域 (带组内导航)
   Widget _buildImageSection(GalleryStorageService storage) {
     final hasGroup = _groupMembers.length > 1;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 图片展示
         Stack(
           children: [
             SizedBox(
               height: 260,
               child: hasGroup
                   ? PageView.builder(
+                      controller: _pages,
                       itemCount: _groupMembers.length,
                       onPageChanged: _selectGroupIndex,
                       itemBuilder: (context, index) {
-                        return _buildPreviewImage(storage, _groupMembers[index], showFullscreen: true);
+                        return _buildPreviewImage(
+                          storage,
+                          _groupMembers[index],
+                          showFullscreen: true,
+                        );
                       },
                     )
-                  : _buildPreviewImage(storage, widget.asset, showFullscreen: true),
+                  : _buildPreviewImage(
+                      storage,
+                      _currentAsset,
+                      showFullscreen: true,
+                    ),
             ),
-            // 左右导航按钮 (仅组内)
             if (hasGroup) ...[
               if (_currentGroupIndex > 0)
                 Positioned(
@@ -164,7 +204,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                   bottom: 0,
                   child: Center(
                     child: _buildNavButton(Icons.chevron_left, () {
-                      _selectGroupIndex(_currentGroupIndex - 1);
+                      _showGroupPage(_currentGroupIndex - 1);
                     }),
                   ),
                 ),
@@ -175,57 +215,37 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                   bottom: 0,
                   child: Center(
                     child: _buildNavButton(Icons.chevron_right, () {
-                      _selectGroupIndex(_currentGroupIndex + 1);
+                      _showGroupPage(_currentGroupIndex + 1);
                     }),
                   ),
                 ),
             ],
           ],
         ),
-        // 组内信息条
         if (hasGroup) ...[
           const SizedBox(height: 6),
           Row(
             children: [
-              // 指示器
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(_groupMembers.length, (i) {
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: i == _currentGroupIndex
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.grey[400],
-                      ),
-                    );
-                  }),
+                child: Text(
+                  '组内 ${_currentGroupIndex + 1}/${_groupMembers.length} · ${_currentGroupIndex == 0 ? '主文件' : '成员'}',
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
-              // 移出组按钮 (仅非主文件显示)
-              if (_currentGroupIndex > 0)
-                TextButton.icon(
-                  onPressed: _removeCurrentFromGroup,
-                  icon: const Icon(Icons.link_off, size: 16),
-                  label: const Text('移出组', style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
+              TextButton.icon(
+                onPressed: _isGroupUpdating || _isSaving
+                    ? null
+                    : _removeCurrentFromGroup,
+                icon: const Icon(Icons.link_off, size: 16),
+                label: Text(_currentGroupIndex == 0 ? '解散分组' : '移出分组'),
+              ),
             ],
           ),
         ],
       ],
     );
   }
-  
-  /// 构建导航按钮
+
   Widget _buildNavButton(IconData icon, VoidCallback onPressed) {
     return Material(
       color: Colors.black38,
@@ -240,48 +260,69 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       ),
     );
   }
-  
-  /// 移除当前文件从组中
+
+  void _showGroupPage(int index) {
+    if (_pages.hasClients) {
+      _pages.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   Future<void> _removeCurrentFromGroup() async {
-    final currentMember = _groupMembers[_currentGroupIndex];
-    if (currentMember.groupId == null) return; // 主文件不能移出
-    
-    final confirm = await showDialog<bool>(
+    if (_isGroupUpdating || _groupMembers.length < 2) return;
+    final dissolve = _currentGroupIndex == 0;
+    final member = _currentAsset;
+    final ids = dissolve
+        ? _groupMembers.skip(1).map((a) => a.id).toList()
+        : [member.id];
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('移出组'),
-        content: Text('确定要将 "${_getFileName(currentMember.filePath)}" 从组中移出吗？'),
+        title: Text(dissolve ? '解散分组' : '移出分组'),
+        content: Text(
+          dissolve
+              ? '将所有成员恢复为独立媒体，不删除文件或标注。'
+              : '将「${_getFileName(member.filePath)}」恢复为独立媒体，不删除文件或标注。',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确定')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确定'),
+          ),
         ],
       ),
     );
-    
-    if (confirm != true) return;
-
+    if (confirmed != true || !mounted) return;
+    setState(() => _isGroupUpdating = true);
     try {
-      await ref
-          .read(mediaAssetListProvider.notifier)
-          .unbundleMedia([currentMember.id]);
+      await ref.read(mediaAssetListProvider.notifier).unbundleMedia(ids);
+      if (!mounted) return;
+      _messageDrafts[member.id] = _messageController.text;
+      setState(() {
+        _groupMembers.removeWhere((a) => ids.contains(a.id));
+        _currentGroupIndex = 0;
+        _messageController.text =
+            _messageDrafts[_currentAsset.id] ?? _currentAsset.message ?? '';
+      });
+      if (_pages.hasClients) _pages.jumpToPage(0);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('移出组失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('解除分组失败: $e')));
       }
-      return;
+    } finally {
+      if (mounted) setState(() => _isGroupUpdating = false);
     }
-
-    if (!mounted) return;
-    setState(() {
-      _groupMembers.removeAt(_currentGroupIndex);
-      if (_currentGroupIndex >= _groupMembers.length) {
-        _currentGroupIndex = _groupMembers.length - 1;
-      }
-    });
   }
 
-  /// 构建紧凑型信息区
   Widget _buildCompactInfoSection() {
     return Card(
       margin: EdgeInsets.zero,
@@ -290,10 +331,11 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 第一行: 文件类型 | 大小 | 拍摄时间
             Row(
               children: [
-                _buildCompactChip(_currentAsset.mimeType?.split('/').last ?? '未知'),
+                _buildCompactChip(
+                  _currentAsset.mimeType?.split('/').last ?? '未知',
+                ),
                 const SizedBox(width: 8),
                 _buildCompactChip(_formatFileSize(_currentAsset.sizeBytes)),
                 const SizedBox(width: 8),
@@ -307,7 +349,6 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
               ],
             ),
             const SizedBox(height: 8),
-            // 第二行: 状态标签
             Wrap(
               spacing: 6,
               runSpacing: 4,
@@ -318,7 +359,9 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                 ),
                 if (_groupMembers.length > 1)
                   _buildStatusChip(
-                    _currentGroupIndex == 0 ? '主文件(${_groupMembers.length - 1})' : '组成员',
+                    _currentGroupIndex == 0
+                        ? '主文件(${_groupMembers.length - 1})'
+                        : '组成员',
                     Colors.orange,
                   )
                 else if (_currentAsset.groupId != null)
@@ -330,7 +373,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       ),
     );
   }
-  
+
   Widget _buildCompactChip(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -341,7 +384,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       child: Text(label, style: const TextStyle(fontSize: 11)),
     );
   }
-  
+
   Widget _buildStatusChip(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -353,8 +396,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       child: Text(label, style: TextStyle(fontSize: 11, color: color)),
     );
   }
-  
-  /// 构建常驻展开信息区
+
   Widget _buildFixedSection(String title, List<Widget> children) {
     return Card(
       margin: EdgeInsets.zero,
@@ -363,7 +405,10 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
             const SizedBox(height: 6),
             ...children,
           ],
@@ -372,21 +417,25 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
   }
 
-  /// 构建预览图 (点击可全屏)
-  Widget _buildPreviewImage(GalleryStorageService storage, MediaAsset asset, {bool showFullscreen = false}) {
-    // 获取网络图片 URL
+  Widget _buildPreviewImage(
+    GalleryStorageService storage,
+    MediaAsset asset, {
+    bool showFullscreen = false,
+  }) {
     final apiClient = ref.read(apiClientManagerProvider);
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
-    final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
-    
+    final imageUrl = galleryMediaUrl(baseUrl, asset);
+
     return FutureBuilder<File?>(
       future: _getLocalPlaceholder(storage, asset),
       builder: (context, snapshot) {
         final placeholderFile = snapshot.data;
-        
+
         return GestureDetector(
-          onTap: showFullscreen ? () => _openFullscreen(imageUrl, asset, placeholderFile, headers) : null,
+          onTap: showFullscreen
+              ? () => _openFullscreen(imageUrl, asset, placeholderFile, headers)
+              : null,
           child: Hero(
             tag: 'image_${asset.id}',
             child: ClipRRect(
@@ -413,7 +462,6 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                   );
                 },
                 errorWidget: (context, url, error) {
-                  // 加载失败时显示本地预览图
                   if (placeholderFile != null) {
                     return Image.file(
                       placeholderFile,
@@ -437,9 +485,11 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       },
     );
   }
-  
-  /// 获取本地占位图 (优先预览图, 其次缩略图)
-  Future<File?> _getLocalPlaceholder(GalleryStorageService storage, MediaAsset asset) async {
+
+  Future<File?> _getLocalPlaceholder(
+    GalleryStorageService storage,
+    MediaAsset asset,
+  ) async {
     if (asset.previewPath != null) {
       final previewFile = await storage.getPreviewFile(asset.previewPath!);
       if (previewFile != null) return previewFile;
@@ -449,9 +499,13 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     }
     return null;
   }
-  
-  /// 打开全屏查看器
-  void _openFullscreen(String imageUrl, MediaAsset asset, File? placeholderFile, Map<String, String> httpHeaders) {
+
+  void _openFullscreen(
+    String imageUrl,
+    MediaAsset asset,
+    File? placeholderFile,
+    Map<String, String> httpHeaders,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -465,8 +519,12 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
   }
 
-  /// 构建信息行
-  Widget _buildInfoRow(String label, String value, {Color? valueColor, double fontSize = 12}) {
+  Widget _buildInfoRow(
+    String label,
+    String value, {
+    Color? valueColor,
+    double fontSize = 12,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -482,10 +540,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
           Expanded(
             child: SelectableText(
               value,
-              style: TextStyle(
-                fontSize: fontSize,
-                color: valueColor,
-              ),
+              style: TextStyle(fontSize: fontSize, color: valueColor),
             ),
           ),
         ],
@@ -493,7 +548,6 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
   }
 
-  /// 构建留言区域 (紧凑型)
   Widget _buildMessageSection() {
     return Card(
       margin: EdgeInsets.zero,
@@ -504,17 +558,26 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
           children: [
             Row(
               children: [
-                const Text('留言', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                const Text(
+                  '留言',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
                 const Spacer(),
                 SizedBox(
                   height: 28,
                   child: TextButton.icon(
                     onPressed: _isSaving ? null : _saveMessage,
                     icon: _isSaving
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.save, size: 14),
                     label: const Text('保存', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
                   ),
                 ),
               ],
@@ -528,7 +591,10 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                 hintText: '添加备注...',
                 hintStyle: TextStyle(fontSize: 13),
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 isDense: true,
               ),
             ),
@@ -538,21 +604,30 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     );
   }
 
-  /// 保存留言
   Future<void> _saveMessage() async {
     setState(() => _isSaving = true);
 
     try {
-      // 备注属于"当前正在查看的那一个"文件，组成员各写各的；
-      // 写路径（本地立即生效 + 写缓冲推送）统一在 mediaAssetListProvider 里
+      final asset = _currentAsset;
+      final message = _messageController.text.trim();
       await ref
           .read(mediaAssetListProvider.notifier)
-          .setMessage(_currentAsset, _messageController.text.trim());
+          .setMessage(asset, message);
+      if (!mounted) return;
+      setState(() {
+        final index = _groupMembers.indexWhere((a) => a.id == asset.id);
+        if (index >= 0) {
+          _groupMembers[index] = _groupMembers[index].copyWith(
+            message: message,
+          );
+        }
+        _messageDrafts[asset.id] = message;
+      });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
       }
     } finally {
       if (mounted) {
@@ -561,29 +636,29 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     }
   }
 
-  /// 下载到公共存储目录
   Future<void> _downloadToGallery(GalleryStorageService storage) async {
+    final asset = _currentAsset;
     setState(() => _isDownloading = true);
 
     try {
-      // 从网络下载文件
       final apiClient = ref.read(apiClientManagerProvider);
-      final response = await apiClient.getBinary("/API/gallery/${_currentAsset.id}/file");
-      
+      final response = await apiClient.getBinary(
+        "/API/gallery/${asset.id}/file",
+      );
+
       if (response.data == null || response.data!.isEmpty) {
         throw Exception('下载的文件数据为空');
       }
 
-      final fileName = _getFileName(_currentAsset.filePath);
+      final fileName = _getFileName(asset.filePath);
       final Uint8List bytes = response.data!;
-      
-      // 保存到 /storage/emulated/0/Pictures/torrid/gallery
+
       final file = await PublicStorageService.saveBytes(
         subDir: PublicStorageService.dirGallery,
         fileName: fileName,
         bytes: bytes,
       );
-      
+
       if (file == null) {
         throw Exception('保存到公共目录失败，请检查存储权限');
       }
@@ -594,19 +669,16 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('已保存到 ${file.path}'),
-            action: SnackBarAction(
-              label: '确定',
-              onPressed: () {},
-            ),
+            action: SnackBarAction(label: '确定', onPressed: () {}),
           ),
         );
       }
     } catch (e) {
       AppLogger().error('下载失败: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('下载失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('下载失败: $e')));
       }
     } finally {
       if (mounted) {
@@ -615,12 +687,10 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     }
   }
 
-  /// 获取文件名
   String _getFileName(String path) {
     return path.split('/').last.split('\\').last;
   }
 
-  /// 格式化文件大小
   String _formatFileSize(int bytes) {
     if (bytes < 1024) {
       return '$bytes B';
@@ -633,7 +703,6 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     }
   }
 
-  /// 格式化日期时间
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.year}-${_pad(dateTime.month)}-${_pad(dateTime.day)} '
         '${_pad(dateTime.hour)}:${_pad(dateTime.minute)}:${_pad(dateTime.second)}';

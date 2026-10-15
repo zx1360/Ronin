@@ -227,7 +227,7 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
     final headers = apiClient.headers;
 
     // 使用缩略图API或原图API
-    final imageUrl = '$baseUrl/API/gallery/${asset.id}/thumb';
+    final imageUrl = galleryMediaUrl(baseUrl, asset, type: 'thumb');
 
     return CachedNetworkImage(
       imageUrl: imageUrl,
@@ -256,7 +256,7 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
 
-    final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
+    final imageUrl = galleryMediaUrl(baseUrl, asset);
 
     return CachedNetworkImage(
       imageUrl: imageUrl,

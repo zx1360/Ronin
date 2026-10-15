@@ -41,7 +41,7 @@ final tagTreeProvider =
 );
 
 typedef _$TagTree = AutoDisposeAsyncNotifier<List<Tag>>;
-String _$currentMediaTagsHash() => r'689048dd7b1b77ea957e0b07dcedf13d808cb295';
+String _$currentMediaTagsHash() => r'43ed789b5b2764729504a068bd1a0bb9c80fc639';
 
 /// 当前媒体文件的标签 Provider（读本地缓存）
 ///

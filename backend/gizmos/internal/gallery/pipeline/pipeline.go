@@ -398,7 +398,7 @@ func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 }
 
 // processEditedAsset 处理单个编辑资产
-func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAsset) error {
+func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAsset) (err error) {
 	if asset.EditParams == nil {
 		return fmt.Errorf("编辑参数为空")
 	}
@@ -419,6 +419,7 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	// 生成临时文件路径
 	ext := filepath.Ext(asset.FilePath)
 	tmpPath := filepath.Join(os.TempDir(), fmt.Sprintf("gallery_edit_%s%s", asset.ID.String(), ext))
+	defer os.Remove(tmpPath)
 
 	// 应用编辑到临时文件
 	var editErr error
@@ -461,14 +462,29 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 		return fmt.Errorf("移动原文件到 trash 失败: %w", err)
 	}
 	log.Printf("原文件已移入 trash: %s", trashPath)
+	original := *asset
+	defer func() {
+		if err == nil {
+			return
+		}
+		*asset = original
+		if restoreErr := copyFileData(trashPath, srcPath); restoreErr != nil {
+			err = errors.Join(err, fmt.Errorf("原文件恢复失败，备份在 %s: %w", trashPath, restoreErr))
+			return
+		}
+		_, restoreErr := p.processor.Process(&model.FileInfo{
+			FileName: filepath.Base(asset.FilePath), Extension: strings.ToLower(ext),
+			IsVideo: model.IsVideo(strings.ToLower(ext)), IsAnimated: model.IsAnimatedImage(strings.ToLower(ext)),
+		}, srcPath, yearMonth)
+		if restoreErr != nil {
+			err = errors.Join(err, fmt.Errorf("原图已恢复，派生图重建失败: %w", restoreErr))
+		}
+	}()
 
 	// 将编辑后的文件复制到原路径（不使用 moveFile 避免跨盘/句柄锁定问题）
 	if err := copyFileData(tmpPath, srcPath); err != nil {
 		return fmt.Errorf("新文件写回失败: %w", err)
 	}
-	// 显式删除临时文件
-	os.Remove(tmpPath)
-
 	// 重新计算 hash
 	newHash, err := calculateFileHash(srcPath)
 	if err != nil {
@@ -510,8 +526,7 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	}
 	processResult, err := p.processor.Process(fileInfo, srcPath, yearMonth)
 	if err != nil {
-		log.Printf("重建缩略图/预览图失败: %v", err)
-		processResult = &processor.ProcessResult{}
+		return fmt.Errorf("重建缩略图/预览图失败: %w", err)
 	} else {
 		log.Printf("缩略图已重建: %s", processResult.ThumbPath)
 		log.Printf("预览图已重建: %s", processResult.PreviewPath)

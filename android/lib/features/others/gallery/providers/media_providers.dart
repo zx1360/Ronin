@@ -10,6 +10,14 @@ import 'package:torrid/features/others/gallery/services/gallery_write_buffer.dar
 
 part 'media_providers.g.dart';
 
+final mediaGroupSizesProvider = FutureProvider.autoDispose<Map<String, int>>((
+  ref,
+) async {
+  final db = ref.watch(galleryDatabaseProvider);
+  await ref.watch(mediaAssetListProvider.future);
+  return db.getGroupSizes();
+});
+
 // 媒体数据 Providers（服务端权威 + 本地缓存）
 
 /// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
@@ -79,15 +87,13 @@ class MediaAssetList extends _$MediaAssetList {
     if (ids.isEmpty) return state.valueOrNull ?? [];
     await _flushWrites();
     final api = ref.read(galleryApiProvider);
-    await retryServerWrite(
+    final updated = await retryServerWrite(
       () => api.patchMedia(
         mediaIds: ids,
         intent: MediaPatchIntent(isDeleted: deleted),
       ),
     );
-    await ref
-        .read(galleryDatabaseProvider)
-        .batchMarkMediaAssetDeleted(ids, deleted: deleted);
+    await ref.read(galleryDatabaseProvider).updateMediaAssetsLocal(updated);
     ref.invalidate(mediaIdsWithTagsProvider);
     await refresh();
     for (final id in ids) {
@@ -144,7 +150,7 @@ class MediaAssetList extends _$MediaAssetList {
     if (memberIds.isEmpty) return;
     await _flushWrites();
     final api = ref.read(galleryApiProvider);
-    await retryServerWrite(
+    final updated = await retryServerWrite(
       () => api.patchMedia(
         mediaIds: memberIds,
         intent: leadId == null
@@ -152,8 +158,27 @@ class MediaAssetList extends _$MediaAssetList {
             : MediaPatchIntent(groupId: leadId),
       ),
     );
-    await ref.read(galleryDatabaseProvider).setMediaGroupId(memberIds, leadId);
-    await refresh();
+    final before = state.valueOrNull ?? [];
+    final index = ref.read(galleryCurrentIndexProvider);
+    final currentId = index >= 0 && index < before.length
+        ? before[index].id
+        : null;
+    final modified = ref.read(galleryModifiedCountProvider);
+    final processedIds = before.take(modified + 1).map((a) => a.id).toSet();
+    await ref.read(galleryDatabaseProvider).updateMediaAssetsLocal(updated);
+    final after = await refresh();
+    var nextIndex = after.indexWhere((a) => a.id == currentId);
+    if (nextIndex < 0) nextIndex = after.indexWhere((a) => a.id == leadId);
+    if (nextIndex < 0) {
+      nextIndex = after.isEmpty ? 0 : index.clamp(0, after.length - 1);
+    }
+    await ref.read(galleryCurrentIndexProvider.notifier).update(nextIndex);
+    final lastProcessed = after.lastIndexWhere(
+      (a) => processedIds.contains(a.id),
+    );
+    await ref
+        .read(galleryModifiedCountProvider.notifier)
+        .update(lastProcessed < 0 ? 0 : lastProcessed);
   }
 
   Future<void> bundleMedia(String leadId, List<String> memberIds) async {

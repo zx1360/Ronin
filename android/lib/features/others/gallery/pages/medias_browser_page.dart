@@ -16,6 +16,7 @@ part '../widgets/browser/bottom_button.dart';
 
 /// 快速滚动条轨道宽度
 const double _kScrollbarTrackWidth = 8;
+
 /// 快速滚动条在 GridView 右侧的总占宽（轨道 + 边距）
 const double _kScrollbarReservedWidth = _kScrollbarTrackWidth + 4;
 
@@ -34,22 +35,23 @@ class MediasBrowserPage extends ConsumerStatefulWidget {
 class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   /// 是否处于选择模式
   bool _isSelectionMode = false;
-  
+  bool _working = false;
+
   /// 选中的媒体 ID 集合
   final Set<String> _selectedIds = {};
-  
+
   /// 选中顺序列表 (用于捆绑时确定主文件)
   final List<String> _selectionOrder = [];
 
   /// 滚动控制器
   final ScrollController _scrollController = ScrollController();
-  
+
   /// 当前检阅项的 GlobalKey，用于 Scrollable.ensureVisible 精确定位
   final GlobalKey _currentItemKey = GlobalKey(debugLabel: 'currentMediaItem');
-  
+
   /// 瀑布流模式各列的独立 ScrollController（实现按列虚拟化）
   final List<ScrollController> _waterfallColumnControllers = [];
-  
+
   /// 瀑布流滚动同步锁，防止联动时递归触发
   bool _syncingWaterfall = false;
 
@@ -61,11 +63,6 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   /// 是否正在执行自动滚动定位（用于取消重试链路）
   bool _isAutoScrolling = false;
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   /// 检测用户手动滚动（拖拽手势），立即取消自动定位
   bool _onUserScrollStart(ScrollStartNotification notification) {
@@ -139,9 +136,12 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
       );
       // 瀑布流同步
       if (_waterfallColumnControllers.isNotEmpty) {
-        Future.delayed(animate ? const Duration(milliseconds: 350) : Duration.zero, () {
-          if (mounted) _syncWaterfallAfterEnsureVisible();
-        });
+        Future.delayed(
+          animate ? const Duration(milliseconds: 350) : Duration.zero,
+          () {
+            if (mounted) _syncWaterfallAfterEnsureVisible();
+          },
+        );
       }
       _isAutoScrolling = false;
       return;
@@ -196,7 +196,10 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         final itemsInCol = (fallbackIndex / columns).ceil();
         targetOffset = itemsInCol * (cellW * 0.75 + 2);
         if (_scrollController.hasClients) {
-          final clamped = targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent);
+          final clamped = targetOffset.clamp(
+            0.0,
+            _scrollController.position.maxScrollExtent,
+          );
           _scrollController.jumpTo(clamped);
         }
         for (final ctrl in _waterfallColumnControllers) {
@@ -208,7 +211,11 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         if (_userHasScrolled || !_isAutoScrolling) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _tryScrollToCurrent(animate: false, fallbackIndex: fallbackIndex, retriesLeft: retriesLeft - 1);
+            _tryScrollToCurrent(
+              animate: false,
+              fallbackIndex: fallbackIndex,
+              retriesLeft: retriesLeft - 1,
+            );
           }
         });
         return;
@@ -223,16 +230,20 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     if (_userHasScrolled || !_isAutoScrolling) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _tryScrollToCurrent(animate: false, fallbackIndex: fallbackIndex, retriesLeft: retriesLeft - 1);
+        _tryScrollToCurrent(
+          animate: false,
+          fallbackIndex: fallbackIndex,
+          retriesLeft: retriesLeft - 1,
+        );
       }
     });
   }
-  
+
   /// 在内容首次渲染后执行初始滚动 — 通过重试机制等待目标项构建完成
   void _performInitialScrollIfNeeded() {
     if (_hasScrolledToInitial) return;
     _hasScrolledToInitial = true;
-    
+
     // 使用重试机制：每帧尝试精确定位，直到成功或重试耗尽
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -254,9 +265,11 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(_isSelectionMode 
-            ? '已选择 ${_selectedIds.length} 项' 
-            : _buildTitle(columns)),
+        title: Text(
+          _isSelectionMode
+              ? '已选择 ${_selectedIds.length} 项'
+              : _buildTitle(columns),
+        ),
         actions: [
           // 预览模式切换
           PopupMenuButton<GalleryGridPreviewMode>(
@@ -264,7 +277,9 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
             tooltip: '预览模式',
             color: Colors.grey[900],
             onSelected: (mode) {
-              ref.read(galleryGridPreviewModeNotifierProvider.notifier).setMode(mode);
+              ref
+                  .read(galleryGridPreviewModeNotifierProvider.notifier)
+                  .setMode(mode);
               _hasScrolledToInitial = false;
               // 单帧延迟后触发，内部重试机制负责精确定位
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -279,7 +294,9 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
                   child: Row(
                     children: [
                       Icon(
-                        mode == current ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        mode == current
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -329,9 +346,8 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         ],
       ),
       body: assetsAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: Colors.white)),
         error: (error, stack) => Center(
           child: Text(
             '加载失败: $error',
@@ -341,10 +357,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         data: (assets) {
           if (assets.isEmpty) {
             return const Center(
-              child: Text(
-                '暂无媒体文件',
-                style: TextStyle(color: Colors.grey),
-              ),
+              child: Text('暂无媒体文件', style: TextStyle(color: Colors.grey)),
             );
           }
 
@@ -352,19 +365,35 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           _performInitialScrollIfNeeded();
 
           // 获取有关联标签的媒体 ID 集合（用于标签指示器）
-          final taggedIds = ref.watch(mediaIdsWithTagsProvider).valueOrNull ?? const {};
+          final taggedIds =
+              ref.watch(mediaIdsWithTagsProvider).valueOrNull ?? const {};
 
           final mode = ref.watch(galleryGridPreviewModeNotifierProvider);
-          
+
           // 根据预览模式构建不同的布局
           Widget gridChild;
           switch (mode) {
             case GalleryGridPreviewMode.thumb:
-              gridChild = _buildThumbGrid(assets, columns, currentMedia, taggedIds);
+              gridChild = _buildThumbGrid(
+                assets,
+                columns,
+                currentMedia,
+                taggedIds,
+              );
             case GalleryGridPreviewMode.preview:
-              gridChild = _buildProportionalGrid(assets, columns, currentMedia, taggedIds);
+              gridChild = _buildProportionalGrid(
+                assets,
+                columns,
+                currentMedia,
+                taggedIds,
+              );
             case GalleryGridPreviewMode.waterfall:
-              gridChild = _buildWaterfallGrid(assets, columns, currentMedia, taggedIds);
+              gridChild = _buildWaterfallGrid(
+                assets,
+                columns,
+                currentMedia,
+                taggedIds,
+              );
           }
 
           return _DraggableScrollWrapper(
@@ -386,6 +415,14 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   /// 构建底部操作栏
   Widget _buildBottomBar() {
+    if (_working) {
+      return const SafeArea(
+        child: SizedBox(
+          height: 56,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
     final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
     final selected = _selectedIds
         .map((id) {
@@ -398,7 +435,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         .toList();
     final hasDeletedSelected = selected.any((asset) => asset.isDeleted);
     final hasNonDeletedSelected = selected.any((asset) => !asset.isDeleted);
-    
+
     return Container(
       color: Colors.grey[900],
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -407,7 +444,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             // 捆绑按钮 (需要至少选择2个)
-            if (_selectedIds.length >= 2)
+            if (_selectedIds.length >= 2 && !hasDeletedSelected)
               _BottomButton(
                 icon: Icons.link,
                 label: '捆绑',
@@ -444,7 +481,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
       if (asset.isDeleted) {
         return; // 不跳转，由 _GridTile 的双击处理恢复
       }
-      
+
       // 通过 CurrentMediaAsset 跳转，以支持标签继承等功能
       ref.read(currentMediaAssetProvider.notifier).jumpTo(index);
       Navigator.pop(context);
@@ -472,7 +509,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         _selectedIds.add(id);
         _selectionOrder.add(id);
       }
-      
+
       // 如果没有选中项，退出选择模式
       if (_selectedIds.isEmpty) {
         _isSelectionMode = false;
@@ -509,133 +546,166 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
     });
   }
 
-  /// 捆绑选中的媒体文件
   Future<void> _bundleSelected() async {
-    if (_selectionOrder.length < 2) return;
-
-    final leadId = _selectionOrder.first;
-    final memberIds = _selectionOrder.skip(1).toList();
-
-    final confirmed = await showDialog<bool>(
+    if (_working || _selectionOrder.length < 2) return;
+    final byId = {
+      for (final asset
+          in ref.read(mediaAssetListProvider).valueOrNull ?? <MediaAsset>[])
+        asset.id: asset,
+    };
+    final selected = [
+      for (final id in _selectionOrder)
+        if (byId[id] != null) byId[id]!,
+    ];
+    if (selected.length < 2 || selected.any((a) => a.isDeleted)) return;
+    var leadId = selected.first.id;
+    final storage = ref.read(galleryStorageProvider);
+    final chosen = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('捆绑媒体文件'),
-        content: Text(
-          '将 ${memberIds.length} 个文件捆绑到第一个选中的文件？\n'
-          '捆绑后，被捆绑的文件将不会单独显示。',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) => AlertDialog(
+          title: const Text('选择分组主文件'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '列表中显示主文件，其他成员可在详情中查看。已有分组会合并，文件各自的标签、备注和编辑保持独立。',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: selected.length,
+                    itemBuilder: (_, index) {
+                      final asset = selected[index];
+                      return ListTile(
+                        selected: asset.id == leadId,
+                        leading: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: FutureBuilder<File?>(
+                            future: asset.thumbPath == null
+                                ? Future.value(null)
+                                : storage.getThumbFile(asset.thumbPath!),
+                            builder: (_, snapshot) => snapshot.data == null
+                                ? Icon(
+                                    asset.isVideo
+                                        ? Icons.videocam
+                                        : Icons.image,
+                                  )
+                                : Image.file(snapshot.data!, fit: BoxFit.cover),
+                          ),
+                        ),
+                        title: Text(
+                          asset.filePath.split('/').last.split('\\').last,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Icon(
+                          asset.id == leadId
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                        ),
+                        onTap: () => update(() => leadId = asset.id),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, leadId),
+              child: const Text('捆绑'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('确定'),
-          ),
-        ],
       ),
     );
-
-    if (confirmed == true) {
-      // 保存当前滚动位置
-      final scrollOffset = _scrollController.offset;
-      
-      await ref.read(mediaAssetListProvider.notifier).bundleMedia(leadId, memberIds);
-      
-      // 退出选择模式但保持滚动位置
-      setState(() {
-        _isSelectionMode = false;
-        _selectedIds.clear();
-        _selectionOrder.clear();
-      });
-      
-      // 恢复滚动位置
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(
-            scrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-          );
-        }
-      });
-    }
+    if (chosen == null || !mounted) return;
+    await _runSelectionAction(
+      () => ref
+          .read(mediaAssetListProvider.notifier)
+          .bundleMedia(
+            chosen,
+            selected.where((a) => a.id != chosen).map((a) => a.id).toList(),
+          ),
+    );
   }
 
-  /// 删除选中的媒体文件
   Future<void> _deleteSelected() async {
+    if (_working) return;
+    final ids = _selectedIds.toList();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('删除媒体文件'),
-        content: Text('确定要删除选中的 ${_selectedIds.length} 个文件吗？'),
+      builder: (ctx) => AlertDialog(
+        title: const Text('标记删除'),
+        content: Text('标记删除所选 ${ids.length} 项及其组成员？后端执行清理前可以恢复。'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('取消'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('删除'),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('标记删除'),
           ),
         ],
       ),
     );
+    if (confirmed != true || !mounted) return;
+    await _runSelectionAction(() async {
+      await ref.read(mediaAssetListProvider.notifier).batchMarkDeleted(ids);
+    });
+  }
 
-    if (confirmed == true) {
-      // 保存当前滚动位置
-      final scrollOffset = _scrollController.offset;
-      
-      // 使用批量操作：一次性数据库事务 + 单次 UI 刷新
-      await ref.read(mediaAssetListProvider.notifier).batchMarkDeleted(
-        _selectedIds.toList(),
-        deleted: true,
-      );
-      
-      // 退出选择模式但保持滚动位置
+  Future<void> _restoreSelected() async {
+    final ids = _selectedIds.toList();
+    await _runSelectionAction(() async {
+      await ref
+          .read(mediaAssetListProvider.notifier)
+          .batchMarkDeleted(ids, deleted: false);
+    });
+  }
+
+  Future<void> _runSelectionAction(Future<void> Function() action) async {
+    if (_working) return;
+    final offset = _scrollController.hasClients
+        ? _scrollController.offset
+        : 0.0;
+    setState(() => _working = true);
+    try {
+      await action();
+      if (!mounted) return;
       setState(() {
         _isSelectionMode = false;
         _selectedIds.clear();
         _selectionOrder.clear();
       });
-      
-      // 恢复滚动位置
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
+        if (mounted && _scrollController.hasClients) {
           _scrollController.jumpTo(
-            scrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+            offset.clamp(0.0, _scrollController.position.maxScrollExtent),
           );
         }
       });
-    }
-  }
-
-  /// 恢复选中的已删除媒体文件
-  Future<void> _restoreSelected() async {
-    // 保存当前滚动位置
-    final scrollOffset = _scrollController.offset;
-    
-    // 使用批量操作：一次性数据库事务 + 单次 UI 刷新
-    await ref.read(mediaAssetListProvider.notifier).batchMarkDeleted(
-      _selectedIds.toList(),
-      deleted: false,
-    );
-    
-    // 退出选择模式但保持滚动位置
-    setState(() {
-      _isSelectionMode = false;
-      _selectedIds.clear();
-      _selectionOrder.clear();
-    });
-    
-    // 恢复滚动位置
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(
-          scrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-        );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('操作失败: $e')));
       }
-    });
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
   /// 构建标题
@@ -659,11 +729,17 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   /// 计算单个 cell 的宽度
   double _cellWidth(int columns) {
     final screenWidth = MediaQuery.of(context).size.width;
-    return (screenWidth - _kScrollbarReservedWidth - 4 - (columns - 1) * 2) / columns;
+    return (screenWidth - _kScrollbarReservedWidth - 4 - (columns - 1) * 2) /
+        columns;
   }
 
   /// 模式一: 缩略图网格 (原有逻辑)
-  Widget _buildThumbGrid(List<MediaAsset> assets, int columns, MediaAsset? currentMedia, Set<String> taggedIds) {
+  Widget _buildThumbGrid(
+    List<MediaAsset> assets,
+    int columns,
+    MediaAsset? currentMedia,
+    Set<String> taggedIds,
+  ) {
     return GridView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(2),
@@ -673,12 +749,18 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         mainAxisSpacing: 2,
       ),
       itemCount: assets.length,
-      itemBuilder: (context, index) => _buildGridTile(assets, index, currentMedia, taggedIds),
+      itemBuilder: (context, index) =>
+          _buildGridTile(assets, index, currentMedia, taggedIds),
     );
   }
 
   /// 模式二: 等比预览网格
-  Widget _buildProportionalGrid(List<MediaAsset> assets, int columns, MediaAsset? currentMedia, Set<String> taggedIds) {
+  Widget _buildProportionalGrid(
+    List<MediaAsset> assets,
+    int columns,
+    MediaAsset? currentMedia,
+    Set<String> taggedIds,
+  ) {
     final spacing = 2.0;
     final cellW = _cellWidth(columns);
     final rows = (assets.length / columns).ceil();
@@ -717,7 +799,9 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
                       hasTags: taggedIds.contains(assets[i].id),
                       onTap: () => _handleTap(assets[i], i),
                       onLongPress: () => _handleLongPress(assets[i]),
-                      onDoubleTap: assets[i].isDeleted ? () => _undoDeleteSingle(assets[i]) : null,
+                      onDoubleTap: assets[i].isDeleted
+                          ? () => _undoDeleteSingle(assets[i])
+                          : null,
                     ),
                   ),
                 ],
@@ -735,15 +819,23 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   }
 
   /// 模式三: 瀑布流布局 — 列式虚拟化
-  /// 
+  ///
   /// 每列使用独立的 [ListView.builder]，通过 [LayoutBuilder] 获取可用高度并
   /// 用 [SizedBox] 显式约束列高。仅构建可视区域内的项，大幅降低初始构建耗时。
   /// 列间滚动通过 [NotificationListener] 联动，右侧拖拽条通过主 [_scrollController] 同步。
-  Widget _buildWaterfallGrid(List<MediaAsset> assets, int columns, MediaAsset? currentMedia, Set<String> taggedIds) {
+  Widget _buildWaterfallGrid(
+    List<MediaAsset> assets,
+    int columns,
+    MediaAsset? currentMedia,
+    Set<String> taggedIds,
+  ) {
     final cellW = _cellWidth(columns);
 
     // 将媒体文件分配到各列 (轮询)
-    final List<List<MediaAsset>> columnAssets = List.generate(columns, (_) => []);
+    final List<List<MediaAsset>> columnAssets = List.generate(
+      columns,
+      (_) => [],
+    );
     final List<List<int>> columnIndices = List.generate(columns, (_) => []);
     for (int i = 0; i < assets.length; i++) {
       final col = i % columns;
@@ -761,7 +853,10 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final outerPad = 4.0; // EdgeInsets.all(2) → 上下各 2
-          final columnH = (constraints.maxHeight - outerPad).clamp(0.0, double.infinity);
+          final columnH = (constraints.maxHeight - outerPad).clamp(
+            0.0,
+            double.infinity,
+          );
 
           return Padding(
             padding: const EdgeInsets.all(2),
@@ -789,17 +884,28 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
                               : ValueKey('wf_${columnAssets[col][i].id}'),
                           asset: columnAssets[col][i],
                           cellWidth: cellW,
-                          isSelected: _selectedIds.contains(columnAssets[col][i].id),
-                          isCurrent: currentMedia?.id == columnAssets[col][i].id,
+                          isSelected: _selectedIds.contains(
+                            columnAssets[col][i].id,
+                          ),
+                          isCurrent:
+                              currentMedia?.id == columnAssets[col][i].id,
                           selectionIndex: () {
-                            final idx = _selectionOrder.indexOf(columnAssets[col][i].id);
+                            final idx = _selectionOrder.indexOf(
+                              columnAssets[col][i].id,
+                            );
                             return idx >= 0 ? idx + 1 : null;
                           }(),
                           isSelectionMode: _isSelectionMode,
                           hasTags: taggedIds.contains(columnAssets[col][i].id),
-                          onTap: () => _handleTap(columnAssets[col][i], columnIndices[col][i]),
-                          onLongPress: () => _handleLongPress(columnAssets[col][i]),
-                          onDoubleTap: columnAssets[col][i].isDeleted ? () => _undoDeleteSingle(columnAssets[col][i]) : null,
+                          onTap: () => _handleTap(
+                            columnAssets[col][i],
+                            columnIndices[col][i],
+                          ),
+                          onLongPress: () =>
+                              _handleLongPress(columnAssets[col][i]),
+                          onDoubleTap: columnAssets[col][i].isDeleted
+                              ? () => _undoDeleteSingle(columnAssets[col][i])
+                              : null,
                         ),
                       ),
                     ),
@@ -814,7 +920,12 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   }
 
   /// 构建网格项 (复用于模式一)
-  Widget _buildGridTile(List<MediaAsset> assets, int index, MediaAsset? currentMedia, Set<String> taggedIds) {
+  Widget _buildGridTile(
+    List<MediaAsset> assets,
+    int index,
+    MediaAsset? currentMedia,
+    Set<String> taggedIds,
+  ) {
     final asset = assets[index];
     final isSelected = _selectedIds.contains(asset.id);
     final isCurrent = currentMedia?.id == asset.id;
@@ -835,10 +946,15 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   /// 单个媒体文件的恢复操作 (供模式二/三的双击回调使用)
   Future<void> _undoDeleteSingle(MediaAsset asset) async {
-    await ref.read(mediaAssetListProvider.notifier).markDeleted(asset.id, deleted: false);
+    await ref
+        .read(mediaAssetListProvider.notifier)
+        .markDeleted(asset.id, deleted: false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已恢复: ${asset.filePath.split('/').last}'), duration: const Duration(milliseconds: 400)),
+        SnackBar(
+          content: Text('已恢复: ${asset.filePath.split('/').last}'),
+          duration: const Duration(milliseconds: 400),
+        ),
       );
     }
   }
@@ -871,7 +987,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   /// 捕获任一列 [ListView] 发出的 [ScrollNotification]，同步至主控制器及其他列
   bool _onWaterfallScrollNotification(ScrollNotification notification) {
     if (_syncingWaterfall) return false;
-    if (notification is! ScrollUpdateNotification && 
+    if (notification is! ScrollUpdateNotification &&
         notification is! ScrollEndNotification) {
       return false;
     }
@@ -896,10 +1012,16 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   }
 
   /// 以 [offset] 同步主控制器及所有其他列（排除 [sourceMetrics] 所属列避免回跳）
-  void _syncScrollToMainAndPeers(double offset, {ScrollMetrics? sourceMetrics}) {
+  void _syncScrollToMainAndPeers(
+    double offset, {
+    ScrollMetrics? sourceMetrics,
+  }) {
     // 同步主控制器（驱动拖拽条）
     if (_scrollController.hasClients) {
-      final clamped = offset.clamp(0.0, _scrollController.position.maxScrollExtent);
+      final clamped = offset.clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      );
       if ((_scrollController.offset - clamped).abs() > 0.5) {
         _scrollController.jumpTo(clamped);
       }
