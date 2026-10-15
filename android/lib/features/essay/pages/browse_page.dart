@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/pages/drafts_page.dart';
+import 'package:torrid/features/essay/models/essay_reread.dart';
+import 'package:torrid/features/essay/pages/detail_page.dart';
+import 'package:torrid/features/essay/pages/search_page.dart';
+import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
+import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/pages/browse_body.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
@@ -17,9 +23,44 @@ class EssayBrowsePage extends ConsumerStatefulWidget {
 
 class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
   final GlobalKey<BrowseBodyState> _browseBodyKey = GlobalKey();
+  final _rereadPicker = EssayRereadPicker();
+  bool _opening = false;
+
+  Future<void> _reread() async {
+    if (_opening) return;
+    setState(() => _opening = true);
+    try {
+      final essays = await ref.read(filteredEssaysProvider.future);
+      if (!mounted) return;
+      final selected = _rereadPicker.pick(essays, ref.read(labelsProvider));
+      final essay = selected == null
+          ? null
+          : ref.read(essayBoxProvider).get(selected.id);
+      if (essay == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('当前筛选范围内还没有可重读的往日随笔')));
+        return;
+      }
+      ref.read(contentServerProvider.notifier).switchEssay(essay);
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const EssayDetailPage()),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('读取失败：$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(contentServerProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('随笔'),
@@ -44,7 +85,37 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
           ),
         ],
       ),
-      body: BrowseBody(key: _browseBodyKey),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const EssaySearchPage(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.search),
+                    label: const Text('全文搜索'),
+                  ),
+                ),
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: _opening ? null : _reread,
+                    icon: const Icon(Icons.history_edu_outlined),
+                    label: const Text('重读一篇'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: BrowseBody(key: _browseBodyKey)),
+        ],
+      ),
       floatingActionButton: ExpandableFab(
         distance: 70,
         actions: [

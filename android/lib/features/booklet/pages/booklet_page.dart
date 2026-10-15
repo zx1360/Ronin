@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/booklet/pages/booklet_overview.dart';
+import 'package:torrid/features/booklet/pages/history_page.dart';
 
 import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
@@ -151,6 +152,14 @@ class _BookletPageState extends ConsumerState<BookletPage> {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: '历史回看',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BookletHistoryPage()),
+            ),
+            icon: const Icon(Icons.history),
+          ),
           IconButton(
             onPressed: () {
               selectDate(dateRange);
