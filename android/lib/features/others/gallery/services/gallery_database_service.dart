@@ -193,6 +193,16 @@ class GalleryDatabaseService {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  Future<MediaAsset?> getMediaAssetById(String id) async {
+    final db = await database;
+    final rows = await db.query(
+      'media_assets',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return rows.isEmpty ? null : MediaAsset.fromDbMap(rows.single);
+  }
+
   /// 更新媒体文件
   Future<int> updateMediaAsset(MediaAsset asset) async {
     final db = await database;
@@ -278,21 +288,14 @@ class GalleryDatabaseService {
     });
   }
 
-  /// 设置媒体文件的 group_id (捆绑)
-  Future<void> setMediaGroupId(List<String> memberIds, String? leadId) async {
+  Future<Map<String, int>> getGroupSizes() async {
     final db = await database;
-    final now = DateTime.now().toIso8601String();
-
-    final batch = db.batch();
-    for (final memberId in memberIds) {
-      batch.update(
-        'media_assets',
-        {'group_id': leadId, 'updated_at': now},
-        where: 'id = ?',
-        whereArgs: [memberId],
-      );
-    }
-    await batch.commit(noResult: true);
+    final rows = await db.rawQuery(
+      'SELECT group_id, COUNT(*) + 1 AS size FROM media_assets WHERE group_id IS NOT NULL GROUP BY group_id',
+    );
+    return {
+      for (final row in rows) row['group_id'] as String: row['size'] as int,
+    };
   }
 
   /// 获取某主文件的所有组成员
@@ -302,6 +305,7 @@ class GalleryDatabaseService {
       'media_assets',
       where: 'group_id = ?',
       whereArgs: [leadId],
+      orderBy: 'captured_at ASC, id ASC',
     );
     return maps.map((m) => MediaAsset.fromDbMap(m)).toList();
   }

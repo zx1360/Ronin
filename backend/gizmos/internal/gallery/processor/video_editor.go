@@ -6,6 +6,7 @@ import (
 	"log"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // VideoEditParams 视频编辑参数
@@ -100,15 +101,18 @@ func ApplyVideoEdit(srcPath, dstPath string, editParamsJSON string) error {
 		// 时间戳归零：两轨强制从 0 开始，避免开头黑屏有声音
 		"-vf", "setpts=PTS-STARTPTS",
 		"-af", "aresample=async=1:first_pts=0",
-		"-c:v", "libx264",
-		"-preset", "veryfast",
-		"-crf", "18",
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-movflags", "+faststart",
-		"-avoid_negative_ts", "make_zero",
-		dstPath,
 	)
+	ext := strings.ToLower(filepath.Ext(dstPath))
+	if ext == ".webm" {
+		args = append(args, "-c:v", "libvpx-vp9", "-crf", "18", "-b:v", "0", "-cpu-used", "4", "-c:a", "libopus")
+	} else {
+		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac")
+	}
+	args = append(args, "-b:a", "128k", "-avoid_negative_ts", "make_zero")
+	if ext == ".mp4" || ext == ".mov" || ext == ".m4v" {
+		args = append(args, "-movflags", "+faststart")
+	}
+	args = append(args, dstPath)
 
 	cmd := exec.Command(ffmpegPath, args...)
 	output, err := cmd.CombinedOutput()

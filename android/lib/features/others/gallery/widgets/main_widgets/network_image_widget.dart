@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:torrid/features/others/gallery/models/image_edit.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 
@@ -115,8 +115,10 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
   }
 
   void _updateImageProvider() {
-    _imageProvider =
-        CachedNetworkImageProvider(widget.imageUrl, headers: widget.httpHeaders);
+    _imageProvider = CachedNetworkImageProvider(
+      widget.imageUrl,
+      headers: widget.httpHeaders,
+    );
     _resolveImageSize(_imageProvider!, (size) {
       if (_imageSize != size) _imageSize = size;
     });
@@ -124,41 +126,40 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
 
   /// 一次性读取 [provider] 的像素尺寸 (读取后立即移除监听)
   void _resolveImageSize(ImageProvider provider, void Function(Size) apply) {
+    final url = widget.imageUrl;
     final stream = provider.resolve(ImageConfiguration.empty);
     late final ImageStreamListener listener;
-    listener = ImageStreamListener(
-      (info, _) {
-        stream.removeListener(listener);
-        final size = Size(
-          info.image.width.toDouble(),
-          info.image.height.toDouble(),
-        );
-        if (size.width <= 0 || size.height <= 0 || !mounted) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => apply(size));
-        });
-      },
-      onError: (_, __) => stream.removeListener(listener),
-    );
+    listener = ImageStreamListener((info, _) {
+      stream.removeListener(listener);
+      final size = Size(
+        info.image.width.toDouble(),
+        info.image.height.toDouble(),
+      );
+      if (size.width <= 0 || size.height <= 0 || !mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.imageUrl == url) setState(() => apply(size));
+      });
+    }, onError: (_, __) => stream.removeListener(listener));
     stream.addListener(listener);
   }
 
   Future<void> _loadPlaceholder() async {
+    final asset = widget.asset;
     setState(() => _isLoading = true);
 
     File? file;
     try {
-      if (widget.asset.previewPath != null) {
-        file = await widget.storage.getPreviewFile(widget.asset.previewPath!);
+      if (asset.previewPath != null) {
+        file = await widget.storage.getPreviewFile(asset.previewPath!);
       }
-      if (file == null && widget.asset.thumbPath != null) {
-        file = await widget.storage.getThumbFile(widget.asset.thumbPath!);
+      if (file == null && asset.thumbPath != null) {
+        file = await widget.storage.getThumbFile(asset.thumbPath!);
       }
     } catch (e) {
       // 忽略错误, 使用加载指示器
     }
 
-    if (!mounted) return;
+    if (!mounted || widget.asset.id != asset.id) return;
     setState(() {
       _placeholderFile = file;
       _isLoading = false;
@@ -170,30 +171,15 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final crop = _parseCrop();
     return Container(
       color: Colors.black,
       child: RotatedBox(
         quarterTurns: widget.rotationQuarterTurns,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final viewport =
-                Size(constraints.maxWidth, constraints.maxHeight);
+            final viewport = Size(constraints.maxWidth, constraints.maxHeight);
             final painted = _paintedRect(viewport);
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                _buildInteractive(painted, viewport),
-                if (crop != null)
-                  IgnorePointer(
-                    child: _CropPreview(
-                      crop: crop,
-                      imgSize: _layoutImageSize,
-                      painted: painted,
-                    ),
-                  ),
-              ],
-            );
+            return _buildInteractive(painted, viewport);
           },
         ),
       ),
@@ -214,7 +200,7 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
         minScale: _minScale,
         maxScale: _maxScale,
         constrained: true,
-        child: Stack(fit: StackFit.expand, children: _imageLayers()),
+        child: Stack(fit: StackFit.expand, children: _imageLayers(viewport)),
       );
     }
 
@@ -227,14 +213,18 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
       child: SizedBox(
         width: painted.width,
         height: painted.height,
-        child: Stack(fit: StackFit.expand, children: _imageLayers()),
+        child: Stack(
+          fit: StackFit.expand,
+          children: _imageLayers(painted.size),
+        ),
       ),
     );
   }
 
   /// 底层占位图 + 上层网络图
-  List<Widget> _imageLayers() {
+  List<Widget> _imageLayers(Size viewport) {
     final provider = _imageProvider;
+    final edit = ImageEdit.parse(widget.asset.editParams);
     return [
       _buildPlaceholderLayer(),
       if (provider != null)
@@ -245,6 +235,14 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
             // 网络图加载失败时保留底层占位图
             return const SizedBox.shrink();
           },
+        ),
+      if (edit.crop != null && _imageSize != null)
+        IgnorePointer(
+          child: _CropPreview(
+            crop: edit.cropFor(_imageSize!),
+            imgSize: _imageSize!,
+            painted: imageDisplayRect(viewport, _imageSize),
+          ),
         ),
     ];
   }
@@ -258,50 +256,18 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     }
 
     if (_placeholderFile != null) {
-      return Center(
-        child: Image.file(_placeholderFile!, fit: BoxFit.contain),
-      );
+      return Center(child: Image.file(_placeholderFile!, fit: BoxFit.contain));
     }
 
     // 无缩略图可用时显示加载指示器（网络图可能很快加载）
-    return const Center(
-      child: CircularProgressIndicator(color: Colors.white),
-    );
+    return const Center(child: CircularProgressIndicator(color: Colors.white));
   }
-
-  _CropRect? _parseCrop() {
-    final p = widget.asset.editParams;
-    if (p == null) return null;
-    try {
-      final j = jsonDecode(p) as Map<String, dynamic>;
-      if (j['type'] != 'image') return null;
-      final cl = (j['crop_left'] as num?)?.toDouble();
-      final ct = (j['crop_top'] as num?)?.toDouble();
-      final cr = (j['crop_right'] as num?)?.toDouble();
-      final cb = (j['crop_bottom'] as num?)?.toDouble();
-      if (cl == null || ct == null || cr == null || cb == null) return null;
-      if (cl <= 0 && ct <= 0 && cr <= 0 && cb <= 0) return null;
-      return _CropRect(left: cl, top: ct, right: cr, bottom: cb);
-    } catch (_) {}
-    return null;
-  }
-}
-
-/// 裁切数据 (原始图片像素坐标)
-class _CropRect {
-  final double left, top, right, bottom;
-  const _CropRect({
-    required this.left,
-    required this.top,
-    required this.right,
-    required this.bottom,
-  });
 }
 
 /// 裁切预览 — 在 RotatedBox 内部，与图片共享坐标空间
 class _CropPreview extends StatelessWidget {
-  final _CropRect crop;
-  final Size? imgSize;
+  final Rect crop;
+  final Size imgSize;
 
   /// 图片在容器内的绘制矩形
   final Rect painted;
@@ -309,13 +275,13 @@ class _CropPreview extends StatelessWidget {
   const _CropPreview({
     required this.crop,
     required this.painted,
-    this.imgSize,
+    required this.imgSize,
   });
 
   @override
   Widget build(BuildContext context) {
-    final iw = imgSize?.width ?? crop.right;
-    final ih = imgSize?.height ?? crop.bottom;
+    final iw = imgSize.width;
+    final ih = imgSize.height;
     if (iw <= 0 || ih <= 0 || painted.width <= 0 || painted.height <= 0) {
       return const SizedBox();
     }
@@ -340,10 +306,13 @@ class _CropPreviewPainter extends CustomPainter {
   @override
   void paint(Canvas c, Size s) {
     final bg = Paint()..color = Colors.black45;
-    c.drawRect(Rect.fromLTWH(0, 0, s.width, r.top), bg);
-    c.drawRect(Rect.fromLTWH(0, r.bottom, s.width, s.height - r.bottom), bg);
-    c.drawRect(Rect.fromLTWH(0, r.top, r.left, r.height), bg);
-    c.drawRect(Rect.fromLTWH(r.right, r.top, s.width - r.right, r.height), bg);
+    c.drawPath(
+      Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRect(Offset.zero & s)
+        ..addRect(r),
+      bg,
+    );
 
     final bd = Paint()
       ..color = Colors.white54

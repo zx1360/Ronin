@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,707 +8,480 @@ import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 
-/// 快速打标签浮层
-///
-/// 两种使用方式:
-/// 1. **拖拽模式**: 按住底部"标签"按钮向上拖动弹出浮层, 手指滑过标签行
-///    (左侧标签树 / 右侧快捷标签) 即高亮, 松手即添加/移除; 经过有子级的标签
-///    立即展开下一级; 拖到右上角取消区松手则放弃本次操作.
-/// 2. **固定模式**: 长按底部"标签"按钮使浮层常驻, 可直接点击标签切换,
-///    并可在浮层内管理右侧快捷标签.
-///
-/// 浮层所有几何信息(面板、取消区、行位置)均在需要时实时读取, 因此设备旋转、
-/// 媒体旋转或任何尺寸变化后都不会出现命中错位.
-///
-/// 浮层会随 [quarterTurns]（媒体查看时的旋转方向）一起旋转：媒体转成横向后，
-/// 打标签的面板也贴在"媒体的底边"、文字方向与媒体一致，不必来回转手机。
-/// 旋转后一切坐标以浮层自身坐标系为准（手指的屏幕坐标先换算进来），
-/// 因此命中判定与拖拽指示器在两种方向下都准确。
+/// 拖出后松手切换标签；长按入口可固定面板，连续点选。
 class TagDragOverlay extends ConsumerStatefulWidget {
-  /// 面板底部需要避让的高度（底部标签栏 + 导航栏 + 安全区），由 GalleryPage 传入
   final double bottomInset;
-
-  /// 媒体当前旋转的四分之一圈数（0 = 未旋转）
   final int quarterTurns;
-
   const TagDragOverlay({
     super.key,
     required this.bottomInset,
     this.quarterTurns = 0,
   });
-
   @override
   ConsumerState<TagDragOverlay> createState() => TagDragOverlayState();
 }
 
 class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
-  // 会话状态
-
-  /// 浮层是否可见
-  bool _visible = false;
-
-  /// 是否固定模式（可交互）; false 为跟随手指的拖拽模式
-  bool _pinned = false;
-
-  /// 已按下但尚未确认方向（用于过滤误触）
-  bool _pending = false;
+  bool _visible = false, _pinned = false;
   Offset? _pendingStart;
-
-  /// 手指当前全局坐标（同步镜像到 [_dragPosNotifier] 供跟随组件无重建刷新）
   Offset _dragPos = Offset.zero;
-  final ValueNotifier<Offset> _dragPosNotifier =
-      ValueNotifier<Offset>(Offset.zero);
-
-  /// 当前命中的标签 / 快捷标签
-  String? _hoveredTagId;
-  String? _hoveredFavoriteId;
-
-  /// 本次会话中已展开的标签 id
+  final _dragPosition = ValueNotifier(Offset.zero);
+  String? _hoveredTagId, _hoveredFavoriteId;
   final Set<String> _expandedIds = {};
-
-  // 自动滚动
-
-  Timer? _scrollTimer;
+  Timer? _expandTimer, _scrollTimer;
   double _scrollSpeed = 0;
   ScrollController? _scrollTarget;
-
-  // 布局定位
-
-  final Map<String, GlobalKey> _rowKeys = {};
-  final Map<String, GlobalKey> _favoriteKeys = {};
-  final ScrollController _treeScroll = ScrollController();
-  final ScrollController _favoriteScroll = ScrollController();
-  final GlobalKey _panelKey = GlobalKey();
-  final GlobalKey _favoriteColumnKey = GlobalKey();
-
-  /// 浮层根节点：旋转后它自己的坐标系与屏幕坐标系不同，一切换算都经它进行
-  final GlobalKey _rootKey = GlobalKey();
-
-  /// 自动滚动触发边缘宽度
-  static const double _edge = 56;
-
-  /// 旋转帧内左上角的避让高度（旋转后屏幕矩形不再是"上面那一条"）
-  static const double _rotatedTopInset = 12;
+  final _treeScroll = ScrollController(), _favoriteScroll = ScrollController();
+  final _rootKey = GlobalKey(), _cancelKey = GlobalKey();
+  final _treeViewportKey = GlobalKey(), _favoriteViewportKey = GlobalKey();
+  final Map<String, GlobalKey> _rowKeys = {}, _favoriteKeys = {};
 
   @override
   void dispose() {
+    _expandTimer?.cancel();
     _scrollTimer?.cancel();
-    _dragPosNotifier.dispose();
+    _dragPosition.dispose();
     _treeScroll.dispose();
     _favoriteScroll.dispose();
     super.dispose();
   }
 
-  // 坐标换算（旋转后屏幕坐标 ≠ 浮层坐标）
-
-  /// 浮层根节点；尚未完成布局时返回 null（构建期读它的大小会触发 hasSize 断言）。
   RenderBox? get _rootBox {
     final box = _rootKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached || !box.hasSize) return null;
-    return box;
+    return box != null && box.attached && box.hasSize ? box : null;
   }
 
-  bool get _isRotated => widget.quarterTurns % 4 != 0;
-
-  /// 浮层坐标系尺寸：优先用本帧布局结果（[LayoutBuilder] 已给），其次根节点。
-  Size get _frameSize =>
-      _frameSizeOverride ?? _rootBox?.size ?? MediaQuery.sizeOf(context);
-
-  /// 本帧的浮层尺寸，由 [_buildStack] 在布局时写入（构建期根节点可能还没有尺寸）。
-  Size? _frameSizeOverride;
-
-  double get _frameTopInset =>
-      _isRotated ? _rotatedTopInset : MediaQuery.paddingOf(context).top;
-
-  /// 屏幕坐标 → 浮层坐标系。
   Offset _toLocal(Offset global) => _rootBox?.globalToLocal(global) ?? global;
 
-  /// 取消区中心（浮层坐标系内，与绘制位置一致）
-  Offset _cancelCenter(Size size) => Offset(size.width - 48, _frameTopInset + 48);
-
-  // 对外入口（GalleryPage 调用）
-
-  /// 按下并拖动开始（先不激活，等待确认方向）
-  void startDrag(Offset globalPos) {
-    if (_pinned) return;
-    _pending = true;
-    _pendingStart = _toLocal(globalPos);
+  Rect? _rectOf(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    final root = _rootBox;
+    if (box == null || !box.attached || !box.hasSize || root == null) {
+      return null;
+    }
+    return Rect.fromPoints(
+      root.globalToLocal(box.localToGlobal(Offset.zero)),
+      root.globalToLocal(box.localToGlobal(box.size.bottomRight(Offset.zero))),
+    );
   }
 
-  /// 拖动更新
+  bool _inCancel(Offset local) => _rectOf(_cancelKey)?.contains(local) ?? false;
+
+  void startDrag(Offset globalPos) {
+    if (!_pinned) _pendingStart = globalPos;
+  }
+
   void updateDrag(Offset globalPos) {
     if (_pinned) return;
-    final local = _toLocal(globalPos);
     if (!_visible) {
-      // 尚未激活：仅当明显朝面板方向拖动时激活，否则静默丢弃（防误触）
       final start = _pendingStart;
-      if (_pending && start != null) {
-        final d = local - start;
-        if (_isRotated) {
-          // 旋转后屏幕上的"上"不再对应面板方向（面板跟着媒体转到了侧边），
-          // 只要位移足够明确就激活——松手没落到标签上不会有任何副作用。
-          if (d.distance >= 14) _activate(globalPos);
-        } else if (d.dy <= -14) {
-          _activate(globalPos);
-        } else if (d.dy >= 14 || (d.dx.abs() > 48 && d.dy > -14)) {
-          _pending = false;
-        }
+      if (start == null) return;
+      final delta = globalPos - start;
+      if (widget.quarterTurns % 4 != 0
+          ? delta.distance >= 14
+          : delta.dy <= -14) {
+        _pendingStart = null;
+        _rowKeys.clear();
+        _favoriteKeys.clear();
+        _expandedIds.clear();
+        HapticFeedback.selectionClick();
+        setState(() => _visible = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _visible && !_pinned) _move(globalPos);
+        });
+      } else if (delta.dy > 14 || delta.dx.abs() > 48) {
+        _pendingStart = null;
       }
       return;
     }
-    _dragPos = local;
-    _dragPosNotifier.value = local;
-    _updateHover(local);
-    _updateAutoScroll(local);
+    _move(globalPos);
   }
 
-  /// 松手：命中标签则切换，命中取消区则放弃
+  void _move(Offset globalPos) {
+    _dragPos = _toLocal(globalPos);
+    _dragPosition.value = _dragPos;
+    _updateHover();
+    _updateAutoScroll();
+  }
+
   Future<void> endDrag(Offset globalPos) async {
-    if (_pinned || !_visible) {
-      _pending = false;
-      return;
-    }
-    _stopAutoScroll();
-
+    _pendingStart = null;
+    if (_pinned || !_visible) return;
     final local = _toLocal(globalPos);
-    final inCancel = _cancelZoneRect.contains(local);
-    final targetId =
-        inCancel ? null : (_hitFavorite(local) ?? _hitRow(local));
-
-    setState(() {
-      _visible = false;
-      _hoveredTagId = null;
-      _hoveredFavoriteId = null;
-    });
-    _scrollTarget = null;
-
-    if (targetId != null) await _toggleTag(targetId);
+    final id = _inCancel(local) ? null : _hitFavorite(local) ?? _hitRow(local);
+    close();
+    if (id != null) await _toggleTag(id);
   }
 
-  /// 手势被系统取消（来电等）
   void cancelDrag() {
-    _pending = false;
-    _stopAutoScroll();
-    if (_visible && !_pinned) {
-      setState(() {
-        _visible = false;
-        _hoveredTagId = null;
-        _hoveredFavoriteId = null;
-      });
-    }
+    _pendingStart = null;
+    if (!_pinned) close();
   }
 
-  /// 打开常驻浮层（长按底部"标签"按钮）
   void openPinned() {
-    if (_visible && _pinned) return;
-    _pending = false;
+    _pendingStart = null;
     _stopAutoScroll();
+    _expandTimer?.cancel();
     HapticFeedback.selectionClick();
     setState(() {
-      _visible = true;
-      _pinned = true;
-      _hoveredTagId = null;
-      _hoveredFavoriteId = null;
+      _visible = _pinned = true;
+      _hoveredTagId = _hoveredFavoriteId = null;
     });
   }
 
-  /// 关闭浮层
   void close() {
     _stopAutoScroll();
+    _expandTimer?.cancel();
+    _pendingStart = null;
     if (!_visible) return;
     setState(() {
-      _visible = false;
-      _pinned = false;
-      _pending = false;
-      _hoveredTagId = null;
-      _hoveredFavoriteId = null;
+      _visible = _pinned = false;
+      _hoveredTagId = _hoveredFavoriteId = null;
     });
   }
 
-  // 内部逻辑
-
-  void _activate(Offset globalPos) {
-    _pending = false;
-    _stopAutoScroll();
+  Future<void> _toggleTag(String id) async {
     HapticFeedback.selectionClick();
-    final local = _toLocal(globalPos);
-    setState(() {
-      _visible = true;
-      _pinned = false;
-      _dragPos = local;
-      _hoveredTagId = null;
-      _hoveredFavoriteId = null;
-      _expandedIds.clear();
-      _rowKeys.clear();
-    });
-    _dragPosNotifier.value = local;
-    _updateHover(local);
-  }
-
-  List<Tag> get _allTags => ref.read(tagTreeProvider).valueOrNull ?? const [];
-
-  Set<String> get _appliedTagIds => (ref
-              .read(currentMediaTagsProvider)
-              .valueOrNull ??
-          const <Tag>[])
-      .map((t) => t.id)
-      .toSet();
-
-  /// 该标签是否有子级（浮层内按当前标签集直接判断）。
-  bool _hasChildren(String id) => _allTags.any((t) => t.parentId == id);
-
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      duration: const Duration(milliseconds: 1200),
-    ));
-  }
-
-  /// 添加 / 移除标签
-  Future<void> _toggleTag(String tagId) async {
-    final applied = _appliedTagIds.contains(tagId);
-    HapticFeedback.mediumImpact();
-    final notifier = ref.read(currentMediaTagsProvider.notifier);
     try {
-      if (applied) {
-        await notifier.removeTag(tagId);
-      } else {
-        await notifier.addTag(tagId);
+      await ref.read(currentMediaTagsProvider.notifier).toggleTag(id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('操作失败: $e')));
       }
-    } catch (e) {
-      _toast('操作失败: $e');
     }
   }
 
-  /// 设置/取消快捷标签（服务端持久化）
-  Future<void> _setFavorite(Tag tag, bool value) async {
-    try {
-      await ref.read(tagTreeProvider.notifier).setFavorite(tag.id, value);
-    } catch (e) {
-      _toast('快捷标签更新失败: $e');
-    }
-  }
+  String? _hitRow(Offset local) => _hitIn(_rowKeys, _treeViewportKey, local);
+  String? _hitFavorite(Offset local) =>
+      _hitIn(_favoriteKeys, _favoriteViewportKey, local);
 
-  // 几何（全部实时读取，避免布局变化后失效）
-
-  /// 命中区域换算到浮层坐标系：旋转后子节点与根节点共用同一变换，
-  /// 用根节点做 globalToLocal 即可得到轴向对齐的矩形。
-  Rect? _rectOf(GlobalKey key) {
-    final root = _rootBox;
-    final box = key.currentContext?.findRenderObject() as RenderBox?;
-    if (root == null || box == null || !box.attached) return null;
-    return root.globalToLocal(box.localToGlobal(Offset.zero)) & box.size;
-  }
-
-  Rect? get _panelRect => _rectOf(_panelKey);
-
-  /// 右上角取消区（浮层坐标系内；与绘制位置一致，半径略放大以便命中）
-  Rect get _cancelZoneRect => Rect.fromCircle(
-        center: _cancelCenter(_frameSize),
-        radius: 48,
-      );
-
-  /// 命中测试：返回手指下的标签 id
-  String? _hitRow(Offset globalPos) => _hitIn(_rowKeys, globalPos);
-
-  String? _hitFavorite(Offset globalPos) => _hitIn(_favoriteKeys, globalPos);
-
-  String? _hitIn(Map<String, GlobalKey> keys, Offset globalPos) {
-    // 倒序遍历：后构建的行（更深层子级）优先命中
-    for (final entry in keys.entries.toList().reversed) {
-      final rect = _rectOf(entry.value);
-      if (rect != null && rect.contains(globalPos)) return entry.key;
+  String? _hitIn(
+    Map<String, GlobalKey> keys,
+    GlobalKey viewport,
+    Offset local,
+  ) {
+    if (!(_rectOf(viewport)?.contains(local) ?? false)) return null;
+    for (final entry in keys.entries) {
+      if (_rectOf(entry.value)?.contains(local) ?? false) return entry.key;
     }
     return null;
   }
 
-  /// 更新悬停高亮 + 经过即展开
-  void _updateHover(Offset globalPos) {
+  void _updateHover() {
     if (!_visible || _pinned) return;
-
-    final inCancel = _cancelZoneRect.contains(globalPos);
-    final favoriteId = inCancel ? null : _hitFavorite(globalPos);
-    final tagId =
-        (inCancel || favoriteId != null) ? null : _hitRow(globalPos);
-
-    if (tagId != _hoveredTagId || favoriteId != _hoveredFavoriteId) {
-      setState(() {
-        _hoveredTagId = tagId;
-        _hoveredFavoriteId = favoriteId;
+    final favoriteId = _inCancel(_dragPos) ? null : _hitFavorite(_dragPos);
+    final tagId = _inCancel(_dragPos) || favoriteId != null
+        ? null
+        : _hitRow(_dragPos);
+    if (tagId == _hoveredTagId && favoriteId == _hoveredFavoriteId) return;
+    _expandTimer?.cancel();
+    setState(() {
+      _hoveredTagId = tagId;
+      _hoveredFavoriteId = favoriteId;
+    });
+    final tags = ref.read(tagTreeProvider).valueOrNull ?? const <Tag>[];
+    if (tagId != null &&
+        !_expandedIds.contains(tagId) &&
+        tags.any((t) => t.parentId == tagId)) {
+      _expandTimer = Timer(const Duration(milliseconds: 280), () {
+        if (!mounted || !_visible || _pinned || _hoveredTagId != tagId) return;
+        setState(() => _expandedIds.add(tagId));
+        _refreshHitAfterLayout();
       });
     }
-
-    // 经过有子级的标签立即展开（子级插入在该行下方，不会改变当前行命中位置）
-    if (tagId != null && !_expandedIds.contains(tagId) && _hasChildren(tagId)) {
-      setState(() => _expandedIds.add(tagId));
-    }
   }
 
-  // 边缘自动滚动
-
-  void _updateAutoScroll(Offset globalPos) {
-    final panel = _panelRect;
-    if (panel == null || !panel.contains(globalPos)) {
-      _stopAutoScroll();
-      return;
-    }
-
-    final favoriteRect = _rectOf(_favoriteColumnKey);
-    _scrollTarget = (favoriteRect != null && globalPos.dx >= favoriteRect.left)
-        ? _favoriteScroll
-        : _treeScroll;
-
-    double speed = 0;
-    if (globalPos.dy < panel.top + _edge) {
-      final ratio =
-          (1 - (globalPos.dy - panel.top) / _edge).clamp(0.0, 1.0).toDouble();
-      speed = -ratio * 14; // 向上
-    } else if (globalPos.dy > panel.bottom - _edge) {
-      final ratio =
-          (1 - (panel.bottom - globalPos.dy) / _edge).clamp(0.0, 1.0).toDouble();
-      speed = ratio * 14; // 向下
-    }
-
-    if (speed == 0) {
-      _stopAutoScroll();
-      return;
-    }
-    _scrollSpeed = speed;
-    _scrollTimer ??= Timer.periodic(
-      const Duration(milliseconds: 16),
-      (_) => _tickScroll(),
-    );
+  void _refreshHitAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _visible && !_pinned) _updateHover();
+    });
   }
 
-  void _tickScroll() {
-    final controller = _scrollTarget;
-    if (!mounted || !_visible || controller == null || !controller.hasClients) {
+  void _updateAutoScroll() {
+    final favorite = _rectOf(_favoriteViewportKey);
+    final tree = _rectOf(_treeViewportKey);
+    final useFavorite = favorite?.contains(_dragPos) ?? false;
+    final viewport = useFavorite ? favorite : tree;
+    if (viewport == null ||
+        !viewport.contains(_dragPos) ||
+        _inCancel(_dragPos)) {
       _stopAutoScroll();
       return;
     }
-    final position = controller.position;
-    final next = (controller.offset + _scrollSpeed)
-        .clamp(position.minScrollExtent, position.maxScrollExtent)
-        .toDouble();
-    if ((next - controller.offset).abs() < 0.01) {
+    _scrollTarget = useFavorite ? _favoriteScroll : _treeScroll;
+    final edge = math.min(48.0, viewport.height / 4);
+    _scrollSpeed = _dragPos.dy < viewport.top + edge
+        ? -12 * (1 - (_dragPos.dy - viewport.top) / edge)
+        : _dragPos.dy > viewport.bottom - edge
+        ? 12 * (1 - (viewport.bottom - _dragPos.dy) / edge)
+        : 0;
+    if (_scrollSpeed == 0) {
       _stopAutoScroll();
       return;
     }
-    controller.jumpTo(next);
-    // 行随滚动移动，重新命中
-    _updateHover(_dragPos);
+    _scrollTimer ??= Timer.periodic(const Duration(milliseconds: 16), (_) {
+      final scroll = _scrollTarget;
+      if (!mounted ||
+          !_visible ||
+          _pinned ||
+          scroll == null ||
+          !scroll.hasClients) {
+        _stopAutoScroll();
+        return;
+      }
+      final next = (scroll.offset + _scrollSpeed).clamp(
+        0.0,
+        scroll.position.maxScrollExtent,
+      );
+      if ((next - scroll.offset).abs() < 0.01) {
+        _stopAutoScroll();
+        return;
+      }
+      scroll.jumpTo(next);
+      _refreshHitAfterLayout();
+    });
   }
 
   void _stopAutoScroll() {
     _scrollTimer?.cancel();
     _scrollTimer = null;
-    _scrollSpeed = 0;
+    _scrollTarget = null;
   }
-
-  // 渲染
 
   @override
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
-
-    final allTags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
-    final appliedIds = (ref.watch(currentMediaTagsProvider).valueOrNull ??
-            const <Tag>[])
-        .map((t) => t.id)
-        .toSet();
+    final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
+    final applied =
+        (ref.watch(currentMediaTagsProvider).valueOrNull ?? const <Tag>[])
+            .map((t) => t.id)
+            .toSet();
     final favorites = ref.watch(favoriteTagsProvider);
-
-    final childrenMap = groupTagsByParent(allTags, compare: compareTagsByPath);
-    final roots = rootTags(childrenMap);
-
+    final children = groupTagsByParent(tags, compare: compareTagsByPath);
+    final nodes = flattenTagTree(children, expanded: _expandedIds);
+    final turns = widget.quarterTurns % 4;
+    final safeTop = MediaQuery.paddingOf(context).top + 8;
+    final controls = widget.bottomInset + 8;
+    final insets = switch (turns) {
+      1 => EdgeInsets.fromLTRB(safeTop, 8, controls, 8),
+      2 => EdgeInsets.fromLTRB(8, controls, 8, safeTop),
+      3 => EdgeInsets.fromLTRB(controls, 8, safeTop, 8),
+      _ => EdgeInsets.fromLTRB(8, safeTop, 8, controls),
+    };
     return RotatedBox(
-      quarterTurns: widget.quarterTurns % 4,
-      // 面板/取消区尺寸必须按"换轴后这一帧"的尺寸算：直接用 MediaQuery 会拿到
-      // 未换轴的屏幕尺寸，旋转时面板高度会超出视口。
+      quarterTurns: turns,
       child: LayoutBuilder(
-        builder: (context, constraints) => _buildStack(
-          constraints,
-          allTags: allTags,
-          appliedIds: appliedIds,
-          favorites: favorites,
-          childrenMap: childrenMap,
-          roots: roots,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStack(
-    BoxConstraints constraints, {
-    required List<Tag> allTags,
-    required Set<String> appliedIds,
-    required List<Tag> favorites,
-    required Map<String, List<Tag>> childrenMap,
-    required List<Tag> roots,
-  }) {
-    final bounded =
-        constraints.hasBoundedWidth && constraints.hasBoundedHeight;
-    final size = bounded ? constraints.biggest : MediaQuery.sizeOf(context);
-    // 手势回调发生在布局之后，缓存本帧尺寸让它们无需再问根节点
-    _frameSizeOverride = size;
-    final topPad = _frameTopInset;
-    // 面板不高于这一帧，避免极窄可用空间下面板溢出
-    final maxPanelHeight = (size.height - 24).clamp(120.0, 460.0);
-    final panelHeight =
-        (size.height * 0.58).clamp(120.0, maxPanelHeight).toDouble();
-    final maxFavoriteWidth = (size.width * 0.6).clamp(60.0, 176.0);
-    final favoriteWidth =
-        (size.width * 0.32).clamp(60.0, maxFavoriteWidth).toDouble();
-    // 旋转后面板贴住"媒体底边"；此时物理底栏落在该帧的右侧，改为右侧避让
-    final panelBottom = _isRotated ? 8.0 : widget.bottomInset;
-    final panelRight = _isRotated ? widget.bottomInset : 0.0;
-    final cancelCenter = _cancelCenter(size);
-
-    return Stack(
-      key: _rootKey,
-      children: [
-        // 遮罩：拖动期间吸收误触；固定模式下点击空白关闭
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _pinned ? close : () {},
-            child: Container(color: _pinned ? Colors.black54 : Colors.black38),
-          ),
-        ),
-
-        // 右上角取消区（仅拖拽模式）
-        if (!_pinned)
-          Positioned(
-            top: cancelCenter.dy - 36,
-            right: size.width - cancelCenter.dx - 36,
-            child: ValueListenableBuilder<Offset>(
-              valueListenable: _dragPosNotifier,
-              builder: (context, pos, _) {
-                final inCancel = (pos - cancelCenter).distance <= 48;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: inCancel
-                        ? Colors.red.withValues(alpha: 0.85)
-                        : Colors.white.withValues(alpha: 0.12),
-                    border: Border.all(
-                      color: inCancel ? Colors.white : Colors.white38,
-                      width: inCancel ? 2 : 1,
-                    ),
+        builder: (context, constraints) {
+          final size = constraints.biggest;
+          final available = math.max(0.0, size.height - insets.vertical);
+          final height = size.width > size.height
+              ? available
+              : math.min(available, size.height * 0.68);
+          return Stack(
+            key: _rootKey,
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _pinned ? close : () {},
+                  child: ColoredBox(
+                    color: _pinned ? Colors.black54 : Colors.black38,
                   ),
-                  child: Icon(
-                    Icons.close,
-                    color: inCancel ? Colors.white : Colors.white70,
-                    size: 30,
-                  ),
-                );
-              },
-            ),
-          ),
-
-        // 浮层面板
-        Positioned(
-          left: 0,
-          right: panelRight,
-          bottom: panelBottom,
-          height: panelHeight,
-          child: Container(
-            key: _panelKey,
-            decoration: BoxDecoration(
-              color: const Color(0xF21E1E24),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(
-                top: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                ),
               ),
-            ),
-            child: Column(
-              children: [
-                _buildHeader(appliedIds.length, allTags),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+              Positioned(
+                left: insets.left,
+                right: insets.right,
+                bottom: insets.bottom,
+                height: height,
+                child: Material(
+                  color: const Color(0xF21E1E24),
+                  borderRadius: BorderRadius.circular(12),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
                     children: [
-                      // 左：标签树
+                      _header(tags, applied.length),
                       Expanded(
-                        child: allTags.isEmpty
-                            ? const Center(
-                                child: Text('暂无标签',
-                                    style: TextStyle(color: Colors.white38)),
-                              )
-                            : ListView(
-                                controller: _treeScroll,
-                                padding: const EdgeInsets.only(bottom: 12),
-                                children: [
-                                  for (final root in roots)
-                                    _buildTreeRow(
-                                      root,
-                                      childrenMap,
-                                      0,
-                                      appliedIds,
-                                    ),
-                                ],
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                key: _treeViewportKey,
+                                child: nodes.isEmpty
+                                    ? const Center(
+                                        child: Text(
+                                          '暂无标签',
+                                          style: TextStyle(
+                                            color: Colors.white54,
+                                          ),
+                                        ),
+                                      )
+                                    : LayoutBuilder(
+                                        builder: (_, box) => GridView.builder(
+                                          controller: _treeScroll,
+                                          padding: const EdgeInsets.fromLTRB(
+                                            4,
+                                            0,
+                                            4,
+                                            8,
+                                          ),
+                                          gridDelegate:
+                                              SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount:
+                                                    (box.maxWidth / 240)
+                                                        .floor()
+                                                        .clamp(1, 3),
+                                                mainAxisExtent: 44,
+                                              ),
+                                          itemCount: nodes.length,
+                                          itemBuilder: (_, index) {
+                                            final node = nodes[index];
+                                            final tag = node.tag;
+                                            return _TagTile(
+                                              key: _rowKeys[tag.id] ??=
+                                                  GlobalKey(),
+                                              tag: tag,
+                                              depth: node.depth,
+                                              hasChildren: node.hasChildren,
+                                              expanded: _expandedIds.contains(
+                                                tag.id,
+                                              ),
+                                              applied: applied.contains(tag.id),
+                                              hovered: _hoveredTagId == tag.id,
+                                              onTap: _pinned
+                                                  ? () => _toggleTag(tag.id)
+                                                  : null,
+                                              onExpand:
+                                                  _pinned && node.hasChildren
+                                                  ? () => setState(() {
+                                                      if (!_expandedIds.remove(
+                                                        tag.id,
+                                                      )) {
+                                                        _expandedIds.add(
+                                                          tag.id,
+                                                        );
+                                                      }
+                                                    })
+                                                  : null,
+                                            );
+                                          },
+                                        ),
+                                      ),
                               ),
-                      ),
-                      Container(width: 1, color: Colors.white12),
-                      // 右：快捷标签
-                      SizedBox(
-                        key: _favoriteColumnKey,
-                        width: favoriteWidth,
-                        child: _buildFavoriteColumn(favorites, appliedIds),
+                            ),
+                            if (favorites.isNotEmpty) ...[
+                              const VerticalDivider(
+                                width: 1,
+                                color: Colors.white24,
+                              ),
+                              SizedBox(
+                                key: _favoriteViewportKey,
+                                width: math.min(
+                                  172,
+                                  (size.width - insets.horizontal) * 0.27,
+                                ),
+                                child: ListView.builder(
+                                  controller: _favoriteScroll,
+                                  itemExtent: 44,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    4,
+                                    0,
+                                    4,
+                                    8,
+                                  ),
+                                  itemCount: favorites.length,
+                                  itemBuilder: (_, index) {
+                                    final tag = favorites[index];
+                                    return _TagTile(
+                                      key: _favoriteKeys[tag.id] ??=
+                                          GlobalKey(),
+                                      tag: tag,
+                                      favorite: true,
+                                      applied: applied.contains(tag.id),
+                                      hovered: _hoveredFavoriteId == tag.id,
+                                      onTap: _pinned
+                                          ? () => _toggleTag(tag.id)
+                                          : null,
+                                      onLongPress: _pinned
+                                          ? () => _favoriteMenu(tag)
+                                          : null,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-
-        // 拖拽跟随提示（仅拖拽模式，且只随手指位置刷新）
-        if (!_pinned)
-          ValueListenableBuilder<Offset>(
-            valueListenable: _dragPosNotifier,
-            builder: (context, pos, _) => _buildDragIndicator(pos, size, topPad),
-          ),
-      ],
-    );
-  }
-
-  /// 面板头部
-  Widget _buildHeader(int appliedCount, List<Tag> allTags) {
-    final expandableIds = {
-      for (final t in allTags)
-        if (t.parentId != null) t.parentId!,
-    };
-    final allExpanded =
-        expandableIds.isNotEmpty && _expandedIds.containsAll(expandableIds);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, left: 12, right: 8, bottom: 4),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 3,
-            decoration: BoxDecoration(
-              color: Colors.white30,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 6),
-          if (_pinned)
-            Row(
-              children: [
-                const Text('快速打标签',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(width: 8),
-                Text('已选 $appliedCount',
-                    style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                const Spacer(),
-                if (expandableIds.isNotEmpty)
-                  _HeaderButton(
-                    icon: allExpanded ? Icons.unfold_less : Icons.unfold_more,
-                    tooltip: allExpanded ? '全部收起' : '全部展开',
-                    onTap: () => setState(() {
-                      if (allExpanded) {
-                        _expandedIds.clear();
-                      } else {
-                        _expandedIds.addAll(expandableIds);
-                      }
-                    }),
-                  ),
-                _HeaderButton(
-                  icon: Icons.close,
-                  tooltip: '关闭',
-                  onTap: close,
+              ),
+              if (!_pinned)
+                ValueListenableBuilder<Offset>(
+                  valueListenable: _dragPosition,
+                  builder: (_, pos, _) => _indicator(pos, size, tags, applied),
                 ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '松手到标签上 = 添加/移除 · 经过父标签即展开 · 右上角 = 取消\n'
-                    '长按底部「标签」按钮可固定此面板并管理快捷标签',
-                    style: TextStyle(color: Colors.white54, fontSize: 11),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                  ),
-                ),
-                Text('已选 $appliedCount',
-                    style:
-                        const TextStyle(color: Colors.white38, fontSize: 11)),
-              ],
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildFavoriteColumn(List<Tag> favorites, Set<String> appliedIds) {
-    if (favorites.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(12),
-        child: Center(
-          child: Text(
-            '暂无快捷标签\n在标签行或「选择标签」页点 ★ 收藏',
-            style: TextStyle(color: Colors.white38, fontSize: 11),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      controller: _favoriteScroll,
-      padding: const EdgeInsets.fromLTRB(6, 2, 6, 12),
-      itemCount: favorites.length,
-      itemBuilder: (context, index) {
-        final tag = favorites[index];
-        final key = _favoriteKeys[tag.id] ??= GlobalKey();
-        return _FavoriteRow(
-          key: key,
-          tag: tag,
-          applied: appliedIds.contains(tag.id),
-          hovered: _hoveredFavoriteId == tag.id,
-          interactive: _pinned,
-          onTap: _pinned ? () => _toggleTag(tag.id) : null,
-          onLongPress: _pinned ? () => _showFavoriteMenu(tag) : null,
-        );
-      },
-    );
-  }
-
-  /// 快捷标签管理菜单（收藏状态持久化在服务端）
-  Future<void> _showFavoriteMenu(Tag tag) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _header(List<Tag> tags, int count) {
+    final parents = {
+      for (final t in tags)
+        if (t.parentId != null) t.parentId!,
+    };
+    final allExpanded = parents.isNotEmpty && _expandedIds.containsAll(parents);
+    return SizedBox(
+      height: 44,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Row(
           children: [
-            ListTile(
-              dense: true,
-              title: Text(tag.fullPath ?? tag.name,
-                  style: const TextStyle(fontSize: 13)),
+            const Text(
+              '快速打标签',
+              style: TextStyle(color: Colors.white, fontSize: 13),
             ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.star_border, size: 20),
-              title: const Text('移出快捷标签'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _setFavorite(tag, false);
-              },
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _pinned ? '已选 $count · 点击切换' : '松手切换 · 停留展开',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ),
+            if (_pinned && parents.isNotEmpty)
+              IconButton(
+                tooltip: allExpanded ? '全部收起' : '全部展开',
+                icon: Icon(
+                  allExpanded ? Icons.unfold_less : Icons.unfold_more,
+                  color: Colors.white70,
+                  size: 20,
+                ),
+                onPressed: () => setState(() {
+                  if (allExpanded) {
+                    _expandedIds.clear();
+                  } else {
+                    _expandedIds.addAll(parents);
+                  }
+                }),
+              ),
+            SizedBox(
+              key: _cancelKey,
+              width: 48,
+              height: 44,
+              child: IconButton(
+                tooltip: _pinned ? '关闭' : '松手取消',
+                onPressed: close,
+                icon: const Icon(Icons.close, color: Colors.white70, size: 22),
+              ),
             ),
           ],
         ),
@@ -715,307 +489,158 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     );
   }
 
-  /// 拖拽跟随提示
-  Widget _buildDragIndicator(Offset pos, Size size, double topPad) {
-    final inCancel = _cancelZoneRect.contains(pos);
-    final hoveredTag = _hoveredTagId == null ? null : _findTag(_hoveredTagId!);
-    final hoveredFavorite =
-        _hoveredFavoriteId == null ? null : _findTag(_hoveredFavoriteId!);
-    final target = hoveredFavorite ?? hoveredTag;
-    final applied =
-        target != null && _appliedTagIds.contains(target.id);
-
-    final String label;
-    if (inCancel) {
-      label = '取消';
-    } else if (target != null) {
-      label = applied ? '移除「${target.name}」' : '添加「${target.name}」';
-    } else {
-      label = '拖动到标签上';
-    }
-
+  Widget _indicator(
+    Offset pos,
+    Size size,
+    List<Tag> tags,
+    Set<String> applied,
+  ) {
+    final id = _hoveredFavoriteId ?? _hoveredTagId;
+    final target = tags.where((t) => t.id == id).firstOrNull;
+    final cancel = _inCancel(pos);
+    final action = applied.contains(id) ? '移除' : '添加';
+    final label = cancel
+        ? '松手取消'
+        : target == null
+        ? '拖到标签上，松手切换'
+        : '$action「${target.fullPath ?? target.name}」';
     return Positioned(
-      left: (pos.dx + 14).clamp(0.0, size.width - 170).toDouble(),
-      top: (pos.dy - 26).clamp(topPad, size.height - 100).toDouble(),
+      left: (pos.dx - 90).clamp(0.0, math.max(0.0, size.width - 190)),
+      top: (pos.dy - 64).clamp(0.0, math.max(0.0, size.height - 40)),
       child: IgnorePointer(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          constraints: const BoxConstraints(maxWidth: 190),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.black87,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white38),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                inCancel
-                    ? Icons.close
-                    : applied
-                        ? Icons.remove_circle_outline
-                        : Icons.add_circle_outline,
-                size: 16,
-                color: inCancel
-                    ? Colors.redAccent
-                    : applied
-                        ? Colors.orange
-                        : Colors.amber,
-              ),
-              const SizedBox(width: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Text(
-                  label,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Tag? _findTag(String id) {
-    for (final t in _allTags) {
-      if (t.id == id) return t;
-    }
-    return null;
-  }
-
-  /// 递归构建标签树行（只展开 [_expandedIds] 中的子级）
-  Widget _buildTreeRow(
-    Tag tag,
-    Map<String, List<Tag>> childrenMap,
-    int depth,
-    Set<String> appliedIds,
-  ) {
-    final key = _rowKeys[tag.id] ??= GlobalKey();
-    final children = childrenMap[tag.id] ?? const <Tag>[];
-    final expanded = _expandedIds.contains(tag.id);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _TagRow(
-          key: key,
-          tag: tag,
-          depth: depth,
-          hasChildren: children.isNotEmpty,
-          expanded: expanded,
-          applied: appliedIds.contains(tag.id),
-          hovered: _hoveredTagId == tag.id,
-          interactive: _pinned,
-          onTap: _pinned ? () => _toggleTag(tag.id) : null,
-          onToggleExpand:
-              _pinned ? () => setState(() => _toggleExpanded(tag.id)) : null,
-        ),
-        if (expanded && children.isNotEmpty)
-          for (final child in children)
-            _buildTreeRow(child, childrenMap, depth + 1, appliedIds),
-      ],
-    );
-  }
-
-  void _toggleExpanded(String tagId) {
-    if (!_expandedIds.remove(tagId)) _expandedIds.add(tagId);
-  }
-}
-
-/// 面板头部图标按钮
-class _HeaderButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _HeaderButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 18, color: Colors.white70),
-        ),
-      ),
-    );
-  }
-}
-
-/// 标签树行
-class _TagRow extends StatelessWidget {
-  final Tag tag;
-  final int depth;
-  final bool hasChildren;
-  final bool expanded;
-  final bool applied;
-  final bool hovered;
-
-  /// 固定模式下可点击交互
-  final bool interactive;
-  final VoidCallback? onTap;
-  final VoidCallback? onToggleExpand;
-
-  const _TagRow({
-    super.key,
-    required this.tag,
-    required this.depth,
-    required this.hasChildren,
-    required this.expanded,
-    required this.applied,
-    required this.hovered,
-    required this.interactive,
-    this.onTap,
-    this.onToggleExpand,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final background = hovered
-        ? (applied
-            ? Colors.orange.withValues(alpha: 0.40)
-            : Colors.blue.withValues(alpha: 0.40))
-        : (applied ? Colors.blue.withValues(alpha: 0.15) : Colors.white10);
-
-    final row = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      padding: EdgeInsets.only(
-        left: 10.0 + depth * 18,
-        right: 6,
-        top: 7,
-        bottom: 7,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: hovered ? Colors.white : Colors.white12,
-          width: hovered ? 1.5 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            hasChildren
-                ? (expanded ? Icons.folder_open : Icons.folder)
-                : Icons.label,
-            size: 17,
-            color: applied ? Colors.amber : Colors.white70,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              tag.name,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              overflow: TextOverflow.ellipsis,
+            border: Border.all(
+              color: cancel ? Colors.redAccent : Colors.white38,
             ),
           ),
-          if (applied)
-            const Icon(Icons.check_circle, size: 16, color: Colors.amber),
-          if (hasChildren)
-            interactive && onToggleExpand != null
-                ? InkWell(
-                    onTap: onToggleExpand,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Icon(
-                        expanded ? Icons.expand_less : Icons.expand_more,
-                        size: 18,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  )
-                : Icon(
-                    expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 16,
-                    color: Colors.white38,
-                  ),
-        ],
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cancel ? Colors.redAccent : Colors.amber,
+              fontSize: 12,
+            ),
+          ),
+        ),
       ),
     );
+  }
 
-    return interactive && onTap != null
-        ? InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(8),
-            child: row,
-          )
-        : row;
+  Future<void> _favoriteMenu(Tag tag) async {
+    final remove = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.star_border),
+          title: const Text('移出快捷标签'),
+          subtitle: Text(tag.fullPath ?? tag.name),
+          onTap: () => Navigator.pop(ctx, true),
+        ),
+      ),
+    );
+    if (remove != true || !mounted) return;
+    try {
+      await ref.read(tagTreeProvider.notifier).setFavorite(tag.id, false);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('快捷标签更新失败: $e')));
+      }
+    }
   }
 }
 
-/// 快捷标签行
-class _FavoriteRow extends StatelessWidget {
+class _TagTile extends StatelessWidget {
   final Tag tag;
-  final bool applied;
-  final bool hovered;
-  final bool interactive;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
-  const _FavoriteRow({
+  final int depth;
+  final bool hasChildren, expanded, applied, hovered, favorite;
+  final VoidCallback? onTap, onExpand, onLongPress;
+  const _TagTile({
     super.key,
     required this.tag,
     required this.applied,
     required this.hovered,
-    required this.interactive,
+    this.depth = 0,
+    this.hasChildren = false,
+    this.expanded = false,
+    this.favorite = false,
     this.onTap,
+    this.onExpand,
     this.onLongPress,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final row = Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-      decoration: BoxDecoration(
+  Widget build(BuildContext context) => Tooltip(
+    message: tag.fullPath ?? tag.name,
+    child: Padding(
+      padding: const EdgeInsets.all(2),
+      child: Material(
         color: hovered
-            ? (applied
-                ? Colors.orange.withValues(alpha: 0.40)
-                : Colors.blue.withValues(alpha: 0.40))
-            : (applied ? Colors.blue.withValues(alpha: 0.15) : Colors.white10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: hovered ? Colors.white : Colors.white12,
-          width: hovered ? 1.5 : 1,
+            ? (applied ? Colors.orange.shade800 : Colors.blue.shade700)
+            : applied
+            ? const Color(0xFF253C51)
+            : Colors.white10,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: hovered ? Colors.white : Colors.white12),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            applied ? Icons.check_circle : Icons.star,
-            size: 15,
-            color: applied ? Colors.amber : Colors.amber.shade200,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              tag.name,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              overflow: TextOverflow.ellipsis,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 8 + math.min(depth, 3) * 8,
+              right: 6,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  favorite
+                      ? Icons.star
+                      : hasChildren
+                      ? (expanded ? Icons.folder_open : Icons.folder)
+                      : Icons.label,
+                  size: 16,
+                  color: applied || favorite ? Colors.amber : Colors.white70,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    tag.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ),
+                if (applied)
+                  const Icon(Icons.check, size: 16, color: Colors.amber),
+                if (hasChildren)
+                  SizedBox(
+                    width: 32,
+                    height: 40,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: onExpand,
+                      icon: Icon(
+                        expanded ? Icons.expand_less : Icons.expand_more,
+                        size: 18,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
-    );
-
-    return interactive
-        ? InkWell(
-            onTap: onTap,
-            onLongPress: onLongPress,
-            borderRadius: BorderRadius.circular(8),
-            child: row,
-          )
-        : row;
-  }
+    ),
+  );
 }

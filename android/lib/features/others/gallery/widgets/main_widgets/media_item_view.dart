@@ -1,7 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/others/gallery/models/image_edit.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/network_image_widget.dart';
@@ -20,21 +19,6 @@ class MediaItemView extends ConsumerWidget {
     this.rotationQuarterTurns = 0,
   });
 
-  /// 从 editParams JSON 解析旋转角度并转为 quarterTurns (CCW，与后端一致)
-  int get _editRotationTurns {
-    final p = asset.editParams;
-    if (p == null) return 0;
-    try {
-      final json = jsonDecode(p) as Map<String, dynamic>;
-      if (json['type'] == 'image') {
-        final deg = (json['rotation'] as int? ?? 0) % 360;
-        // RotatedBox 是 CW，用 (4 - turns) % 4 转为 CCW
-        return (4 - deg ~/ 90) % 4;
-      }
-    } catch (_) {}
-    return 0;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storage = ref.watch(galleryStorageProvider);
@@ -42,10 +26,13 @@ class MediaItemView extends ConsumerWidget {
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
 
-    final effectiveTurns = (rotationQuarterTurns + _editRotationTurns) % 4;
+    final effectiveTurns =
+        (rotationQuarterTurns +
+            ImageEdit.parse(asset.editParams).quarterTurns) %
+        4;
 
     if (asset.isImage) {
-      final imageUrl = '$baseUrl/API/gallery/${asset.id}/file';
+      final imageUrl = galleryMediaUrl(baseUrl, asset);
       return NetworkImageWidget(
         key: ValueKey('image_${asset.id}_$effectiveTurns'),
         imageUrl: imageUrl,

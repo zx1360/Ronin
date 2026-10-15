@@ -78,11 +78,11 @@ const maxStderrTail = 4 * 1024
 
 // Manager 维护全部任务的内存注册表。
 type Manager struct {
-	mu       sync.Mutex
-	seq      int
-	tasks    map[string]*Task
-	maxLogs  int // 单任务日志行数上限
-	maxDone  int // 保留的已完成任务数量上限
+	mu      sync.Mutex
+	seq     int
+	tasks   map[string]*Task
+	maxLogs int // 单任务日志行数上限
+	maxDone int // 保留的已完成任务数量上限
 }
 
 // NewManager 创建任务管理器；上限非法时回退到默认值。
@@ -113,10 +113,11 @@ func (m *Manager) Start(spec Spec) (*Task, error) {
 		StartedAt: time.Now(),
 	}
 	m.tasks[taskID] = task
+	snapshot := snapshotTask(task)
 	m.mu.Unlock()
 
 	go m.run(task, spec)
-	return task, nil
+	return snapshot, nil
 }
 
 // commandLine 生成展示用命令行（可执行文件名 + 参数）。
@@ -293,7 +294,25 @@ func (m *Manager) Get(taskID string) (*Task, error) {
 	if task == nil {
 		return nil, fmt.Errorf("任务 %s 不存在", taskID)
 	}
-	return task, nil
+	return snapshotTask(task), nil
+}
+
+// 调用方在锁外序列化；返回副本，避免与任务状态和日志写入并发。
+func snapshotTask(task *Task) *Task {
+	copy := &Task{
+		ID: task.ID, Name: task.Name, Command: task.Command, Status: task.Status,
+		PID: task.PID, StartedAt: task.StartedAt, Result: task.Result, Error: task.Error,
+		Logs: append([]LogEntry(nil), task.Logs...),
+	}
+	if task.FinishedAt != nil {
+		value := *task.FinishedAt
+		copy.FinishedAt = &value
+	}
+	if task.ExitCode != nil {
+		value := *task.ExitCode
+		copy.ExitCode = &value
+	}
+	return copy
 }
 
 // List 返回任务列表（新建在前），并裁剪超出上限的已完成任务。
@@ -303,7 +322,7 @@ func (m *Manager) List() []*Task {
 
 	all := make([]*Task, 0, len(m.tasks))
 	for _, t := range m.tasks {
-		all = append(all, t)
+		all = append(all, snapshotTask(t))
 	}
 	sort.Slice(all, func(i, j int) bool {
 		return all[i].StartedAt.After(all[j].StartedAt)

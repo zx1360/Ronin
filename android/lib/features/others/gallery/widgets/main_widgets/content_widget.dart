@@ -291,7 +291,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       _precachedIds.add(a.id);
       if (a.isImage) {
         precacheImage(
-          CachedNetworkImageProvider('$base/API/gallery/${a.id}/file', headers: hdrs),
+          CachedNetworkImageProvider(galleryMediaUrl(base, a), headers: hdrs),
           context,
         ).catchError((_) => _precachedIds.remove(a.id));
       }

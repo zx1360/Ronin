@@ -135,7 +135,7 @@ func FetchMediaAsset(c *gin.Context) {
 		}
 		sec, _ := strconv.ParseFloat(c.Query("sec"), 64)
 		srcPath := filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
-		data, err := media_probe.ExtractFrame(id, srcPath, sec)
+		data, err := media_probe.ExtractFrameContext(c.Request.Context(), id, srcPath, sec)
 		if err != nil {
 			log.Printf("gallery 取帧失败 [%s @%.1fs]: %v", asset.FilePath, sec, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "提取视频帧失败: " + err.Error()})
@@ -195,7 +195,8 @@ func respondRepoError(c *gin.Context, err error) {
 	case errors.Is(err, gallery_repo.ErrTagParentNotFound),
 		errors.Is(err, gallery_repo.ErrTagCycle),
 		errors.Is(err, gallery_repo.ErrTagEmptyName),
-		errors.Is(err, gallery_repo.ErrMediaSelfGroup):
+		errors.Is(err, gallery_repo.ErrMediaSelfGroup),
+		errors.Is(err, gallery_repo.ErrMediaGroupLead):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
