@@ -41,11 +41,6 @@ class RoutineService extends _$RoutineService {
     await state.styleBox.put(style.id, style);
   }
 
-  /// 删除 Style 记录
-  Future<void> deleteStyle(String styleId) async {
-    await state.styleBox.delete(styleId);
-  }
-
   // Record 操作
 
   /// 更新 Record，并更新对应的 Style 统计信息
@@ -63,12 +58,6 @@ class RoutineService extends _$RoutineService {
     } else {
       await state.recordBox.put(record.id, record);
     }
-    await _refreshStyleStats(styleId);
-  }
-
-  /// 删除 Record 记录
-  Future<void> deleteRecord(String recordId, String styleId) async {
-    await state.recordBox.delete(recordId);
     await _refreshStyleStats(styleId);
   }
 

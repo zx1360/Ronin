@@ -87,9 +87,7 @@ func (e *Engine) VLMModel() string {
 
 // ResolveVLMModel 返回当前选定的标注模型；从未选定时从本机已安装模型里挑一个并落盘。
 //
-// 只处理"从未选过"（首次部署、或界面清空选择）：挑一次之后不再自动改选——否则一次
-// `ollama rm` 就会静默换掉执行者，进而按指纹把全库旧标注重排一遍。选定的模型已不在
-// 本机时保留原值，由 CapabilityReady 如实报"未安装"，等用户自己重新选。
+// 只在未选定时自动选择；模型被删除后保留原值，由 CapabilityReady 报告未安装。
 func (e *Engine) ResolveVLMModel() string {
 	if current := e.VLMModel(); current != "" {
 		return current

@@ -1,0 +1,14 @@
+{
+  "runtime": {
+    "idle_timeout_seconds": 60,
+    "job_timeout_seconds": 60,
+    "batch_size": 8,
+    "max_attempts": 3,
+    "workers": 1,
+    "device": "cpu",
+    "auto_capabilities": [
+      "phash"
+    ],
+    "vlm_model": "fixture:latest"
+  }
+}

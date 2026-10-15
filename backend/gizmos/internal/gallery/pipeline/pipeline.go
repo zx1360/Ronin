@@ -565,7 +565,7 @@ func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset) error {
 		return fmt.Errorf("移动原文件失败: %w", err)
 	}
 
-	// 删除缩略图（不再移动）
+	// 删除缩略图
 	if asset.ThumbPath != nil && *asset.ThumbPath != "" {
 		srcThumb := filepath.Join(p.config.ThumbsDir, *asset.ThumbPath)
 		if err := os.Remove(srcThumb); err != nil && !os.IsNotExist(err) {
@@ -573,7 +573,7 @@ func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset) error {
 		}
 	}
 
-	// 删除预览图（不再移动）
+	// 删除预览图
 	if asset.PreviewPath != nil && *asset.PreviewPath != "" {
 		srcPreview := filepath.Join(p.config.PreviewDir, *asset.PreviewPath)
 		if err := os.Remove(srcPreview); err != nil && !os.IsNotExist(err) {

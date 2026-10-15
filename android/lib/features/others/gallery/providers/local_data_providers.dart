@@ -7,7 +7,6 @@ part 'local_data_providers.g.dart';
 /// 本地缓存的清空动作。
 ///
 /// 只清本机（gallery.db 与下载的文件），**不触碰服务端**；清空后把游标复位、让派生数据重取。
-/// 此前设置页把"复位 + 失效一堆 provider"抄了三遍（还各漏了几项），这里收敛成一条路径。
 @Riverpod(keepAlive: true)
 class GalleryLocalDataController extends _$GalleryLocalDataController {
   /// 是否有清空操作在执行。
@@ -16,25 +15,25 @@ class GalleryLocalDataController extends _$GalleryLocalDataController {
 
   /// 清空本地数据库缓存。
   Future<void> clearDatabase() => _run(() async {
-        await ref.read(galleryDatabaseProvider).clearAllData();
-        await _resetCursors();
-        _invalidateDerived();
-      });
+    await ref.read(galleryDatabaseProvider).clearAllData();
+    await _resetCursors();
+    _invalidateDerived();
+  });
 
   /// 清空本地媒体文件（保留数据库记录）。
   Future<void> clearFiles() => _run(() async {
-        await ref.read(galleryStorageProvider).clearAllFiles();
-        await _refreshStorageStats();
-      });
+    await ref.read(galleryStorageProvider).clearAllFiles();
+    await _refreshStorageStats();
+  });
 
   /// 清空数据库与文件。
   Future<void> clearAll() => _run(() async {
-        await ref.read(galleryDatabaseProvider).clearAllData();
-        await ref.read(galleryStorageProvider).clearAllFiles();
-        await _resetCursors();
-        _invalidateDerived();
-        await _refreshStorageStats();
-      });
+    await ref.read(galleryDatabaseProvider).clearAllData();
+    await ref.read(galleryStorageProvider).clearAllFiles();
+    await _resetCursors();
+    _invalidateDerived();
+    await _refreshStorageStats();
+  });
 
   Future<void> _run(Future<void> Function() action) async {
     state = true;
@@ -55,7 +54,7 @@ class GalleryLocalDataController extends _$GalleryLocalDataController {
     ref.invalidate(mediaAssetListProvider);
     ref.invalidate(tagTreeProvider);
     ref.invalidate(galleryDbStatsProvider);
-    ref.invalidate(galleryUploadStatsProvider);
+    ref.invalidate(galleryProcessedStatsProvider);
   }
 
   /// 文件系统扫描较慢，失败不影响已完成的清理。

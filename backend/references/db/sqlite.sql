@@ -147,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_booklet_records_updated ON booklet_records (updat
 -- =====================================================
 
 -- 输入档位 + 执行者指纹（如 `ai1024|ollama:qwen3.5:4b`）：任务与产物都记录它，
--- 既用于追溯"这条结果是用哪个档位、哪个执行者算出来的"，也用于配置变更后的自动重排。
+-- 用于追溯结果来源与报告配置差异；已有结果仅由用户显式重生成。
 -- 既有库由 internal/service/db/migrate.go 补列（见该文件说明）。
 CREATE TABLE IF NOT EXISTS media_ai (
     media_id          TEXT PRIMARY KEY REFERENCES media_assets(id) ON DELETE CASCADE,
@@ -211,7 +211,7 @@ CREATE INDEX IF NOT EXISTS idx_faces_media_id  ON faces (media_id);
 CREATE INDEX IF NOT EXISTS idx_faces_person_id ON faces (person_id);
 
 -- 任务队列：一行 = 一个 (能力, 媒体)；UNIQUE 保证重复入队幂等。
--- input_sig 记录本次执行使用的输入档位/执行者；与当前配置不符时由 reconcile 自动重排。
+-- input_sig 记录本次执行使用的输入档位/执行者，reconcile 只补无任务行的媒体。
 CREATE TABLE IF NOT EXISTS jobs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     capability  TEXT NOT NULL,

@@ -32,7 +32,7 @@ sequenceDiagram
     participant B as Browser
     participant W as /ops/
     participant M as Monarch
-    participant S as state.js
+    participant S as store.js
 
     B->>W: 打开同源页面
     W->>M: GET /API/ops/local/bootstrap
@@ -65,9 +65,9 @@ bootstrap 本身依赖回环限制，不需要先有 API key；服务端下发�
 - `bootstrap()` 用服务端值覆盖默认 settings、paths、cli、deps。
 - `saveSettings()` 以 snake_case 局部更新，成功后同步内存镜像。
 - `confirmAction()` 由 `confirm_destructive` 控制破坏性操作二次确认。
-- `runAction()` 统一把异常转成 toast，页面不得静默失败。
+- 页面操作捕获异常并提示 toast；AI 页通过自身的 `run()` 同时管理忙状态与刷新。
 
-页面只在确有活动任务/进程时轮询；任务/日志通常 2 秒，AI/仪表盘使用服务端偏好间隔。组件卸载必须停止 polling。
+任务、日志与 AI 页在有活动时轮询；任务/日志通常 2 秒，AI 使用偏好间隔。仪表盘在页面可见时按偏好刷新。组件卸载后不得续期轮询。
 
 ## 6. 破坏性操作边界
 

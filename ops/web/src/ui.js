@@ -1,6 +1,6 @@
 // 共享 UI 组件与轮询工具。
 
-import { ref, onUnmounted } from './vue.js';
+import { onUnmounted } from './vue.js';
 import { state, resolveDialog } from './store.js';
 import { taskStatusKind, taskStatusText } from './utils.js';
 
@@ -43,7 +43,7 @@ export const Placeholder = {
   template: `<div class="placeholder" :class="{ error: !!error }">{{ error || text }}</div>`,
 };
 
-/** 图片缩略图（自动附加 API 密钥查询参数）。 */
+/** 图片缩略图。 */
 export const MediaTile = {
   props: {
     src: { type: String, required: true },
@@ -99,6 +99,7 @@ export const ConfirmHost = {
 export function usePolling(callback, { interval, enabled }) {
   let timer = null;
   let busy = false;
+  let disposed = false;
 
   const stop = () => {
     if (timer) {
@@ -108,7 +109,7 @@ export function usePolling(callback, { interval, enabled }) {
   };
 
   const run = async () => {
-    if (busy) return;
+    if (busy || disposed) return;
     busy = true;
     try {
       await callback();
@@ -118,7 +119,7 @@ export function usePolling(callback, { interval, enabled }) {
       busy = false;
     }
     stop();
-    if (enabled()) {
+    if (!disposed && enabled()) {
       timer = setTimeout(run, Math.max(1000, interval() * 1000));
     }
   };
@@ -129,28 +130,9 @@ export function usePolling(callback, { interval, enabled }) {
     return run();
   };
 
-  onUnmounted(stop);
+  onUnmounted(() => {
+    disposed = true;
+    stop();
+  });
   return { trigger, stop };
-}
-
-/** 页面通用的异步加载状态包装。 */
-export function useAsyncState() {
-  const loading = ref(false);
-  const error = ref('');
-
-  const wrap = async (action) => {
-    loading.value = true;
-    try {
-      const result = await action();
-      error.value = '';
-      return result;
-    } catch (err) {
-      error.value = err.message || String(err);
-      return null;
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  return { loading, error, wrap };
 }

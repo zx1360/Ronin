@@ -578,8 +578,7 @@ def check_updates(comic_id: Optional[int] = None, all_comics: bool = False,
                 f"无新章节（站点 {len(detail.chapters)} 章，"
                 f"本地已登记 {len(existing_before)} 章）"
             )
-        # 必须显式给出"本地实际下载进度"：只报"已是最新（本地登记 N 章）"
-        # 会让"登记了但一章都没下载"的漫画看起来已完成（真实数据 comic 126/131）。
+        # 站点无更新不代表本地已下载，须同时报告本地进度。
         report["message"] += (
             f"；本地已下载 {base['local_downloaded']}/{base['local_registered']} 章"
         )
@@ -600,10 +599,7 @@ def check_updates(comic_id: Optional[int] = None, all_comics: bool = False,
                 inserted_ids = [o["chapter_id"] for o in outcomes if o["inserted"]]
                 report["registered_now"] = len(outcomes)
                 report["chapter_no_adjusted"] = sum(1 for o in outcomes if o["renumbered"])
-            # 追更的语义是"把本地补齐到站点状态"：除新章节外，还要补下
-            # "已登记但从未下载(pending)"的章节——它们不会被 URL 对比发现，
-            # 否则永远停留在"已是最新"而实际一章都没有（真实数据 comic 126/131）。
-            # failed 章节不自动重试（多为站点侧问题），只在报告中提示可重试。
+            # 补下新章节与本地 pending；failed 仅提示，避免反复重试站点故障。
             chapters_now = db.list_chapters(comic["id"])
             pending_ids = [ch["id"] for ch in chapters_now if ch["status"] == "pending"]
             target_ids = sorted(set(inserted_ids) | set(pending_ids))
@@ -630,7 +626,7 @@ def check_updates(comic_id: Optional[int] = None, all_comics: bool = False,
 
 
 # ---------------------------------------------------------------------------
-# 一次性维护：按站点章节列表校正本地登记 + 封面修复
+# 章节校正与封面修复
 # ---------------------------------------------------------------------------
 
 def sync_comics(comic_id: Optional[int] = None, all_comics: bool = False,

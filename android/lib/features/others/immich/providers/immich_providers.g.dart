@@ -7,7 +7,7 @@ part of 'immich_providers.dart';
 // **************************************************************************
 
 String _$immichFilterNotifierHash() =>
-    r'eae2c1891249c20e8728769f31997e776006ac6a';
+    r'954be08e16d85d8394a6ec841341c694bf73fd1c';
 
 /// 筛选条件 Provider
 ///

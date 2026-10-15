@@ -1,11 +1,7 @@
 """SQLite 数据访问层（标准库 sqlite3）。
 
-设计要点：
-- 表结构真源是 `references/db/sqlite.sql`（Monarch 启动时也会执行同一份脚本），
-  本模块只负责打开连接与读写，不再自持建表 SQL，避免两处漂移。
-- 连接不跨函数持有：`connect()` 用于读取，`transaction()` 用于写入
-  （BEGIN IMMEDIATE + 单写者模型，跨进程由 busy_timeout 等待）。
-- 每函数返回 dict / dict 列表，便于直接序列化为 JSON。
+建表引用后端 references/db/sqlite.sql；连接按调用关闭，多步写入使用
+transaction()（BEGIN IMMEDIATE），单条语句自动提交；结果为可序列化 dict。
 """
 from __future__ import annotations
 
@@ -374,20 +370,6 @@ def insert_chapters(comic_id: int, site_id: int, chapters: Iterable[dict]) -> li
     return result
 
 
-def _next_free_no(conn, comic_id: int, start_no: int) -> int:
-    """返回 >= start_no 的第一个未被占用的 chapter_no。"""
-    taken = {
-        int(r["chapter_no"])
-        for r in conn.execute(
-            "SELECT chapter_no FROM comic_chapters WHERE comic_id = ?", (comic_id,)
-        ).fetchall()
-    }
-    no = max(1, start_no)
-    while no in taken:
-        no += 1
-    return no
-
-
 def _place_chapter_at(conn, comic_id: int, chapter_id: int, want_no: int) -> int:
     """把指定章节放到 want_no：
 
@@ -428,13 +410,6 @@ def list_chapters(comic_id: int) -> list[dict]:
         ).fetchall()
 
 
-def get_chapter(chapter_id: int) -> Optional[dict]:
-    with connect() as conn:
-        return conn.execute(
-            "SELECT * FROM comic_chapters WHERE id = ?", (chapter_id,)
-        ).fetchone()
-
-
 def update_chapter_status(chapter_id: int, status: str, page_count: int = 0, error: str = "") -> None:
     with connect() as conn:
         conn.execute(
@@ -445,13 +420,6 @@ def update_chapter_status(chapter_id: int, status: str, page_count: int = 0, err
             """,
             (status, page_count, error, chapter_id),
         )
-
-
-def count_chapters(comic_id: int) -> int:
-    with connect() as conn:
-        return conn.execute(
-            "SELECT count(*) AS n FROM comic_chapters WHERE comic_id = ?", (comic_id,)
-        ).fetchone()["n"]
 
 
 # ---------------------------------------------------------------------------
@@ -506,31 +474,6 @@ def recover_running_tasks(comic_id: int | None = None) -> int:
 # 图片记录（供 Go/Flutter 系统读取图片路径与宽高）
 # ---------------------------------------------------------------------------
 
-def insert_images(chapter_id: int, images: Iterable[dict]) -> int:
-    """写入章节下的图片记录（幂等：同章节同 sort_num 跳过）。返回插入行数。"""
-    rows = [
-        (chapter_id, img["sort_num"], img["file_name"], img["width"], img["height"])
-        for img in images
-    ]
-    if not rows:
-        return 0
-    with transaction() as conn:
-        cur = conn.executemany(
-            """
-            INSERT INTO comic_images (chapter_id, sort_num, file_name, width, height)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (chapter_id, sort_num) DO NOTHING
-            """,
-            rows,
-        )
-        return cur.rowcount
-
-
-def clear_images(chapter_id: int) -> None:
-    """删除章节下的全部图片记录（重新下载时先清理，保证与磁盘一致）。"""
-    with connect() as conn:
-        conn.execute("DELETE FROM comic_images WHERE chapter_id = ?", (chapter_id,))
-
 
 def replace_images(chapter_id: int, images: Iterable[dict]) -> int:
     """清理并重建章节的图片记录（单事务，避免中途失败留下空记录）。"""
@@ -550,19 +493,6 @@ def replace_images(chapter_id: int, images: Iterable[dict]) -> int:
             rows,
         )
         return cur.rowcount
-
-
-def count_images(comic_id: int) -> int:
-    """统计漫画下的图片记录数（供验证）。"""
-    with connect() as conn:
-        return conn.execute(
-            """
-            SELECT count(*) AS n FROM comic_images img
-            JOIN comic_chapters ch ON ch.id = img.chapter_id
-            WHERE ch.comic_id = ?
-            """,
-            (comic_id,),
-        ).fetchone()["n"]
 
 
 def set_cover_image(comic_id: int, cover_path: str) -> None:

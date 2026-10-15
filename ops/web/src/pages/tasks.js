@@ -1,7 +1,6 @@
 // 任务管理：启动/中断 gallery CLI 任务（ingest / execute / refresh）。
 //
 // 进程由服务端托管（/API/ops/local/tasks），页面只提交参数并观察状态；
-// Monarch 自身不再由运维端启动——服务端就是托管网页的那一方。
 
 import { ref, computed, onMounted } from '../vue.js';
 import { api } from '../api.js';

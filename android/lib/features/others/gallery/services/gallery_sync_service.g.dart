@@ -6,31 +6,28 @@ part of 'gallery_sync_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$galleryUploadStatsHash() =>
-    r'811f991ad88520395c8e162736a6266dc7148dd6';
+String _$galleryProcessedStatsHash() =>
+    r'9c67572542a9ce8a855217ed0d012c52ce885eec';
 
-/// 待上传数据统计 Provider
-/// 按照 modified_count 计算需要上传的记录：
-/// - media_assets: sync_count <= modified_count 的记录
-/// - tags: 全量
-/// - media_tag_links: 与涉及到的 media_assets 关联的记录
+/// 与「标记已处理」使用相同范围的主文件统计。
 ///
-/// Copied from [galleryUploadStats].
-@ProviderFor(galleryUploadStats)
-final galleryUploadStatsProvider =
-    AutoDisposeFutureProvider<UploadStats>.internal(
-  galleryUploadStats,
-  name: r'galleryUploadStatsProvider',
+/// Copied from [galleryProcessedStats].
+@ProviderFor(galleryProcessedStats)
+final galleryProcessedStatsProvider =
+    AutoDisposeFutureProvider<({int mediaCount, int deletedCount})>.internal(
+  galleryProcessedStats,
+  name: r'galleryProcessedStatsProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
       ? null
-      : _$galleryUploadStatsHash,
+      : _$galleryProcessedStatsHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef GalleryUploadStatsRef = AutoDisposeFutureProviderRef<UploadStats>;
+typedef GalleryProcessedStatsRef
+    = AutoDisposeFutureProviderRef<({int mediaCount, int deletedCount})>;
 String _$gallerySyncServiceHash() =>
-    r'c4e731971a4a39baa30d185b63e2aed9b643ec42';
+    r'5888ab6d5250922a8250001f90b3ee2d4f0aecc3';
 
 /// Gallery 同步服务 Provider
 ///

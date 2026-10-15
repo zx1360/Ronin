@@ -15,7 +15,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 |------|----|------|
 | 藏品 | `media_assets` / `tags` / `media_tag_links` | 见 `gallery.md`；标签 `full_path` 级联由 Go 维护 |
 | 用户数据 | `essay_articles` / `essay_labels` / `essay_year_summaries` / `booklet_styles` / `booklet_records` | 见 `user_data.md` |
-| AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md`。`jobs` 与 `media_ai`/`embeddings`/`faces` 各有 `input_sig` 列（输入档位 + 执行者指纹，用于追溯与自动重排） |
+| AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md`。`jobs` 与 `media_ai`/`embeddings`/`faces` 各有 `input_sig` 列（输入档位 + 执行者指纹，用于追溯与显式重生成） |
 | 漫画 | `comic_sites` / `comics` / `comic_chapters` / `comic_images` / `comic_download_tasks` / `comic_aliases` | 见 `comix.md` |
 
 ## 取值约定
@@ -48,7 +48,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
   `(is_deleted, id)` 是 AI「尚无产物」统计的覆盖索引（缺它该聚合从 0.3s 退化到 3s）。
 - `embeddings` 主键 `(media_id, kind, model)`；`faces` 建 `media_id` / `person_id` 索引；
   `jobs` 建 `(capability, status, priority, id)` / `media_id` / `updated_at`
-  （后两个 + `input_sig` 支撑"指纹不匹配则重排"的扫描）。
+  （后两个支撑任务查询，`input_sig` 用于差异统计）。
 - `comic_chapters.url`、`comic_images(chapter_id, sort_num)` 等唯一约束沿用原语义。
 
 ## 性能注意（70k 媒体 / 124k 漫画图 / 280k AI 任务 / 71k 向量实测）
@@ -58,7 +58,6 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 - **模糊检索退化为 `LIKE '%kw%'` 全表扫描**（无 pg_trgm/FTS 索引）：`media_ai` 表窄、
   7 万行实测 29ms 反而更快，但**代价随文本量线性增长**，是必须留意的隐性上限；
   OCR/描述体量大幅增长时再引入 FTS5(trigram) 虚拟表。
-- **批量 UPDATE 的 IN 列表**（500 条约 34ms）比 `= ANY(array)` 慢，批量写优先用事务。
 - AI 待处理统计是 3 路 LEFT JOIN，由 `/API/ai/status` 每 30s 刷新一次，靠上述覆盖索引压到 0.3s。
 
 ## 验收

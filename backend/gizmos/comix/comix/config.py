@@ -54,13 +54,6 @@ PAGE_TIMEOUT_SEC = int(os.getenv("PAGE_TIMEOUT_SEC", "20"))
 CHAPTER_RETRY_TIMES = int(os.getenv("CHAPTER_RETRY_TIMES", "2"))
 
 
-def ensure_storage_root() -> Path:
-    """确保存储根目录存在，返回其 Path。"""
-    root = Path(COMIC_STORAGE_ROOT)
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
 def storage_path(rel_dir: str) -> str:
     """把 DB 中的 rel_dir（形如 `comics/{comic_id}/{chapter_id}`）解析为绝对路径。
 

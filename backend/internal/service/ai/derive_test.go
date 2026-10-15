@@ -49,7 +49,7 @@ func TestAIDerivedPath(t *testing.T) {
 }
 
 // TestCapabilitySpecs 能力契约：档位分配符合"轻量能力用 256 档、识别类用 1024 档"，
-// 且 VLM 的执行者随所选模型变化（这正是自动重排的依据）。
+// 且 VLM 的执行者随所选模型变化。
 func TestCapabilitySpecs(t *testing.T) {
 	config.AppConf.GalleryDir = filepath.Join("C:", "Gallery")
 	// 模型选择存在配置文件里（临时文件，不碰真实配置）

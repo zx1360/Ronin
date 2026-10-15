@@ -1,10 +1,6 @@
 // Package comix_handler 提供 comix 漫画爬虫管理接口。
 //
-// 接口分两类：
-//   - 同步：config / init / sites / list / chapters（秒级完成，直接返回 CLI JSON）
-//   - 异步任务：search / add / add-url / download / update-check / delete / clean
-//     由服务端任务引擎管理生命周期，返回 task_id，状态/日志/结果经 /tasks 查询，
-//     可通过 /tasks/:id/stop 中断。
+// 查询直接读库；爬虫操作由任务引擎托管，状态与日志经 /tasks 查询。
 //
 // 响应约定与 comix 协议一致：业务错误（ok=false，如多候选、未找到）返回
 // HTTP 200 并附带 candidates；仅传输/配置级故障返回 HTTP 500。

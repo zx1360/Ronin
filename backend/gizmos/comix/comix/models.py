@@ -32,17 +32,3 @@ class ComicDetail:
 
     comic: ComicInfo
     chapters: list[ChapterInfo] = field(default_factory=list)
-
-
-@dataclass
-class ChapterDownloadResult:
-    """单章节下载结果。"""
-
-    chapter_id: int
-    chapter_no: int
-    title: str
-    ok: bool
-    skipped: bool = False
-    pages: int = 0
-    rel_dir: str = ""
-    error: str = ""

@@ -216,7 +216,7 @@ final galleryDownloadSecondarySortProvider =
 
 typedef _$GalleryDownloadSecondarySort = Notifier<String>;
 String _$galleryGridPreviewModeNotifierHash() =>
-    r'c8a23aeed9c4b216f4b74af3334fbfbd7960e0ff';
+    r'be3fac5092c9afbd3e273c174f56aa8cc33b70bb';
 
 /// 网格预览模式 Provider
 ///

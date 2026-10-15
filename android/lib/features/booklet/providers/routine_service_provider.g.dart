@@ -6,7 +6,7 @@ part of 'routine_service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$routineServiceHash() => r'4cbf17845d948ba08ffa2a841315181de4848fbd';
+String _$routineServiceHash() => r'9f0b1315bfd410b8d196413850acca22d2c35ec9';
 
 /// 核心业务操作，管理所有的数据修改
 ///

@@ -28,8 +28,7 @@ class GalleryWriteBuffer {
   final Future<void> Function(String mediaId, List<String> tagIds) pushTags;
 
   /// 推送媒体标注
-  final Future<void> Function(String mediaId, MediaPatchIntent patch)
-      pushPatch;
+  final Future<void> Function(String mediaId, MediaPatchIntent patch) pushPatch;
 
   /// 最终失败时回滚到写前状态
   final Future<void> Function(String mediaId, WriteBaseline baseline) onRevert;
@@ -44,7 +43,8 @@ class GalleryWriteBuffer {
   bool _disposed = false;
 
   /// 写入前状态快照（回滚依据）
-  MediaAsset? assetBaselineOf(String mediaId) => _writes[mediaId]?.baseline.asset;
+  MediaAsset? assetBaselineOf(String mediaId) =>
+      _writes[mediaId]?.baseline.asset;
 
   /// 排队一次标签集合写入（[baselineTagIds] 为改动前的标签集合）
   void queueTags(
@@ -82,10 +82,14 @@ class GalleryWriteBuffer {
   }) {
     return _writes.putIfAbsent(
       mediaId,
-      () => _PendingWrite(WriteBaseline(
-        asset: baselineAsset,
-        tagIds: baselineTagIds == null ? null : List<String>.from(baselineTagIds),
-      )),
+      () => _PendingWrite(
+        WriteBaseline(
+          asset: baselineAsset,
+          tagIds: baselineTagIds == null
+              ? null
+              : List<String>.from(baselineTagIds),
+        ),
+      ),
     );
   }
 
@@ -156,28 +160,6 @@ class GalleryWriteBuffer {
       onError?.call('网络异常，已撤销未同步的修改');
     }
   }
-
-  /// 立即推送所有待写内容（退出页面/测试用）
-  ///
-  /// 会取消退避等待, 反复冲洗直到没有待写内容（含重试与最终回滚）。
-  Future<void> flushAll() async {
-    for (var i = 0; i < 32; i++) {
-      final ids = _writes.keys.toList();
-      if (ids.isEmpty) return;
-      for (final id in ids) {
-        final write = _writes[id];
-        if (write == null) continue;
-        write.timer?.cancel();
-        write.timer = null;
-        await _flush(id);
-      }
-      if (!hasPending) return;
-    }
-  }
-
-  bool get hasPending => _writes.values.any(
-        (w) => w.inFlight || w.tagIds != null || w.patch != null || w.timer != null,
-      );
 
   void dispose() {
     _disposed = true;

@@ -41,10 +41,7 @@ var capabilityPriority = map[string]int{
 
 // ---------- 入库自动触发 ----------
 
-// reconcileLoop 周期性把"尚无任务行"的媒体补进队列。
-//
-// 这是"媒体入库后自动触发处理流水线"的唯一实现：不依赖入库方的任何配合，
-// 幂等且自愈——无论媒体是何时、由哪个工具写入的，最终都会被覆盖到。
+// reconcileLoop 周期性补齐无任务行的媒体，不重排已有结果。
 func (e *Engine) reconcileLoop(ctx context.Context) {
 	next := reconcileInitialDelay
 	for {
@@ -190,7 +187,7 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		jobByMedia[key] = job.JobID
 	}
 
-	// 本次批次使用的输入档位 + 执行者指纹：随产物一起落库，供追溯与自动重排判断
+	// 批次指纹随产物落库，供追溯和显式重生成使用。
 	spec, ok := e.capabilitySpec(capability)
 	if !ok {
 		e.failJobs(claimed, capability, "未知能力: "+capability)

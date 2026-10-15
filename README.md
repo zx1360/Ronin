@@ -25,7 +25,7 @@
 漫画/媒体/随笔/打卡等全部业务数据存于一个文件: `backend/data/monarch.db`。
 Monarch、gizmos CLI 与 comix 爬虫三方共用同一文件(WAL + 单写者模型, 跨进程由 busy_timeout 兜底)。
 
-**==数据即文件, 备份就是复制这一个 db 文件(连同 -wal/-shm)==**
+备份: 关闭所有访问进程后复制数据库文件。
 
 ## 网页运维端(Northstar)
 

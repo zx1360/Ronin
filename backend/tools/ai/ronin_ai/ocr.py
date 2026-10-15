@@ -16,11 +16,7 @@ from .protocol import log
 # 低于该置信度的识别结果直接丢弃，避免噪声污染检索
 MIN_SCORE = 0.5
 
-# 检测网络的输入边长上限。
-#
-# 侧车只喂 256px 的预览图（见 backend/internal/service/ai/engine.go），而 rapidocr
-# 默认会把输入放大到 736，在已经模糊的小图上既费时又不提升识别率：实测 24 张
-# 随机预览图，默认 4.92s/张 识别 33 行；限到 320 后 2.72s/张 且识别 37 行。
+# 检测网络的输入边长上限，限制单图计算开销。
 OCR_DET_SIDE_LIMIT = 320
 
 

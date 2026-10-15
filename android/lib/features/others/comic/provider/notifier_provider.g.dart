@@ -6,14 +6,9 @@ part of 'notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicServiceHash() => r'c39e9085cf07e4e00562beeb7a9728a492a90ef4';
+String _$comicServiceHash() => r'c7c26f5338fa5ccab3f187e24c7519b8ac98b736';
 
-/// Comic 模块的核心服务
-///
-/// 提供以下功能：
-/// - 阅读偏好管理
-/// - 漫画下载与保存
-/// - 元数据刷新
+/// 阅读偏好与元数据服务。
 ///
 /// Copied from [ComicService].
 @ProviderFor(ComicService)

@@ -309,7 +309,7 @@ func TestAiJobQueue(t *testing.T) {
 	}
 }
 
-// TestAiStaleInput 指纹不匹配才重排：失败的任务同样记指纹，否则会被反复重排。
+// TestAiStaleInput 校验指纹差异统计与显式重生成。
 func TestAiStaleInput(t *testing.T) {
 	clearTestVLMJobs(t)
 	mediaIDs := []uuid.UUID{sampleMediaID(t)}
@@ -329,16 +329,12 @@ func TestAiStaleInput(t *testing.T) {
 	if n, err := ai_repo.CountStaleInput(model.CapVLM, current); err != nil || n != 0 {
 		t.Fatalf("失败任务不应被判为待重排: n=%d err=%v", n, err)
 	}
-	if n, err := ai_repo.ResetStaleInput(model.CapVLM, current); err != nil || n != 0 {
-		t.Fatalf("失败任务不应被重排: n=%d err=%v", n, err)
-	}
-
 	// 换成另一个执行者后，同一条已完成/已失败的任务应被判为待重排
 	if n, err := ai_repo.CountStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 1 {
 		t.Fatalf("指纹变更应被判为待重排: n=%d err=%v", n, err)
 	}
-	if n, err := ai_repo.ResetStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 1 {
-		t.Fatalf("指纹变更应被重排: n=%d err=%v", n, err)
+	if n, err := ai_repo.RegenerateMedia(model.CapVLM, mediaIDs, "ai1024|ollama:other"); err != nil || n != 1 {
+		t.Fatalf("显式重生成失败: n=%d err=%v", n, err)
 	}
 	if n, err := ai_repo.CountStaleInput(model.CapVLM, "ai1024|ollama:other"); err != nil || n != 0 {
 		t.Fatalf("重排后不应再判为待重排: n=%d err=%v", n, err)
@@ -783,7 +779,7 @@ func TestWriteRollback(t *testing.T) {
 
 // ---------- 任务行唯一性 ----------
 
-// TestAiJobUniqueness 同一 (能力, 媒体) 只能有一行任务：重复入队、换模型重排、
+// TestAiJobUniqueness 同一 (能力, 媒体) 只能有一行任务：重复入队、单项和
 // 全量重生成都不得多生成记录（否则进度统计与"已入队"判定都会被放大）。
 //
 // 放在文件末尾：其中的全量重生成会清空该能力的产物，只在库副本上执行。
@@ -836,18 +832,6 @@ func TestAiJobUniqueness(t *testing.T) {
 	}
 	if after := countFor(); after != before {
 		t.Fatalf("重复入队/重生成多生成了任务行: %d -> %d", before, after)
-	}
-
-	// 换模型：只应把已有行重新排队，不新增行
-	if n, err := ai_repo.ResetStaleInput(capability, "sig-c"); err != nil {
-		t.Fatalf("换模型重排失败: %v", err)
-	} else if n > 0 {
-		if again, err := ai_repo.ResetStaleInput(capability, "sig-c"); err != nil || again != 0 {
-			t.Fatalf("重排应先有条数、再为 0: again=%d err=%v", again, err)
-		}
-	}
-	if after := countFor(); after != before {
-		t.Fatalf("换模型重排多生成了任务行: %d -> %d", before, after)
 	}
 
 	// 全量重生成：未删除媒体的任务行数应等于媒体总数，且仍无重复
