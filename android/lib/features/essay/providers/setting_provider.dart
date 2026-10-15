@@ -9,46 +9,52 @@ import 'package:torrid/features/essay/models/essay.dart';
 part 'setting_provider.g.dart';
 
 /// 随笔排序方式
-enum SortType { 
+enum SortType {
   /// 按时间升序（旧→新）
-  ascending, 
+  ascending,
+
   /// 按时间降序（新→旧）
-  descending, 
+  descending,
+
   /// 随机排序
   random,
 }
 
 /// 浏览设置状态
-/// 
+///
 /// 包含排序方式和已选标签筛选条件。
 class BrowseSettings {
   /// 当前排序方式
   final SortType sortType;
-  
+
   /// 已选中的标签ID列表（用于筛选）
   final List<String> selectedLabels;
+  final bool showHidden;
 
   const BrowseSettings({
     this.sortType = SortType.descending,
     this.selectedLabels = const [],
+    this.showHidden = false,
   });
 
   BrowseSettings copyWith({
-    SortType? sortType, 
+    SortType? sortType,
     List<String>? selectedLabels,
+    bool? showHidden,
   }) {
     return BrowseSettings(
       sortType: sortType ?? this.sortType,
       selectedLabels: selectedLabels ?? this.selectedLabels,
+      showHidden: showHidden ?? this.showHidden,
     );
   }
-  
+
   /// 是否有筛选条件
-  bool get hasFilters => selectedLabels.isNotEmpty;
+  bool get hasFilters => selectedLabels.isNotEmpty || showHidden;
 }
 
 /// 浏览设置管理器
-/// 
+///
 /// 管理随笔浏览页面的排序和筛选设置。
 @riverpod
 class BrowseManager extends _$BrowseManager {
@@ -58,6 +64,17 @@ class BrowseManager extends _$BrowseManager {
   /// 设置排序方式
   void setSortType(SortType sortType) {
     state = state.copyWith(sortType: sortType);
+  }
+
+  void setShowHidden(bool value, Set<String> hiddenIds) {
+    state = state.copyWith(
+      showHidden: value,
+      selectedLabels: value
+          ? state.selectedLabels
+          : state.selectedLabels
+                .where((id) => !hiddenIds.contains(id))
+                .toList(),
+    );
   }
 
   /// 切换标签选中状态

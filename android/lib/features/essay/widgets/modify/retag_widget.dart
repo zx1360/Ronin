@@ -37,6 +37,48 @@ class RetagWidget extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
+          TextButton.icon(
+            icon: const Icon(Icons.title),
+            label: const Text('编辑标题（可选）'),
+            onPressed: () async {
+              var titleText = essay.title;
+              final title = await showDialog<String>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('随笔标题'),
+                  content: TextFormField(
+                    initialValue: titleText,
+                    onChanged: (value) => titleText = value,
+                    maxLength: 100,
+                    decoration: const InputDecoration(hintText: '留空时继续展示日期与正文'),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('取消'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, titleText.trim()),
+                      child: const Text('保存'),
+                    ),
+                  ],
+                ),
+              );
+              if (title == null || !context.mounted) return;
+              try {
+                await ref
+                    .read(essayServiceProvider.notifier)
+                    .writeEssay(essay: essay.copyWith(title: title));
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('$e')));
+                }
+              }
+            },
+          ),
+
           // 使用 Flexible 让标签选择器在空间不足时可滚动
           Flexible(
             child: LabelSelector(

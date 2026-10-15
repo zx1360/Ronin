@@ -25,13 +25,14 @@ class EssayAdapter extends TypeAdapter<Essay> {
       labels: (fields[5] as List).cast<String>(),
       messages: (fields[6] as List).cast<Message>(),
       mood: fields[7] as MoodType?,
+      title: fields[8] == null ? '' : fields[8] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, Essay obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class EssayAdapter extends TypeAdapter<Essay> {
       ..writeByte(6)
       ..write(obj.messages)
       ..writeByte(7)
-      ..write(obj.mood);
+      ..write(obj.mood)
+      ..writeByte(8)
+      ..write(obj.title);
   }
 
   @override
@@ -66,27 +69,29 @@ class EssayAdapter extends TypeAdapter<Essay> {
 // **************************************************************************
 
 Essay _$EssayFromJson(Map<String, dynamic> json) => Essay(
-      id: json['id'] as String,
-      date: dateTimeFromJson(json['date'] as String),
-      wordCount: (json['word_count'] as num).toInt(),
-      content: json['content'] as String,
-      imgs: (json['imgs'] as List<dynamic>).map((e) => e as String).toList(),
-      labels:
-          (json['labels'] as List<dynamic>).map((e) => e as String).toList(),
-      messages: (json['messages'] as List<dynamic>?)
-              ?.map((e) => Message.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      mood: const MoodTypeConverter().fromJson(json['mood'] as String?),
-    );
+  id: json['id'] as String,
+  date: dateTimeFromJson(json['date'] as String),
+  wordCount: (json['word_count'] as num).toInt(),
+  content: json['content'] as String,
+  imgs: (json['imgs'] as List<dynamic>).map((e) => e as String).toList(),
+  labels: (json['labels'] as List<dynamic>).map((e) => e as String).toList(),
+  messages:
+      (json['messages'] as List<dynamic>?)
+          ?.map((e) => Message.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      [],
+  mood: const MoodTypeConverter().fromJson(json['mood'] as String?),
+  title: json['title'] as String? ?? '',
+);
 
 Map<String, dynamic> _$EssayToJson(Essay instance) => <String, dynamic>{
-      'id': instance.id,
-      'date': dateTimeToJson(instance.date),
-      'word_count': instance.wordCount,
-      'content': instance.content,
-      'imgs': instance.imgs,
-      'labels': instance.labels,
-      'messages': instance.messages,
-      'mood': const MoodTypeConverter().toJson(instance.mood),
-    };
+  'id': instance.id,
+  'date': dateTimeToJson(instance.date),
+  'word_count': instance.wordCount,
+  'content': instance.content,
+  'imgs': instance.imgs,
+  'labels': instance.labels,
+  'messages': instance.messages,
+  'mood': const MoodTypeConverter().toJson(instance.mood),
+  'title': instance.title,
+};

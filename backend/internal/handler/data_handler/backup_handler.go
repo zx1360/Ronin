@@ -149,9 +149,24 @@ func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage) (func(
 		if err := decodeCollection(payload, "year_summaries", &data.YearSummaries); err != nil {
 			return nil, nil, err
 		}
+		data.Labels = model.EnsureHiddenEssayLabel(data.Labels)
+		if err := model.ValidateEssayLabels(data.Labels); err != nil {
+			return nil, nil, err
+		}
+		knownLabels := make(map[string]bool, len(data.Labels))
+		for _, label := range data.Labels {
+			knownLabels[label.ID.String()] = true
+		}
+		seenArticles := make(map[uuid.UUID]bool, len(data.Articles))
 		for _, a := range data.Articles {
-			if a.ID == uuid.Nil || a.Date.Time().IsZero() {
+			if a.ID == uuid.Nil || a.Date.Time().IsZero() || seenArticles[a.ID] {
 				return nil, nil, fmt.Errorf("随笔缺少 id 或 date")
+			}
+			seenArticles[a.ID] = true
+			for _, id := range a.Labels {
+				if !knownLabels[id] {
+					return nil, nil, fmt.Errorf("随笔引用了不存在的标签")
+				}
 			}
 			data.ArticleIDs = append(data.ArticleIDs, a.ID)
 			for _, img := range a.Imgs {

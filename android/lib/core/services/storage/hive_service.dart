@@ -27,6 +27,7 @@ class HiveService {
   static const String yearSummaryBoxName = 'yearSummaries';
   static const String labelBoxName = 'labels';
   static const String essayBoxName = 'essays';
+  static const String essayDraftBoxName = 'essayDrafts';
   // chat对话(仅本地)
   static const String chatBoxName = 'chatConversations';
   // 近期回顾(仅本地: 预设镜像 + 生成结果)
@@ -53,7 +54,7 @@ class HiveService {
     Hive.registerAdapter(LabelAdapter());
     Hive.registerAdapter(EssayAdapter());
     Hive.registerAdapter(MessageAdapter());
-    
+
     // comic漫画
     Hive.registerAdapter(ComicInfoAdapter());
     Hive.registerAdapter(ChapterInfoAdapter());
@@ -75,6 +76,11 @@ class HiveService {
     await Hive.openBox<YearSummary>(yearSummaryBoxName);
     await Hive.openBox<Label>(labelBoxName);
     await Hive.openBox<Essay>(essayBoxName);
+    await Hive.openBox<String>(essayDraftBoxName);
+    final labels = Hive.box<Label>(labelBoxName);
+    if (!labels.values.any((label) => label.isHiddenRoot)) {
+      await labels.put(Label.hiddenId, Label.hidden());
+    }
 
     await Hive.openBox<ChatConversation>(chatBoxName);
 

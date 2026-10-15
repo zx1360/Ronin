@@ -37,6 +37,10 @@ class Essay {
   @MoodTypeConverter()
   final MoodType? mood;
 
+  @HiveField(8, defaultValue: '')
+  @JsonKey(defaultValue: '')
+  final String title;
+
   Essay({
     required this.id,
     required this.date,
@@ -46,6 +50,7 @@ class Essay {
     required this.labels,
     required this.messages,
     this.mood,
+    this.title = '',
   });
 
   Essay copyWith({
@@ -58,6 +63,7 @@ class Essay {
     List<Message>? messages,
     MoodType? mood,
     bool clearMood = false,
+    String? title,
   }) {
     return Essay(
       id: id ?? this.id,
@@ -68,6 +74,7 @@ class Essay {
       labels: labels ?? this.labels,
       messages: messages ?? this.messages,
       mood: clearMood ? null : (mood ?? this.mood),
+      title: title ?? this.title,
     );
   }
 

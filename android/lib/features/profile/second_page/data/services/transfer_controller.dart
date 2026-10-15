@@ -7,6 +7,7 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/services/essay_contract.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/providers/network_config/network_config_provider.dart';
@@ -88,6 +89,7 @@ class TransferController extends _$TransferController {
         throw StateError('获取数据失败');
       }
       final data = Map<String, dynamic>.from(response.data as Map);
+      if (target == TransferTarget.essay) requireEssaySchema(data);
       final relativeDir = target == TransferTarget.preferences
           ? 'preferences'
           : 'img_storage/${target.name}';
@@ -224,7 +226,7 @@ class TransferController extends _$TransferController {
     List<File> allFiles,
     String module,
   ) async {
-    if (allFiles.isEmpty) return allFiles;
+    if (allFiles.isEmpty && module != 'essay') return allFiles;
 
     try {
       final filenames = allFiles.map((f) => p.basename(f.path)).toList();
@@ -235,6 +237,7 @@ class TransferController extends _$TransferController {
         ).future,
       );
 
+      if (module == 'essay') requireEssaySchema(resp?.data);
       if (resp == null || resp.statusCode != 200) return allFiles;
 
       final missing = (resp.data['missing'] as List?)
@@ -247,6 +250,7 @@ class TransferController extends _$TransferController {
           .where((f) => missing.contains(p.basename(f.path)))
           .toList();
     } catch (e) {
+      if (module == 'essay') rethrow;
       AppLogger().warning("检查服务端已有图片失败，回退全量上传: $e");
       return allFiles; // 查询失败时回退为全量上传
     }

@@ -14,7 +14,7 @@ class GalleryDatabaseService {
 
   static Database? _database;
   static const String _dbName = 'gallery.db';
-  static const int _dbVersion = 3;
+  static const int _dbVersion = 4;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -66,6 +66,11 @@ class GalleryDatabaseService {
         'ALTER TABLE tags ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0',
       );
     }
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE tags ADD COLUMN media_count INTEGER NOT NULL DEFAULT 0',
+      );
+    }
   }
 
   /// 创建表结构 - 与服务端字段保持一致（仅本地缓存，权威在服务端）
@@ -102,6 +107,7 @@ class GalleryDatabaseService {
         parent_id TEXT,
         full_path TEXT,
         is_favorite INTEGER NOT NULL DEFAULT 0,
+        media_count INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (parent_id) REFERENCES tags(id) ON DELETE CASCADE,
         UNIQUE (name, parent_id)
       )

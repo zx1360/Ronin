@@ -63,6 +63,17 @@ class YearOverviewPage extends ConsumerWidget {
 
     // 计算统计数据
     final stats = _calculateStats(essays, idMap);
+    final visibleSummary = isAllYears
+        ? YearSummary(
+            year: '-1',
+            essayCount: essays.length,
+            wordCount: essays.fold(0, (sum, e) => sum + e.wordCount),
+            monthSummaries: [
+              for (final year in essays.map((e) => e.year).toSet())
+                MonthSummary(month: year.toString()),
+            ],
+          )
+        : YearSummary.fromEssays(summary.year, essays);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -72,7 +83,7 @@ class YearOverviewPage extends ConsumerWidget {
           // 写作统计卡片
           WritingStatsCard(
             isAllYears: isAllYears,
-            summary: summary,
+            summary: visibleSummary,
             essays: essays,
             stats: stats,
           ),
@@ -83,7 +94,7 @@ class YearOverviewPage extends ConsumerWidget {
           if (!isAllYears) ...[
             _buildSectionTitle(context, '月度写作趋势'),
             const SizedBox(height: 12),
-            MonthlyTrendChart(monthSummaries: summary.monthSummaries),
+            MonthlyTrendChart(monthSummaries: visibleSummary.monthSummaries),
             const SizedBox(height: 20),
           ],
 

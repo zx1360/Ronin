@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"monarch/internal/model"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,8 +17,9 @@ type CheckImagesRequest struct {
 
 // CheckImagesResponse 返回已存在和缺失的图片文件名
 type CheckImagesResponse struct {
-	Existing []string `json:"existing"`
-	Missing  []string `json:"missing"`
+	Existing           []string `json:"existing"`
+	Missing            []string `json:"missing"`
+	EssaySchemaVersion int      `json:"essay_schema_version,omitempty"`
 }
 
 // CheckImagesHandler 检查指定模块的图片目录中哪些文件已存在
@@ -52,8 +55,13 @@ func CheckImagesHandler(c *gin.Context) {
 		}
 	}
 
+	version := 0
+	if moduleName == "essay" {
+		version = model.EssaySchemaVersion
+	}
 	c.JSON(http.StatusOK, CheckImagesResponse{
-		Existing: existing,
-		Missing:  missing,
+		Existing:           existing,
+		Missing:            missing,
+		EssaySchemaVersion: version,
 	})
 }

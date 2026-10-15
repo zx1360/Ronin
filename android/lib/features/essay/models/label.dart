@@ -16,21 +16,47 @@ class Label {
   @HiveField(2)
   final int essayCount;
 
-  Label({required this.id, required this.name, required this.essayCount});
+  @HiveField(3)
+  final String? parentId;
 
-  Label copyWith({String? id, String? name, int? essayCount}) {
+  static const hiddenId = '00000000-0000-4000-8000-000000000001';
+
+  Label({
+    required this.id,
+    required this.name,
+    required this.essayCount,
+    this.parentId,
+  });
+
+  bool get isHiddenRoot => id == hiddenId || (name == '隐藏' && parentId == null);
+
+  Label copyWith({
+    String? id,
+    String? name,
+    int? essayCount,
+    String? parentId,
+    bool clearParent = false,
+  }) {
     return Label(
       id: id ?? this.id,
       name: name ?? this.name,
       essayCount: essayCount ?? this.essayCount,
+      parentId: clearParent ? null : (parentId ?? this.parentId),
     );
   }
 
-  factory Label.newOne(String name) {
-    return Label(id: generateId(), name: name, essayCount: 0);
+  factory Label.newOne(String name, {String? parentId}) {
+    return Label(
+      id: generateId(),
+      name: name,
+      essayCount: 0,
+      parentId: parentId,
+    );
   }
 
+  factory Label.hidden() => Label(id: hiddenId, name: '隐藏', essayCount: 0);
+
   // (反)序列化
-  factory Label.fromJson(Map<String, dynamic> json)=> _$LabelFromJson(json);
+  factory Label.fromJson(Map<String, dynamic> json) => _$LabelFromJson(json);
   Map<String, dynamic> toJson() => _$LabelToJson(this);
 }

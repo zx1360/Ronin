@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"monarch/internal/model"
 	"monarch/internal/repository/data_repo"
 
 	"github.com/gin-gonic/gin"
@@ -67,6 +68,7 @@ func syncFromDB(c *gin.Context, moduleName string) {
 		mergedData["records"] = recordsJSON
 
 	case "essay":
+		mergedData["essay_schema_version"] = model.EssaySchemaVersion
 		articles, err := data_repo.FetchAllEssayArticles()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取随笔失败: " + err.Error()})

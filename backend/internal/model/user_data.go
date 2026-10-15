@@ -50,6 +50,7 @@ type EssayArticle struct {
 	Date      FlexTime        `json:"date"`
 	WordCount int             `json:"word_count"`
 	Content   string          `json:"content"`
+	Title     string          `json:"title"`
 	Imgs      []string        `json:"imgs"`
 	Labels    []string        `json:"labels"`
 	Messages  json.RawMessage `json:"messages"` // JSON 文本
@@ -60,11 +61,12 @@ type EssayArticle struct {
 
 // EssayLabel 对应 essay_labels 表
 type EssayLabel struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	EssayCount int       `json:"essay_count"`
-	CreatedAt  FlexTime  `json:"created_at"`
-	UpdatedAt  FlexTime  `json:"updated_at"`
+	ID         uuid.UUID  `json:"id"`
+	Name       string     `json:"name"`
+	EssayCount int        `json:"essay_count"`
+	ParentID   *uuid.UUID `json:"parent_id"`
+	CreatedAt  FlexTime   `json:"created_at"`
+	UpdatedAt  FlexTime   `json:"updated_at"`
 }
 
 // EssayYearSummary 对应 essay_year_summaries 表

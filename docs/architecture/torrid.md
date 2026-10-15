@@ -50,6 +50,7 @@ flowchart LR
 | --- | --- | --- |
 | SharedPreferences | 主机列表、API key、聊天设置、界面偏好 | Android 本地设置真源 |
 | Hive | 随笔/打卡、Chat 会话消息、Review 镜像和历史、漫画缓存 | 依功能决定是本地真源或缓存 |
+| Hive `essayDrafts` / 私有目录 `essay_drafts/` | 随笔多草稿与草稿图片 | 仅本机；不参与同步、备份和 AI 回顾 |
 | sqflite `gallery.db` | Gallery 媒体缓存、下载批次、待写操作 | 仅缓存，不覆盖服务端权威 |
 | 文件系统 | 聊天内联图片、下载媒体、临时缓存 | 随业务清理，不能只删数据库记录 |
 

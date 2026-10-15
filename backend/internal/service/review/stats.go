@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"monarch/internal/model"
 	"monarch/internal/repository/data_repo"
 )
@@ -109,6 +111,7 @@ type GroupStats struct {
 // EssaySample 随机抽取的一篇随笔。
 type EssaySample struct {
 	Date      string   `json:"date"`
+	Title     string   `json:"title,omitempty"`
 	WordCount int      `json:"word_count"`
 	Labels    []string `json:"labels"`
 	Mood      string   `json:"mood,omitempty"`
@@ -137,7 +140,7 @@ type Data struct {
 // 时间口径必须分开处理，否则会整体错一天：
 //   - essay.date 是绝对时刻（按本机本地时间存储），按本地日历日归日；
 //   - booklet_records.date 是日历日标记（按 UTC 零点存储），直接取其年月日。
-func Collect(r Range, wantEssays, wantRecords int) (*Data, error) {
+func Collect(r Range, wantEssays, wantRecords int, excludeEssayIDs ...uuid.UUID) (*Data, error) {
 	articles, err := data_repo.FetchAllEssayArticles()
 	if err != nil {
 		return nil, err
@@ -159,15 +162,33 @@ func Collect(r Range, wantEssays, wantRecords int) (*Data, error) {
 	for _, item := range labels {
 		labelNames[item.ID.String()] = item.Name
 	}
+	hidden := model.HiddenEssayLabelIDs(labels)
+	excluded := make(map[uuid.UUID]bool, len(excludeEssayIDs))
+	for _, id := range excludeEssayIDs {
+		excluded[id] = true
+	}
+	visible := make([]model.EssayArticle, 0, len(articles))
+	for _, article := range articles {
+		private := excluded[article.ID]
+		for _, id := range article.Labels {
+			if hidden[id] {
+				private = true
+				break
+			}
+		}
+		if !private {
+			visible = append(visible, article)
+		}
+	}
 
 	data := &Data{Stats: Stats{
 		From: r.From.Format("2006-01-02"),
 		To:   r.To.Format("2006-01-02"),
 		Days: r.Days(),
 	}}
-	data.Stats.Essay = collectEssays(r, articles, labelNames)
+	data.Stats.Essay = collectEssays(r, visible, labelNames)
 	data.Stats.Booklet = collectBooklet(r, styles, records)
-	data.Essays = sampleEssaysIn(r, articles, labelNames, wantEssays)
+	data.Essays = sampleEssaysIn(r, visible, labelNames, wantEssays)
 	data.Records = sampleRecordsIn(r, styles, records, wantRecords)
 	return data, nil
 }
@@ -242,6 +263,7 @@ func sampleEssaysIn(r Range, articles []model.EssayArticle, labelNames map[strin
 		}
 		samples = append(samples, EssaySample{
 			Date:      localDay(item.Date.Time()).Format("2006-01-02"),
+			Title:     truncate(strings.TrimSpace(item.Title), 100),
 			WordCount: item.WordCount,
 			Labels:    names,
 			Mood:      moodLabel(item.Mood),
@@ -261,10 +283,10 @@ func collectBooklet(r Range, styles []model.BookletStyle, records []model.Bookle
 	moodCount := map[string]int{}
 	// 按项目组累计：记录数、全勤天数、已完成/应完成任务数。
 	type groupAcc struct {
-		records   int
-		fullDays  int
-		done      int
-		expected  int
+		records  int
+		fullDays int
+		done     int
+		expected int
 	}
 	accs := map[string]*groupAcc{}
 

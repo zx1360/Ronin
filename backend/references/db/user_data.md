@@ -10,6 +10,7 @@
 | date       | TEXT NOT NULL（本地时间文本）                              |
 | word_count | INTEGER NOT NULL DEFAULT 0                                |
 | content    | TEXT NOT NULL DEFAULT ''                                  |
+| title      | TEXT NOT NULL DEFAULT ''（可选标题；旧随笔为空）           |
 | imgs       | TEXT NOT NULL DEFAULT '[]'（JSON 字符串数组）              |
 | labels     | TEXT NOT NULL DEFAULT '[]'（JSON UUID 数组）               |
 | messages   | TEXT NOT NULL DEFAULT '[]'（JSON）                         |
@@ -24,8 +25,11 @@
 | id          | TEXT PRIMARY KEY (UUID)                                   |
 | name        | TEXT NOT NULL                                             |
 | essay_count | INTEGER NOT NULL DEFAULT 0                                |
+| parent_id   | TEXT NULL（根级为空；整套标签写入前校验父级与环）          |
 | created_at  | TEXT NOT NULL DEFAULT 本地时间文本                         |
 | updated_at  | TEXT NOT NULL DEFAULT 本地时间文本 (AFTER UPDATE 触发器维护) |
+
+“隐藏”根标签及其子孙关联的随笔不参与 AI 回顾统计或抽样；Android 同时提交本机尚未同步的隐藏随笔 ID。草稿不进入这些表。同步与图片检查响应的 `essay_schema_version=2` 用于客户端兼容检查。
 
 ## essay_year_summaries
 

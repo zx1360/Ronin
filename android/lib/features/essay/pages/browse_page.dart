@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/essay/pages/drafts_page.dart';
+import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/pages/browse_body.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
 import 'package:torrid/features/essay/widgets/browse/expandable_fab.dart';
 
 import 'package:torrid/features/essay/widgets/browse/setting_widget.dart';
 
-class EssayBrowsePage extends StatefulWidget {
+class EssayBrowsePage extends ConsumerStatefulWidget {
   const EssayBrowsePage({super.key});
 
   @override
-  State<EssayBrowsePage> createState() => _EssayBrowsePageState();
+  ConsumerState<EssayBrowsePage> createState() => _EssayBrowsePageState();
 }
 
-class _EssayBrowsePageState extends State<EssayBrowsePage> {
+class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
   final GlobalKey<BrowseBodyState> _browseBodyKey = GlobalKey();
 
   @override
@@ -21,6 +24,20 @@ class _EssayBrowsePageState extends State<EssayBrowsePage> {
       appBar: AppBar(
         title: const Text('随笔'),
         actions: [
+          IconButton(
+            tooltip: '本机草稿',
+            icon: Badge.count(
+              count: ref.watch(essayDraftsProvider).valueOrNull?.length ?? 0,
+              isLabelVisible:
+                  (ref.watch(essayDraftsProvider).valueOrNull?.isNotEmpty ??
+                  false),
+              child: const Icon(Icons.drafts_outlined),
+            ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EssayDraftsPage()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => _showBrowseSettings(context),

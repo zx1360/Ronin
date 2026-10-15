@@ -59,8 +59,10 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         ? ref.watch(currentMediaTagsProvider).valueOrNull ?? const <Tag>[]
         : const <Tag>[];
     final appliedIds = appliedTags.map((t) => t.id).toSet();
-    final favoriteIds =
-        ref.watch(favoriteTagsProvider).map((t) => t.id).toSet();
+    final favoriteIds = ref
+        .watch(favoriteTagsProvider)
+        .map((t) => t.id)
+        .toSet();
 
     final allTags = tagsAsync.valueOrNull ?? const <Tag>[];
     final expandableIds = {
@@ -121,12 +123,12 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
             }
           }
           for (final list in childrenMap.values) {
-            list.sort((a, b) => a.name.compareTo(b.name));
+            list.sort(compareTagsByMediaCount);
           }
           final roots = [
             for (final t in tags)
               if (t.parentId == null && isVisible(t)) t,
-          ]..sort((a, b) => a.name.compareTo(b.name));
+          ]..sort(compareTagsByMediaCount);
 
           return Column(
             children: [
@@ -136,8 +138,10 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
               Expanded(
                 child: roots.isEmpty
                     ? const Center(
-                        child: Text('未找到匹配的标签',
-                            style: TextStyle(color: Colors.grey)),
+                        child: Text(
+                          '未找到匹配的标签',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -195,10 +199,13 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
                 ),
           border: const OutlineInputBorder(),
           isDense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
         ),
-        onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
+        onChanged: (value) =>
+            setState(() => _query = value.trim().toLowerCase()),
       ),
     );
   }
@@ -245,10 +252,12 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
                   children: [
                     for (final tag in appliedTags)
                       InputChip(
-                        label: Text(tag.name, style: const TextStyle(fontSize: 12)),
+                        label: Text(
+                          tag.name,
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         visualDensity: VisualDensity.compact,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         onDeleted: () => _toggleSelection(tag.id),
                       ),
                   ],
@@ -320,8 +329,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
               onTap: _selectMode
                   ? () => _toggleSelection(tag.id)
                   : (hasChildren ? () => _toggleExpand(tag.id) : null),
-              onToggleExpand:
-                  hasChildren ? () => _toggleExpand(tag.id) : null,
+              onToggleExpand: hasChildren ? () => _toggleExpand(tag.id) : null,
               onToggleFavorite: () =>
                   _toggleFavorite(tag, !favoriteIds.contains(tag.id)),
               onMenuAction: (action) => _handleMenuAction(action, tag),
@@ -333,8 +341,10 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
                 elevation: 4,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
@@ -402,17 +412,18 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
 
   /// 切换选中状态（打标签模式下立即写入）
   Future<void> _toggleSelection(String tagId) async {
-    final current = (ref.read(currentMediaTagsProvider).valueOrNull ??
-            const <Tag>[])
-        .map((t) => t.id)
-        .toList();
+    final current =
+        (ref.read(currentMediaTagsProvider).valueOrNull ?? const <Tag>[])
+            .map((t) => t.id)
+            .toList();
     if (!current.remove(tagId)) current.add(tagId);
     try {
       await ref.read(currentMediaTagsProvider.notifier).setTags(current);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('保存失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
       }
     }
   }
@@ -440,9 +451,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   Future<void> _showAddTagDialog(String? parentId) async {
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => _TagNameDialog(
-        title: parentId == null ? '添加根标签' : '添加子标签',
-      ),
+      builder: (_) =>
+          _TagNameDialog(title: parentId == null ? '添加根标签' : '添加子标签'),
     );
     if (name != null && name.isNotEmpty) {
       await _addTag(name, parentId);
@@ -457,8 +467,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
           .createTag(name: name, parentId: parentId);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('添加失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('添加失败: $e')));
       }
       return;
     }
@@ -481,8 +492,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       await ref.read(tagTreeProvider.notifier).renameTag(tag, name);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('重命名失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('重命名失败: $e')));
       }
     }
   }
@@ -493,8 +505,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       await ref.read(tagTreeProvider.notifier).setFavorite(tag.id, value);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('快捷标签更新失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('快捷标签更新失败: $e')));
       }
     }
   }
@@ -527,8 +540,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       if (mounted) setState(() => _expandedIds.remove(tag.id));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('删除失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('删除失败: $e')));
       }
     }
   }
@@ -542,8 +556,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('移动失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('移动失败: $e')));
       }
     }
   }
@@ -589,7 +604,9 @@ class _TagTileContent extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDropTarget
             ? scheme.primaryContainer.withValues(alpha: 0.3)
-            : (selected ? scheme.primaryContainer.withValues(alpha: 0.45) : null),
+            : (selected
+                  ? scheme.primaryContainer.withValues(alpha: 0.45)
+                  : null),
         border: isDropTarget
             ? Border.all(color: scheme.primary, width: 2)
             : null,
@@ -604,9 +621,7 @@ class _TagTileContent extends StatelessWidget {
             children: [
               if (selectMode)
                 Icon(
-                  selected
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
+                  selected ? Icons.check_circle : Icons.radio_button_unchecked,
                   size: 20,
                   color: selected ? scheme.primary : Colors.grey,
                 )
@@ -627,7 +642,9 @@ class _TagTileContent extends StatelessWidget {
                       style: const TextStyle(fontSize: 14),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (showPath && tag.fullPath != null && tag.fullPath != tag.name)
+                    if (showPath &&
+                        tag.fullPath != null &&
+                        tag.fullPath != tag.name)
                       Text(
                         tag.fullPath!,
                         style: TextStyle(fontSize: 11, color: Colors.grey[600]),
@@ -714,8 +731,9 @@ class _TagNameDialog extends StatefulWidget {
 }
 
 class _TagNameDialogState extends State<_TagNameDialog> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.initialText ?? '');
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialText ?? '',
+  );
 
   @override
   void dispose() {

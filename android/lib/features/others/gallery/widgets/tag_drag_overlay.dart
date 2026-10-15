@@ -259,7 +259,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
             .map((t) => t.id)
             .toSet();
     final favorites = ref.watch(favoriteTagsProvider);
-    final children = groupTagsByParent(tags, compare: compareTagsByPath);
+    final children = groupTagsByParent(tags);
     final nodes = flattenTagTree(children, expanded: _expandedIds);
     final turns = widget.quarterTurns % 4;
     final safeTop = MediaQuery.paddingOf(context).top + 8;

@@ -92,6 +92,9 @@ func writeEssaySamples(b *strings.Builder, samples []EssaySample) {
 	b.WriteString("\n【随机抽取的随笔】\n")
 	for _, item := range samples {
 		meta := []string{fmt.Sprintf("%d 字", item.WordCount)}
+		if item.Title != "" {
+			meta = append(meta, "标题："+item.Title)
+		}
 		if len(item.Labels) > 0 {
 			meta = append(meta, "标签："+strings.Join(item.Labels, "、"))
 		}

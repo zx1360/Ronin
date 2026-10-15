@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/media_providers.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
 import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
@@ -27,13 +28,7 @@ class TagTree extends _$TagTree {
   Future<void> refresh() async {
     final db = ref.read(galleryDatabaseProvider);
     final cached = await db.getAllTags();
-    final counts = {
-      for (final tag in state.valueOrNull ?? const <Tag>[])
-        tag.id: tag.mediaCount,
-    };
-    state = AsyncData([
-      for (final tag in cached) tag.copyWith(mediaCount: counts[tag.id] ?? 0),
-    ]);
+    state = AsyncData(cached);
   }
 
   /// 从服务端拉取标签并镜像到本地缓存（标签管理/immich 页进入时调用）
@@ -132,7 +127,7 @@ class TagTree extends _$TagTree {
   }
 }
 
-/// 快捷标签（收藏标签, 按路径排序）——浮层右栏 / 快捷选择使用
+/// 快捷标签（收藏标签，按绑定媒体数降序）
 @riverpod
 List<Tag> favoriteTags(FavoriteTagsRef ref) {
   final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
@@ -140,9 +135,7 @@ List<Tag> favoriteTags(FavoriteTagsRef ref) {
     for (final tag in tags)
       if (tag.isFavorite) tag,
   ];
-  favorites.sort(
-    (a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name),
-  );
+  favorites.sort(compareTagsByMediaCount);
   return favorites;
 }
 
