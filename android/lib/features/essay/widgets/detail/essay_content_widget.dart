@@ -36,10 +36,16 @@ class EssayContentWidget extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 日期和字数, 赋值文本内容按钮
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 4,
           children: [
-            Row(
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 Text(
                   dateFormat.format(essay.date),
@@ -49,12 +55,12 @@ class EssayContentWidget extends ConsumerWidget {
                 ),
                 // 心情显示
                 if (essay.mood != null) ...[
-                  const SizedBox(width: 8),
                   MoodDisplay(mood: essay.mood, iconSize: 18, showLabel: true),
                 ],
               ],
             ),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   '${essay.wordCount} 字',

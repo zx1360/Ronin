@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:torrid/core/utils/file_relates.dart';
 import 'package:torrid/features/booklet/providers/providers.dart';
+import 'package:torrid/features/booklet/pages/history_page.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/checkin_calendar.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/new_style/newtask_inputitem.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
@@ -362,6 +363,19 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
             children: [
                 // 页面标题
                 Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BookletHistoryPage(styleId: _currentStyle?.id),
+                      ),
+                    ),
+                    icon: const Icon(Icons.history),
+                    label: const Text('留言时间轴'),
+                  ),
+                ),
                 const SizedBox(height: 20),
 
                 // 顶部操作栏（样式选择 + 新建按钮）
