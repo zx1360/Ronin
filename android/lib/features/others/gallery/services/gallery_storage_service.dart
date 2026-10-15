@@ -20,11 +20,6 @@ class GalleryStorageService {
   static const String _thumbDir = 'Thumbs';
   static const String _previewDir = 'Previews';
 
-  /// 获取 Gallery 根目录
-  Future<Directory> get galleryRoot async {
-    return IoService.ensureDirExists(_galleryRoot);
-  }
-
   /// 初始化目录结构
   Future<void> initDirectories() async {
     await Future.wait([
@@ -61,18 +56,6 @@ class GalleryStorageService {
 
   // 文件操作
 
-  /// 保存媒体文件到本地
-  Future<File> saveMediaFile({
-    required String serverPath,
-    required List<int> bytes,
-  }) async {
-    final localPath = await getLocalMediaPath(serverPath);
-    final file = File(localPath);
-    await file.parent.create(recursive: true);
-    await file.writeAsBytes(bytes);
-    return file;
-  }
-
   /// 保存缩略图到本地
   Future<File> saveThumbFile({
     required String serverPath,
@@ -97,25 +80,6 @@ class GalleryStorageService {
     return file;
   }
 
-  /// 检查本地媒体文件是否存在
-  Future<bool> mediaFileExists(String serverPath) async {
-    final localPath = await getLocalMediaPath(serverPath);
-    return File(localPath).exists();
-  }
-
-  /// 检查本地缩略图是否存在
-  Future<bool> thumbFileExists(String serverPath) async {
-    final localPath = await getLocalThumbPath(serverPath);
-    return File(localPath).exists();
-  }
-
-  /// 获取本地媒体文件 (如果存在)
-  Future<File?> getMediaFile(String serverPath) async {
-    final localPath = await getLocalMediaPath(serverPath);
-    final file = File(localPath);
-    return await file.exists() ? file : null;
-  }
-
   /// 获取本地缩略图文件 (如果存在)
   Future<File?> getThumbFile(String serverPath) async {
     final localPath = await getLocalThumbPath(serverPath);
@@ -130,39 +94,12 @@ class GalleryStorageService {
     return await file.exists() ? file : null;
   }
 
-  /// 删除本地文件 (仅缩略图和预览图)
-  Future<void> deleteLocalFiles({
-    required String? thumbPath,
-    required String? previewPath,
-  }) async {
-    final futures = <Future>[];
-
-    if (thumbPath != null) {
-      final path = await getLocalThumbPath(thumbPath);
-      final file = File(path);
-      if (await file.exists()) {
-        futures.add(file.delete());
-      }
-    }
-
-    if (previewPath != null) {
-      final path = await getLocalPreviewPath(previewPath);
-      final file = File(path);
-      if (await file.exists()) {
-        futures.add(file.delete());
-      }
-    }
-
-    await Future.wait(futures);
-  }
-
   // 统计信息
 
   /// 获取存储统计信息
   Future<GalleryStorageStats> getStorageStats() async {
     final externalDir = await IoService.externalStorageDir;
-    final galleryDir =
-        Directory(p.join(externalDir.path, _galleryRoot));
+    final galleryDir = Directory(p.join(externalDir.path, _galleryRoot));
 
     if (!await galleryDir.exists()) {
       return GalleryStorageStats(fileCount: 0, totalBytes: 0);
@@ -171,8 +108,10 @@ class GalleryStorageService {
     int fileCount = 0;
     int totalBytes = 0;
 
-    await for (final entity
-        in galleryDir.list(recursive: true, followLinks: false)) {
+    await for (final entity in galleryDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is File) {
         fileCount++;
         totalBytes += await entity.length();
@@ -193,36 +132,6 @@ class GalleryStorageService {
       await initDirectories();
     }
     AppLogger().info('Gallery 文件存储已清空');
-  }
-
-  /// 清理空目录
-  Future<void> cleanupEmptyDirectories() async {
-    final externalDir = await IoService.externalStorageDir;
-    final galleryDir = Directory(p.join(externalDir.path, _galleryRoot));
-
-    if (!await galleryDir.exists()) return;
-
-    await _removeEmptyDirectories(galleryDir);
-  }
-
-  Future<void> _removeEmptyDirectories(Directory dir) async {
-    // 递归处理子目录
-    await for (final entity in dir.list()) {
-      if (entity is Directory) {
-        await _removeEmptyDirectories(entity);
-      }
-    }
-
-    // 检查当前目录是否为空
-    final contents = await dir.list().toList();
-    if (contents.isEmpty) {
-      // 不删除根目录
-      final externalDir = await IoService.externalStorageDir;
-      final galleryRootPath = p.join(externalDir.path, _galleryRoot);
-      if (dir.path != galleryRootPath) {
-        await dir.delete();
-      }
-    }
   }
 }
 

@@ -514,7 +514,7 @@ export default {
       />
       <Placeholder
         v-else-if="schemaMissing"
-        error="AI 表尚未初始化：请先对数据库执行 backend/references/db/ai.sql（幂等，只新增 ai 侧的表与列，不影响既有数据），然后重启 Monarch。"
+        error="AI 数据表尚未初始化，请检查服务启动日志后重启 Monarch。"
       />
       <Placeholder v-else-if="!status" :error="error" :text="error ? '' : '正在获取 /API/ai/status…'" />
       <template v-else>
@@ -543,7 +543,7 @@ export default {
             <Badge
               v-if="card.stale > 0"
               kind="warning"
-              title="输入档位或执行者已变更，这些旧产物会被服务端自动重排"
+              title="输入档位或执行者已变更，可按需手动重生成"
             >待重排 {{ card.stale }}</Badge>
             <Badge v-if="card.running" kind="info">进程运行中 PID {{ card.pid }}</Badge>
           </template>
@@ -730,7 +730,7 @@ export default {
             </div>
             <div class="small muted">
               候选实时来自本机 Ollama 的已安装模型（ollama pull/rm 后刷新即可，无需改配置）；
-              换模型后该能力的旧产物会被服务端自动重排（输入档位/执行者不匹配即重排）。
+              切换模型后已有结果保持原样，需要更新时请手动重新生成。
               标注必须有视觉能力，只有对话模型时请勿切到它。
             </div>
 

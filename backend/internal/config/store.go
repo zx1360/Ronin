@@ -10,14 +10,6 @@ import (
 	"time"
 )
 
-// 运行时配置存储
-//
-// `.env` 只保留"连库（以及拉起侧车进程）之前就必须知道"的项：数据库位置、静态目录、
-// 监听端口、鉴权密钥、侧车解释器位置。其余用户会接触并修改的 AI 配置放在
-// `STATIC_DIR/data/ai_config.json`，由ops端界面读写，改完立即生效、不必重启。
-//
-// `.env` 中同名项退化为"首次初始化的种子值"：文件里已有该项时以文件为准.
-
 // RuntimeConfig AI 处理层的运行时可调项。指针字段表示"本次请求未涉及该项"，
 // 用于界面上的局部更新；文件里读到的值一律已填充为具体数值。
 type RuntimeConfig struct {
@@ -37,8 +29,6 @@ type ConfigStore struct {
 	defaults AiConfig
 	mu       sync.RWMutex
 	runtime  RuntimeConfig
-	// 记录本次 Load 是否"此前没有配置文件"，
-	firstLoad bool
 }
 
 // 运行时项的合法范围（与界面下发的候选一致，非法值直接拒绝而不是静默夹取）。
@@ -55,9 +45,7 @@ const (
 	maxWorkers     = 4
 )
 
-// NewConfigStore 读取配置文件（缺失或损坏时按默认值新建）。
-//
-// defaults 为 .env 推导出的基准值：文件中缺失的项直接沿用它们。
+// NewConfigStore 构造存储；defaults 用于填充配置文件中缺失的项。
 func NewConfigStore(path string, defaults AiConfig) *ConfigStore {
 	s := &ConfigStore{path: path, defaults: defaults}
 	s.runtime = defaultRuntime(defaults)
@@ -76,26 +64,25 @@ func (s *ConfigStore) Load() error {
 		if !os.IsNotExist(err) {
 			return fmt.Errorf("读取 AI 配置文件失败: %w", err)
 		}
-		s.firstLoad = true
 		return s.saveLocked()
 	}
 
-	var runtime RuntimeConfig
-	if err := json.Unmarshal(raw, &runtime); err != nil {
-		// 配置损坏时不静默重置：明确报错，避免用户以为设置生效了
+	// 读取 saveLocked 写出的 runtime 包装，也接受手动维护的平铺配置。
+	var file struct {
+		RuntimeConfig
+		Runtime *RuntimeConfig `json:"runtime"`
+	}
+	if err := json.Unmarshal(raw, &file); err != nil {
 		return fmt.Errorf("解析 AI 配置文件失败 (%s): %w", s.path, err)
 	}
-	if err := applyRuntime(&s.runtime, runtime, s.defaults); err != nil {
+	runtime := file.RuntimeConfig
+	if file.Runtime != nil {
+		runtime = *file.Runtime
+	}
+	if err := applyRuntime(&s.runtime, runtime); err != nil {
 		return fmt.Errorf("AI 配置文件取值非法 (%s): %w", s.path, err)
 	}
 	return nil
-}
-
-// FirstLoad 报告配置文件此前是否存在（不存在意味着这是一次新初始化）。
-func (s *ConfigStore) FirstLoad() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.firstLoad
 }
 
 // Snapshot 返回当前运行时配置的副本（可安全并发读取）。
@@ -107,15 +94,11 @@ func (s *ConfigStore) Snapshot() RuntimeConfig {
 
 // Update 应用一次局部更新并落盘；失败时内存与文件都保持原值。
 func (s *ConfigStore) Update(update RuntimeConfig) error {
-	if err := validateRuntime(update); err != nil {
-		return err
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	next := cloneRuntime(s.runtime)
-	if err := applyRuntime(&next, update, s.defaults); err != nil {
+	if err := applyRuntime(&next, update); err != nil {
 		return err
 	}
 	previous := s.runtime
@@ -140,7 +123,7 @@ func (s *ConfigStore) saveLocked() error {
 	}
 	raw, err := json.MarshalIndent(struct {
 		Runtime RuntimeConfig `json:"runtime"`
-	}{Runtime: filledRuntime(s.runtime, s.defaults)}, "", "  ")
+	}{Runtime: s.runtime}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("序列化 AI 配置失败: %w", err)
 	}
@@ -179,16 +162,8 @@ func defaultRuntime(cfg AiConfig) RuntimeConfig {
 	}
 }
 
-// filledRuntime 补齐未设置项，保证落盘的是完整可读的配置。
-func filledRuntime(current RuntimeConfig, defaults AiConfig) RuntimeConfig {
-	base := defaultRuntime(defaults)
-	merged := cloneRuntime(base)
-	_ = applyRuntime(&merged, current, defaults)
-	return merged
-}
-
 // applyRuntime 用 update 覆盖 dst（nil 字段保持 dst 原值）。
-func applyRuntime(dst *RuntimeConfig, update RuntimeConfig, defaults AiConfig) error {
+func applyRuntime(dst *RuntimeConfig, update RuntimeConfig) error {
 	if err := validateRuntime(update); err != nil {
 		return err
 	}

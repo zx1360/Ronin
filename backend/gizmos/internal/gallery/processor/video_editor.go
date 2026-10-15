@@ -23,7 +23,7 @@ type VideoEditParams struct {
 	// 视频总时长（秒），用于参数合理性校验，可选
 	Duration float64 `json:"duration"`
 
-	// ===== 旧版帧数协议（遗留） =====
+	// 秒数缺失时按帧数与帧率换算。
 	TrimStartFrame int     `json:"trim_start_frame"`
 	TrimEndFrame   int     `json:"trim_end_frame"`
 	FPS            float64 `json:"fps"`
@@ -42,10 +42,7 @@ type VideoEditParams struct {
 //     起止点帧级准确，且解码开销远小于输出侧 seek；
 //   - 重新编码（H.264 + AAC）保证任意容器/编码都能得到时间轴正确的输出，
 //     避免 `-c copy` 在非关键帧处剪切导致的画面黑帧、音画不同步等；
-//   - **音视频时间戳强制归零**（`setpts=PTS-STARTPTS` +
-//     `aresample=async=1:first_pts=0`）：实测某些源（如含负起始时间戳的
-//     手机录制视频）剪辑后视频轨起始 PTS 未归零而音轨已归零，导致输出
-//     "开头黑屏有声音" 的音视频错位，此修复保证两轨都从 0 开始。
+//   - 两轨时间戳归零（setpts / aresample），避免负起始时间戳造成黑屏与音画错位。
 func ApplyVideoEdit(srcPath, dstPath string, editParamsJSON string) error {
 	var params VideoEditParams
 	if err := json.Unmarshal([]byte(editParamsJSON), &params); err != nil {

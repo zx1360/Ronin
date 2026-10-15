@@ -33,7 +33,7 @@ Gin middleware
 - [http_server.StartServer](../../backend/internal/service/server/http_server.go)：双端口、证书、mDNS。
 - [auth middleware](../../backend/internal/handler/util_handler/auth_middleware.go)：API key、回环豁免和失败封禁。
 
-当前生成快照为 81 条路由，完整清单见 [routes.md](../../backend/references/generated/api/routes.md)。快照是导航工具，不是路由真源。
+完整路由清单见 [routes.md](../../backend/references/generated/api/routes.md)。快照是导航工具，不是路由真源。
 
 ## 3. API 分区
 
@@ -106,7 +106,7 @@ comix 本身是无状态 CLI；数据库/文件协议见 [comix AGENTS](../../ba
 [ai.Engine](../../backend/internal/service/ai/engine.go) 是后台 AI 门面：
 
 ```text
-reconcile：发现缺失/指纹变化 -> jobs 幂等入队
+reconcile：发现无任务行的媒体 -> jobs 幂等入队
 worker：事务认领 jobs -> 准备图源 -> 执行能力 -> 保存产物
 sidecar：embed / face / ocr Python 进程，空闲回收
 ollama：VLM 进程/服务监管，按需使用
@@ -117,7 +117,7 @@ cluster：人脸在线归并与批量重聚类
 ### 关键不变量
 
 - `phash/embed` 固定使用 preview 256；`face/ocr/vlm` 使用按需缓存的 AI 1024 图。
-- `input_sig` 同时记录输入档位和执行者；变更模型/执行器后 reconcile 可重排，历史 NULL 不自动重排。
+- `input_sig` 记录输入档位与执行者；差异由状态接口报告，已有结果仅在用户显式重生成时刷新。
 - 本机只有一个 GPU，模型仲裁器保证同一时间只运行一个模型；前台聊天可抢占后台标注。
 - `AI_ENABLED=false` 或 AI schema 缺失时，主服务仍启动；端上应将 AI 失败降级而不是白屏。
 - `/API/ai/chat` 和 `/API/ai/review` 是 NDJSON 流；先有状态/通知类事件，再有增量内容。
@@ -128,8 +128,8 @@ cluster：人脸在线归并与批量重聚类
 go build ./...
 go vet ./...
 go test ./...
-powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1
-powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1 -Check
+pwsh -File .\references\scripts\generate_refs.ps1
+pwsh -File .\references\scripts\generate_refs.ps1 -Check
 ```
 
 如果改了路由或 CLI 参数，快照刷新是接口变更的一部分；客户端再按处理函数阅读实际响应结构。

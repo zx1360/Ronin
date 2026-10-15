@@ -826,7 +826,7 @@ func Recluster(c *gin.Context) {
 // ListCapabilities 处理 GET /API/ai/capabilities
 //
 // 能力的名称、输入档位、执行者与执行者候选全部由服务端下发：消费端只渲染列表，
-// 换模型后旧产物会被自动重排（不匹配即重排），端上无需硬编码任何能力语义。
+// 消费端按服务端契约展示能力与模型，旧结果须显式重生成。
 func ListCapabilities(c *gin.Context) {
 	e := engine(c)
 	if e == nil || !schemaGuard(c) {

@@ -22,7 +22,7 @@
 
 1. 保持无构建、同源、无浏览器持久化。
 2. 页面请求集中经过 `src/api.js`。
-3. 页面级操作使用 `runAction`、`confirmAction` 和 `usePolling`。
+3. 页面操作捕获异常并提示；破坏性操作使用 `confirmAction`，轮询使用 `usePolling`。
 4. `python tools/smoke_ops_web.py`。
 
 ## 2. 关键契约陷阱
@@ -62,7 +62,7 @@ cd D:\products\Ronin\backend
 go build ./...
 go vet ./...
 go test ./...
-powershell -ExecutionPolicy Bypass -File .\references\scripts\generate_refs.ps1 -Check
+pwsh -File .\references\scripts\generate_refs.ps1 -Check
 ```
 
 Gallery CLI：

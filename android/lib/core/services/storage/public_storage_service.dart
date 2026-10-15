@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:torrid/core/services/debug/logging_service.dart';
@@ -142,70 +140,6 @@ class PublicStorageService {
       AppLogger().error('复制文件失败: $e');
       return null;
     }
-  }
-
-  // 特殊操作
-
-  /// 合并多张图片并保存到公共目录（在 isolate 中执行）
-  ///
-  /// [subDir] 子目录名
-  /// [imagePaths] 图片路径列表
-  /// [fileName] 目标文件名（不含扩展名，将保存为 PNG）
-  static Future<bool> mergeAndSaveImages({
-    required String subDir,
-    required List<String> imagePaths,
-    required String fileName,
-  }) async {
-    if (imagePaths.isEmpty || fileName.isEmpty) return false;
-
-    try {
-      if (!await ensureStorageAccess(subDir)) return false;
-
-      final params = {
-        'imagePaths': imagePaths,
-        'outputPath': '${getSubDirPath(subDir)}/$fileName.png',
-      };
-
-      return await compute(_processAndMergeImages, params);
-    } catch (e) {
-      AppLogger().error('合并保存图片失败: $e');
-      return false;
-    }
-  }
-
-  /// isolate 中执行的图片合并
-  static Future<bool> _processAndMergeImages(
-      Map<String, dynamic> params) async {
-    final imagePaths = params['imagePaths'] as List<dynamic>;
-    final outputPath = params['outputPath'] as String;
-
-    List<img.Image> images = [];
-    int width = 0;
-    int totalHeight = 0;
-
-    for (final path in imagePaths) {
-      final imageFile = File(path as String);
-      if (!await imageFile.exists()) return false;
-      final image = img.decodeImage(await imageFile.readAsBytes())!;
-      images.add(image);
-      if (width == 0) {
-        width = image.width;
-      } else if (image.width != width) {
-        return false;
-      }
-      totalHeight += image.height;
-    }
-
-    final mergedImage = img.Image(width: width, height: totalHeight);
-    int currentHeight = 0;
-    for (final image in images) {
-      img.compositeImage(mergedImage, image, dstX: 0, dstY: currentHeight);
-      currentHeight += image.height;
-    }
-
-    final outputFile = File(outputPath);
-    await outputFile.writeAsBytes(img.encodePng(mergedImage));
-    return true;
   }
 
   // 便捷方法

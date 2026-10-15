@@ -7,12 +7,11 @@ part of 'local_data_providers.dart';
 // **************************************************************************
 
 String _$galleryLocalDataControllerHash() =>
-    r'0f6448bb1d606be722b3e6732d93c5dc15cc8141';
+    r'a2e6020b7d33f92cd94761fd4811f04dd083dff8';
 
 /// 本地缓存的清空动作。
 ///
 /// 只清本机（gallery.db 与下载的文件），**不触碰服务端**；清空后把游标复位、让派生数据重取。
-/// 此前设置页把"复位 + 失效一堆 provider"抄了三遍（还各漏了几项），这里收敛成一条路径。
 ///
 /// Copied from [GalleryLocalDataController].
 @ProviderFor(GalleryLocalDataController)

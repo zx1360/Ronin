@@ -413,9 +413,8 @@ func (ix *Index) DuplicateGroups(maxDistance, minGroupSize int) ([]model.Duplica
 		grouped[root] = append(grouped[root], id)
 	}
 
-	// 连通分量可能链式膨胀：A~B、B~C 但 A 与 C 相差很远（实测出现过组内最大差异
-	// 14 位、成员 12 张的"重复组"）。这里把每个分量切成若干"星形"簇——簇内每张图
-	// 都必须与簇代表在 maxDistance 以内，代表取邻域最大的成员。
+	// 连通分量会链式膨胀（A~B、B~C 但 A 不近似 C），因此按邻域最大的代表拆簇，
+	// 保证每个成员与代表的距离都不超过 maxDistance。
 	var groups [][]uuid.UUID
 	for _, members := range grouped {
 		for _, cluster := range splitByRepresentative(members, hashes, maxDistance) {

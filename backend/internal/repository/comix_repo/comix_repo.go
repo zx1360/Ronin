@@ -151,11 +151,11 @@ func ListSites() ([]Site, error) {
 	})
 }
 
-// ListComics 列出全部已登记漫画（单条 SQL 聚合，替代 Python 端 N+1 查询）。
+// ListComics 聚合全部漫画的管理字段和下载进度。
 //
 // 同时带出书库管理字段（公开/已读/章节数/图片数），使客户端只需一次请求。
 // 图片数取 comic_chapters.page_count 汇总：与爬虫写入的页数一致，且避免 COUNT
-// 图片表（12 万行）带来的数量级开销。
+// 图片表的全量计数开销。
 func ListComics() ([]Comic, error) {
 	return withDB(func(ctx context.Context, conn *sql.DB) ([]Comic, error) {
 		rows, err := conn.QueryContext(ctx, `

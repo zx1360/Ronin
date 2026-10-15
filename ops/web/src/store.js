@@ -3,7 +3,7 @@
 // 偏好由服务端持有（static/data/ops_web.json），页面只在内存中镜像一份，
 // 不写 localStorage 等浏览器存储。
 
-import { reactive, computed } from './vue.js';
+import { reactive } from './vue.js';
 import { api, setApiKey } from './api.js';
 
 export const state = reactive({
@@ -97,16 +97,3 @@ export function resolveDialog(ok) {
   state.dialog = null;
   if (dialog) dialog.resolve(ok);
 }
-
-/** 统一处理页面里的异步动作错误：提示 + 可选的重新加载。 */
-export async function runAction(action, { errorPrefix = '操作失败' } = {}) {
-  try {
-    return await action();
-  } catch (error) {
-    toast(`${errorPrefix}: ${error.message}`, 'error');
-    return null;
-  }
-}
-
-/** 服务端是否已就绪（供页面按钮禁用）。 */
-export const serviceOnline = computed(() => state.ready);

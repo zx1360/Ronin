@@ -61,12 +61,12 @@ class ImmichFilter {
 
   @override
   int get hashCode => Object.hash(
-        Object.hashAll(tagIds),
-        includeDescendants,
-        untagged,
-        includeDeleted,
-        Object.hashAll(vlmTags),
-      );
+    Object.hashAll(tagIds),
+    includeDescendants,
+    untagged,
+    includeDeleted,
+    Object.hashAll(vlmTags),
+  );
 }
 
 /// 筛选条件 Provider
@@ -92,8 +92,6 @@ class ImmichFilterNotifier extends _$ImmichFilterNotifier {
 
   void setIncludeDeleted(bool value) =>
       state = state.copyWith(includeDeleted: value);
-
-  void clearTags() => state = state.copyWith(tagIds: const []);
 
   /// 选中/取消单个 AI 标签（只读数据，仅参与筛选）
   void toggleVlmTag(String tag) {
@@ -217,9 +215,7 @@ class ImmichMedia extends _$ImmichMedia {
 
     // 写回本地缓存（仅更新已缓存的行, 保持画廊页一致）
     await db.updateMediaAssetsLocal(result.mediaAssets);
-    final tagIdsByMedia = <String, List<String>>{
-      ...?previous?.tagIdsByMedia,
-    };
+    final tagIdsByMedia = <String, List<String>>{...?previous?.tagIdsByMedia};
     for (final link in result.mediaTagLinks) {
       tagIdsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
     }
@@ -314,10 +310,9 @@ class ImmichActions extends _$ImmichActions {
         ),
       );
       await db.updateMediaAssetsLocal(updated);
-      await db.updateMediaAssetsField(
-        mediaIds,
-        {'is_deleted': deleted ? 1 : 0},
-      );
+      await db.updateMediaAssetsField(mediaIds, {
+        'is_deleted': deleted ? 1 : 0,
+      });
     });
   }
 

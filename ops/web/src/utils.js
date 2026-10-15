@@ -32,18 +32,6 @@ export function formatClock(value) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-/** 相对时间（"3 分钟前"）。 */
-export function formatAgo(value) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-  if (seconds < 60) return `${seconds} 秒前`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
-  return `${Math.floor(seconds / 86400)} 天前`;
-}
-
 /** 耗时文本（毫秒）。 */
 export function formatDuration(ms) {
   if (!Number.isFinite(ms) || ms < 0) return '—';
@@ -73,10 +61,4 @@ export function taskStatusKind(status) {
   if (status === 'failed') return 'error';
   if (status === 'killed') return 'warning';
   return '';
-}
-
-/** 把异常转为可展示的错误文案。 */
-export function errorText(error) {
-  if (!error) return '';
-  return error.message || String(error);
 }

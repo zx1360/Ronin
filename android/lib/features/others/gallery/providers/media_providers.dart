@@ -58,7 +58,9 @@ class MediaAssetList extends _$MediaAssetList {
     final db = ref.read(galleryDatabaseProvider);
     await db.markMediaAssetDeleted(id, deleted: deleted);
     ref.invalidate(mediaIdsWithTagsProvider);
-    ref.read(galleryWriteBufferProvider).queuePatch(
+    ref
+        .read(galleryWriteBufferProvider)
+        .queuePatch(
           id,
           MediaPatchIntent(isDeleted: deleted),
           baselineAsset: previous,
@@ -74,18 +76,21 @@ class MediaAssetList extends _$MediaAssetList {
   }) async {
     if (ids.isEmpty) return state.valueOrNull ?? [];
 
+    final selectedIds = ids.toSet();
     final db = ref.read(galleryDatabaseProvider);
     final api = ref.read(galleryApiProvider);
     final currentList = state.valueOrNull ?? [];
     final previousById = {
       for (final asset in currentList)
-        if (ids.contains(asset.id)) asset.id: asset,
+        if (selectedIds.contains(asset.id)) asset.id: asset,
     };
 
     await db.batchMarkMediaAssetDeleted(ids, deleted: deleted);
     state = AsyncData([
       for (final asset in currentList)
-        ids.contains(asset.id) ? asset.copyWith(isDeleted: deleted) : asset,
+        selectedIds.contains(asset.id)
+            ? asset.copyWith(isDeleted: deleted)
+            : asset,
     ]);
     ref.invalidate(mediaIdsWithTagsProvider);
 
@@ -148,18 +153,14 @@ class MediaAssetList extends _$MediaAssetList {
     final currentList = state.valueOrNull ?? [];
     final index = currentList.indexWhere((a) => a.id == updated.id);
     if (index >= 0) {
-      state = AsyncData(
-        List<MediaAsset>.from(currentList)..[index] = updated,
-      );
+      state = AsyncData(List<MediaAsset>.from(currentList)..[index] = updated);
     }
 
     final db = ref.read(galleryDatabaseProvider);
     await db.updateMediaAsset(updated);
-    ref.read(galleryWriteBufferProvider).queuePatch(
-          updated.id,
-          intent,
-          baselineAsset: baseline,
-        );
+    ref
+        .read(galleryWriteBufferProvider)
+        .queuePatch(updated.id, intent, baselineAsset: baseline);
   }
 
   /// 捆绑媒体文件（组成员写入 group_id）
@@ -325,11 +326,9 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
       await db.setTagsForMedia(toAsset.id, tagIds);
       ref.invalidate(mediaIdsWithTagsProvider);
       // 服务端推送走缓冲（合并 + 重试 + 失败回滚）
-      ref.read(galleryWriteBufferProvider).queueTags(
-            toAsset.id,
-            tagIds,
-            baselineTagIds: baseline,
-          );
+      ref
+          .read(galleryWriteBufferProvider)
+          .queueTags(toAsset.id, tagIds, baselineTagIds: baseline);
       await ref
           .read(mediaAssetListProvider.notifier)
           .bumpModifiedCount(toAsset.id);

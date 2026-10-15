@@ -23,10 +23,8 @@
 - 执行者：进程内实现（`go-dct-phash`）、侧车模型（`siglip2-…` / `insightface-buffalo_l` /
   `rapidocr-ppocr`）、或 Ollama 模型（`ollama:<模型名>`）。
 
-`jobs.input_sig` 记录"这条任务上次是用什么算的"；与当前指纹不一致时由 reconcile 自动重排
-（换 VLM 模型后旧标注会被重算）。三张产物表也各存一份，便于直接看出产物的来源。
-旧版本留下的 NULL 指纹不会被自动重排——否则升级后第一次 reconcile 会把全库 28 万条任务
-一次性重排；这类历史数据要刷新只能走"全量重生成"。
+`jobs.input_sig` 与产物表记录执行时的档位与执行者，差异由状态接口报告。
+reconcile 只补无任务行的媒体，已有结果（包括 NULL 指纹）仅由用户显式重生成。
 
 ## media_ai
 
@@ -47,7 +45,7 @@
 
 ## media_ai_tags
 
-VLM 关键词（替代原 PG 的 `media_ai.vlm_tags text[]`）：一行一个标签，
+VLM 关键词：一行一个标签，
 使「任一命中」与「标签聚合」都退化为普通索引查询。
 
 | 列 | 类型 | 说明 |

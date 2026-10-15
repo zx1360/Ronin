@@ -25,7 +25,7 @@ type ClaimedJob struct {
 
 // Enqueue 为指定媒体批量入队某能力（重复入队幂等，已存在的任务行不变）。
 //
-// inputSig 为空表示调用方不声明输入档位/执行者（这类任务不参与自动重排判断）。
+// inputSig 为空表示调用方不声明输入档位/执行者。
 func Enqueue(capability string, mediaIDs []uuid.UUID, inputSig string) (int64, error) {
 	if len(mediaIDs) == 0 {
 		return 0, nil
@@ -88,31 +88,6 @@ func EnqueueMissing(capability string, limit int, priority int, inputSig string)
 		ON CONFLICT (capability, media_id) DO NOTHING`, capability, priority, inputSig, capability, limit)
 	if err != nil {
 		return 0, fmt.Errorf("补充入队 AI 任务失败: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	return n, nil
-}
-
-// ResetStaleInput 把"输入档位/执行者已变"的旧产物重新排队。
-//
-// 只处理已完成/已失败的任务行：pending/running 的行本来就会用最新签名重算。
-// 旧版本留下的空签名（input_sig IS NULL）不算不匹配——那会让升级后的第一次
-// reconcile 把全库 28 万条任务一次性重排，代价不可接受；这类历史数据只能由
-// 用户显式"全量重生成"来刷新。
-func ResetStaleInput(capability, inputSig string) (int64, error) {
-	ctx, cancel := db.GetLongCtx()
-	defer cancel()
-	if err := ensureSchema(ctx); err != nil {
-		return 0, err
-	}
-	res, err := db.Exec(ctx, `
-		UPDATE jobs
-		SET status = 'pending', attempts = 0, last_error = NULL,
-		    started_at = NULL, finished_at = NULL, input_sig = ?
-		WHERE capability = ? AND status IN ('done', 'failed')
-		  AND input_sig IS NOT NULL AND input_sig <> ?`, inputSig, capability, inputSig)
-	if err != nil {
-		return 0, fmt.Errorf("重排旧产物失败: %w", err)
 	}
 	n, _ := res.RowsAffected()
 	return n, nil
@@ -343,8 +318,7 @@ func FinishDone(jobIDs []int64, inputSig string) error {
 
 // FinishFailed 记录失败；未超过 maxAttempts 时退回 pending 等待重试，否则置为 failed。
 //
-// 同时写入本次的 input_sig：失败的任务同样"已经用当前档位/执行者尝试过"，
-// 否则它会被自动重排逻辑反复识别为指纹不匹配而无限重排（永不收敛）。
+// 同时记录执行指纹，使差异统计反映失败任务实际使用的档位与执行者。
 func FinishFailed(jobIDs []int64, errMsg string, maxAttempts int, inputSig string) error {
 	if len(jobIDs) == 0 {
 		return nil
@@ -436,15 +410,15 @@ func RetryFailed(capability string, mediaIDs []uuid.UUID) (int64, error) {
 
 // FailedJob 一条失败任务及其媒体信息（供界面回答"到底哪些文件处理失败了"）。
 type FailedJob struct {
-	JobID      int64   `json:"job_id"`
-	Capability string  `json:"capability"`
-	MediaID    string  `json:"media_id"`
-	Attempts   int     `json:"attempts"`
-	LastError  string  `json:"last_error"`
-	UpdatedAt  string  `json:"updated_at"`
-	FilePath   string  `json:"file_path"`
-	MimeType   string  `json:"mime_type"`
-	IsDeleted  bool    `json:"is_deleted"`
+	JobID      int64  `json:"job_id"`
+	Capability string `json:"capability"`
+	MediaID    string `json:"media_id"`
+	Attempts   int    `json:"attempts"`
+	LastError  string `json:"last_error"`
+	UpdatedAt  string `json:"updated_at"`
+	FilePath   string `json:"file_path"`
+	MimeType   string `json:"mime_type"`
+	IsDeleted  bool   `json:"is_deleted"`
 	// ThumbPath 缩略图相对路径；为空表示该媒体没有缩略图（界面据此跳过请求）
 	ThumbPath *string `json:"thumb_path"`
 }

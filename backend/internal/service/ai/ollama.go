@@ -335,9 +335,7 @@ func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmRes
 		"images": []string{base64.StdEncoding.EncodeToString(raw)},
 		"stream": false,
 		"format": "json",
-		// 关闭思考链：qwen3.5 默认 think=true，会把 num_predict 全用在推理上，
-		// 实测 256 token 耗尽后 response 为空 → 每张图都解析失败且慢 10 倍以上。
-		// 标注只要求"看到什么"，不需要推理。
+		// 关闭思考链，避免推理耗尽输出预算而没有 JSON 结果。
 		"think": false,
 		// 不传 keep_alive，沿用 Ollama 自身的默认（5 分钟无请求再卸载）：
 		// 批量标注之外还要承接后续的交互式视觉问答，每次都卸载会让模型反复重载。
@@ -658,7 +656,7 @@ type OllamaState struct {
 	// ModelRoot 自拉的 ollama serve 会使用的模型目录（OLLAMA_MODELS，未配置时为默认目录）；
 	// 服务不可达时它是排查"拉起来了却看不到模型"的第一线索。
 	ModelRoot string `json:"model_root"`
-	// KeepAlive 说明模型驻留策略（沿用 Ollama 默认，不再逐次卸载）
+	// KeepAlive 说明模型驻留策略（沿用 Ollama 默认驻留策略）
 	KeepAlive string `json:"keep_alive"`
 	// KeepAliveDefaultSeconds 对话请求未指定时的模型驻留时长（"后端默认值"）
 	KeepAliveDefaultSeconds int `json:"keep_alive_default_seconds"`

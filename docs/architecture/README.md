@@ -36,7 +36,7 @@ flowchart LR
 | 本机运维 | `LOCAL_HTTP_PORT`（默认 7275）HTTP；`/ops/` 和 `/API/ops/local/*` 只接受回环 |
 | 通用 API | 两个端口路由一致；非本机能力接口使用 `X-API-Key` |
 | 静态资源 | `/static/` 映射 `STATIC_DIR`；媒体文件也通过 API 资源路由返回 |
-| 状态持久化 | 业务状态在 SQLite；AI/CLI 任务运行态在内存，Monarch 重启后清空 |
+| 状态持久化 | 业务状态与 AI 队列在 SQLite；当前批次、CLI 状态与日志在内存，重启后清空 |
 | 文件状态 | Gallery/Comic 文件落盘，数据库主要保存相对路径和处理元数据 |
 
 ## 3. 按数据域看“谁是真源”
