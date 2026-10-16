@@ -7,8 +7,8 @@ Go + Gin + `modernc.org/sqlite`；启动入口 `cmd/main.go`，路由真源 `int
 
 - `handler` 负责 HTTP 校验/响应，`service` 负责业务与进程，`repository` 负责 SQL。
 - `gizmos/` 是独立 Go module，处理媒体入库/编辑/刷新；`gizmos/comix/` 是 Python CLI，修改前读其 `AGENTS.md`。
-- gallery/comix 长任务共用 `service/taskengine/`；gallery 同时只允许一个任务。任务状态在内存，退出须杀进程树。
-- 通用 API 使用 `X-API-Key`，资源可用 `api_key` 查询参数。Ops 页面及本机接口由 `LocalOnly` 按 TCP 对端限制回环访问；回环地址不得封禁。
+- gallery/comix 长任务共用 `service/taskengine/`；gallery 启动互斥，comix 写任务依次执行并与初始化/删除互斥。任务状态在内存，退出须杀进程树。
+- 通用 API 使用 `X-API-Key`，资源可用 `api_key` 查询参数。Ops 页面及本机接口由 `LocalOnly` 校验 TCP 回环、Host 和浏览器同源；回环地址不得封禁。
 
 ## 数据与配置
 
@@ -16,7 +16,7 @@ Go + Gin + `modernc.org/sqlite`；启动入口 `cmd/main.go`，路由真源 `int
 - 新增列同时更新 `sqlite.sql` 与 `internal/service/db/migrate.go`；不可依赖 `CREATE TABLE IF NOT EXISTS` 给旧表补列。
 - 时间戳用本机时区定宽毫秒文本；日期是日历日。回顾统计中 essay 按本地日期，booklet 的 UTC 零点仅用于标记日历日，不得混用。
 - `.env` 保存启动配置，字段以 `internal/config/config.go` 为准；AI 运行配置在 `<STATIC_DIR>/data/ai_config.json`，网页偏好在 `ops_web.json`，回顾预设在 `review_presets.json`。
-- user-data 同步/备份是完整数据集替换；回顾预设也是整体替换。解析校验完成后才写入，失败保持原数据。
+- user-data 使用 sync_version=2：updated_at 逐行合并，删除保留 tombstone，游标按服务端 revision 推进；统计重算，图片不随合并清理。偏好与回顾预设仍整体替换；失败保持原数据。
 
 ## AI 不变量
 

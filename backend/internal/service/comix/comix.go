@@ -36,6 +36,7 @@ type Result struct {
 var (
 	pythonOnce sync.Once
 	pythonPath string
+	MutationMu sync.Mutex // 下载、初始化和删除共用漫画库写门禁。
 )
 
 // PythonExecutable 返回 python 解释器路径（首次解析后缓存）。
@@ -81,6 +82,10 @@ func BuildArgs(cmd string, rest ...string) []string {
 // 业务错误（退出码 2）返回 result（ok=false）而非 error；
 // 仅传输/启动/解析级故障返回 error。
 func RunSync(ctx context.Context, cmd string, rest ...string) (*Result, error) {
+	if !MutationMu.TryLock() {
+		return nil, errors.New("漫画任务正在运行，请稍后重试")
+	}
+	defer MutationMu.Unlock()
 	if ok, msg := Available(); !ok {
 		return nil, errors.New(msg)
 	}

@@ -49,6 +49,19 @@ func ensureColumns(ctx context.Context) error {
 	return nil
 }
 
+func ensureUserDataSync(ctx context.Context) error {
+	// 同步版本由客户端提供；旧触发器会破坏其时间顺序。
+	for _, table := range []string{"essay_articles", "essay_labels", "essay_year_summaries", "booklet_styles", "booklet_records"} {
+		if _, err := writePool.ExecContext(ctx, "DROP TRIGGER IF EXISTS trg_"+table+"_updated_at"); err != nil {
+			return err
+		}
+	}
+	_, err := writePool.ExecContext(ctx, `INSERT INTO essay_labels(id,name)
+		SELECT '00000000-0000-4000-8000-000000000001','隐藏'
+		WHERE NOT EXISTS (SELECT 1 FROM essay_labels WHERE id='00000000-0000-4000-8000-000000000001' OR (name='隐藏' AND parent_id IS NULL))`)
+	return err
+}
+
 // tableColumns 返回各表已有列名集合（只关心 addedColumns 涉及的列）。
 func tableColumns(ctx context.Context) (map[string]map[string]bool, error) {
 	tables := map[string]map[string]bool{}

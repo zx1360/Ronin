@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:torrid/core/services/debug/logging_service.dart';
 
-/// 下载完成后替换目录；数据导入失败时恢复旧目录。
+/// 逐文件安装下载图片；导入失败时恢复被覆盖的文件。
 class TransferFiles {
   TransferFiles._(this.target, this.work, this.staged);
 
@@ -21,24 +21,45 @@ class TransferFiles {
 
   Future<void> apply(Future<void> Function() writeData) async {
     final previous = Directory(p.join(work.path, 'previous'));
-    var movedPrevious = false;
-    var installed = false;
+    final undo = <(File, File)>[];
     try {
-      if (await target.exists()) {
-        await target.rename(previous.path);
-        movedPrevious = true;
+      final downloads = await staged
+          .list(recursive: true)
+          .where((e) => e is File)
+          .cast<File>()
+          .toList();
+      for (final source in downloads) {
+        final relative = p.relative(source.path, from: staged.path);
+        final dest = File(p.join(target.path, relative));
+        await dest.parent.create(recursive: true);
+        final type = await FileSystemEntity.type(dest.path, followLinks: false);
+        if (type != FileSystemEntityType.notFound) {
+          if (type != FileSystemEntityType.file) {
+            throw FileSystemException('图片目标不是普通文件', dest.path);
+          }
+          final backup = File(p.join(previous.path, relative));
+          await backup.parent.create(recursive: true);
+          await dest.rename(backup.path);
+          undo.add((backup, dest));
+        }
+        await source.rename(dest.path);
+        undo.add((dest, source));
       }
-      await staged.rename(target.path);
-      installed = true;
       await writeData();
     } catch (error) {
-      try {
-        if (installed) await target.rename(staged.path);
-        if (movedPrevious) await previous.rename(target.path);
-      } catch (restoreError) {
+      final failures = <Object>[];
+      for (final (source, dest) in undo.reversed) {
+        try {
+          await dest.parent.create(recursive: true);
+          await source.rename(dest.path);
+        } catch (restoreError) {
+          failures.add(restoreError);
+        }
+      }
+      if (failures.isNotEmpty) {
         _keepBackup = true;
         throw FileSystemException(
-          '恢复失败，旧文件保留在 ${previous.path}: $error; $restoreError',
+          '恢复失败，旧文件保留在 ${previous.path}: $error; $failures',
         );
       }
       rethrow;

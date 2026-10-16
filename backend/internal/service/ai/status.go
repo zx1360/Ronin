@@ -3,9 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
-	"time"
 
 	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
@@ -145,10 +143,7 @@ type Status struct {
 	PersonCount int          `json:"person_count"`
 }
 
-// Status 采集当前状态快照。
-//
-// 就绪探测会（首次）拉起一次 python 探测进程，结果缓存 5 分钟，
-// 因此该接口在探测窗口外的响应是毫秒级的。
+// Status 按需采集统计与依赖诊断；日常轮询使用 Progress。
 func (e *Engine) Status(ctx context.Context) *Status {
 	cfg := e.Config()
 	status := &Status{
@@ -164,7 +159,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		MaxAttempts:  cfg.MaxAttempts,
 		Paused:       e.paused.Load(),
 		LastRun:      e.LastRun(),
-		Ollama:       e.ollamaState(ctx),
+		Ollama:       e.ollama.snapshot(e.VLMModel()),
 		Cluster:      e.cluster.State(),
 		Index: IndexState{
 			Model:   cfg.EmbedModel,
@@ -173,6 +168,10 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		},
 	}
 
+	if !cfg.Enabled {
+		return status
+	}
+	status.Ollama = e.ollamaState(ctx)
 	if !status.SchemaReady {
 		return status
 	}
@@ -199,7 +198,7 @@ func (e *Engine) Status(ctx context.Context) *Status {
 		status.FailedTotal += stat.Failed
 	}
 
-	missing := e.missingCounts()
+	missing, _ := ai_repo.CountMediaMissingAll()
 	specs := e.CapabilitySpecs()
 
 	for _, spec := range specs {
@@ -235,45 +234,6 @@ func (e *Engine) ollamaState(ctx context.Context) OllamaState {
 	state.ActiveModel = e.ActiveModel()
 	state.LastSwitch = e.LastSwitchNotice()
 	return state
-}
-
-// missingCountsTTL "尚无产物"统计的缓存时长。
-//
-// 该统计要扫整张媒体表（7w+ 行）；OCR 等重活把 CPU 吃满时同一查询能慢到数秒，
-// 而桌面端每 2s 轮询一次状态，因此这里既缓存、又**异步刷新**：
-// 请求永远拿现有快照立即返回，绝不为刷新统计而阻塞。
-const missingCountsTTL = 30 * time.Second
-
-// missingCounts 返回（可能略旧的）各能力待处理媒体数。
-func (e *Engine) missingCounts() map[string]int {
-	e.missingMu.Lock()
-	cached := e.missingCountsCache
-	stale := cached == nil || time.Since(e.missingAt) >= missingCountsTTL
-	if stale && !e.missingRefreshing {
-		e.missingRefreshing = true
-		go e.refreshMissingCounts()
-	}
-	e.missingMu.Unlock()
-
-	if cached != nil {
-		return cached
-	}
-	return map[string]int{}
-}
-
-// refreshMissingCounts 后台刷新统计；失败时保留上一次的数值。
-func (e *Engine) refreshMissingCounts() {
-	counts, err := ai_repo.CountMediaMissingAll()
-
-	e.missingMu.Lock()
-	defer e.missingMu.Unlock()
-	e.missingRefreshing = false
-	if err != nil {
-		log.Printf("[AI] 刷新待处理统计失败: %v", err)
-		return
-	}
-	e.missingCountsCache = counts
-	e.missingAt = time.Now()
 }
 
 // dimEstimate 向量维度估算（SigLIP base 为 768；仅用于内存占用展示）。

@@ -72,13 +72,11 @@ class MediaUrlResolver {
   static Future<String> _resolveRedirect(String url) async {
     final client = HttpClient();
     client.connectionTimeout = const Duration(seconds: 10);
-    client.badCertificateCallback = (_, __, ___) => true;
     try {
       final request = await client.getUrl(Uri.parse(url));
       request.followRedirects = false;
       request.headers.set('User-Agent', kUserAgent);
       final response = await request.close();
-      await response.drain<void>();
       if (response.statusCode >= 300 && response.statusCode < 400) {
         final location = response.headers.value('location');
         if (location != null && location.isNotEmpty) {
@@ -89,7 +87,7 @@ class MediaUrlResolver {
       }
       return url;
     } finally {
-      client.close();
+      client.close(force: true);
     }
   }
 
@@ -155,7 +153,24 @@ class MediaUrlResolver {
     throw Exception('无法获取有效的图片地址');
   }
 
-  /// 下载资源字节数据
+  /// 流式下载到暂存文件，避免视频整体驻留内存。
+  static Future<void> downloadFile(
+    String url,
+    String target, {
+    Map<String, String>? headers,
+    CancelToken? cancelToken,
+  }) async {
+    await _dio.download(
+      url,
+      target,
+      cancelToken: cancelToken,
+      options: Options(
+        receiveTimeout: const Duration(minutes: 2),
+        headers: {'User-Agent': kUserAgent, ...?headers},
+      ),
+    );
+  }
+
   static Future<List<int>> downloadBytes(
     String url, {
     Map<String, String>? headers,

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"monarch/internal/config"
 	"monarch/internal/service/taskengine"
@@ -41,6 +42,7 @@ func DefaultOptions() Options {
 
 // Manager gallery 任务管理器（日志上限高于 comix：CLI 会逐条打印处理进度）。
 var Manager = taskengine.NewManager(2000, 20)
+var startMu sync.Mutex
 
 // ExecutablePath 返回 gallery CLI 的绝对路径（GALLERY_CLI 可覆盖，默认 gizmos/gallery.exe）。
 func ExecutablePath() string {
@@ -141,6 +143,8 @@ func BuildArgs(opt Options) []string {
 // 同一时刻只允许一个 gallery 任务：ingest/execute/refresh 会同时改写媒体库文件
 // 与数据库记录，并发执行没有意义且容易互相干扰。
 func Start(opt Options) (*taskengine.Task, error) {
+	startMu.Lock()
+	defer startMu.Unlock()
 	if ok, msg := Available(); !ok {
 		return nil, errors.New(msg)
 	}

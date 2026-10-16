@@ -135,7 +135,7 @@ func Delete(c *gin.Context) {
 // DownloadURL 按详情页 URL 批量启动下载任务。
 //
 // 每个 URL 自动识别站点（comix.site.base_url host 匹配），识别成功后
-// 启动独立异步任务（多个 URL 并发下载）；不支持的站点在对应条目中
+// 启动独立异步任务（多个 URL 依次下载）；不支持的站点在对应条目中
 // 返回明确错误，不影响其他 URL。
 func DownloadURL(c *gin.Context) {
 	var req struct {

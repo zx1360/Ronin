@@ -6,20 +6,6 @@ part of 'sixty_entertainment_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$changyaAudioHash() => r'9093076a476878ce56fc993ad5a6e5b12af5c7c0';
-
-/// See also [changyaAudio].
-@ProviderFor(changyaAudio)
-final changyaAudioProvider = AutoDisposeFutureProvider<Json>.internal(
-  changyaAudio,
-  name: r'changyaAudioProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$changyaAudioHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef ChangyaAudioRef = AutoDisposeFutureProviderRef<Json>;
 String _$hitokotoHash() => r'5c513b0d798227ba57bc9daa2c38dda56f3606ca';
 
 /// See also [hitokoto].

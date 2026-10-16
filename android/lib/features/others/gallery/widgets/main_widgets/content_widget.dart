@@ -125,7 +125,9 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     }
 
     // 预加载附近图片
-    if (_lastPrecacheIndex != currentIndex) {
+    if (currentAsset.isVideo) {
+      _lastPrecacheIndex = null;
+    } else if (_lastPrecacheIndex != currentIndex) {
       _lastPrecacheIndex = currentIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _precache(assets, currentIndex);
@@ -139,7 +141,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
           // 主内容
           Positioned.fill(
             child: MediaItemView(
-              key: ValueKey('${currentAsset.id}_${widget.rotationQuarterTurns}'),
+              key: ValueKey(currentAsset.id),
               asset: currentAsset,
               rotationQuarterTurns: widget.rotationQuarterTurns,
             ),
@@ -267,7 +269,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     return false;
   }
 
-  void _precache(List<MediaAsset> assets, int currentIndex) {
+  Future<void> _precache(List<MediaAsset> assets, int currentIndex) async {
     if (!mounted) return;
     final api = ref.read(apiClientManagerProvider);
     final base = api.baseUrl;
@@ -275,10 +277,10 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
 
     const before = 3, after = 5;
     final targets = <int>[];
-    for (int i = currentIndex - 1, c = 0; i >= 0 && c < before; i--) {
+    for (int i = currentIndex + 1, c = 0; i < assets.length && c < after; i++) {
       if (!assets[i].isDeleted) { targets.add(i); c++; }
     }
-    for (int i = currentIndex + 1, c = 0; i < assets.length && c < after; i++) {
+    for (int i = currentIndex - 1, c = 0; i >= 0 && c < before; i--) {
       if (!assets[i].isDeleted) { targets.add(i); c++; }
     }
 
@@ -286,14 +288,19 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     _precachedIds.removeWhere((id) => !activeIds.contains(id));
 
     for (final i in targets) {
+      if (!mounted ||
+          ref.read(currentMediaAssetProvider)?.id != assets[currentIndex].id) {
+        return;
+      }
       final a = assets[i];
       if (_precachedIds.contains(a.id)) continue;
       _precachedIds.add(a.id);
       if (a.isImage) {
-        precacheImage(
+        await precacheImage(
           CachedNetworkImageProvider(galleryMediaUrl(base, a), headers: hdrs),
           context,
-        ).catchError((_) => _precachedIds.remove(a.id));
+          onError: (_, _) => _precachedIds.remove(a.id),
+        );
       }
     }
   }

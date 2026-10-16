@@ -3,20 +3,16 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:hive/hive.dart';
 import 'package:torrid/core/services/storage/box_replace.dart';
+import 'package:torrid/core/services/storage/user_data_sync.dart';
 
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/providers/data_source_provider.dart';
-import 'package:torrid/features/booklet/providers/style_provider.dart';
-import 'package:torrid/features/booklet/providers/record_provider.dart';
 import 'package:torrid/features/booklet/utils/checkin_stats.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'routine_service_provider.g.dart';
 
-/// Routine 业务服务层：负责所有数据的增删改操作和业务逻辑。
-
-/// 数据容器 - 封装 Style 和 Record 的 Hive Box
 class RoutineDataContainer {
   final Box<Style> styleBox;
   final Box<Record> recordBox;
@@ -24,7 +20,6 @@ class RoutineDataContainer {
   RoutineDataContainer({required this.styleBox, required this.recordBox});
 }
 
-/// 核心业务操作，管理所有的数据修改
 @riverpod
 class RoutineService extends _$RoutineService {
   @override
@@ -35,139 +30,188 @@ class RoutineService extends _$RoutineService {
     );
   }
 
-  // Style 操作
+  /// 保存记录并重算计划统计；无留言、心情和完成项时撤销打卡。
+  Future<void> putRecord({required String styleId, required Record record}) =>
+      userDataWrite(() async {
+        final records = state.recordBox.toMap().cast<String, Record>();
+        final previous = records[record.id]?.updatedAt;
+        final shouldDelete =
+            record.message.isEmpty &&
+            record.mood == null &&
+            record.taskCompletion.values.every((flag) => !flag);
+        if (shouldDelete) {
+          records.remove(record.id);
+        } else {
+          records[record.id] = record.copyWith(
+            updatedAt: nextUserDataTime(previous),
+          );
+        }
+        final styles = state.styleBox.toMap().cast<String, Style>();
+        final style = styles[styleId];
+        if (style != null) styles[styleId] = _withStats(style, records.values);
+        await replaceBoxes({
+          if (shouldDelete)
+            userDataSyncBox: deletedUserData(
+              'booklet',
+              'records',
+              record.id,
+              previous,
+            ),
+          state.recordBox: records,
+          state.styleBox: styles,
+        });
+      });
 
-  /// 写入新 Style 记录
-  Future<void> putStyle({required Style style}) async {
-    await state.styleBox.put(style.id, style);
-  }
-
-  // Record 操作
-
-  /// 更新 Record，并更新对应的 Style 统计信息
-  /// 如果完成情况和留言都为空，则删除记录（视为未打卡）
-  Future<void> putRecord({
-    required String styleId,
-    required Record record,
-  }) async {
-    final shouldDelete =
-        record.message.isEmpty &&
-        record.taskCompletion.values.every((isCompleted) => !isCompleted);
-
-    if (shouldDelete) {
-      await state.recordBox.delete(record.id);
-    } else {
-      await state.recordBox.put(record.id, record);
+  Future<void> createStyle({
+    required Style style,
+    required bool replaceToday,
+  }) => userDataWrite(() async {
+    if (style.tasks.isEmpty ||
+        style.tasks.length > 5 ||
+        style.tasks.any((task) => task.title.trim().isEmpty)) {
+      throw const FormatException('样式需要 1–5 个非空任务');
     }
-    await _refreshStyleStats(styleId);
-  }
-
-  // 批量操作
-
-  /// 新建样式前，删除日期为今天的 Record 和 Style 记录
-  Future<void> clearBeforeNewStyle() async {
-    final allStyles = ref.read(allStylesProvider);
-    final allRecords = ref.read(allRecordsProvider);
-
-    final todayStyles = allStyles
+    final styles = state.styleBox.toMap().cast<String, Style>();
+    final records = state.recordBox.toMap().cast<String, Record>();
+    var metadata = userDataSyncBox.toMap().cast<String, String>();
+    final removedStyles = styles.values
         .where((s) => isSameDay(s.startDate, DateTime.now()))
         .toList();
-    final todayRecords = allRecords
-        .where((r) => isSameDay(r.date, DateTime.now()))
+    final removedIds = removedStyles.map((s) => s.id).toSet();
+    final removedRecords = records.values
+        .where(
+          (r) =>
+              isSameDay(r.date, DateTime.now()) ||
+              removedIds.contains(r.styleId),
+        )
         .toList();
-
-    for (final style in todayStyles) {
-      await state.styleBox.delete(style.id);
+    if (!replaceToday &&
+        (removedStyles.isNotEmpty || removedRecords.isNotEmpty)) {
+      throw StateError('今天的样式或打卡已变化，请重新确认');
     }
-    for (final record in todayRecords) {
-      await state.recordBox.delete(record.id);
+    for (final record in removedRecords) {
+      records.remove(record.id);
+      metadata = deletedUserData(
+        'booklet',
+        'records',
+        record.id,
+        record.updatedAt,
+        metadata: metadata,
+      );
     }
-  }
-
-  /// 刷新所有 Style 的统计信息
-  Future<void> refreshAllStats() async {
-    final allStyles = ref.read(allStylesProvider);
-    for (final style in allStyles) {
-      await _refreshStyleStats(style.id);
+    for (final style in removedStyles) {
+      styles.remove(style.id);
+      final versions = [
+        style.updatedAt,
+        ...removedRecords
+            .where((r) => r.styleId == style.id)
+            .map((r) => r.updatedAt),
+      ].whereType<DateTime>().toList()..sort();
+      metadata = deletedUserData(
+        'booklet',
+        'styles',
+        style.id,
+        versions.lastOrNull,
+        metadata: metadata,
+      );
     }
-  }
+    styles[style.id] = style.copyWith(updatedAt: nextUserDataTime());
+    await replaceBoxes({
+      userDataSyncBox: metadata,
+      state.recordBox: records,
+      state.styleBox: <String, Style>{
+        for (final item in styles.values)
+          item.id: _withStats(item, records.values),
+      },
+    });
+  });
 
-  // 统计信息刷新
-
-  /// 刷新单个 Style 的统计信息
-  Future<void> _refreshStyleStats(String styleId) async {
-    final style = ref.read(styleByIdProvider(styleId));
-    if (style == null) return;
-
-    final relatedRecords = ref.read(recordsByStyleIdProvider(styleId));
-
-    // 计算各统计值（复用模块通用统计函数）
-    final validCheckIn = relatedRecords.length;
-    final fullyDoneCount = countFullyDone(relatedRecords);
-    final longestStreakDays = longestStreak(relatedRecords);
-    final longestFullyStreakDays = longestFullyStreak(relatedRecords);
-
-    final updatedStyle = style.copyWith(
-      validCheckIn: validCheckIn,
-      fullyDone: fullyDoneCount,
-      longestStreak: longestStreakDays,
-      longestFullyStreak: longestFullyStreakDays,
+  Style _withStats(Style style, Iterable<Record> records) {
+    final related = records.where((r) => r.styleId == style.id).toList();
+    return style.copyWith(
+      validCheckIn: related.length,
+      fullyDone: countFullyDone(related),
+      longestStreak: longestStreak(related),
+      longestFullyStreak: longestFullyStreak(related),
     );
-
-    await state.styleBox.put(style.id, updatedStyle);
   }
 
-  // 数据同步
+  /// 逐行合并，图片由传输控制器处理。
+  Future<void> syncData(dynamic incoming, {String? cursorKey}) =>
+      userDataWrite(() async {
+        final merged = mergeUserData(
+          'booklet',
+          snapshot(),
+          Map<String, dynamic>.from(incoming as Map),
+        );
+        final json = merged.data;
+        final styles = <String, Style>{};
+        for (final raw in json['styles'] as List) {
+          final style = Style.fromJson(raw as Map<String, dynamic>);
+          styles[style.id] = style;
+        }
 
-  /// 整体替换数据，图片由传输控制器处理。
-  Future<void> syncData(dynamic json) async {
-    final styles = <String, Style>{};
-    for (final raw in json['styles'] as List) {
-      final style = Style.fromJson(raw as Map<String, dynamic>);
-      styles[style.id] = style;
+        final records = <String, Record>{};
+        for (final raw in json['records'] as List) {
+          final record = Record.fromJson(raw as Map<String, dynamic>);
+          records[record.id] = record;
+        }
+
+        final days = <String>{};
+        for (final record in records.values) {
+          final style = styles[record.styleId];
+          if (style == null) {
+            throw const FormatException('打卡记录引用了不存在的样式');
+          }
+          if (!days.add('${record.styleId}|${record.date}') ||
+              record.taskCompletion.length != style.tasks.length ||
+              style.tasks.any(
+                (task) => !record.taskCompletion.containsKey(task.id),
+              )) {
+            throw const FormatException('打卡日期重复或任务与样式不一致');
+          }
+        }
+        if (cursorKey != null) {
+          merged.metadata[cursorKey] = incoming['cursor'].toString();
+        }
+        await replaceBoxes({
+          state.styleBox: <String, Style>{
+            for (final style in styles.values)
+              style.id: _withStats(style, records.values),
+          },
+          state.recordBox: records,
+          userDataSyncBox: merged.metadata,
+        });
+      });
+
+  Map<String, dynamic> snapshot() => {
+    'styles': state.styleBox.values.map((s) => s.toJson()).toList(),
+    'records': state.recordBox.values.map((r) => r.toJson()).toList(),
+  };
+
+  Future<Map<String, dynamic>> packUp() => userDataWrite(() async {
+    for (final style in state.styleBox.values.toList()) {
+      if (style.updatedAt == null) {
+        await state.styleBox.put(
+          style.id,
+          style.copyWith(updatedAt: nextUserDataTime()),
+        );
+      }
     }
-
-    final records = <String, Record>{};
-    for (final raw in json['records'] as List) {
-      final record = Record.fromJson(raw as Map<String, dynamic>);
-      records[record.id] = record;
+    for (final record in state.recordBox.values.toList()) {
+      if (record.updatedAt == null) {
+        await state.recordBox.put(
+          record.id,
+          record.copyWith(updatedAt: nextUserDataTime()),
+        );
+      }
     }
-
-    await replaceBoxes({state.styleBox: styles, state.recordBox: records});
-  }
-
-  /// 备份数据，打包 JSON
-  Map<String, dynamic> packUp() {
-    final styles =
-        (state.styleBox.values.toList()
-              ..sort((a, b) => b.startDate.compareTo(a.startDate)))
-            .map((item) => item.toJson())
-            .toList();
-
-    final records =
-        (state.recordBox.values.toList()
-              ..sort((a, b) => b.date.compareTo(a.date)))
-            .map((item) => item.toJson())
-            .toList();
-
     return {
-      "jsonData": jsonEncode({"styles": styles, "records": records}),
+      'jsonData': jsonEncode({
+        ...snapshot(),
+        'sync_version': 2,
+        'tombstones': userDataTombstones('booklet'),
+      }),
     };
-  }
-
-  /// 获取所有图片路径
-  List<String> getImgsPath() {
-    List<String> urls = [];
-    for (var style in state.styleBox.values) {
-      style.tasks
-          .where((task) => task.image.isNotEmpty && task.image != '')
-          .forEach((task) {
-            final relativePath = task.image.startsWith("/")
-                ? task.image.replaceFirst("/", "")
-                : task.image;
-            urls.add(relativePath);
-          });
-    }
-    return urls;
-  }
+  });
 }

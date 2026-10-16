@@ -56,8 +56,7 @@ func TestSplitByRepresentativeBreaksChains(t *testing.T) {
 	}
 }
 
-// 链式场景下拆出的簇直径必须有界——这正是修复前"12 张截图挤成一组、
-// 组内最大差异 14 位"的根因。
+// 链式连边不能让簇直径超过阈值的两倍。
 func TestSplitByRepresentativeBoundsDiameter(t *testing.T) {
 	const maxDistance = 2
 	ids := []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}

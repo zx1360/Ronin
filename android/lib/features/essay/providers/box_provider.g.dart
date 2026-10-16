@@ -22,26 +22,6 @@ final summaryBoxProvider = AutoDisposeProvider<Box<YearSummary>>.internal(
 );
 
 typedef SummaryBoxRef = AutoDisposeProviderRef<Box<YearSummary>>;
-String _$summaryStreamHash() => r'3309d339208ff008234699b0983f68469b46a414';
-
-/// 年度统计信息的响应式流
-///
-/// 使用 yield 手动触发一次以读取初始数据，之后监听 box 变化。
-///
-/// Copied from [summaryStream].
-@ProviderFor(summaryStream)
-final summaryStreamProvider =
-    AutoDisposeStreamProvider<List<YearSummary>>.internal(
-  summaryStream,
-  name: r'summaryStreamProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$summaryStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef SummaryStreamRef = AutoDisposeStreamProviderRef<List<YearSummary>>;
 String _$essayBoxHash() => r'4c04d29c307c031ea1b3063d5c519218a95d9136';
 
 /// 随笔数据的 Hive Box

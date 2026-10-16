@@ -1,14 +1,4 @@
-// DateTime 序列化相关工具。
-//
-// 项目中的"日期"字段分为两类，必须区分对待：
-//
-// 1. 日历日期（无时间概念）——如 booklet 的 style.start_date、record.date，
-//    使用 [dateFromJson]/[dateToJson]，以 `yyyy-MM-dd` 形式传输。
-//    避免旧实现"本地时间无时区字符串被服务端当作 UTC 解析、同步回来又 toLocal 加回偏移"
-//    导致每次备份/同步往返累积 +8h 漂移的问题。
-//
-// 2. 带时间的时刻——如 essay.date、message.timestamp（界面展示到分钟），
-//    使用 [dateTimeFromJson]/[dateTimeToJson]，以带时区信息的 ISO8601 传输，往返无损。
+// 日历日（booklet）不做时区换算；时刻（essay/message）按 UTC ISO8601 往返。
 
 /// 解析日历日期字符串，统一规整为本地"年-月-日"（丢弃时分秒）。
 ///

@@ -94,6 +94,7 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
         : settings.sidebarImages;
 
     return imagesAsync.when(
+      skipLoadingOnRefresh: false,
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(
         child: Column(
@@ -106,13 +107,16 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
         ),
       ),
       data: (files) {
+        String pathFor(File file) => paths.firstWhere(
+          (path) => p.basename(path) == p.basename(file.path),
+        );
         if (files.isEmpty) {
           return _buildEmptyState(category);
         }
 
         // 单张图片时直接显示
         if (files.length == 1) {
-          return _buildSingleImage(files.first, paths.first, category);
+          return _buildSingleImage(files.first, pathFor(files.first), category);
         }
 
         // 多张图片时显示网格
@@ -127,7 +131,7 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
           itemCount: files.length,
           itemBuilder: (context, index) {
             final file = files[index];
-            final relativePath = paths.length > index ? paths[index] : '';
+            final relativePath = pathFor(file);
             return _buildImageCard(file, relativePath, category);
           },
         );

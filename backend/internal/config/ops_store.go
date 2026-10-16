@@ -80,7 +80,6 @@ func (s *OpsStore) Load() error {
 		return fmt.Errorf("网页端偏好取值非法 (%s): %w", s.path, err)
 	}
 	applyOpsSettings(&s.cur, loaded)
-	// 回写一次补齐文件里缺的键（版本升级新增项时），否则用户看不到该项也改不了
 	if len(missingOpsKeys(raw)) > 0 {
 		return s.saveLocked()
 	}
@@ -216,23 +215,7 @@ func validateOpsSettings(update OpsSettings) error {
 }
 
 func cloneOpsSettings(src OpsSettings) OpsSettings {
-	dst := src
-	if src.AutoRefreshSeconds != nil {
-		dst.AutoRefreshSeconds = intPtr(*src.AutoRefreshSeconds)
-	}
-	if src.AiRefreshSeconds != nil {
-		dst.AiRefreshSeconds = intPtr(*src.AiRefreshSeconds)
-	}
-	if src.LogLineLimit != nil {
-		dst.LogLineLimit = intPtr(*src.LogLineLimit)
-	}
-	if src.ConfirmDestructive != nil {
-		value := *src.ConfirmDestructive
-		dst.ConfirmDestructive = &value
-	}
-	if src.AiPaused != nil {
-		value := *src.AiPaused
-		dst.AiPaused = &value
-	}
+	var dst OpsSettings
+	applyOpsSettings(&dst, src)
 	return dst
 }

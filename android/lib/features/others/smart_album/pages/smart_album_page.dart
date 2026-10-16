@@ -26,6 +26,7 @@ class SmartAlbumPage extends ConsumerStatefulWidget {
 class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
     with SingleTickerProviderStateMixin {
   final _controller = TextEditingController();
+  final _resultScroll = ScrollController(keepScrollOffset: false);
 
   /// 检索 / 人物两个视图；由本 State 持有，避免在 State 里读
   /// DefaultTabController.of(context)（那个 context 在控制器之上，会抛错）。
@@ -34,10 +35,11 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
   @override
   void initState() {
     super.initState();
+    _resultScroll.addListener(_loadMoreNearEnd);
     _tabs.addListener(() {
       if (_tabs.indexIsChanging) return;
       final state = ref.read(smartAlbumControllerProvider);
-      if (_tabs.index == 1 && state.persons == null && !state.loading) {
+      if (_tabs.index == 1 && state.persons == null && !state.personsLoading) {
         ref.read(smartAlbumControllerProvider.notifier).loadPersons();
       }
     });
@@ -46,6 +48,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
   @override
   void dispose() {
     _controller.dispose();
+    _resultScroll.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -54,14 +57,18 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
   Widget build(BuildContext context) {
     final state = ref.watch(smartAlbumControllerProvider);
     final controller = ref.read(smartAlbumControllerProvider.notifier);
+    if (state.hasMore && !state.loadingMore && state.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadMoreNearEnd();
+      });
+    }
 
     // 控制器要求回填输入框时（以图搜图 / 点人物）同步一次
     ref.listen(
       smartAlbumControllerProvider.select((value) => value.queryRevision),
       (previous, next) {
         if (previous == next) return;
-        _controller.text =
-            ref.read(smartAlbumControllerProvider).queryText;
+        _controller.text = ref.read(smartAlbumControllerProvider).queryText;
       },
     );
 
@@ -93,6 +100,16 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
   }
 
   // ---------- 检索 ----------
+
+  void _loadMoreNearEnd() {
+    if (!_resultScroll.hasClients || _resultScroll.position.extentAfter > 500) {
+      return;
+    }
+    final state = ref.read(smartAlbumControllerProvider);
+    if (state.hasMore && state.error == null) {
+      unawaited(ref.read(smartAlbumControllerProvider.notifier).loadMore());
+    }
+  }
 
   Widget _buildSearchView(
     SmartAlbumState state,
@@ -157,9 +174,12 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
                           side: const BorderSide(color: Colors.white24),
                           showCheckmark: false,
                           visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                           labelStyle: TextStyle(
-                            color: state.mode == mode ? Colors.black : Colors.white,
+                            color: state.mode == mode
+                                ? Colors.black
+                                : Colors.white,
                             fontSize: 12,
                           ),
                         ),
@@ -202,7 +222,11 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
     if (result.hits.isEmpty) {
       return Center(
         child: Text(
-          state.loading ? '检索中…' : '输入关键词开始检索',
+          state.loading
+              ? '检索中…'
+              : result.mode.isEmpty
+              ? '输入关键词开始检索'
+              : '没有匹配的媒体',
           style: const TextStyle(color: Colors.grey),
         ),
       );
@@ -217,21 +241,32 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '命中 ${result.total} 条 · ${_modeLabel(result.mode)}',
+              '命中 ${result.total} 条 · 已加载 ${result.hits.length} 条 · ${_modeLabel(result.mode)}',
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),
         ),
         Expanded(
           child: GridView.builder(
+            controller: _resultScroll,
             padding: const EdgeInsets.all(4),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
               mainAxisSpacing: 3,
               crossAxisSpacing: 3,
             ),
-            itemCount: result.hits.length,
+            itemCount: result.hits.length + (state.hasMore ? 1 : 0),
             itemBuilder: (context, index) {
+              if (index == result.hits.length) {
+                return Center(
+                  child: state.loadingMore
+                      ? const CircularProgressIndicator(color: Colors.white70)
+                      : TextButton(
+                          onPressed: controller.loadMore,
+                          child: Text(state.error == null ? '加载更多' : '加载失败，重试'),
+                        ),
+                );
+              }
               final hit = result.hits[index];
               return _HitTile(
                 hit: hit,
@@ -307,7 +342,7 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
     final persons = state.persons;
     if (persons == null) {
       return Center(
-        child: state.loading
+        child: state.personsLoading
             ? const CircularProgressIndicator(color: Colors.white70)
             : FilledButton(
                 onPressed: controller.loadPersons,

@@ -19,7 +19,9 @@ import (
 
 func initAITestDB(t *testing.T) {
 	t.Helper()
-	db.Init(config.DbConfig{File: filepath.Join(t.TempDir(), "ai.db"), SchemaFile: "../../../references/db/sqlite.sql"})
+	if err := db.Init(config.DbConfig{File: filepath.Join(t.TempDir(), "ai.db"), SchemaFile: "../../../references/db/sqlite.sql"}); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(db.Close)
 }
 

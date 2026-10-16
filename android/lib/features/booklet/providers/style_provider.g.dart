@@ -6,7 +6,7 @@ part of 'style_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$styleByIdHash() => r'a666596c4a298e003b80a441fcbcdd5d110bf8d3';
+String _$styleByIdHash() => r'36d243b5da9afc7934202a1f2f1d8bfc002682fd';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -29,37 +29,21 @@ class _SystemHash {
   }
 }
 
-/// ============================================================================
-/// Style 相关的 Providers
-/// 提供 Style 数据的查询和派生数据
-/// ============================================================================
 /// 根据 styleId 获取 Style
 ///
 /// Copied from [styleById].
 @ProviderFor(styleById)
 const styleByIdProvider = StyleByIdFamily();
 
-/// ============================================================================
-/// Style 相关的 Providers
-/// 提供 Style 数据的查询和派生数据
-/// ============================================================================
 /// 根据 styleId 获取 Style
 ///
 /// Copied from [styleById].
 class StyleByIdFamily extends Family<Style?> {
-  /// ============================================================================
-  /// Style 相关的 Providers
-  /// 提供 Style 数据的查询和派生数据
-  /// ============================================================================
   /// 根据 styleId 获取 Style
   ///
   /// Copied from [styleById].
   const StyleByIdFamily();
 
-  /// ============================================================================
-  /// Style 相关的 Providers
-  /// 提供 Style 数据的查询和派生数据
-  /// ============================================================================
   /// 根据 styleId 获取 Style
   ///
   /// Copied from [styleById].
@@ -95,18 +79,10 @@ class StyleByIdFamily extends Family<Style?> {
   String? get name => r'styleByIdProvider';
 }
 
-/// ============================================================================
-/// Style 相关的 Providers
-/// 提供 Style 数据的查询和派生数据
-/// ============================================================================
 /// 根据 styleId 获取 Style
 ///
 /// Copied from [styleById].
 class StyleByIdProvider extends AutoDisposeProvider<Style?> {
-  /// ============================================================================
-  /// Style 相关的 Providers
-  /// 提供 Style 数据的查询和派生数据
-  /// ============================================================================
   /// 根据 styleId 获取 Style
   ///
   /// Copied from [styleById].
@@ -190,7 +166,7 @@ class _StyleByIdProviderElement extends AutoDisposeProviderElement<Style?>
   String get styleId => (origin as StyleByIdProvider).styleId;
 }
 
-String _$latestStyleHash() => r'fd3715f99a0730b4afb050a9e51da91d4217a4cf';
+String _$latestStyleHash() => r'e4125a20048285e969010d74f728b5306782ef7f';
 
 /// 获取最新的 Style（按创建时间排序）
 ///
@@ -206,7 +182,7 @@ final latestStyleProvider = AutoDisposeProvider<Style?>.internal(
 );
 
 typedef LatestStyleRef = AutoDisposeProviderRef<Style?>;
-String _$sortedStylesHash() => r'72338420bfd0f798c4e2d100af1c930b130407ec';
+String _$sortedStylesHash() => r'd2e4b62ade495dc16a42c566706437c5d51a3f3b';
 
 /// 获取按时间倒序排列的所有 Style
 ///

@@ -209,17 +209,6 @@ class GalleryDatabaseService {
     return rows.isEmpty ? null : MediaAsset.fromDbMap(rows.single);
   }
 
-  /// 更新媒体文件
-  Future<int> updateMediaAsset(MediaAsset asset) async {
-    final db = await database;
-    return await db.update(
-      'media_assets',
-      asset.toDbMap(),
-      where: 'id = ?',
-      whereArgs: [asset.id],
-    );
-  }
-
   /// 批量写入服务端返回的媒体行（仅更新已存在的缓存行）
   Future<void> updateMediaAssetsLocal(List<MediaAsset> assets) async {
     if (assets.isEmpty) return;
@@ -250,48 +239,6 @@ class GalleryDatabaseService {
       where: 'id IN ($placeholders)',
       whereArgs: ids,
     );
-  }
-
-  /// 标记媒体文件为已删除 (软删除)
-  Future<void> markMediaAssetDeleted(String id, {bool deleted = true}) async {
-    final db = await database;
-    final now = DateTime.now().toIso8601String();
-
-    await db.transaction((txn) async {
-      // 如果是主文件，同时标记所有组成员
-      await txn.rawUpdate(
-        '''
-        UPDATE media_assets 
-        SET is_deleted = ?, updated_at = ? 
-        WHERE id = ? OR group_id = ?
-      ''',
-        [deleted ? 1 : 0, now, id, id],
-      );
-    });
-  }
-
-  /// 批量标记媒体文件删除/恢复（单次事务，避免逐条操作）
-  Future<void> batchMarkMediaAssetDeleted(
-    List<String> ids, {
-    bool deleted = true,
-  }) async {
-    if (ids.isEmpty) return;
-    final db = await database;
-    final now = DateTime.now().toIso8601String();
-    final placeholders = List.filled(ids.length, '?').join(',');
-
-    await db.transaction((txn) async {
-      // 标记主文件自己
-      await txn.rawUpdate(
-        'UPDATE media_assets SET is_deleted = ?, updated_at = ? WHERE id IN ($placeholders)',
-        [deleted ? 1 : 0, now, ...ids],
-      );
-      // 标记所有以这些 id 为 group_id 的组成员
-      await txn.rawUpdate(
-        'UPDATE media_assets SET is_deleted = ?, updated_at = ? WHERE group_id IN ($placeholders)',
-        [deleted ? 1 : 0, now, ...ids],
-      );
-    });
   }
 
   Future<Map<String, int>> getGroupSizes() async {

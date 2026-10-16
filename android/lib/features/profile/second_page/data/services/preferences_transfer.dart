@@ -1,9 +1,11 @@
+import 'dart:convert';
+
 import 'package:torrid/core/services/personalization/personalization_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
+import 'package:torrid/providers/network_config/network_config_provider.dart';
 
-Map<String, dynamic> packPreferences() {
+Map<String, dynamic> packPreferences(NetworkConfigState network) {
   final settings = PersonalizationService().getSettings();
-  final prefs = PrefsService().prefs;
   return {
     'backgroundImages': settings.backgroundImages,
     'sidebarImages': settings.sidebarImages,
@@ -12,9 +14,11 @@ Map<String, dynamic> packPreferences() {
     'signature': settings.signature,
     'avatarPath': settings.avatarPath ?? '',
     'networkConfig': {
-      'apiKey': prefs.getString('API_KEY') ?? '',
-      'hostList': prefs.getString('PC_HOST_LIST') ?? '',
-      'activeIndex': prefs.getInt('PC_ACTIVE_INDEX') ?? 0,
+      'apiKey': network.apiKey,
+      'hostList': jsonEncode(
+        network.configs.map((host) => host.toJson()).toList(),
+      ),
+      'activeIndex': network.activeIndex,
     },
   };
 }
@@ -27,57 +31,62 @@ List<String> preferenceImagePaths(Map<String, dynamic> data) => [
 ];
 
 Future<void> restorePreferences(Map<String, dynamic> data) async {
-  final service = PersonalizationService();
-  final previous = service.getSettings();
   final prefs = PrefsService().prefs;
-  final previousNetwork = {
-    for (final key in ['API_KEY', 'PC_HOST_LIST', 'PC_ACTIVE_INDEX'])
-      key: prefs.get(key),
-  };
-  final mottos = List<String>.from(data['mottos'] as List? ?? []);
-  final nickname = data['nickname'] as String? ?? '';
-  final signature = data['signature'] as String? ?? '';
-  final avatar = data['avatarPath'] as String? ?? '';
-  final next = previous.copyWith(
-    backgroundImages: List<String>.from(
-      data['backgroundImages'] as List? ?? [],
-    ),
-    sidebarImages: List<String>.from(data['sidebarImages'] as List? ?? []),
-    mottos: mottos.isEmpty ? previous.mottos : mottos,
-    nickname: nickname.isEmpty ? previous.nickname : nickname,
-    signature: signature.isEmpty ? previous.signature : signature,
-    avatarPath: avatar.isEmpty ? null : avatar,
-    clearAvatar: avatar.isEmpty,
-  );
+  final next = AppSettings.fromJson(data);
+  if (next.avatarPath?.isEmpty == true) next.avatarPath = null;
+  final updates = <String, Object>{'preferences': jsonEncode(next.toJson())};
+  final network = data['networkConfig'] as Map?;
+  if (network != null) {
+    final apiKey = network['apiKey'];
+    final hostList = network['hostList'];
+    final activeIndex = network['activeIndex'];
+    if (apiKey is! String || hostList is! String || activeIndex is! int) {
+      throw const FormatException('偏好的网络配置无效');
+    }
+    final hosts = hostList.isEmpty ? <dynamic>[] : jsonDecode(hostList);
+    if (hosts is! List ||
+        activeIndex < 0 ||
+        (hosts.isEmpty ? activeIndex != 0 : activeIndex >= hosts.length) ||
+        hosts.any(
+          (host) =>
+              host is! Map ||
+              host['host'] is! String ||
+              host['port'] is! String,
+        )) {
+      throw const FormatException('偏好的主机列表或激活下标无效');
+    }
+    updates.addAll({
+      'API_KEY': apiKey,
+      'PC_HOST_LIST': hostList,
+      'PC_ACTIVE_INDEX': activeIndex,
+    });
+  }
+  final previous = {for (final key in updates.keys) key: prefs.get(key)};
+  Future<void> write(String key, Object? value) async {
+    final saved = switch (value) {
+      String() => await prefs.setString(key, value),
+      int() => await prefs.setInt(key, value),
+      null => await prefs.remove(key),
+      _ => throw StateError('不支持的偏好类型'),
+    };
+    if (!saved) throw StateError('保存偏好失败: $key');
+  }
+
   try {
-    await service.saveSettings(next);
-    final network = data['networkConfig'] as Map?;
-    if (network != null) {
-      for (final entry in {
-        'apiKey': 'API_KEY',
-        'hostList': 'PC_HOST_LIST',
-      }.entries) {
-        final value = network[entry.key]?.toString() ?? '';
-        if (value.isNotEmpty) await prefs.setString(entry.value, value);
-      }
-      if (network['activeIndex'] != null) {
-        await prefs.setInt(
-          'PC_ACTIVE_INDEX',
-          int.tryParse(network['activeIndex'].toString()) ?? 0,
-        );
+    for (final entry in updates.entries) {
+      await write(entry.key, entry.value);
+    }
+  } catch (error) {
+    final failures = <Object>[];
+    for (final entry in previous.entries) {
+      try {
+        await write(entry.key, entry.value);
+      } catch (restoreError) {
+        failures.add(restoreError);
       }
     }
-  } catch (_) {
-    await service.saveSettings(previous);
-    for (final entry in previousNetwork.entries) {
-      final value = entry.value;
-      if (value is String) {
-        await prefs.setString(entry.key, value);
-      } else if (value is int) {
-        await prefs.setInt(entry.key, value);
-      } else {
-        await prefs.remove(entry.key);
-      }
+    if (failures.isNotEmpty) {
+      throw StateError('偏好恢复失败且回退失败: $error; $failures');
     }
     rethrow;
   }

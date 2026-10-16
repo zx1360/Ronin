@@ -6,7 +6,7 @@ part of 'online_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicsOnlineHash() => r'feada6d80aa9108fc4228d10d90da3bf5a4877ee';
+String _$comicsOnlineHash() => r'eeecefd8e45a9ca96595e400841e62d406c8454a';
 
 /// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
 ///
@@ -24,7 +24,7 @@ final comicsOnlineProvider =
 
 typedef ComicsOnlineRef = AutoDisposeFutureProviderRef<List<ComicInfo>>;
 String _$onlineChaptersWithComicIdHash() =>
-    r'eca49b82c2be07b2c2a41c8df0fcce9558daa7ec';
+    r'7e80e22fee3569863d3fac42719a0aca8f552135';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -192,7 +192,7 @@ class _OnlineChaptersWithComicIdProviderElement
 }
 
 String _$onlineImagesWithChapterIdHash() =>
-    r'9773cd7d69fd01a8fc1d7307b3b348c2aafd2c9d';
+    r'ce503e5ade0a0b21ddbe5282a3baaff260d642b9';
 
 /// 根据章节 ID 获取对应的图片信息
 ///

@@ -3,11 +3,34 @@ package ai
 import (
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"monarch/internal/config"
 )
+
+func TestEnsureReadyChecksCachedModelServer(t *testing.T) {
+	var offline atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if offline.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte(`{"models":[{"name":"test:latest"}]}`))
+	}))
+	defer server.Close()
+	o := NewOllama(config.AiConfig{OllamaURL: server.URL, OllamaExe: filepath.Join(t.TempDir(), "missing.exe")}, nil)
+	defer o.Shutdown()
+	if _, err := o.ListModelInfo(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	offline.Store(true)
+	if err := o.EnsureReady(t.Context(), "test:latest"); err == nil {
+		t.Fatal("已离线的服务被模型缓存误判为在线")
+	}
+}
 
 // TestListModelInfo 模型清单以本机 Ollama 为唯一真源：
 // capabilities 里有 vision 才算视觉模型，未上报时才退回模型族启发式判断。

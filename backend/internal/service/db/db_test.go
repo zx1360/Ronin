@@ -9,7 +9,9 @@ import (
 )
 
 func TestConcurrentReadConnectionsRetainOneIdle(t *testing.T) {
-	Init(config.DbConfig{File: filepath.Join(t.TempDir(), "db.db"), SchemaFile: "../../../references/db/sqlite.sql"})
+	if err := Init(config.DbConfig{File: filepath.Join(t.TempDir(), "db.db"), SchemaFile: "../../../references/db/sqlite.sql"}); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(Close)
 	connections := make([]*sql.Conn, 0, 8)
 	defer func() {

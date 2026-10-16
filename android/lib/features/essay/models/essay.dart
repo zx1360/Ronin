@@ -32,7 +32,6 @@ class Essay {
   @JsonKey(defaultValue: [])
   final List<Message> messages;
 
-  /// 心情记录 - 可选字段，兼容旧数据
   @HiveField(7)
   @MoodTypeConverter()
   final MoodType? mood;
@@ -41,7 +40,11 @@ class Essay {
   @JsonKey(defaultValue: '')
   final String title;
 
+  @HiveField(9)
+  final DateTime? updatedAt;
+
   Essay({
+    this.updatedAt,
     required this.id,
     required this.date,
     required this.wordCount,
@@ -54,6 +57,7 @@ class Essay {
   });
 
   Essay copyWith({
+    DateTime? updatedAt,
     String? id,
     DateTime? date,
     int? wordCount,
@@ -66,6 +70,7 @@ class Essay {
     String? title,
   }) {
     return Essay(
+      updatedAt: updatedAt ?? this.updatedAt,
       id: id ?? this.id,
       date: date ?? this.date,
       wordCount: wordCount ?? this.wordCount,

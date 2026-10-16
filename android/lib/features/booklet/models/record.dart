@@ -27,12 +27,15 @@ class Record {
   @HiveField(4)
   late final Map<String, bool> taskCompletion;
 
-  /// 心情记录 - 可选字段，兼容旧数据
   @HiveField(5)
   @MoodTypeConverter()
   MoodType? mood;
 
+  @HiveField(6)
+  final DateTime? updatedAt;
+
   Record({
+    this.updatedAt,
     required this.id,
     required this.styleId,
     required this.date,
@@ -42,6 +45,7 @@ class Record {
   });
 
   Record copyWith({
+    DateTime? updatedAt,
     String? id,
     String? styleId,
     DateTime? date,
@@ -51,6 +55,7 @@ class Record {
     bool clearMood = false,
   }) {
     return Record(
+      updatedAt: updatedAt ?? this.updatedAt,
       id: id ?? this.id,
       styleId: styleId ?? this.styleId,
       date: date ?? this.date,

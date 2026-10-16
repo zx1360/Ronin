@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
@@ -26,16 +25,7 @@ func SetupRouter() *gin.Engine {
 
 	r := gin.Default()
 
-	// CORS 跨域配置
-	r.Use(cors.New(cors.Config{
-		AllowAllOrigins:  true,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "X-API-Key", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length", "Content-Disposition"},
-		AllowCredentials: false,
-	}))
-
-	// 选择性鉴权中间件：漫画相关 + 测试接口 + 网页运维端免验证，其余均需 X-API-Key
+	// 漫画只读请求、测试接口及本机网页免密，其余需要 X-API-Key。
 	r.Use(selectiveAuth())
 
 	// 静态资源响应
@@ -58,11 +48,12 @@ func SetupRouter() *gin.Engine {
 		userDataGroup := api.Group("/user-data")
 		{
 			userDataGroup.GET("/sync/:module", data_handler.SyncHandler)
+			userDataGroup.POST("/sync/:module", data_handler.BackupHandler)
 			userDataGroup.POST("/backup/:module", data_handler.BackupHandler)
 			userDataGroup.POST("/check-images/:module", data_handler.CheckImagesHandler)
 		}
 
-		// 漫画请求相关（免鉴权，由 selectiveAuth 放行）
+		// 漫画读取免鉴权；修改需要 X-API-Key。
 		comicGroup := api.Group("/comic")
 		{
 			// 漫画列表 & 详情
@@ -138,6 +129,7 @@ func SetupRouter() *gin.Engine {
 		{
 			// 运维：状态、队列、入队、重试、全量重生成、中断、模型进程、索引
 			aiGroup.GET("/status", ai_handler.Status)
+			aiGroup.GET("/progress", ai_handler.Progress)
 			aiGroup.GET("/capabilities", ai_handler.ListCapabilities)
 			aiGroup.GET("/jobs", ai_handler.ListJobs)
 			aiGroup.GET("/failures", ai_handler.ListFailures)
@@ -154,6 +146,7 @@ func SetupRouter() *gin.Engine {
 
 			// 交互式对话（NDJSON 流；Android 端聊天页使用）
 			aiGroup.POST("/chat", ai_handler.Chat)
+			aiGroup.GET("/chat/info", ai_handler.ChatInfo)
 
 			// 近期回顾：后端算确定性统计（+ 可选随机素材）后交本地模型叙述
 			aiGroup.POST("/review", ai_handler.Review)

@@ -6,7 +6,7 @@ part of 'history_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$bookletHistoryHash() => r'363344a420b4f0c200a010f0e1f34acefe1587a9';
+String _$bookletHistoryHash() => r'ebf8bee38fb0c71cf194869b9f3f78aef5b4770e';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -42,11 +42,9 @@ class BookletHistoryFamily
   /// See also [bookletHistory].
   BookletHistoryProvider call({
     String? styleId,
-    bool onlyMessages = true,
   }) {
     return BookletHistoryProvider(
       styleId: styleId,
-      onlyMessages: onlyMessages,
     );
   }
 
@@ -56,7 +54,6 @@ class BookletHistoryFamily
   ) {
     return call(
       styleId: provider.styleId,
-      onlyMessages: provider.onlyMessages,
     );
   }
 
@@ -81,12 +78,10 @@ class BookletHistoryProvider
   /// See also [bookletHistory].
   BookletHistoryProvider({
     String? styleId,
-    bool onlyMessages = true,
   }) : this._internal(
           (ref) => bookletHistory(
             ref as BookletHistoryRef,
             styleId: styleId,
-            onlyMessages: onlyMessages,
           ),
           from: bookletHistoryProvider,
           name: r'bookletHistoryProvider',
@@ -98,7 +93,6 @@ class BookletHistoryProvider
           allTransitiveDependencies:
               BookletHistoryFamily._allTransitiveDependencies,
           styleId: styleId,
-          onlyMessages: onlyMessages,
         );
 
   BookletHistoryProvider._internal(
@@ -109,11 +103,9 @@ class BookletHistoryProvider
     required super.debugGetCreateSourceHash,
     required super.from,
     required this.styleId,
-    required this.onlyMessages,
   }) : super.internal();
 
   final String? styleId;
-  final bool onlyMessages;
 
   @override
   Override overrideWith(
@@ -130,7 +122,6 @@ class BookletHistoryProvider
         allTransitiveDependencies: null,
         debugGetCreateSourceHash: null,
         styleId: styleId,
-        onlyMessages: onlyMessages,
       ),
     );
   }
@@ -142,16 +133,13 @@ class BookletHistoryProvider
 
   @override
   bool operator ==(Object other) {
-    return other is BookletHistoryProvider &&
-        other.styleId == styleId &&
-        other.onlyMessages == onlyMessages;
+    return other is BookletHistoryProvider && other.styleId == styleId;
   }
 
   @override
   int get hashCode {
     var hash = _SystemHash.combine(0, runtimeType.hashCode);
     hash = _SystemHash.combine(hash, styleId.hashCode);
-    hash = _SystemHash.combine(hash, onlyMessages.hashCode);
 
     return _SystemHash.finish(hash);
   }
@@ -161,9 +149,6 @@ mixin BookletHistoryRef
     on AutoDisposeFutureProviderRef<List<BookletHistoryEntry>> {
   /// The parameter `styleId` of this provider.
   String? get styleId;
-
-  /// The parameter `onlyMessages` of this provider.
-  bool get onlyMessages;
 }
 
 class _BookletHistoryProviderElement
@@ -173,8 +158,6 @@ class _BookletHistoryProviderElement
 
   @override
   String? get styleId => (origin as BookletHistoryProvider).styleId;
-  @override
-  bool get onlyMessages => (origin as BookletHistoryProvider).onlyMessages;
 }
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

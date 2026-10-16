@@ -11,7 +11,6 @@ import 'package:torrid/features/home/widgets/default_background.dart';
 import 'package:torrid/features/home/widgets/menu_button.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
-// 将魔法数字提取为常量，提高可维护性
 const double _menuWidthRatio = 0.7;
 const Duration _animationDuration = Duration(milliseconds: 250);
 const double _largeSpacing = 60.0;
@@ -39,11 +38,11 @@ class _HomePageState extends ConsumerState<HomePage>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _opacityAnimation;
 
-  // _isMenuOpen 布尔变量来控制
   bool _isMenuOpen = false;
 
   // 个性化配置
-  final PersonalizationService _personalizationService = PersonalizationService();
+  final PersonalizationService _personalizationService =
+      PersonalizationService();
   late String _motto;
   String? _sidebarImagePath;
   File? _bgFile;

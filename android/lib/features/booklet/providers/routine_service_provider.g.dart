@@ -6,11 +6,9 @@ part of 'routine_service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$routineServiceHash() => r'0d50e0627f76bd23c67c9424eec72fdaaed1f350';
+String _$routineServiceHash() => r'147623a85185fc537f6ed5eba1d544ba65d99a6e';
 
-/// 核心业务操作，管理所有的数据修改
-///
-/// Copied from [RoutineService].
+/// See also [RoutineService].
 @ProviderFor(RoutineService)
 final routineServiceProvider =
     AutoDisposeNotifierProvider<RoutineService, RoutineDataContainer>.internal(

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:path/path.dart' as p;
 import 'package:torrid/core/services/network/cert_trust.dart';
 
 /// 统一 API 异常
@@ -50,39 +51,33 @@ class ApiClient {
     _dio.interceptors.add(_RetryInterceptor(_dio));
   }
 
+  void close() => _dio.close();
+
   /// 将底层异常归一化为 [ApiException]
   ///
   /// 非 [DioException] 的错误原样包装，保证调用方始终拿到可读信息。
   static ApiException mapError(Object error) {
+    if (error is ApiException) return error;
     if (error is DioException) {
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
-          return ApiException(
-            '连接超时，请检查服务器地址或网络',
-            cause: error,
-          );
+          return ApiException('连接超时，请检查服务器地址或网络', cause: error);
         case DioExceptionType.connectionError:
-          return ApiException(
-            '无法连接服务器，请检查地址或网络',
-            cause: error,
-          );
+          return ApiException('无法连接服务器，请检查地址或网络', cause: error);
         case DioExceptionType.badCertificate:
           return ApiException('证书校验失败', cause: error);
         case DioExceptionType.badResponse:
           return ApiException(
-            '服务器响应异常 (HTTP ${error.response?.statusCode ?? '-'})',
+            '服务器响应异常 (HTTP ${error.response?.statusCode ?? '-'})${error.response?.data is Map && error.response?.data['error'] is String ? '：${error.response?.data['error']}' : ''}',
             statusCode: error.response?.statusCode,
             cause: error,
           );
         case DioExceptionType.cancel:
           return const ApiException('请求已取消');
         case DioExceptionType.unknown:
-          return ApiException(
-            error.message ?? '网络请求失败',
-            cause: error,
-          );
+          return ApiException(error.message ?? '网络请求失败', cause: error);
       }
     }
     return ApiException(error.toString(), cause: error);
@@ -126,6 +121,19 @@ class ApiClient {
       options: Options(responseType: ResponseType.bytes),
     );
   }
+
+  Future<Response> download(
+    String path,
+    String savePath, {
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+  }) => _dio.download(
+    path,
+    savePath,
+    cancelToken: cancelToken,
+    onReceiveProgress: onReceiveProgress,
+    options: Options(receiveTimeout: const Duration(minutes: 2)),
+  );
 
   /// POST请求，直接发送 JSON body (Content-Type: application/json)
   Future<Response> postJson(
@@ -230,7 +238,7 @@ class ApiClient {
             "files",
             await MultipartFile.fromFile(
               file.path,
-              filename: file.path.split("/").last,
+              filename: p.basename(file.path),
             ),
           ),
         );
@@ -259,10 +267,14 @@ class _RetryInterceptor extends Interceptor {
   _RetryInterceptor(this._dio);
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final options = err.requestOptions;
 
-    final canRetry = options.method == 'GET' &&
+    final canRetry =
+        options.method == 'GET' &&
         _isConnectionError(err.type) &&
         _attempts(options) < _maxAttempts;
 

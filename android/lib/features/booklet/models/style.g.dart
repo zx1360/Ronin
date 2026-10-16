@@ -17,6 +17,7 @@ class StyleAdapter extends TypeAdapter<Style> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Style(
+      updatedAt: fields[7] as DateTime?,
       id: fields[0] as String,
       startDate: fields[1] as DateTime,
       validCheckIn: fields[2] as int,
@@ -30,7 +31,7 @@ class StyleAdapter extends TypeAdapter<Style> {
   @override
   void write(BinaryWriter writer, Style obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class StyleAdapter extends TypeAdapter<Style> {
       ..writeByte(5)
       ..write(obj.longestFullyStreak)
       ..writeByte(6)
-      ..write(obj.tasks);
+      ..write(obj.tasks)
+      ..writeByte(7)
+      ..write(obj.updatedAt);
   }
 
   @override
@@ -63,6 +66,9 @@ class StyleAdapter extends TypeAdapter<Style> {
 // **************************************************************************
 
 Style _$StyleFromJson(Map<String, dynamic> json) => Style(
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.parse(json['updated_at'] as String),
       id: json['id'] as String,
       startDate: dateFromJson(json['start_date'] as String),
       validCheckIn: (json['valid_check_in'] as num).toInt(),
@@ -82,4 +88,5 @@ Map<String, dynamic> _$StyleToJson(Style instance) => <String, dynamic>{
       'longest_streak': instance.longestStreak,
       'longest_fully_streak': instance.longestFullyStreak,
       'tasks': instance.tasks,
+      'updated_at': instance.updatedAt?.toIso8601String(),
     };

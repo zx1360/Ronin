@@ -35,8 +35,8 @@ class DataTransferPage extends ConsumerWidget {
 
         // 同步操作区
         _buildSection(
-          title: '同步到本地',
-          subtitle: '从服务器下载数据到本地',
+          title: '双向同步',
+          subtitle: '随笔与打卡按更新时间合并，删除标记同步；偏好从服务器恢复',
           children: const [_SyncSection()],
         ),
 
@@ -45,7 +45,7 @@ class DataTransferPage extends ConsumerWidget {
         // 备份操作区
         _buildSection(
           title: '备份到服务器',
-          subtitle: '将本地数据上传到服务器',
+          subtitle: '随笔与打卡双向合并；偏好仍整体上传',
           children: const [_BackupSection()],
         ),
 
@@ -83,19 +83,14 @@ class DataTransferPage extends ConsumerWidget {
           ),
           child: Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 12,
-              color: AppTheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
           ),
         ),
         Card(
           margin: EdgeInsets.zero,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.sm),
-            child: Column(
-              children: children,
-            ),
+            child: Column(children: children),
           ),
         ),
       ],

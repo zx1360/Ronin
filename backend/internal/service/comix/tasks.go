@@ -26,10 +26,12 @@ func (m *taskManager) Start(name, cmd string, rest ...string) (*taskengine.Task,
 		return nil, errors.New(msg)
 	}
 	return m.engine.Start(taskengine.Spec{
+		Guard:        &MutationMu,
 		Name:         name,
 		Exe:          PythonExecutable(),
 		Args:         BuildArgs(cmd, rest...),
 		Dir:          config.ComixConf.Root,
+		Env:          []string{"MONARCH_DB_FILE=" + dbAbsPath(), "COMIC_STORAGE_ROOT=" + config.ComixConf.StorageRoot},
 		StreamStdout: false, // stdout 是单行 JSON 结果，写进日志只会刷屏
 		Parse:        parseTaskResult,
 	})
@@ -44,8 +46,8 @@ func (m *taskManager) List() []*taskengine.Task { return m.engine.List() }
 // Stop 中断运行中的任务。
 func (m *taskManager) Stop(taskID string) error { return m.engine.Stop(taskID) }
 
-// KillAll 中断全部运行中任务（供服务退出前调用）。
-func (m *taskManager) KillAll() { m.engine.KillAll() }
+// Close 中断全部任务并等待退出。
+func (m *taskManager) Close() { m.engine.Close() }
 
 // parseTaskResult 适配 taskengine 的解析钩子。
 func parseTaskResult(stdout, stderr string, exitCode int, runErr error) (any, error) {

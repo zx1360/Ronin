@@ -19,7 +19,7 @@ type AppConfig struct {
 
 // NetConfig 网络配置
 //
-// 启动后同时监听两个端口，接口完全一致，只是协议不同：
+// 启动后同时提供局域网 HTTPS 与仅回环 HTTP，接口一致：
 // HTTPS（自签证书，供 Android 等局域网消费端）与 HTTP（供本机浏览器打开运维页面，
 // 免得自签证书弹警告）。危险接口由"仅回环可访问"约束，与端口无关。
 type NetConfig struct {

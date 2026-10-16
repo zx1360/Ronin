@@ -18,7 +18,7 @@ class ChatSettingsPage extends ConsumerStatefulWidget {
 class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
   final TextEditingController _keepAliveController = TextEditingController();
 
-  /// 服务端默认值（读 /API/ai/status 的 ollama 段，失败则用本地缺省）。
+  /// 服务端默认值；读取失败时使用本地缺省。
   ChatServerInfo? _server;
 
   @override

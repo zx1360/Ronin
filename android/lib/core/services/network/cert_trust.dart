@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// 自签证书信任管理
@@ -12,15 +14,28 @@ class CertTrust {
   CertTrust._();
 
   static SecurityContext? _securityContext;
+  static List<int>? _trustedCertificate;
 
   /// 初始化: 从 assets 加载证书, 设置全局 HttpOverrides.
   /// 应在 main() 中 WidgetsFlutterBinding.ensureInitialized() 之后调用.
   static Future<void> init() async {
+    if (_securityContext != null) return;
     final certBytes = await rootBundle.load('assets/cert/server.crt');
-    // 与桌面端保持一致：仅信任加载的自签证书，不额外信任系统根证书
-    _securityContext = SecurityContext(withTrustedRoots: false);
-    _securityContext!.setTrustedCertificatesBytes(certBytes.buffer.asUint8List());
-    HttpOverrides.global = _TrustedCertHttpOverrides(_securityContext!);
+    final bytes = certBytes.buffer.asUint8List(
+      certBytes.offsetInBytes,
+      certBytes.lengthInBytes,
+    );
+    final pem = utf8.decode(bytes);
+    final body = RegExp(
+      r'-----BEGIN CERTIFICATE-----([\s\S]+?)-----END CERTIFICATE-----',
+    ).firstMatch(pem)?.group(1);
+    if (body == null) throw const FormatException('后端证书格式无效');
+    final trusted = base64Decode(body.replaceAll(RegExp(r'\s'), ''));
+    final context = SecurityContext(withTrustedRoots: true)
+      ..setTrustedCertificatesBytes(bytes);
+    _trustedCertificate = trusted;
+    _securityContext = context;
+    HttpOverrides.global = _TrustedCertHttpOverrides(context);
   }
 
   /// 创建已配置信任的 IOHttpClientAdapter, 供 Dio 使用.
@@ -45,10 +60,8 @@ class CertTrust {
   }
 
   static bool _verifyCert(X509Certificate cert, String host, int port) {
-    // 自签证书: 信任 SecurityContext 中已加载的证书.
-    // 当 SecurityContext 中包含对应 CA/自签证书时, 此回调不会被触发;
-    // 仅作为兜底, 允许通过.
-    return true;
+    return _trustedCertificate != null &&
+        listEquals(cert.der, _trustedCertificate);
   }
 }
 
@@ -58,8 +71,8 @@ class _TrustedCertHttpOverrides extends HttpOverrides {
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    final client = super.createHttpClient(_context);
-    client.badCertificateCallback = (cert, host, port) => true;
+    final client = super.createHttpClient(context ?? _context);
+    client.badCertificateCallback = CertTrust._verifyCert;
     return client;
   }
 }

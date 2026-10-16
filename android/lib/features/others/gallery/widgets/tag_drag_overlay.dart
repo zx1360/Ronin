@@ -231,7 +231,10 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
         _stopAutoScroll();
         return;
       }
-      final next = (scroll.offset + _scrollSpeed).clamp(
+      final direction = scroll.position.axisDirection == AxisDirection.up
+          ? -1
+          : 1;
+      final next = (scroll.offset + _scrollSpeed * direction).clamp(
         0.0,
         scroll.position.maxScrollExtent,
       );
@@ -322,6 +325,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
                                     : LayoutBuilder(
                                         builder: (_, box) => GridView.builder(
                                           controller: _treeScroll,
+                                          reverse: turns == 0,
                                           padding: const EdgeInsets.fromLTRB(
                                             4,
                                             0,
@@ -385,6 +389,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
                                 ),
                                 child: ListView.builder(
                                   controller: _favoriteScroll,
+                                  reverse: turns == 0,
                                   itemExtent: 44,
                                   padding: const EdgeInsets.fromLTRB(
                                     4,

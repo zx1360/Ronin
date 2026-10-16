@@ -20,7 +20,7 @@
 
 ### 只改 Ops
 
-1. 保持无构建、同源、无浏览器持久化。
+1. 保持无构建、同源；草稿存 IndexedDB，密钥仅存内存，偏好由服务端持有。
 2. 页面请求集中经过 `src/api.js`。
 3. 页面操作捕获异常并提示；破坏性操作使用 `confirmAction`，轮询使用 `usePolling`。
 4. `python tools/smoke_ops_web.py`。
@@ -29,7 +29,7 @@
 
 | 契约 | 不能做的事 | 原因 |
 | --- | --- | --- |
-| `/API/user-data/sync/*` | 部分写入后再发现坏数据 | 它是完整数据集替换，必须先完整解析校验、事务性替换 |
+| `/API/user-data/sync/*` | 部分写入后再发现坏数据 | 按 updated_at 合并并保留 tombstone；整批校验与事务回滚，成功应用后推进游标 |
 | `edit_params` | 自定义另一套旋转/剪裁坐标 | Gallery `execute` 按未旋转原图坐标裁切，再应用逆时针旋转 |
 | `sync_count` | 客户端本地自行递增后当服务端值 | “标记已处理”是服务端 `sync_count + 1`，随后清理缓存 |
 | Gallery 标签/标注 | 只改 Android `gallery.db` | 服务端是权威，本地只是缓存/写队列 |
@@ -54,6 +54,8 @@
 ```
 
 ## 4. 验证命令
+
+跨端协议与生命周期：在仓库根运行 `pwsh -File backend/tools/check_contracts.ps1`，共享样例见 `contracts/README.md`。
 
 后端：
 
@@ -91,5 +93,5 @@ python tools/smoke_ops_web.py
 - 子进程任务状态不持久化：重启后由 CLI 的幂等/孤儿自愈恢复，而不是恢复 Go 内存对象。
 - AI 向量不使用专用数据库索引，依赖 Go 内存精确扫描；媒体规模增长时应重新评估。
 - 文本 AI 检索使用 `LIKE '%kw%'`，短期简单可靠，文本量增长后再考虑 FTS5/trigram。
-- Gallery 与 Immich 有意采用不同写入策略：一个支持离线合并，一个始终在线直写。
+- Gallery 在内存合并高频修改，Immich 在线直写；两者只持久化服务端确认结果。
 - 双端口不是两套 API：任何端口差异都应只体现在协议和访问边界，不要复制路由实现。

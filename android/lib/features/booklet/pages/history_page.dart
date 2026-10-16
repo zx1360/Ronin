@@ -16,7 +16,6 @@ class BookletHistoryPage extends ConsumerStatefulWidget {
 
 class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
   late String? _styleId = widget.styleId;
-  bool _onlyMessages = true;
 
   @override
   Widget build(BuildContext context) {
@@ -27,21 +26,30 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
     final selected = styles.any((style) => style.id == _styleId)
         ? _styleId
         : null;
-    final entries = ref.watch(
-      bookletHistoryProvider(styleId: selected, onlyMessages: _onlyMessages),
-    );
+    final entries = ref.watch(bookletHistoryProvider(styleId: selected));
+    final styleColors = {
+      for (final (index, style) in styles.indexed)
+        style.id: Colors.primaries[index % Colors.primaries.length].shade600,
+    };
     return Scaffold(
       backgroundColor: const Color(0xFFF5F0E1),
       appBar: AppBar(title: const Text('历史回看')),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: DropdownButtonFormField<String>(
               key: ValueKey(selected),
               initialValue: selected ?? '',
               isExpanded: true,
-              decoration: const InputDecoration(labelText: '打卡计划'),
+              decoration: const InputDecoration(
+                labelText: '打卡计划',
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
               items: [
                 const DropdownMenuItem(value: '', child: Text('全部计划')),
                 for (final style in styles)
@@ -58,25 +66,6 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
                   setState(() => _styleId = value == '' ? null : value),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                FilterChip(
-                  label: const Text('只看留言'),
-                  selected: _onlyMessages,
-                  onSelected: (value) => setState(() => _onlyMessages = value),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _onlyMessages ? '从写给自己的话开始回看' : '按时间查看留言、心情与完成情况',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: entries.when(
               skipLoadingOnRefresh: false,
@@ -84,20 +73,15 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
               error: (error, _) => Center(child: Text('读取历史失败：$error')),
               data: (entries) {
                 if (entries.isEmpty) {
-                  return Center(
+                  return const Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        _onlyMessages
-                            ? '还没有留言。关闭“只看留言”可回看打卡记录。'
-                            : '当前计划还没有历史记录',
-                        textAlign: TextAlign.center,
-                      ),
+                      padding: EdgeInsets.all(24),
+                      child: Text('还没有留言', textAlign: TextAlign.center),
                     ),
                   );
                 }
                 return ListView.builder(
-                  key: ValueKey((selected, _onlyMessages)),
+                  key: ValueKey(selected),
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   itemCount: entries.length,
                   itemBuilder: (context, index) {
@@ -112,7 +96,7 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
                       children: [
                         if (showMonth)
                           Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Text(
                               DateFormat('yyyy年MM月').format(date),
                               style: Theme.of(context).textTheme.titleMedium,
@@ -121,6 +105,9 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
                         _HistoryCard(
                           key: ValueKey(entry.record.id),
                           entry: entry,
+                          timelineColor:
+                              styleColors[entry.record.styleId] ??
+                              Theme.of(context).colorScheme.outline,
                         ),
                       ],
                     );
@@ -137,7 +124,12 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
 
 class _HistoryCard extends StatelessWidget {
   final BookletHistoryEntry entry;
-  const _HistoryCard({super.key, required this.entry});
+  final Color timelineColor;
+  const _HistoryCard({
+    super.key,
+    required this.entry,
+    required this.timelineColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -150,16 +142,19 @@ class _HistoryCard extends StatelessWidget {
       children: [
         Container(
           margin: const EdgeInsets.only(left: 6),
-          padding: const EdgeInsets.only(left: 16, bottom: 12),
+          padding: const EdgeInsets.only(left: 12, bottom: 6),
           decoration: BoxDecoration(
             border: Border(
-              left: BorderSide(color: colors.outlineVariant, width: 2),
+              left: BorderSide(
+                color: timelineColor.withValues(alpha: 0.55),
+                width: 2,
+              ),
             ),
           ),
           child: Card(
             margin: EdgeInsets.zero,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -175,29 +170,23 @@ class _HistoryCard extends StatelessWidget {
                       if (record.mood != null)
                         MoodDisplay(
                           mood: record.mood,
-                          iconSize: 18,
+                          iconSize: 16,
                           showLabel: true,
                         ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    style == null
-                        ? '原计划已不存在'
-                        : '${DateFormat('yyyy.MM.dd').format(style.startDate)} 开始的计划',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: 6),
+                  SelectableText(
+                    record.message,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(height: 1.4),
                   ),
-                  if (record.message.trim().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    SelectableText(
-                      record.message,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(height: 1.6),
-                    ),
-                  ],
                   ExpansionTile(
                     key: PageStorageKey(record.id),
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    minTileHeight: 32,
                     tilePadding: EdgeInsets.zero,
                     title: Text(
                       style == null
@@ -210,7 +199,7 @@ class _HistoryCard extends StatelessWidget {
                       if (style != null)
                         for (final task in style.tasks)
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.only(bottom: 6),
                             child: Row(
                               children: [
                                 Icon(
@@ -236,13 +225,13 @@ class _HistoryCard extends StatelessWidget {
         ),
         Positioned(
           left: 1,
-          top: 22,
+          top: 12,
           child: Container(
             width: 12,
             height: 12,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: colors.primary,
+              color: timelineColor,
             ),
           ),
         ),

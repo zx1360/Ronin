@@ -9,7 +9,7 @@
 3. `db.Init()` 打开 SQLite，应用幂等 schema 和列迁移。
 4. 创建并加载 `ops_web.json` 对应的 `OpsStore`，注入 Ops handler。
 5. 创建 AI `Engine`，注入暂停状态存储并启动后台循环。
-6. 启动 HTTP/HTTPS 双端口；退出时停止 AI、Gallery 和 comix 子进程。
+6. 启动 HTTP/HTTPS 双端口；信号或监听失败会取消请求，关闭监听与 mDNS，等待 AI、Gallery、comix 退出后关闭数据库。服务层返回错误，不结束进程。
 
 这意味着 handler 不应自行创建数据库、配置或外部进程；这些资源由启动装配提供全局服务门面。
 
@@ -39,7 +39,7 @@ Gin middleware
 
 | 路由组 | 主要消费者 | 责任 |
 | --- | --- | --- |
-| `/API/user-data` | Torrid | 随笔、打卡同步/备份/图片检查 |
+| `/API/user-data` | Torrid + Northstar | 随笔、打卡增量合并、删除标记、图片检查 |
 | `/API/comic` | Torrid | 阅读侧漫画列表、章节、图片和设备下载 |
 | `/API/gallery` | Torrid + Northstar | 媒体查询、标签、标注、批次缓存和文件 |
 | `/API/ai` | Torrid + Northstar | AI 状态、队列、检索、人物、聊天、近期回顾 |
@@ -50,8 +50,8 @@ Gin middleware
 ### 鉴权模型
 
 - 通用接口需要 `X-API-Key`；图片等不能加 header 的资源允许 `api_key` 查询参数。
-- `/API/comic`、`/API/test` 和 Ops 本机接口由选择性鉴权规则放行。
-- Ops 本机接口并非“信任任意客户端”：`LocalOnly` 以 TCP 对端回环地址为边界。
+- 漫画只读 GET、`/API/test` 和 Ops 本机接口由选择性鉴权规则放行；漫画修改仍需密钥。
+- Ops 本机接口由 `LocalOnly` 校验 TCP 回环、Host 与浏览器来源。
 - 非回环错误 API key 按 IP 计数并持久化封禁；回环地址永不封禁，避免 bootstrap/密钥轮换把本机锁死。
 
 ## 4. SQLite 设计
@@ -79,7 +79,7 @@ erDiagram
 ```
 
 - `media_assets/tags/media_tag_links`：Gallery 主数据；人工标签和 AI 标签物理隔离。
-- `essay_* / booklet_*`：用户数据整体替换同步。
+- `essay_* / booklet_*`：用户数据按 updated_at 合并；`user_data_changes` 保存每行最新 revision 和 tombstone。
 - `media_ai / embeddings / faces / persons / jobs`：AI 产物与任务。
 - `comic_*`：comix 自己维护，Monarch 通过 repository/handler 使用。
 
@@ -92,7 +92,7 @@ erDiagram
 
 - 异步启动、stdout/stderr 逐行日志、退出码和结构化结果。
 - 任务状态只保留在内存，服务重启即清空。
-- `Stop`/`KillAll` 负责杀进程树，避免 Python/CLI 孤儿进程。
+- `Stop` 中断单个任务；`Close` 拒绝新任务、杀进程树并等待任务退出。
 
 两个消费者：
 
@@ -121,6 +121,7 @@ cluster：人脸在线归并与批量重聚类
 - 本机只有一个 GPU，模型仲裁器保证同一时间只运行一个模型；前台聊天可抢占后台标注。
 - `AI_ENABLED=false` 或 AI schema 缺失时，主服务仍启动；端上应将 AI 失败降级而不是白屏。
 - `/API/ai/chat` 和 `/API/ai/review` 是 NDJSON 流；先有状态/通知类事件，再有增量内容。
+- `/API/ai/progress` 仅读取队列与内存进程状态；`/status` 按需提供媒体统计与依赖诊断，`?refresh=true` 刷新探测缓存。聊天配置与候选通过 `/chat/info` 获取，不触发媒体诊断。
 
 ## 7. 修改后验证
 
