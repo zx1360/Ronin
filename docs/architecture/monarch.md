@@ -39,7 +39,7 @@ Gin middleware
 
 | 路由组 | 主要消费者 | 责任 |
 | --- | --- | --- |
-| `/API/user-data` | Torrid | 随笔、打卡同步/备份/图片检查 |
+| `/API/user-data` | Torrid + Northstar | 随笔、打卡增量合并、删除标记、图片检查 |
 | `/API/comic` | Torrid | 阅读侧漫画列表、章节、图片和设备下载 |
 | `/API/gallery` | Torrid + Northstar | 媒体查询、标签、标注、批次缓存和文件 |
 | `/API/ai` | Torrid + Northstar | AI 状态、队列、检索、人物、聊天、近期回顾 |
@@ -79,7 +79,7 @@ erDiagram
 ```
 
 - `media_assets/tags/media_tag_links`：Gallery 主数据；人工标签和 AI 标签物理隔离。
-- `essay_* / booklet_*`：用户数据整体替换同步。
+- `essay_* / booklet_*`：用户数据按 updated_at 合并；`user_data_changes` 保存每行最新 revision 和 tombstone。
 - `media_ai / embeddings / faces / persons / jobs`：AI 产物与任务。
 - `comic_*`：comix 自己维护，Monarch 通过 repository/handler 使用。
 

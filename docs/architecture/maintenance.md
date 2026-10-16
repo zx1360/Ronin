@@ -29,7 +29,7 @@
 
 | 契约 | 不能做的事 | 原因 |
 | --- | --- | --- |
-| `/API/user-data/sync/*` | 部分写入后再发现坏数据 | 它是完整数据集替换，必须先完整解析校验、事务性替换 |
+| `/API/user-data/sync/*` | 部分写入后再发现坏数据 | 按 updated_at 合并并保留 tombstone；整批校验与事务回滚，成功应用后推进游标 |
 | `edit_params` | 自定义另一套旋转/剪裁坐标 | Gallery `execute` 按未旋转原图坐标裁切，再应用逆时针旋转 |
 | `sync_count` | 客户端本地自行递增后当服务端值 | “标记已处理”是服务端 `sync_count + 1`，随后清理缓存 |
 | Gallery 标签/标注 | 只改 Android `gallery.db` | 服务端是权威，本地只是缓存/写队列 |

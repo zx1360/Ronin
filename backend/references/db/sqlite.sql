@@ -144,6 +144,17 @@ CREATE INDEX IF NOT EXISTS idx_booklet_records_date    ON booklet_records (date)
 CREATE INDEX IF NOT EXISTS idx_booklet_records_style   ON booklet_records (style_id);
 CREATE INDEX IF NOT EXISTS idx_booklet_records_updated ON booklet_records (updated_at);
 
+CREATE TABLE IF NOT EXISTS user_data_changes (
+    revision   INTEGER PRIMARY KEY AUTOINCREMENT,
+    module     TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    row_id     TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted    INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0,1)),
+    UNIQUE (module, collection, row_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_data_changes_cursor ON user_data_changes(module, revision);
+
 -- =====================================================
 -- ai：本地 AI 处理层
 -- =====================================================
@@ -348,36 +359,6 @@ CREATE TRIGGER IF NOT EXISTS trg_tags_updated_at AFTER UPDATE ON tags FOR EACH R
 WHEN NEW.updated_at IS OLD.updated_at
 BEGIN
     UPDATE tags SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_essay_articles_updated_at AFTER UPDATE ON essay_articles FOR EACH ROW
-WHEN NEW.updated_at IS OLD.updated_at
-BEGIN
-    UPDATE essay_articles SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_essay_labels_updated_at AFTER UPDATE ON essay_labels FOR EACH ROW
-WHEN NEW.updated_at IS OLD.updated_at
-BEGIN
-    UPDATE essay_labels SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_essay_year_summaries_updated_at AFTER UPDATE ON essay_year_summaries FOR EACH ROW
-WHEN NEW.updated_at IS OLD.updated_at
-BEGIN
-    UPDATE essay_year_summaries SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE year = NEW.year;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_booklet_styles_updated_at AFTER UPDATE ON booklet_styles FOR EACH ROW
-WHEN NEW.updated_at IS OLD.updated_at
-BEGIN
-    UPDATE booklet_styles SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_booklet_records_updated_at AFTER UPDATE ON booklet_records FOR EACH ROW
-WHEN NEW.updated_at IS OLD.updated_at
-BEGIN
-    UPDATE booklet_records SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime') WHERE id = NEW.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_media_ai_updated_at AFTER UPDATE ON media_ai FOR EACH ROW

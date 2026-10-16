@@ -10,6 +10,9 @@ export default {
   },
   template: `
     <div>
+      <Card title="积微与随笔">
+        <div class="col small"><div>手机与网页都可编辑，手动同步按更新时间合并，删除也会同步到另一端。</div><div>首次升级请先用新版 Android 同步一次，再开始网页编辑；设备时间应保持准确。</div><div>网页随笔草稿及草稿图片仅保存在当前浏览器，正式保存后才上传；清理浏览器数据会移除本机草稿。</div></div>
+      </Card>
       <Card title="本机能力由后端代理">
         <div class="col small">
           <div>页面本身没有本机权限，下列操作经 <span class="mono">/API/ops/local/*</span> 交由 Monarch 在本机执行：</div>

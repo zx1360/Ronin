@@ -227,8 +227,11 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     }
   }
 
-  String _editableFields(Essay essay) =>
-      jsonEncode(essay.toJson()..remove('messages'));
+  String _editableFields(Essay essay) => jsonEncode(
+    essay.toJson()
+      ..remove('messages')
+      ..remove('updated_at'),
+  );
 
   Future<void> _saveEssay() async {
     if (_busy) return;

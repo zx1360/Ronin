@@ -58,6 +58,7 @@ func SetupRouter() *gin.Engine {
 		userDataGroup := api.Group("/user-data")
 		{
 			userDataGroup.GET("/sync/:module", data_handler.SyncHandler)
+			userDataGroup.POST("/sync/:module", data_handler.BackupHandler)
 			userDataGroup.POST("/backup/:module", data_handler.BackupHandler)
 			userDataGroup.POST("/check-images/:module", data_handler.CheckImagesHandler)
 		}

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
-	"monarch/internal/model"
 	"monarch/internal/repository/data_repo"
 
 	"github.com/gin-gonic/gin"
@@ -31,83 +31,26 @@ func SyncHandler(c *gin.Context) {
 	syncFromFiles(c, moduleConfig)
 }
 
-// syncFromDB 从数据库读取 booklet/essay 数据并返回 JSON
 func syncFromDB(c *gin.Context, moduleName string) {
-	mergedData := make(map[string]interface{})
-
-	switch moduleName {
-	case "booklet":
-		styles, err := data_repo.FetchAllBookletStyles()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取打卡样式失败: " + err.Error()})
-			return
-		}
-		records, err := data_repo.FetchAllBookletRecords()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取打卡记录失败: " + err.Error()})
-			return
-		}
-
-		// 将 DB 模型转为 JSON 友好格式
-		stylesJSON := make([]map[string]interface{}, 0, len(styles))
-		for _, s := range styles {
-			m := toMap(s)
-			// 日历日期以 date-only 字符串下发（与 Android 端 dateFromJson/dateToJson 约定一致），
-			// 避免 RFC3339 往返引入时区偏移。
-			m["start_date"] = s.StartDate.Time().UTC().Format("2006-01-02")
-			stylesJSON = append(stylesJSON, m)
-		}
-		recordsJSON := make([]map[string]interface{}, 0, len(records))
-		for _, r := range records {
-			m := toMap(r)
-			m["date"] = r.Date.Time().UTC().Format("2006-01-02")
-			recordsJSON = append(recordsJSON, m)
-		}
-
-		mergedData["styles"] = stylesJSON
-		mergedData["records"] = recordsJSON
-
-	case "essay":
-		mergedData["essay_schema_version"] = model.EssaySchemaVersion
-		articles, err := data_repo.FetchAllEssayArticles()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取随笔失败: " + err.Error()})
-			return
-		}
-		labels, err := data_repo.FetchAllEssayLabels()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取标签失败: " + err.Error()})
-			return
-		}
-		summaries, err := data_repo.FetchAllEssayYearSummaries()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取年度汇总失败: " + err.Error()})
-			return
-		}
-
-		essaysJSON := make([]map[string]interface{}, 0, len(articles))
-		for _, a := range articles {
-			essaysJSON = append(essaysJSON, toMap(a))
-		}
-		labelsJSON := make([]map[string]interface{}, 0, len(labels))
-		for _, l := range labels {
-			labelsJSON = append(labelsJSON, toMap(l))
-		}
-		summariesJSON := make([]map[string]interface{}, 0, len(summaries))
-		for _, s := range summaries {
-			summariesJSON = append(summariesJSON, toMap(s))
-		}
-
-		mergedData["essays"] = essaysJSON
-		mergedData["labels"] = labelsJSON
-		mergedData["year_summaries"] = summariesJSON
-
-	default:
-		c.JSON(http.StatusNotFound, gin.H{"error": "不支持的 DB 模块: " + moduleName})
+	if c.Query("sync_version") != "2" {
+		c.JSON(http.StatusConflict, gin.H{"error": "请更新客户端后使用增量合并同步（sync_version=2）"})
 		return
 	}
-
-	c.JSON(http.StatusOK, mergedData)
+	after := int64(0)
+	if raw := c.Query("after"); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的同步游标"})
+			return
+		}
+		after = value
+	}
+	data, err := data_repo.ReadSync(moduleName, after)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, data)
 }
 
 // syncFromFiles 从 JSON 文件读取数据（保留原有逻辑，用于 preferences 等）
@@ -132,14 +75,4 @@ func syncFromFiles(c *gin.Context, moduleConfig *ModuleConfig) {
 	}
 
 	c.JSON(http.StatusOK, mergedData)
-}
-
-// DB 模型 → JSON Map 转换（保持与 Android 端 JSON 格式兼容）
-// toMap 将任意 struct 通过 JSON 往返转换为 map[string]interface{}
-// json.RawMessage 字段会正确展开为 JSON 对象/数组
-func toMap(v interface{}) map[string]interface{} {
-	b, _ := json.Marshal(v)
-	var m map[string]interface{}
-	json.Unmarshal(b, &m)
-	return m
 }

@@ -266,7 +266,10 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.closed {
+	s.stateMu.RLock()
+	closed := s.closed
+	s.stateMu.RUnlock()
+	if closed {
 		return nil, fmt.Errorf("%s 侧车已关闭", s.capability)
 	}
 	if err := s.ensureRunning(); err != nil {
@@ -387,32 +390,46 @@ func (s *Sidecar) supervise(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			idle := s.currentConfig().IdleTimeout
-			if idle <= 0 {
-				idle = 120 * time.Second
-			}
-			s.stateMu.RLock()
-			running := s.procRef != nil
-			idleFor := time.Since(s.lastUsed)
-			s.stateMu.RUnlock()
-			if running && idleFor >= idle {
-				log.Printf("[AI:%s] 空闲 %s，退出侧车释放内存", s.capability, idleFor.Truncate(time.Second))
-				s.Stop()
-			}
+			s.reapIdle()
 		}
+	}
+}
+
+func (s *Sidecar) reapIdle() {
+	// 批次持有会话锁；执行中的模型不属于空闲进程。
+	if !s.mu.TryLock() {
+		return
+	}
+	defer s.mu.Unlock()
+	idle := s.currentConfig().IdleTimeout
+	if idle <= 0 {
+		idle = 120 * time.Second
+	}
+	s.stateMu.RLock()
+	idleFor := time.Since(s.lastUsed)
+	s.stateMu.RUnlock()
+	if s.proc != nil && idleFor >= idle {
+		s.stopLocked()
+		log.Printf("[AI:%s] 空闲 %s，退出侧车释放内存", s.capability, idleFor.Truncate(time.Second))
 	}
 }
 
 // Stop 结束侧车进程（空闲回收 / 桌面端"释放模型"）。
 //
-// 刻意不取会话锁：批次可能正在运行且长达数分钟，取锁会让调用方一直挂着。
-// 直接终止进程即可——正在进行的批次会收到读取错误并正常收尾。
+// 先终止进程打断批次，再取得会话锁清理句柄与管道。
 func (s *Sidecar) Stop() {
 	s.stateMu.RLock()
 	proc := s.procRef
 	s.stateMu.RUnlock()
 	if proc != nil {
 		killProcessTree(proc)
+		s.mu.Lock()
+		if s.proc == proc {
+			s.proc, s.stdin, s.stdout = nil, nil, nil
+			s.clearProcRef(proc)
+			_ = proc.Wait()
+		}
+		s.mu.Unlock()
 	}
 }
 
@@ -483,10 +500,12 @@ func killProcessTree(proc *exec.Cmd) {
 		return
 	}
 	pid := proc.Process.Pid
-	_ = proc.Process.Kill()
 	if runtime.GOOS == "windows" {
-		_ = exec.Command("taskkill", "/PID", fmt.Sprint(pid), "/T", "/F").Run()
+		if err := exec.Command("taskkill", "/PID", fmt.Sprint(pid), "/T", "/F").Run(); err == nil {
+			return
+		}
 	}
+	_ = proc.Process.Kill()
 }
 
 // SidecarState 侧车运行状态。

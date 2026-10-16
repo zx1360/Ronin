@@ -32,7 +32,11 @@ class Record {
   @MoodTypeConverter()
   MoodType? mood;
 
+  @HiveField(6)
+  final DateTime? updatedAt;
+
   Record({
+    this.updatedAt,
     required this.id,
     required this.styleId,
     required this.date,
@@ -42,6 +46,7 @@ class Record {
   });
 
   Record copyWith({
+    DateTime? updatedAt,
     String? id,
     String? styleId,
     DateTime? date,
@@ -51,6 +56,7 @@ class Record {
     bool clearMood = false,
   }) {
     return Record(
+      updatedAt: updatedAt ?? this.updatedAt,
       id: id ?? this.id,
       styleId: styleId ?? this.styleId,
       date: date ?? this.date,

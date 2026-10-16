@@ -602,25 +602,11 @@ func TestUserDataReplace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取年度汇总失败: %v", err)
 	}
-	articleIDs := make([]uuid.UUID, 0, len(articles))
-	for _, a := range articles {
-		articleIDs = append(articleIDs, a.ID)
-	}
-	labelIDs := make([]uuid.UUID, 0, len(labels))
-	for _, l := range labels {
-		labelIDs = append(labelIDs, l.ID)
-	}
-	years := make([]int, 0, len(summaries))
-	for _, s := range summaries {
-		years = append(years, int(s.Year))
-	}
-
-	// 原样回写一遍：既不改变行数，也不应丢失 JSON 字段
-	if err := data_repo.ReplaceEssayData(data_repo.EssayBackupData{
-		Articles: articles, Labels: labels, YearSummaries: summaries,
-		ArticleIDs: articleIDs, LabelIDs: labelIDs, YearIDs: years,
+	_ = summaries
+	if err := data_repo.MergeSync("essay", data_repo.SyncData{
+		SyncVersion: data_repo.SyncVersion, Essays: articles, Labels: labels,
 	}); err != nil {
-		t.Fatalf("全量替换随笔失败: %v", err)
+		t.Fatalf("合并随笔失败: %v", err)
 	}
 	again, err := data_repo.FetchAllEssayArticles()
 	if err != nil || len(again) != len(articles) {
@@ -643,18 +629,10 @@ func TestUserDataReplace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取打卡记录失败: %v", err)
 	}
-	styleIDs := make([]uuid.UUID, 0, len(styles))
-	for _, s := range styles {
-		styleIDs = append(styleIDs, s.ID)
-	}
-	recordIDs := make([]uuid.UUID, 0, len(records))
-	for _, r := range records {
-		recordIDs = append(recordIDs, r.ID)
-	}
-	if err := data_repo.ReplaceBookletData(data_repo.BookletBackupData{
-		Styles: styles, Records: records, StyleIDs: styleIDs, RecordIDs: recordIDs,
+	if err := data_repo.MergeSync("booklet", data_repo.SyncData{
+		SyncVersion: data_repo.SyncVersion, Styles: styles, Records: records,
 	}); err != nil {
-		t.Fatalf("全量替换打卡数据失败: %v", err)
+		t.Fatalf("合并打卡数据失败: %v", err)
 	}
 	stylesAgain, _ := data_repo.FetchAllBookletStyles()
 	recordsAgain, _ := data_repo.FetchAllBookletRecords()

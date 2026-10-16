@@ -9,7 +9,7 @@ Ronin 是一个**本机优先的媒体与个人数据系统**：
 
 - **Monarch**（Go）是唯一的后端真源，负责 HTTP API、SQLite、媒体库、AI 编排和外部 CLI 生命周期。
 - **Torrid**（Flutter/Android）是个人消费端：用户数据与对话以本地体验为中心，媒体标签等权威写入服务端。
-- **Northstar**（Vue 3 + 原生 ES 模块）是本机运维端：只在回环地址使用，负责任务、AI、漫画和服务状态管理。
+- **Northstar**（Vue 3 + 原生 ES 模块）是本机数据与运维端：只在回环地址使用，支持随笔、打卡，以及任务、AI、漫画和服务状态管理。
 
 ```mermaid
 flowchart LR
@@ -33,7 +33,7 @@ flowchart LR
 | 边界 | 约定 |
 | --- | --- |
 | 局域网消费 | `LOCAL_PORT`（默认 7274）HTTPS，自签证书，Monarch 通过 mDNS 广播 |
-| 本机运维 | `LOCAL_HTTP_PORT`（默认 7275）HTTP；`/ops/` 和 `/API/ops/local/*` 只接受回环 |
+| 本机运维 | `LOCAL_HTTP_PORT`（默认 7275）HTTP，仅绑定 `127.0.0.1`；`/ops/` 和 `/API/ops/local/*` 只接受回环 |
 | 通用 API | 两个端口路由一致；非本机能力接口使用 `X-API-Key` |
 | 静态资源 | `/static/` 映射 `STATIC_DIR`；媒体文件也通过 API 资源路由返回 |
 | 状态持久化 | 业务状态与 AI 队列在 SQLite；当前批次、CLI 状态与日志在内存，重启后清空 |
@@ -43,7 +43,7 @@ flowchart LR
 
 | 数据域 | 真源 | Android 本地 | Ops 本地 |
 | --- | --- | --- | --- |
-| 随笔/打卡 | Monarch SQLite 的 user-data 表 | Hive 工作副本，通过整体同步/备份 API 对齐 | 不操作 |
+| 随笔/打卡 | Monarch SQLite 的 user-data 表 | Hive 工作副本，按 updated_at 合并并传播 tombstone | 在线编辑与消费 |
 | Gallery 媒体、人工标签、标注 | Monarch SQLite + Gallery 文件树 | `gallery.db` 是缓存；写入走服务端，画廊页可离线缓冲 | 查询和运维 |
 | AI 产物、任务、人物、去重否决 | Monarch AI 表与内存索引 | 查询/聊天/智能相册的消费端 | 主要控制面 |
 | 漫画元数据与下载任务 | `comic_*` 表与 Comic 文件树 | 阅读、下载到设备、本地阅读状态 | 爬虫、库管理、追更 |
@@ -82,7 +82,7 @@ sequenceDiagram
 
 1. **这个字段的权威在哪？** 是 SQLite、文件树、Android Hive，还是 Ops 偏好文件？
 2. **这是同步请求还是长任务？** 长任务必须经过 `taskengine`，不能在 handler 中直接阻塞执行。
-3. **写入是否需要事务？** 用户数据整体替换、标签树、AI 任务认领等必须走写连接/事务。
+3. **写入是否需要事务？** 用户数据增量合并、标签树、AI 任务认领等必须走写连接/事务。
 4. **是否改变 API 契约？** 先改 Go 真源，再运行 `references/scripts/generate_refs.ps1`，最后同步端上 DTO。
 5. **是否改变跨端语义？** 尤其注意 `sync_count`、`edit_params`、NDJSON 事件和 AI 503 降级。
 

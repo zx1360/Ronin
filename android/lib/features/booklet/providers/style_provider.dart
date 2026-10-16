@@ -26,14 +26,19 @@ Style? styleById(StyleByIdRef ref, String styleId) {
 /// 获取最新的 Style（按创建时间排序）
 @riverpod
 Style? latestStyle(LatestStyleRef ref) {
-  final allStyles = ref.watch(allStylesProvider);
-  if (allStyles.isEmpty) return null;
-  return allStyles.reduce((a, b) => a.startDate.isAfter(b.startDate) ? a : b);
+  return ref.watch(sortedStylesProvider).firstOrNull;
 }
 
 /// 获取按时间倒序排列的所有 Style
 @riverpod
 List<Style> sortedStyles(SortedStylesRef ref) {
   final allStyles = ref.watch(allStylesProvider);
-  return List.from(allStyles)..sort((a, b) => b.startDate.compareTo(a.startDate));
+  return List<Style>.of(allStyles)..sort((a, b) {
+    final date = b.startDate.compareTo(a.startDate);
+    if (date != 0) return date;
+    final version = (b.updatedAt?.millisecondsSinceEpoch ?? 0).compareTo(
+      a.updatedAt?.millisecondsSinceEpoch ?? 0,
+    );
+    return version != 0 ? version : a.id.compareTo(b.id);
+  });
 }

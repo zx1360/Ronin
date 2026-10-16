@@ -83,6 +83,9 @@ func Init(conf config.DbConfig) {
 	if err := ensureColumns(ctx); err != nil {
 		log.Fatalf("数据库列迁移失败: %v", err)
 	}
+	if err := ensureUserDataSync(ctx); err != nil {
+		log.Fatalf("用户数据同步结构初始化失败: %v", err)
+	}
 
 	log.Printf("SQLite 数据库就绪: %s", abs)
 }
