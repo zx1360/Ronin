@@ -12,7 +12,7 @@ import (
 	"strconv"
 )
 
-// StartServer 同时监听两个端口，接口完全一致，只有协议不同：
+// StartServer 同时提供局域网 HTTPS 与仅回环 HTTP，路由一致：
 //
 //	LOCAL_PORT      HTTPS（自签证书，供 Android 等局域网消费端）
 //	LOCAL_HTTP_PORT HTTP （供本机浏览器打开运维页面，免证书警告）
@@ -44,8 +44,8 @@ func StartServer() {
 	}()
 
 	go func() {
-		log.Printf("HTTP  已监听 :%s（网页运维端: http://127.0.0.1:%s/ops/）", httpPort, httpPort)
-		if err := r.Run(":" + httpPort); err != nil {
+		log.Printf("HTTP  已监听 127.0.0.1:%s（网页端: http://127.0.0.1:%s/ops/）", httpPort, httpPort)
+		if err := r.Run("127.0.0.1:" + httpPort); err != nil {
 			errCh <- fmt.Errorf("HTTP 服务启动失败: %w", err)
 		}
 	}()

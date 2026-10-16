@@ -190,7 +190,7 @@ class _StyleByIdProviderElement extends AutoDisposeProviderElement<Style?>
   String get styleId => (origin as StyleByIdProvider).styleId;
 }
 
-String _$latestStyleHash() => r'fd3715f99a0730b4afb050a9e51da91d4217a4cf';
+String _$latestStyleHash() => r'e4125a20048285e969010d74f728b5306782ef7f';
 
 /// 获取最新的 Style（按创建时间排序）
 ///
@@ -206,7 +206,7 @@ final latestStyleProvider = AutoDisposeProvider<Style?>.internal(
 );
 
 typedef LatestStyleRef = AutoDisposeProviderRef<Style?>;
-String _$sortedStylesHash() => r'72338420bfd0f798c4e2d100af1c930b130407ec';
+String _$sortedStylesHash() => r'd2e4b62ade495dc16a42c566706437c5d51a3f3b';
 
 /// 获取按时间倒序排列的所有 Style
 ///

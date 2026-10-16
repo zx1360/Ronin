@@ -70,6 +70,7 @@ class HiveService {
     Hive.registerAdapter(ReviewRecordAdapter());
 
     // 打开(创建)箱
+    await Hive.openBox<String>('userDataSync');
     await Hive.openBox<Style>(styleBoxName);
     await Hive.openBox<Record>(recordBoxName);
 

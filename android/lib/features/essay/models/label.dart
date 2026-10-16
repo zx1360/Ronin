@@ -21,7 +21,11 @@ class Label {
 
   static const hiddenId = '00000000-0000-4000-8000-000000000001';
 
+  @HiveField(4)
+  final DateTime? updatedAt;
+
   Label({
+    this.updatedAt,
     required this.id,
     required this.name,
     required this.essayCount,
@@ -31,6 +35,7 @@ class Label {
   bool get isHiddenRoot => id == hiddenId || (name == '隐藏' && parentId == null);
 
   Label copyWith({
+    DateTime? updatedAt,
     String? id,
     String? name,
     int? essayCount,
@@ -38,6 +43,7 @@ class Label {
     bool clearParent = false,
   }) {
     return Label(
+      updatedAt: updatedAt ?? this.updatedAt,
       id: id ?? this.id,
       name: name ?? this.name,
       essayCount: essayCount ?? this.essayCount,

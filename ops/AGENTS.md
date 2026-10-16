@@ -9,6 +9,7 @@
 - 偏好由服务端 `ops_web.json` 持有，沿用 snake_case 字段，通过 `saveSettings` 局部更新。
 - 破坏性操作使用 `confirmAction`（遵守用户关闭确认的偏好）；HTTP 错误、`ok:false`、空数据须有可读反馈。
 - 任务、日志、AI 页仅在有活动时轮询；仪表盘按偏好刷新。统一用 `usePolling`，卸载后不得续期或发起请求。
+- booklet/essay 复用 user-data 增量协议；随笔草稿及图片仅存浏览器 IndexedDB，正式原文保留至保存成功。
 - 大列表分页/加载更多；分组默认折叠，展开后才挂载缩略图；表头吸顶与滚动样式复用 `assets/app.css`。
 - API 真源在后端，按 `../backend/references/generated/api/routes.md` 定位处理函数核对结构。
 - 验收在 `backend/` 运行 `python tools/smoke_ops_web.py`；可用 `OPS_SMOKE_BASE` 指定隔离实例。

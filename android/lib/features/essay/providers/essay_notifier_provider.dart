@@ -4,6 +4,7 @@ import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/models/message.dart';
 import 'package:torrid/core/services/storage/box_replace.dart';
+import 'package:torrid/core/services/storage/user_data_sync.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/label_tree.dart';
@@ -64,18 +65,25 @@ class EssayService extends _$EssayService {
   );
 
   // 同 ID 覆盖保存，失败时恢复各 Box，草稿由写作页保留。
-  Future<void> _replaceEssays(Map<String, Essay> essays) => replaceBoxes({
+  Future<void> _replaceEssays(
+    Map<String, Essay> essays, {
+    Map<String, String>? metadata,
+  }) => replaceBoxes({
+    if (metadata != null) userDataSyncBox: metadata,
     state.essayBox: essays,
     state.labelBox: _countLabels(essays.values, state.labelBox.values),
     state.summaryBox: _summaries(essays.values),
   });
 
-  Future<void> writeEssay({required Essay essay}) async {
+  Future<void> writeEssay({required Essay essay}) => userDataWrite(() async {
     final keepAlive = ref.keepAlive();
     try {
       if (essay.labels.any((id) => !state.labelBox.containsKey(id))) {
         throw const FormatException('部分标签已不存在，请重新选择');
       }
+      essay = essay.copyWith(
+        updatedAt: nextUserDataTime(state.essayBox.get(essay.id)?.updatedAt),
+      );
       await _replaceEssays({
         for (final item in state.essayBox.values) item.id: item,
         essay.id: essay,
@@ -84,12 +92,14 @@ class EssayService extends _$EssayService {
     } finally {
       keepAlive.close();
     }
-  }
-
-  Future<void> deleteEssay(Essay essay) => _replaceEssays({
-    for (final item in state.essayBox.values)
-      if (item.id != essay.id) item.id: item,
   });
+
+  Future<void> deleteEssay(Essay essay) => userDataWrite(
+    () => _replaceEssays({
+      for (final item in state.essayBox.values)
+        if (item.id != essay.id) item.id: item,
+    }, metadata: deletedUserData('essay', 'essays', essay.id, essay.updatedAt)),
+  );
 
   Future<void> retag(String essayId, String labelId) async {
     final essay = state.essayBox.get(essayId);
@@ -117,7 +127,7 @@ class EssayService extends _$EssayService {
     Label? original,
     required String name,
     String? parentId,
-  }) async {
+  }) => userDataWrite(() async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) throw const FormatException('标签名称不能为空');
     if (original?.isHiddenRoot ?? false) {
@@ -141,10 +151,13 @@ class EssayService extends _$EssayService {
       label.id: label,
     };
     validateLabelTree(labels.values);
-    await state.labelBox.put(label.id, label);
-  }
+    await state.labelBox.put(
+      label.id,
+      label.copyWith(updatedAt: nextUserDataTime(original?.updatedAt)),
+    );
+  });
 
-  Future<void> deleteLabel(Label label) async {
+  Future<void> deleteLabel(Label label) => userDataWrite(() async {
     if (label.isHiddenRoot ||
         state.labelBox.values.any((l) => l.parentId == label.id) ||
         state.essayBox.values.any((e) => e.labels.contains(label.id)) ||
@@ -154,10 +167,24 @@ class EssayService extends _$EssayService {
             .any((d) => d.essay.labels.contains(label.id))) {
       throw const FormatException('只能删除未被随笔或草稿使用且没有子标签的普通标签');
     }
-    await state.labelBox.delete(label.id);
-  }
+    await replaceBoxes({
+      state.labelBox: state.labelBox.toMap()..remove(label.id),
+      userDataSyncBox: deletedUserData(
+        'essay',
+        'labels',
+        label.id,
+        label.updatedAt,
+      ),
+    });
+  });
 
-  Future<void> syncData(dynamic json) async {
+  Future<void> syncData(dynamic incoming) => userDataWrite(() async {
+    final merged = mergeUserData(
+      'essay',
+      _snapshot(),
+      Map<String, dynamic>.from(incoming as Map),
+    );
+    final json = merged.data;
     // 连同旧汇总一起解析校验，统计以实际随笔重建。
     for (final raw in json['year_summaries'] as List) {
       YearSummary.fromJson(raw as Map<String, dynamic>);
@@ -182,21 +209,43 @@ class EssayService extends _$EssayService {
       essays[essay.id] = essay;
     }
     await replaceBoxes({
+      userDataSyncBox: merged.metadata,
       state.summaryBox: _summaries(essays.values),
       state.labelBox: _countLabels(essays.values, completeLabels),
       state.essayBox: essays,
     });
-  }
+  });
 
-  Map<String, dynamic> packUp() => {
-    'jsonData': jsonEncode({
-      'year_summaries': _summaries(
-        state.essayBox.values,
-      ).values.map((s) => s.toJson()).toList(),
-      'labels': state.labelBox.values.map((l) => l.toJson()).toList(),
-      'essays': state.essayBox.values.map((e) => e.toJson()).toList(),
-    }),
+  Map<String, dynamic> _snapshot() => {
+    'labels': state.labelBox.values.map((l) => l.toJson()).toList(),
+    'essays': state.essayBox.values.map((e) => e.toJson()).toList(),
   };
+
+  Future<Map<String, dynamic>> packUp() => userDataWrite(() async {
+    for (final label in state.labelBox.values.toList()) {
+      if (label.updatedAt == null) {
+        await state.labelBox.put(
+          label.id,
+          label.copyWith(updatedAt: nextUserDataTime()),
+        );
+      }
+    }
+    for (final essay in state.essayBox.values.toList()) {
+      if (essay.updatedAt == null) {
+        await state.essayBox.put(
+          essay.id,
+          essay.copyWith(updatedAt: nextUserDataTime()),
+        );
+      }
+    }
+    return {
+      'jsonData': jsonEncode({
+        ..._snapshot(),
+        'sync_version': 2,
+        'tombstones': userDataTombstones('essay'),
+      }),
+    };
+  });
 
   List<String> getImgsPath() => [
     for (final essay in state.essayBox.values)

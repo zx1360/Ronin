@@ -17,6 +17,7 @@ class RecordAdapter extends TypeAdapter<Record> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Record(
+      updatedAt: fields[6] as DateTime?,
       id: fields[0] as String,
       styleId: fields[1] as String,
       date: fields[2] as DateTime,
@@ -29,7 +30,7 @@ class RecordAdapter extends TypeAdapter<Record> {
   @override
   void write(BinaryWriter writer, Record obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -41,7 +42,9 @@ class RecordAdapter extends TypeAdapter<Record> {
       ..writeByte(4)
       ..write(obj.taskCompletion)
       ..writeByte(5)
-      ..write(obj.mood);
+      ..write(obj.mood)
+      ..writeByte(6)
+      ..write(obj.updatedAt);
   }
 
   @override
@@ -60,6 +63,9 @@ class RecordAdapter extends TypeAdapter<Record> {
 // **************************************************************************
 
 Record _$RecordFromJson(Map<String, dynamic> json) => Record(
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.parse(json['updated_at'] as String),
       id: json['id'] as String,
       styleId: json['style_id'] as String,
       date: dateFromJson(json['date'] as String),
@@ -75,4 +81,5 @@ Map<String, dynamic> _$RecordToJson(Record instance) => <String, dynamic>{
       'message': instance.message,
       'task_completion': instance.taskCompletion,
       'mood': const MoodTypeConverter().toJson(instance.mood),
+      'updated_at': instance.updatedAt?.toIso8601String(),
     };

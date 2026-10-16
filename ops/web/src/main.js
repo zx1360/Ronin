@@ -10,10 +10,14 @@ import TasksPage from './pages/tasks.js';
 import LogsPage from './pages/logs.js';
 import SettingsPage from './pages/settings.js';
 import HelpPage from './pages/help.js';
+import BookletPage from './pages/booklet.js';
+import EssayPage from './pages/essay.js';
 
 /** 导航项：顺序即侧边栏顺序。 */
 export const routes = [
   { path: '/dashboard', label: '仪表盘', component: DashboardPage },
+  { path: '/booklet', label: '积微 · 打卡', component: BookletPage },
+  { path: '/essay', label: '随笔', component: EssayPage },
   { path: '/ai', label: 'AI 媒体处理', component: AiPage },
   { path: '/comix', label: '漫画资源', component: ComixPage },
   { path: '/tasks', label: '任务管理', component: TasksPage },
@@ -46,7 +50,7 @@ const App = {
   template: `
     <div class="shell" v-if="state.ready">
       <aside class="sidebar">
-        <div class="brand">Northstar<small>Monarch 运维端</small></div>
+        <div class="brand">Northstar<small>个人数据与运维</small></div>
         <nav class="nav">
           <a v-for="item in routes" :key="item.path" :href="'#' + item.path"
              :class="{ active: item.path === state.route }">{{ item.label }}</a>

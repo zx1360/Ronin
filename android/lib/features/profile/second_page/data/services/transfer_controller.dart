@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:torrid/core/services/network/api_client.dart';
+import 'package:torrid/core/services/storage/user_data_sync.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
@@ -50,7 +52,9 @@ class TransferController extends _$TransferController {
       final results = <TransferResult>[];
       for (final item in targets) {
         results.add(
-          await (type == TransferType.sync ? _sync(item) : _backup(item)),
+          await (type == TransferType.sync || item != TransferTarget.preferences
+              ? _sync(item)
+              : _backup(item)),
         );
       }
       return results.length == 1
@@ -73,6 +77,14 @@ class TransferController extends _$TransferController {
   }
 
   Future<TransferResult> _sync(TransferTarget target) async {
+    if (target != TransferTarget.preferences) {
+      final result = await _backup(target);
+      if (!result.success) return result;
+    }
+    return _pull(target);
+  }
+
+  Future<TransferResult> _pull(TransferTarget target) async {
     final started = DateTime.now();
     _updateState(
       type: TransferType.sync,
@@ -82,9 +94,33 @@ class TransferController extends _$TransferController {
     );
     TransferFiles? files;
     try {
-      final response = await ref.read(
-        fetcherProvider(path: '/API/user-data/sync/${target.name}').future,
-      );
+      final client = ref.read(apiClientManagerProvider);
+      final address = ref.read(networkConfigManagerProvider).serverAddress;
+      final cursorKey = 'cursor|$address|${target.name}';
+      final cursor = target == TransferTarget.preferences
+          ? 0
+          : int.tryParse(userDataSyncBox.get(cursorKey) ?? '') ?? 0;
+      Future<dynamic> fetch(int after) async {
+        try {
+          return await client.get(
+            '/API/user-data/sync/${target.name}',
+            queryParams: {
+              if (target != TransferTarget.preferences) 'sync_version': 2,
+              if (after > 0) 'after': after,
+            },
+          );
+        } catch (error) {
+          throw StateError(ApiClient.mapError(error).message);
+        }
+      }
+
+      dynamic response;
+      try {
+        response = await fetch(cursor);
+      } catch (_) {
+        if (cursor == 0) rethrow;
+        response = await fetch(0);
+      }
       if (response == null || response.statusCode != 200) {
         throw StateError('获取数据失败');
       }
@@ -117,6 +153,11 @@ class TransferController extends _$TransferController {
             throw StateError('请指定数据模块');
         }
       });
+      if (target != TransferTarget.preferences) {
+        await userDataWrite(
+          () => userDataSyncBox.put(cursorKey, data['cursor'].toString()),
+        );
+      }
       if (target == TransferTarget.preferences) {
         await ref.read(networkConfigManagerProvider.notifier).refresh();
         ref.read(appSettingsProvider.notifier).refresh();
@@ -180,11 +221,11 @@ class TransferController extends _$TransferController {
       switch (target) {
         case TransferTarget.booklet:
           final service = ref.read(routineServiceProvider.notifier);
-          data = service.packUp();
+          data = await service.packUp();
           images = service.getImgsPath();
         case TransferTarget.essay:
           final service = ref.read(essayServiceProvider.notifier);
-          data = service.packUp();
+          data = await service.packUp();
           images = service.getImgsPath();
         case TransferTarget.preferences:
           final preferences = packPreferences();
@@ -204,7 +245,8 @@ class TransferController extends _$TransferController {
       final files = await _filterMissingFiles(allFiles, target.name);
       _updateProgress(total: files.length + 1, message: '正在备份数据...');
       final result = await _uploadData(
-        path: '/API/user-data/backup/${target.name}',
+        path:
+            '/API/user-data/${target == TransferTarget.preferences ? 'backup' : 'sync'}/${target.name}',
         jsonData: data,
         files: files,
       );
@@ -331,35 +373,37 @@ class TransferController extends _$TransferController {
       );
 
       int uploadedCount = 0;
-      final resp = await ref.read(
-        senderProvider(
-          path: path,
-          jsonData: jsonData,
-          files: files,
-          onSendProgress: (sent, total) {
-            if (total > 0) {
-              final progress = (sent / total * files.length).round();
-              if (progress > uploadedCount) {
-                uploadedCount = progress;
-                _updateProgress(
-                  current: uploadedCount,
-                  currentMessage: '已上传 $uploadedCount/${files.length}',
-                );
+      final resp = await ref
+          .read(apiClientManagerProvider)
+          .post(
+            path,
+            jsonData: jsonData,
+            files: files,
+            onSendProgress: (sent, total) {
+              if (total > 0) {
+                final progress = (sent / total * files.length).round();
+                if (progress > uploadedCount) {
+                  uploadedCount = progress;
+                  _updateProgress(
+                    current: uploadedCount,
+                    currentMessage: '已上传 $uploadedCount/${files.length}',
+                  );
+                }
               }
-            }
-          },
-        ).future,
-      );
+            },
+          );
 
-      if (resp?.statusCode == 200) {
+      if (resp.statusCode == 200) {
         return TransferResult.success(
           message: '上传成功',
           successCount: files.length + 1,
         );
       }
-      return TransferResult.failed(message: '上传失败: 状态码 ${resp?.statusCode}');
+      return TransferResult.failed(message: '上传失败: 状态码 ${resp.statusCode}');
     } catch (e) {
-      return TransferResult.failed(message: '上传出错: $e');
+      return TransferResult.failed(
+        message: '上传出错: ${ApiClient.mapError(e).message}',
+      );
     }
   }
 

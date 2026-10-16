@@ -13,10 +13,7 @@ class Style {
   final String id;
 
   @HiveField(1)
-  @JsonKey(
-    fromJson: dateFromJson,
-    toJson: dateToJson,
-  )
+  @JsonKey(fromJson: dateFromJson, toJson: dateToJson)
   final DateTime startDate;
 
   @HiveField(2)
@@ -34,7 +31,11 @@ class Style {
   @HiveField(6)
   final List<Task> tasks;
 
+  @HiveField(7)
+  final DateTime? updatedAt;
+
   Style({
+    this.updatedAt,
     required this.id,
     required this.startDate,
     required this.validCheckIn,
@@ -45,6 +46,7 @@ class Style {
   });
 
   Style copyWith({
+    DateTime? updatedAt,
     String? id,
     DateTime? startDate,
     int? validCheckIn,
@@ -54,6 +56,7 @@ class Style {
     List<Task>? tasks,
   }) {
     return Style(
+      updatedAt: updatedAt ?? this.updatedAt,
       id: id ?? this.id,
       startDate: startDate ?? this.startDate,
       validCheckIn: validCheckIn ?? this.validCheckIn,

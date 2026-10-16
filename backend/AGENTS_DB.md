@@ -14,7 +14,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 | 模块 | 表 | 说明 |
 |------|----|------|
 | 藏品 | `media_assets` / `tags` / `media_tag_links` | 见 `gallery.md`；标签 `full_path` 级联由 Go 维护 |
-| 用户数据 | `essay_articles` / `essay_labels` / `essay_year_summaries` / `booklet_styles` / `booklet_records` | 见 `user_data.md` |
+| 用户数据 | `essay_articles` / `essay_labels` / `essay_year_summaries` / `booklet_styles` / `booklet_records` / `user_data_changes` | 见 `user_data.md` |
 | AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md`。`jobs` 与 `media_ai`/`embeddings`/`faces` 各有 `input_sig` 列（输入档位 + 执行者指纹，用于追溯与显式重生成） |
 | 漫画 | `comic_sites` / `comics` / `comic_chapters` / `comic_images` / `comic_download_tasks` / `comic_aliases` | 见 `comix.md` |
 
@@ -31,7 +31,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 
 ## 自动维护约定
 
-- `updated_at`：每条业务表的 `AFTER UPDATE` 触发器，带 `WHEN NEW.updated_at IS OLD.updated_at`
+- `updated_at`：user-data 显式保留客户端版本；其他业务表的 `AFTER UPDATE` 触发器，带 `WHEN NEW.updated_at IS OLD.updated_at`
   守卫——SQLite 无 `BEFORE UPDATE`，守卫同时保证「显式赋值不被覆盖」与「不触发自递归」。
 - 标签 `full_path` 级联在 Go（`gallery_repo.rebuildTagPaths`）而非触发器：标签树只有百级，
   写操作后整体重算并只更新变化的行，天然容忍历史遗留的错误路径。
@@ -66,5 +66,5 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 go test ./...          # 含 internal/repository 数据层端到端验收
 ```
 
-`internal/repository` 默认在临时库中生成测试数据，覆盖 AI 写入、标签级联、整体替换和漫画字段。
+`internal/repository` 默认在临时库中生成测试数据，覆盖 AI 写入、标签级联、用户数据合并和漫画字段。
 设置 `MONARCH_DB_SRC` 可在指定库的只读快照上验收；测试不写源库。

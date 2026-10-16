@@ -59,30 +59,21 @@ class ApiClient {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
-          return ApiException(
-            '连接超时，请检查服务器地址或网络',
-            cause: error,
-          );
+          return ApiException('连接超时，请检查服务器地址或网络', cause: error);
         case DioExceptionType.connectionError:
-          return ApiException(
-            '无法连接服务器，请检查地址或网络',
-            cause: error,
-          );
+          return ApiException('无法连接服务器，请检查地址或网络', cause: error);
         case DioExceptionType.badCertificate:
           return ApiException('证书校验失败', cause: error);
         case DioExceptionType.badResponse:
           return ApiException(
-            '服务器响应异常 (HTTP ${error.response?.statusCode ?? '-'})',
+            '服务器响应异常 (HTTP ${error.response?.statusCode ?? '-'})${error.response?.data is Map && error.response?.data['error'] is String ? '：${error.response?.data['error']}' : ''}',
             statusCode: error.response?.statusCode,
             cause: error,
           );
         case DioExceptionType.cancel:
           return const ApiException('请求已取消');
         case DioExceptionType.unknown:
-          return ApiException(
-            error.message ?? '网络请求失败',
-            cause: error,
-          );
+          return ApiException(error.message ?? '网络请求失败', cause: error);
       }
     }
     return ApiException(error.toString(), cause: error);
@@ -259,10 +250,14 @@ class _RetryInterceptor extends Interceptor {
   _RetryInterceptor(this._dio);
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final options = err.requestOptions;
 
-    final canRetry = options.method == 'GET' &&
+    final canRetry =
+        options.method == 'GET' &&
         _isConnectionError(err.type) &&
         _attempts(options) < _maxAttempts;
 

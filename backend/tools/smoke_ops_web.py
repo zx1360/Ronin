@@ -11,7 +11,7 @@ from playwright.sync_api import sync_playwright
 
 # 默认走无证书警告的 HTTP 端口；临时实例可设 OPS_SMOKE_BASE=http://127.0.0.1:<port>
 BASE = os.environ.get("OPS_SMOKE_BASE", "http://127.0.0.1:7275")
-PAGES = ["/dashboard", "/ai", "/comix", "/tasks", "/logs", "/settings", "/help"]
+PAGES = ["/dashboard", "/booklet", "/essay", "/ai", "/comix", "/tasks", "/logs", "/settings", "/help"]
 # 渲染瑕疵：模板未替换/字段缺失会在页面上留下这些痕迹
 ARTIFACTS = re.compile(r"\bundefined\b|\bNaN\b|\[object Object\]|\{\{")
 

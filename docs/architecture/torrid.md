@@ -60,7 +60,7 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 
 | 功能 | 主要目录 | API / 数据策略 |
 | --- | --- | --- |
-| 积微 | `features/booklet` | `/API/user-data/*`；同步是完整数据集替换 |
+| 积微 | `features/booklet` | `/API/user-data/*`；按 updated_at 增量合并，删除保留 tombstone |
 | 随笔 | `features/essay` | `/API/user-data/*`；本地派生统计从实际数据重算 |
 | 对话 | `features/chat` | `/API/ai/chat` NDJSON；会话/消息只落 Hive |
 | 近期回顾 | `features/chat` | 后端计算统计，端上消费 `stats -> delta`；结果只存本机 |

@@ -34,9 +34,10 @@ export class ApiError extends Error {
  */
 export async function request(method, path, options = {}) {
   const { body, signal, timeoutMs = 60000 } = options;
+  const multipart = body instanceof FormData;
   const headers = { Accept: 'application/json' };
   if (apiKey) headers['X-API-Key'] = apiKey;
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !multipart) headers['Content-Type'] = 'application/json';
 
   const controller = new AbortController();
   const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
@@ -50,7 +51,7 @@ export async function request(method, path, options = {}) {
     response = await fetch(path, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
       signal: controller.signal,
       cache: 'no-store',
     });
