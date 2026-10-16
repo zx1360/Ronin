@@ -77,11 +77,20 @@ class AiApiService {
   }
 
   /// 以图搜图：以库内某张图为查询，返回相似媒体。
-  Future<AiSearchResult> similar(String mediaId, {int limit = 60}) {
+  Future<AiSearchResult> similar(
+    String mediaId, {
+    int limit = 60,
+    int offset = 0,
+  }) {
     return _guard(() async {
       final resp = await _client.get(
-        '/API/ai/similar/$mediaId',
-        queryParams: {'limit': limit},
+        '/API/ai/search',
+        queryParams: {
+          'media_id': mediaId,
+          'mode': 'semantic',
+          'limit': limit,
+          'offset': offset,
+        },
       );
       return AiSearchResult.fromJson(resp.data as Map<String, dynamic>);
     });
@@ -100,7 +109,11 @@ class AiApiService {
   }
 
   /// 按人物筛选其全部媒体。
-  Future<AiSearchResult> searchByPerson(String personId, {int limit = 60}) {
+  Future<AiSearchResult> searchByPerson(
+    String personId, {
+    int limit = 60,
+    int offset = 0,
+  }) {
     return _guard(() async {
       final resp = await _client.get(
         '/API/ai/search',
@@ -108,6 +121,7 @@ class AiApiService {
           'mode': 'keyword',
           'person_ids': personId,
           'limit': limit,
+          'offset': offset,
         },
       );
       return AiSearchResult.fromJson(resp.data as Map<String, dynamic>);

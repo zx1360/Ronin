@@ -120,6 +120,19 @@ class ApiClient {
     );
   }
 
+  Future<Response> download(
+    String path,
+    String savePath, {
+    CancelToken? cancelToken,
+    ProgressCallback? onReceiveProgress,
+  }) => _dio.download(
+    path,
+    savePath,
+    cancelToken: cancelToken,
+    onReceiveProgress: onReceiveProgress,
+    options: Options(receiveTimeout: const Duration(minutes: 2)),
+  );
+
   /// POST请求，直接发送 JSON body (Content-Type: application/json)
   Future<Response> postJson(
     String path, {

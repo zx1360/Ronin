@@ -110,6 +110,12 @@ func BackupHandler(c *gin.Context) {
 			return
 		}
 	}
+	if cfg.Name == "preferences" {
+		if err := files.removeUnusedImages(cfg.ImageDir, refs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "准备清理偏好图片失败: " + err.Error()})
+			return
+		}
+	}
 	if err := files.commit(writeData); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "数据未写入: " + err.Error()})
 		return

@@ -288,9 +288,7 @@ class TransferController extends _$TransferController {
           .map((path) => File(p.join(externalDir.path, root, path)))
           .where((file) => file.existsSync())
           .toList();
-      final files = target == TransferTarget.preferences
-          ? allFiles
-          : await _filterMissingFiles(client, allFiles, target.name);
+      final files = await _filterMissingFiles(client, allFiles, target.name);
       _updateProgress(total: files.length + 1, message: '正在备份数据...');
       final result = await _uploadData(
         client: client,
