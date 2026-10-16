@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/video_player_widget.dart';
+import 'package:torrid/features/others/services/media_share_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 全屏媒体查看页：图片可缩放平移、视频可直接播放，左右滑动切换上一个/下一个。
@@ -41,6 +43,8 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
 
   /// 点击图片可临时隐藏顶栏，得到无遮挡的观看区域。
   bool _chromeVisible = true;
+  CancelToken? _shareCancel;
+  double? _shareProgress;
 
   @override
   void initState() {
@@ -54,6 +58,7 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
   @override
   void dispose() {
     _controller.dispose();
+    _shareCancel?.cancel();
     super.dispose();
   }
 
@@ -103,7 +108,26 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
                   ),
                 ],
               ),
-              actions: widget.actions?.call(context, asset),
+              actions: [
+                IconButton(
+                  tooltip: _shareCancel == null ? '分享' : '取消准备分享',
+                  onPressed: () => _shareCancel == null
+                      ? _share(asset)
+                      : _shareCancel?.cancel(),
+                  icon: _shareCancel == null
+                      ? const Icon(Icons.share_outlined)
+                      : SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            value: _shareProgress,
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+                ...?widget.actions?.call(context, asset),
+              ],
             )
           : null,
       body: PhotoViewGestureDetectorScope(
@@ -160,6 +184,37 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _share(MediaAsset asset) async {
+    final client = ref.read(apiClientManagerProvider);
+    final cancel = CancelToken();
+    setState(() {
+      _shareCancel = cancel;
+      _shareProgress = null;
+    });
+    try {
+      await shareMedia(
+        client,
+        asset,
+        cancelToken: cancel,
+        onProgress: (received, total) {
+          if (mounted && !cancel.isCancelled) {
+            setState(
+              () => _shareProgress = total > 0 ? received / total : null,
+            );
+          }
+        },
+      );
+    } catch (error) {
+      if (mounted && !cancel.isCancelled) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('分享失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _shareCancel = null);
+    }
   }
 }
 

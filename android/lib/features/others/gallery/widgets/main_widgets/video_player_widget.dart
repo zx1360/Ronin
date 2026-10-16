@@ -36,24 +36,20 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
   VideoPlayerController? _videoController;
   bool _isVideoInitialized = false;
   String? _videoError;
-  bool _isInitializing = false;
 
   @override
   void initState() {
     super.initState();
-    // 使用 addPostFrameCallback 确保 context 和 ref 可用
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initVideoPlayer();
-    });
+    unawaited(_initVideoPlayer());
   }
 
   @override
   void didUpdateWidget(covariant VideoPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 如果 asset 变化，重新初始化视频控制器
-    if (oldWidget.asset.id != widget.asset.id || oldWidget.asset.hash != widget.asset.hash) {
+    if (oldWidget.asset.id != widget.asset.id ||
+        oldWidget.asset.hash != widget.asset.hash) {
       _disposeControllers();
-      _initVideoPlayer();
+      unawaited(_initVideoPlayer());
     }
   }
 
@@ -64,65 +60,36 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
   }
 
   void _disposeControllers() {
-    _videoController?.dispose();
+    final controller = _videoController;
     _videoController = null;
+    unawaited(controller?.dispose());
     _isVideoInitialized = false;
-    _isInitializing = false; // 复位，否则 asset 切换后无法重新初始化
     _videoError = null;
   }
 
   Future<void> _initVideoPlayer() async {
-    if (_isInitializing || !mounted) return;
-    _isInitializing = true;
-    // 记录本次初始化的目标 asset，防止快速切换时旧初始化结果覆盖新 asset
-    final targetAssetId = widget.asset.id;
-    final targetHash = widget.asset.hash;
+    if (_videoController != null || !mounted) return;
+    final apiClient = ref.read(apiClientManagerProvider);
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(galleryMediaUrl(apiClient.baseUrl, widget.asset)),
+      httpHeaders: apiClient.headers,
+    );
+    _videoController = controller;
 
     try {
-      final apiClient = ref.read(apiClientManagerProvider);
-      final baseUrl = apiClient.baseUrl;
-      final headers = apiClient.headers;
-      final videoUrl = galleryMediaUrl(baseUrl, widget.asset);
-
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(videoUrl),
-        httpHeaders: headers,
-      );
-
       await controller.initialize();
-
-      if (!mounted ||
-          widget.asset.id != targetAssetId ||
-          widget.asset.hash != targetHash) {
-        controller.dispose();
-        return;
-      }
-
-      _videoController = controller;
+      if (!mounted || _videoController != controller) return;
+      setState(() => _isVideoInitialized = true);
 
       if (widget.autoPlay) {
-        // 自动播放失败（解码/权限等）不应让整页报错，静默降级为手动播放
-        await controller.play().catchError((_) {});
-      }
-
-      if (mounted && widget.asset.id == targetAssetId && widget.asset.hash == targetHash) {
-        setState(() {
-          _isVideoInitialized = true;
-        });
+        unawaited(controller.play().catchError((Object _) {}));
       }
     } catch (e) {
-      if (mounted &&
-          widget.asset.id == targetAssetId &&
-          widget.asset.hash == targetHash) {
+      if (mounted && _videoController == controller) {
+        _disposeControllers();
         setState(() {
           _videoError = e.toString();
         });
-      }
-    } finally {
-      if (mounted &&
-          widget.asset.id == targetAssetId &&
-          widget.asset.hash == targetHash) {
-        _isInitializing = false;
       }
     }
   }
@@ -159,10 +126,7 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _VideoPlaceholder(
-                asset: widget.asset,
-                storage: widget.storage,
-              ),
+              _VideoPlaceholder(asset: widget.asset, storage: widget.storage),
               const Center(
                 child: CircularProgressIndicator(color: Colors.white),
               ),
@@ -180,7 +144,10 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
         child: Center(
           child: AspectRatio(
             aspectRatio: _videoController!.value.aspectRatio,
-            child: _PlayerSurface(controller: _videoController!),
+            child: _PlayerSurface(
+              key: ObjectKey(_videoController),
+              controller: _videoController!,
+            ),
           ),
         ),
       ),
@@ -192,7 +159,7 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
 class _PlayerSurface extends StatefulWidget {
   final VideoPlayerController controller;
 
-  const _PlayerSurface({required this.controller});
+  const _PlayerSurface({super.key, required this.controller});
 
   @override
   State<_PlayerSurface> createState() => _PlayerSurfaceState();

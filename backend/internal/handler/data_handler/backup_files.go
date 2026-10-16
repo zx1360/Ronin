@@ -45,6 +45,22 @@ func (b *backupFiles) add(dest string, save func(string) error) error {
 	return nil
 }
 
+func (b *backupFiles) removeUnusedImages(dir string, refs map[string]bool) error {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.Type().IsRegular() && !refs[entry.Name()] {
+			b.entries = append(b.entries, backupFile{dest: filepath.Join(dir, entry.Name())})
+		}
+	}
+	return nil
+}
+
 func (b *backupFiles) commit(writeData func() error) (err error) {
 	defer func() {
 		if err == nil {
@@ -80,10 +96,12 @@ func (b *backupFiles) commit(writeData func() error) (err error) {
 		} else if !errors.Is(statErr, os.ErrNotExist) {
 			return statErr
 		}
-		if err = os.Rename(e.staged, e.dest); err != nil {
-			return err
+		if e.staged != "" {
+			if err = os.Rename(e.staged, e.dest); err != nil {
+				return err
+			}
+			e.installed = true
 		}
-		e.installed = true
 	}
 	return writeData()
 }

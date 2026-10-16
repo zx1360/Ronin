@@ -45,7 +45,7 @@ class MediaItemView extends ConsumerWidget {
 
     if (asset.isVideo) {
       return VideoPlayerWidget(
-        key: ValueKey('video_${asset.id}_$effectiveTurns'),
+        key: ValueKey('video_${asset.id}'),
         asset: asset,
         storage: storage,
         rotationQuarterTurns: effectiveTurns,

@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -24,15 +25,7 @@ const (
 	ModeFilename = "filename"
 )
 
-const (
-	// semanticCandidateCap 语义检索的候选上限：结构化筛选后的候选超过该数量时截断，
-	// 保证单次扫描时间可控（7w 全库仍远低于上限）。
-	semanticCandidateCap = 50000
-	// keywordCandidateCap 混合检索中"关键词命中"的候选上限。
-	keywordCandidateCap = 3000
-	// keywordBoost 混合检索中关键词命中的加分（相对语义得分的固定加权）。
-	keywordBoost = 0.25
-)
+const keywordBoost = 0.25
 
 // SearchRequest 组合搜索请求。
 type SearchRequest struct {
@@ -107,6 +100,9 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 
 	vector, err := e.queryVector(ctx, query, req.MediaID, req.ImagePath)
 	if err != nil {
+		if req.MediaID != "" || req.ImagePath != "" {
+			return nil, err
+		}
 		// 语义链路不可用时退化为关键词检索，保证搜索框始终有结果
 		fallback, fallbackErr := e.plainSearch(filters, query, ModeKeyword, limit, req.Offset)
 		if fallbackErr != nil {
@@ -115,7 +111,7 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 		return fallback, nil
 	}
 
-	return e.semanticSearch(ctx, filters, query, vector, limit, req.Offset, req.MinScore)
+	return e.semanticSearch(ctx, filters, query, req.MediaID, vector, limit, req.Offset, req.MinScore)
 }
 
 // queryVector 生成查询向量：优先复用库内媒体的向量，其次对图片/文本实时编码。
@@ -233,12 +229,12 @@ func normalizeTags(tags []string) []string {
 }
 
 // semanticSearch 语义检索：结构化筛选出候选集，再用查询向量打分排序。
-func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilters, query string,
+func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilters, query, mediaID string,
 	vector []float32, limit, offset int, minScore float32) (*model.AiSearchResponse, error) {
 
 	// 1) 结构化候选集（不含关键词）
 	candidateFilters := filters
-	candidateFilters.Limit = semanticCandidateCap
+	candidateFilters.Limit = -1
 	candidateFilters.Offset = 0
 	candidateIDs, _, err := ai_repo.SearchMediaIDs(candidateFilters)
 	if err != nil {
@@ -250,7 +246,9 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 
 	allowed := make(map[uuid.UUID]bool, len(candidateIDs))
 	for _, id := range candidateIDs {
-		allowed[id] = true
+		if mediaID == "" || id.String() != mediaID {
+			allowed[id] = true
+		}
 	}
 
 	// 2) 向量精确扫描（仅统计候选集内的媒体）
@@ -274,10 +272,13 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 	if strings.TrimSpace(query) != "" {
 		keywordFilters := filters
 		keywordFilters.Keyword = query
-		keywordFilters.Limit = keywordCandidateCap
+		keywordFilters.Limit = -1
 		keywordFilters.Offset = 0
 		if keywordIDs, _, err := ai_repo.SearchMediaIDs(keywordFilters); err == nil {
 			for _, id := range keywordIDs {
+				if mediaID != "" && id.String() == mediaID {
+					continue
+				}
 				sources[id] = []string{"keyword"}
 				if _, exists := scores[id]; exists {
 					scores[id] += keywordBoost
@@ -289,7 +290,12 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 		}
 	}
 
-	sort.SliceStable(ordered, func(i, j int) bool { return scores[ordered[i]] > scores[ordered[j]] })
+	sort.Slice(ordered, func(i, j int) bool {
+		if scores[ordered[i]] == scores[ordered[j]] {
+			return bytes.Compare(ordered[i][:], ordered[j][:]) < 0
+		}
+		return scores[ordered[i]] > scores[ordered[j]]
+	})
 
 	total := len(ordered)
 	page := paginate(ordered, offset, limit)
