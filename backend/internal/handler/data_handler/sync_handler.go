@@ -2,6 +2,7 @@ package data_handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,7 +48,11 @@ func syncFromDB(c *gin.Context, moduleName string) {
 	}
 	data, err := data_repo.ReadSync(moduleName, after)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		if errors.Is(err, data_repo.ErrInvalidSyncCursor) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "code": "invalid_sync_cursor"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
 	c.JSON(http.StatusOK, data)
@@ -55,6 +60,8 @@ func syncFromDB(c *gin.Context, moduleName string) {
 
 // syncFromFiles 从 JSON 文件读取数据（保留原有逻辑，用于 preferences 等）
 func syncFromFiles(c *gin.Context, moduleConfig *ModuleConfig) {
+	backupMu.Lock()
+	defer backupMu.Unlock()
 	mergedData := make(map[string]interface{})
 	for _, filePath := range moduleConfig.JSONFiles {
 		content, err := os.ReadFile(filePath)

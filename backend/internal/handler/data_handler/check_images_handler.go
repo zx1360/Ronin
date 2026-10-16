@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"monarch/internal/model"
 
@@ -41,16 +42,15 @@ func CheckImagesHandler(c *gin.Context) {
 	missing := make([]string, 0)
 
 	for _, filename := range req.Filenames {
-		// 安全校验：只取文件名（不含路径），防止目录穿越
-		baseName := filepath.Base(filename)
-		fullPath := filepath.Join(moduleConfig.ImageDir, baseName)
+		if filename != filepath.Base(filename) || !filepath.IsLocal(filename) || filename == "." || strings.ContainsAny(filename, "/\\") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的图片文件名"})
+			return
+		}
+		fullPath := filepath.Join(moduleConfig.ImageDir, filename)
 
-		if _, err := os.Stat(fullPath); err == nil {
+		if info, err := os.Stat(fullPath); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
 			existing = append(existing, filename)
-		} else if os.IsNotExist(err) {
-			missing = append(missing, filename)
 		} else {
-			// 其他错误（权限等）视为缺失
 			missing = append(missing, filename)
 		}
 	}

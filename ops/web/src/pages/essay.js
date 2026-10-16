@@ -91,7 +91,7 @@ export default {
             <article v-for="e in page" :key="e.id" class="essay-card" :class="{selected:detailId===e.id}">
               <button class="essay-open" @click="detailId=e.id">
                 <span class="small muted">{{dateText(e.date)}} · {{e.word_count}} 字</span>
-                <strong>{{e.title || '无标题'}}</strong>
+                <strong v-if="e.title">{{e.title}}</strong>
                 <span class="essay-excerpt">{{e.content.slice(0,180)}}{{e.content.length>180?'…':''}}</span>
               </button>
               <div class="row small">

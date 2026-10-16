@@ -46,8 +46,9 @@ func validateRow(name string, row map[string]any) error {
 	if name == "essays" {
 		content := row["content"].(string)
 		labels, _ := row["labels"].([]any)
-		if strings.TrimSpace(content) == "" || len(labels) < 1 || len(labels) > 4 {
-			return fmt.Errorf("随笔正文不能为空，且需选择 1 至 4 个标签")
+		images, _ := row["imgs"].([]any)
+		if (strings.TrimSpace(content) == "" && len(images) == 0) || len(labels) < 1 || len(labels) > 4 {
+			return fmt.Errorf("随笔需有正文或图片，且需选择 1 至 4 个标签")
 		}
 		row["word_count"] = len(utf16.Encode([]rune(strings.TrimSpace(content))))
 		if row["messages"] != nil {

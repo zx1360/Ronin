@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:path/path.dart' as p;
 import 'package:torrid/core/services/network/cert_trust.dart';
 
 /// 统一 API 异常
@@ -54,6 +55,7 @@ class ApiClient {
   ///
   /// 非 [DioException] 的错误原样包装，保证调用方始终拿到可读信息。
   static ApiException mapError(Object error) {
+    if (error is ApiException) return error;
     if (error is DioException) {
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
@@ -221,7 +223,7 @@ class ApiClient {
             "files",
             await MultipartFile.fromFile(
               file.path,
-              filename: file.path.split("/").last,
+              filename: p.basename(file.path),
             ),
           ),
         );

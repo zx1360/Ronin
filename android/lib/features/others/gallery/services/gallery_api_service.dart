@@ -59,10 +59,10 @@ class GalleryApiService {
   /// 新建标签
   Future<Tag> createTag({required String name, String? parentId}) {
     return _guard(() async {
-      final resp = await _client.postJson('/API/gallery/tags', data: {
-        'name': name,
-        if (parentId != null) 'parent_id': parentId,
-      });
+      final resp = await _client.postJson(
+        '/API/gallery/tags',
+        data: {'name': name, if (parentId != null) 'parent_id': parentId},
+      );
       return Tag.fromJson(_tagOf(resp.data));
     });
   }
@@ -139,8 +139,10 @@ class GalleryApiService {
       final data = resp.data as Map<String, dynamic>;
       return (
         mediaAssets: _parseList(data['media_assets'], MediaAsset.fromJson),
-        mediaTagLinks:
-            _parseList(data['media_tag_links'], MediaTagLink.fromJson),
+        mediaTagLinks: _parseList(
+          data['media_tag_links'],
+          MediaTagLink.fromJson,
+        ),
         total: (data['total'] as num?)?.toInt() ?? 0,
       );
     });
@@ -167,11 +169,14 @@ class GalleryApiService {
     List<String> removeTagIds = const [],
   }) {
     return _guard(() async {
-      final resp = await _client.postJson('/API/gallery/media/tags', data: {
-        'media_ids': mediaIds,
-        'add_tag_ids': addTagIds,
-        'remove_tag_ids': removeTagIds,
-      });
+      final resp = await _client.postJson(
+        '/API/gallery/media/tags',
+        data: {
+          'media_ids': mediaIds,
+          'add_tag_ids': addTagIds,
+          'remove_tag_ids': removeTagIds,
+        },
+      );
       final data = resp.data as Map<String, dynamic>;
       return (data['affected'] as num?)?.toInt() ?? 0;
     });
@@ -203,10 +208,10 @@ class GalleryApiService {
     dynamic raw,
     T Function(Map<String, dynamic>) fromJson,
   ) {
-    if (raw is! List) return const [];
-    return [
-      for (final e in raw)
-        if (e is Map<String, dynamic>) fromJson(e),
-    ];
+    if (raw == null) return const [];
+    if (raw is! List) throw const FormatException('服务端返回了无效的画廊列表');
+    return raw
+        .map((e) => fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
   }
 }

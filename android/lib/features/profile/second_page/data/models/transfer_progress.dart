@@ -188,7 +188,7 @@ class TransferResult {
   factory TransferResult.failed({
     required String message,
     int successCount = 0,
-    int failedCount = 0,
+    int failedCount = 1,
     List<FailedItem> failedItems = const [],
     Duration? elapsed,
   }) => TransferResult(

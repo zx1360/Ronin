@@ -19,6 +19,8 @@ import (
 
 const SyncVersion = 2
 
+var ErrInvalidSyncCursor = errors.New("同步游标已失效，请重新完整合并")
+
 type Tombstone struct {
 	Collection string         `json:"collection"`
 	ID         string         `json:"id"`
@@ -73,7 +75,7 @@ func ReadSync(module string, after int64) (map[string]any, error) {
 		return nil, err
 	}
 	if after > cursor {
-		return nil, fmt.Errorf("同步游标已失效，请重新完整合并")
+		return nil, ErrInvalidSyncCursor
 	}
 	result := map[string]any{"sync_version": SyncVersion, "cursor": cursor, "tombstones": []Tombstone{}}
 	for _, spec := range collections[module] {
@@ -178,8 +180,10 @@ func (data SyncData) Images(module string) (map[string]bool, error) {
 		if path == "" {
 			return nil
 		}
+		path = strings.TrimPrefix(path, "/")
 		prefix := "img_storage/" + module + "/"
-		if strings.Contains(path, "\\") || !strings.HasPrefix(path, prefix) || strings.TrimPrefix(path, prefix) != filepath.Base(path) {
+		name := strings.TrimPrefix(path, prefix)
+		if strings.Contains(path, "\\") || !strings.HasPrefix(path, prefix) || name != filepath.Base(path) || !filepath.IsLocal(name) || name == "." {
 			return fmt.Errorf("图片路径不在模块目录内: %s", path)
 		}
 		refs[filepath.Base(path)] = true
