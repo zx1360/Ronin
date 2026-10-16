@@ -3,12 +3,14 @@ package data_handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"monarch/internal/repository/data_repo"
@@ -59,29 +61,30 @@ func BackupHandler(c *gin.Context) {
 		uploads = c.Request.MultipartForm.File["files"]
 	}
 	for _, file := range uploads {
-		if file.Filename != filepath.Base(file.Filename) || file.Size == 0 {
+		if file.Filename != filepath.Base(file.Filename) || !filepath.IsLocal(file.Filename) || file.Filename == "." || strings.ContainsAny(file.Filename, "/\\") || file.Size == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的图片文件: " + file.Filename})
 			return
 		}
-		if cfg.IsDB {
-			if !refs[file.Filename] {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "上传图片未被数据引用: " + file.Filename})
+		if !refs[file.Filename] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "上传图片未被数据引用: " + file.Filename})
+			return
+		}
+		if old, err := os.ReadFile(filepath.Join(cfg.ImageDir, file.Filename)); err == nil && len(old) > 0 {
+			incoming, err := file.Open()
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			if old, err := os.ReadFile(filepath.Join(cfg.ImageDir, file.Filename)); err == nil {
-				incoming, err := file.Open()
-				if err != nil {
-					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-					return
-				}
-				raw, err := io.ReadAll(incoming)
-				incoming.Close()
-				if err != nil || !bytes.Equal(old, raw) {
-					c.JSON(http.StatusConflict, gin.H{"error": "图片同名且内容不同，请重新选择图片: " + file.Filename})
-					return
-				}
-				continue
+			raw, err := io.ReadAll(incoming)
+			incoming.Close()
+			if err != nil || !bytes.Equal(old, raw) {
+				c.JSON(http.StatusConflict, gin.H{"error": "图片同名且内容不同，请重新选择图片: " + file.Filename})
+				return
 			}
+			continue
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取已有图片失败: " + err.Error()})
+			return
 		}
 		if err := files.add(filepath.Join(cfg.ImageDir, file.Filename), func(path string) error {
 			return c.SaveUploadedFile(file, path)
@@ -93,7 +96,7 @@ func BackupHandler(c *gin.Context) {
 	for name := range refs {
 		path := filepath.Join(cfg.ImageDir, name)
 		if !files.contains(path) {
-			if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+			if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "缺少引用图片: " + name})
 				return
 			}
@@ -115,12 +118,6 @@ func BackupHandler(c *gin.Context) {
 }
 
 func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage) (func() error, map[string]bool, error) {
-	refs := make(map[string]bool)
-	addImage := func(path string) {
-		if path != "" {
-			refs[filepath.Base(path)] = true
-		}
-	}
 	switch cfg.Name {
 	case "booklet", "essay":
 		raw, err := json.Marshal(payload)
@@ -140,22 +137,10 @@ func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage) (func(
 		}
 		return func() error { return data_repo.MergeSync(cfg.Name, data) }, refs, nil
 	case "preferences":
-		var prefs struct {
-			BackgroundImages []string `json:"backgroundImages"`
-			SidebarImages    []string `json:"sidebarImages"`
-			AvatarPath       string   `json:"avatarPath"`
-		}
-		raw := payload["preferences"]
-		if len(raw) == 0 || string(raw) == "null" {
-			return nil, nil, fmt.Errorf("缺少 preferences 对象")
-		}
-		if err := json.Unmarshal(raw, &prefs); err != nil {
+		refs, err := preferenceImages(payload["preferences"])
+		if err != nil {
 			return nil, nil, err
 		}
-		for _, image := range append(prefs.BackgroundImages, prefs.SidebarImages...) {
-			addImage(image)
-		}
-		addImage(prefs.AvatarPath)
 		return func() error { return nil }, refs, nil
 	default:
 		return nil, nil, fmt.Errorf("不支持的模块: %s", cfg.Name)

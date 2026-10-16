@@ -162,41 +162,54 @@ class RoutineService extends _$RoutineService {
   // 数据同步
 
   /// 逐行合并，图片由传输控制器处理。
-  Future<void> syncData(dynamic incoming) => userDataWrite(() async {
-    final merged = mergeUserData(
-      'booklet',
-      _snapshot(),
-      Map<String, dynamic>.from(incoming as Map),
-    );
-    final json = merged.data;
-    final styles = <String, Style>{};
-    for (final raw in json['styles'] as List) {
-      final style = Style.fromJson(raw as Map<String, dynamic>);
-      styles[style.id] = style;
-    }
+  Future<void> syncData(dynamic incoming, {String? cursorKey}) =>
+      userDataWrite(() async {
+        final merged = mergeUserData(
+          'booklet',
+          snapshot(),
+          Map<String, dynamic>.from(incoming as Map),
+        );
+        final json = merged.data;
+        final styles = <String, Style>{};
+        for (final raw in json['styles'] as List) {
+          final style = Style.fromJson(raw as Map<String, dynamic>);
+          styles[style.id] = style;
+        }
 
-    final records = <String, Record>{};
-    for (final raw in json['records'] as List) {
-      final record = Record.fromJson(raw as Map<String, dynamic>);
-      records[record.id] = record;
-    }
+        final records = <String, Record>{};
+        for (final raw in json['records'] as List) {
+          final record = Record.fromJson(raw as Map<String, dynamic>);
+          records[record.id] = record;
+        }
 
-    for (final record in records.values) {
-      if (!styles.containsKey(record.styleId)) {
-        throw const FormatException('打卡记录引用了不存在的样式');
-      }
-    }
-    await replaceBoxes({
-      userDataSyncBox: merged.metadata,
-      state.styleBox: <String, Style>{
-        for (final style in styles.values)
-          style.id: _withStats(style, records.values),
-      },
-      state.recordBox: records,
-    });
-  });
+        final days = <String>{};
+        for (final record in records.values) {
+          final style = styles[record.styleId];
+          if (style == null) {
+            throw const FormatException('打卡记录引用了不存在的样式');
+          }
+          if (!days.add('${record.styleId}|${record.date}') ||
+              record.taskCompletion.length != style.tasks.length ||
+              style.tasks.any(
+                (task) => !record.taskCompletion.containsKey(task.id),
+              )) {
+            throw const FormatException('打卡日期重复或任务与样式不一致');
+          }
+        }
+        if (cursorKey != null) {
+          merged.metadata[cursorKey] = incoming['cursor'].toString();
+        }
+        await replaceBoxes({
+          userDataSyncBox: merged.metadata,
+          state.styleBox: <String, Style>{
+            for (final style in styles.values)
+              style.id: _withStats(style, records.values),
+          },
+          state.recordBox: records,
+        });
+      });
 
-  Map<String, dynamic> _snapshot() => {
+  Map<String, dynamic> snapshot() => {
     'styles': state.styleBox.values.map((s) => s.toJson()).toList(),
     'records': state.recordBox.values.map((r) => r.toJson()).toList(),
   };
@@ -220,26 +233,10 @@ class RoutineService extends _$RoutineService {
     }
     return {
       'jsonData': jsonEncode({
-        ..._snapshot(),
+        ...snapshot(),
         'sync_version': 2,
         'tombstones': userDataTombstones('booklet'),
       }),
     };
   });
-
-  /// 获取所有图片路径
-  List<String> getImgsPath() {
-    List<String> urls = [];
-    for (var style in state.styleBox.values) {
-      style.tasks
-          .where((task) => task.image.isNotEmpty && task.image != '')
-          .forEach((task) {
-            final relativePath = task.image.startsWith("/")
-                ? task.image.replaceFirst("/", "")
-                : task.image;
-            urls.add(relativePath);
-          });
-    }
-    return urls;
-  }
 }

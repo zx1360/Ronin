@@ -10,7 +10,10 @@ export const moodText = (value) => moods.find((m) => m.value === value)?.label |
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 export const day = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 export const stamp = (row) => new Date(Math.max(Date.now(), Date.parse(row?.updated_at || '') + 1 || 0)).toISOString();
-export const imageUrl = (path) => path?.startsWith('img_storage/') ? assetUrl('/static/' + path.split('/').map(encodeURIComponent).join('/')) : '';
+export const imageUrl = (path) => {
+  const relative = path?.replace(/^\//, '');
+  return relative?.startsWith('img_storage/') ? assetUrl('/static/' + relative.split('/').map(encodeURIComponent).join('/')) : '';
+};
 
 export function useUserData(module) {
   const names = module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];

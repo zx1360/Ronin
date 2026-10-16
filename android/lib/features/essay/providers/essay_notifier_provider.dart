@@ -178,10 +178,13 @@ class EssayService extends _$EssayService {
     });
   });
 
-  Future<void> syncData(dynamic incoming) => userDataWrite(() async {
+  Future<void> syncData(
+    dynamic incoming, {
+    String? cursorKey,
+  }) => userDataWrite(() async {
     final merged = mergeUserData(
       'essay',
-      _snapshot(),
+      snapshot(),
       Map<String, dynamic>.from(incoming as Map),
     );
     final json = merged.data;
@@ -208,6 +211,9 @@ class EssayService extends _$EssayService {
       }
       essays[essay.id] = essay;
     }
+    if (cursorKey != null) {
+      merged.metadata[cursorKey] = incoming['cursor'].toString();
+    }
     await replaceBoxes({
       userDataSyncBox: merged.metadata,
       state.summaryBox: _summaries(essays.values),
@@ -216,7 +222,7 @@ class EssayService extends _$EssayService {
     });
   });
 
-  Map<String, dynamic> _snapshot() => {
+  Map<String, dynamic> snapshot() => {
     'labels': state.labelBox.values.map((l) => l.toJson()).toList(),
     'essays': state.essayBox.values.map((e) => e.toJson()).toList(),
   };
@@ -240,16 +246,10 @@ class EssayService extends _$EssayService {
     }
     return {
       'jsonData': jsonEncode({
-        ..._snapshot(),
+        ...snapshot(),
         'sync_version': 2,
         'tombstones': userDataTombstones('essay'),
       }),
     };
   });
-
-  List<String> getImgsPath() => [
-    for (final essay in state.essayBox.values)
-      for (final img in essay.imgs)
-        img.startsWith('/') ? img.substring(1) : img,
-  ];
 }

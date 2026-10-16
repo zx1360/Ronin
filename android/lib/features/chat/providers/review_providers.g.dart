@@ -7,7 +7,7 @@ part of 'review_providers.dart';
 // **************************************************************************
 
 String _$reviewPresetsControllerHash() =>
-    r'5104433bf5e76259d3051272f4cf2a4398d1c26c';
+    r'922b0d71b6b709f54f11ef5fccfbc3730dc05d63';
 
 /// 语气/角色预设：服务端权威 + 本地 Hive 镜像。
 ///

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/core/services/storage/user_data_sync.dart';
@@ -49,12 +50,13 @@ class TransferController extends _$TransferController {
           ]
         : [target];
     try {
+      final client = ref.read(apiClientManagerProvider);
       final results = <TransferResult>[];
       for (final item in targets) {
         results.add(
           await (type == TransferType.sync || item != TransferTarget.preferences
-              ? _sync(item)
-              : _backup(item)),
+              ? _sync(item, client)
+              : _backup(item, client)),
         );
       }
       return results.length == 1
@@ -76,15 +78,15 @@ class TransferController extends _$TransferController {
     if (!_running) state = TransferProgress.idle();
   }
 
-  Future<TransferResult> _sync(TransferTarget target) async {
+  Future<TransferResult> _sync(TransferTarget target, ApiClient client) async {
     if (target != TransferTarget.preferences) {
-      final result = await _backup(target);
+      final result = await _backup(target, client);
       if (!result.success) return result;
     }
-    return _pull(target);
+    return _pull(target, client);
   }
 
-  Future<TransferResult> _pull(TransferTarget target) async {
+  Future<TransferResult> _pull(TransferTarget target, ApiClient client) async {
     final started = DateTime.now();
     _updateState(
       type: TransferType.sync,
@@ -94,47 +96,68 @@ class TransferController extends _$TransferController {
     );
     TransferFiles? files;
     try {
-      final client = ref.read(apiClientManagerProvider);
-      final address = ref.read(networkConfigManagerProvider).serverAddress;
+      final address = Uri.parse(client.baseUrl).authority;
       final cursorKey = 'cursor|$address|${target.name}';
       final cursor = target == TransferTarget.preferences
           ? 0
           : int.tryParse(userDataSyncBox.get(cursorKey) ?? '') ?? 0;
-      Future<dynamic> fetch(int after) async {
-        try {
-          return await client.get(
-            '/API/user-data/sync/${target.name}',
-            queryParams: {
-              if (target != TransferTarget.preferences) 'sync_version': 2,
-              if (after > 0) 'after': after,
-            },
-          );
-        } catch (error) {
-          throw StateError(ApiClient.mapError(error).message);
-        }
-      }
+      Future<Response<dynamic>> fetch(int after) => client.get(
+        '/API/user-data/sync/${target.name}',
+        queryParams: {
+          if (target != TransferTarget.preferences) 'sync_version': 2,
+          if (after > 0) 'after': after,
+        },
+      );
 
-      dynamic response;
+      Response<dynamic> response;
       try {
         response = await fetch(cursor);
-      } catch (_) {
-        if (cursor == 0) rethrow;
+      } on DioException catch (error) {
+        if (cursor == 0 ||
+            error.response?.statusCode != 409 ||
+            error.response?.data is! Map ||
+            error.response?.data['code'] != 'invalid_sync_cursor') {
+          rethrow;
+        }
         response = await fetch(0);
       }
-      if (response == null || response.statusCode != 200) {
-        throw StateError('获取数据失败');
+      if (response.statusCode != 200 || response.data is! Map) {
+        throw const FormatException('服务端返回了无效的数据对象');
       }
       final data = Map<String, dynamic>.from(response.data as Map);
+      if (target != TransferTarget.preferences &&
+          (data['cursor'] is! int || (data['cursor'] as int) < 0)) {
+        throw const FormatException('服务端返回了无效的同步游标');
+      }
       if (target == TransferTarget.essay) requireEssaySchema(data);
       final relativeDir = target == TransferTarget.preferences
           ? 'preferences'
           : 'img_storage/${target.name}';
-      final images = _imagePaths(target, data, relativeDir);
+      final local = switch (target) {
+        TransferTarget.booklet =>
+          ref.read(routineServiceProvider.notifier).snapshot(),
+        TransferTarget.essay =>
+          ref.read(essayServiceProvider.notifier).snapshot(),
+        _ => null,
+      };
+      final images = _imagePaths(
+        target,
+        local == null ? data : mergeUserData(target.name, local, data).data,
+        relativeDir,
+      );
       final externalDir = await IoService.externalStorageDir;
+      if (target != TransferTarget.preferences) {
+        for (final key in images.keys.toList()) {
+          final file = File(p.join(externalDir.path, relativeDir, key));
+          if (await file.exists() && await file.length() > 0) {
+            images.remove(key);
+          }
+        }
+      }
       files = await TransferFiles.create(
         Directory(p.join(externalDir.path, relativeDir)),
       );
-      final result = await _downloadImages(images, files.staged);
+      final result = await _downloadImages(client, images, files.staged);
       if (!result.success) {
         _completeTransfer(false, result.message, result.failedItems);
         return result._withElapsed(started);
@@ -142,9 +165,13 @@ class TransferController extends _$TransferController {
       await files.apply(() async {
         switch (target) {
           case TransferTarget.booklet:
-            await ref.read(routineServiceProvider.notifier).syncData(data);
+            await ref
+                .read(routineServiceProvider.notifier)
+                .syncData(data, cursorKey: cursorKey);
           case TransferTarget.essay:
-            await ref.read(essayServiceProvider.notifier).syncData(data);
+            await ref
+                .read(essayServiceProvider.notifier)
+                .syncData(data, cursorKey: cursorKey);
           case TransferTarget.preferences:
             await restorePreferences(
               Map<String, dynamic>.from(data['preferences'] as Map),
@@ -153,11 +180,6 @@ class TransferController extends _$TransferController {
             throw StateError('请指定数据模块');
         }
       });
-      if (target != TransferTarget.preferences) {
-        await userDataWrite(
-          () => userDataSyncBox.put(cursorKey, data['cursor'].toString()),
-        );
-      }
       if (target == TransferTarget.preferences) {
         await ref.read(networkConfigManagerProvider.notifier).refresh();
         ref.read(appSettingsProvider.notifier).refresh();
@@ -169,10 +191,11 @@ class TransferController extends _$TransferController {
         elapsed: DateTime.now().difference(started),
       );
     } catch (e) {
-      AppLogger().error('${target.displayName}同步失败: $e');
-      _completeTransfer(false, '同步失败', null, e.toString());
+      final message = ApiClient.mapError(e).message;
+      AppLogger().error('${target.displayName}同步失败: $message');
+      _completeTransfer(false, '${target.displayName}同步失败', null, message);
       return TransferResult.failed(
-        message: '同步失败: $e',
+        message: '${target.displayName}同步失败: $message',
         elapsed: DateTime.now().difference(started),
       );
     } finally {
@@ -195,19 +218,35 @@ class TransferController extends _$TransferController {
     };
     final images = <String, String>{};
     for (final path in paths.where((path) => path.isNotEmpty)) {
-      final local = p.normalize(path.replaceFirst(RegExp(r'^/'), ''));
-      if (!p.isWithin(root, local)) throw FormatException('图片路径不在模块目录内: $path');
-      images[p.relative(
-        local,
-        from: root,
-      )] = target == TransferTarget.preferences
+      final local = path.replaceFirst(RegExp(r'^/'), '');
+      final parts = p.posix.split(local);
+      if (path.contains('\\') ||
+          parts.any((part) => part == '.' || part == '..') ||
+          !p.posix.isWithin(root, local) ||
+          (target != TransferTarget.preferences && parts.length != 3) ||
+          (target == TransferTarget.preferences &&
+              (parts.length != 3 ||
+                  !['background', 'sidebar', 'avatar'].contains(parts[1])))) {
+        throw FormatException('图片路径不在模块目录内: $path');
+      }
+      final relative = p.posix.relative(local, from: root);
+      final remote = target == TransferTarget.preferences
           ? 'img_storage/preferences/${p.basename(local)}'
-          : local.replaceAll('\\', '/');
+          : local;
+      if (images.entries.any(
+        (entry) => entry.key != relative && entry.value == remote,
+      )) {
+        throw FormatException('图片文件名重复: $path');
+      }
+      images[relative] = remote;
     }
     return images;
   }
 
-  Future<TransferResult> _backup(TransferTarget target) async {
+  Future<TransferResult> _backup(
+    TransferTarget target,
+    ApiClient client,
+  ) async {
     final started = DateTime.now();
     _updateState(
       type: TransferType.backup,
@@ -217,46 +256,65 @@ class TransferController extends _$TransferController {
     );
     try {
       late Map<String, dynamic> data;
-      late List<String> images;
       switch (target) {
         case TransferTarget.booklet:
           final service = ref.read(routineServiceProvider.notifier);
           data = await service.packUp();
-          images = service.getImgsPath();
         case TransferTarget.essay:
           final service = ref.read(essayServiceProvider.notifier);
           data = await service.packUp();
-          images = service.getImgsPath();
         case TransferTarget.preferences:
-          final preferences = packPreferences();
+          final preferences = packPreferences(
+            ref.read(networkConfigManagerProvider),
+          );
           data = {
             'jsonData': jsonEncode({'preferences': preferences}),
           };
-          images = preferenceImagePaths(preferences);
         case TransferTarget.all:
           throw StateError('请指定数据模块');
       }
       final externalDir = await IoService.externalStorageDir;
-      final allFiles = images
-          .toSet()
-          .map((path) => File(p.join(externalDir.path, path)))
+      final root = target == TransferTarget.preferences
+          ? 'preferences'
+          : 'img_storage/${target.name}';
+      final images = _imagePaths(
+        target,
+        Map<String, dynamic>.from(
+          jsonDecode(data['jsonData'] as String) as Map,
+        ),
+        root,
+      );
+      final allFiles = images.keys
+          .map((path) => File(p.join(externalDir.path, root, path)))
           .where((file) => file.existsSync())
           .toList();
-      final files = await _filterMissingFiles(allFiles, target.name);
+      final files = target == TransferTarget.preferences
+          ? allFiles
+          : await _filterMissingFiles(client, allFiles, target.name);
       _updateProgress(total: files.length + 1, message: '正在备份数据...');
       final result = await _uploadData(
+        client: client,
         path:
             '/API/user-data/${target == TransferTarget.preferences ? 'backup' : 'sync'}/${target.name}',
         jsonData: data,
         files: files,
       );
-      _completeTransfer(result.success, result.message);
-      return result._withElapsed(started);
+      _completeTransfer(
+        result.success,
+        '${target.displayName}: ${result.message}',
+        null,
+        result.success ? null : result.message,
+      );
+      return result._withElapsed(
+        started,
+        message: '${target.displayName}: ${result.message}',
+      );
     } catch (e) {
-      AppLogger().error('${target.displayName}备份失败: $e');
-      _completeTransfer(false, '备份失败', null, e.toString());
+      final message = ApiClient.mapError(e).message;
+      AppLogger().error('${target.displayName}备份失败: $message');
+      _completeTransfer(false, '${target.displayName}备份失败', null, message);
       return TransferResult.failed(
-        message: '备份失败: $e',
+        message: '${target.displayName}备份失败: $message',
         elapsed: DateTime.now().difference(started),
       );
     }
@@ -265,6 +323,7 @@ class TransferController extends _$TransferController {
   /// 向服务端查询哪些图片文件已存在，返回仅需上传的缺失文件列表
   /// 若查询失败则回退为全量上传（返回原列表）
   Future<List<File>> _filterMissingFiles(
+    ApiClient client,
     List<File> allFiles,
     String module,
   ) async {
@@ -272,15 +331,13 @@ class TransferController extends _$TransferController {
 
     try {
       final filenames = allFiles.map((f) => p.basename(f.path)).toList();
-      final resp = await ref.read(
-        jsonSenderProvider(
-          path: "/API/user-data/check-images/$module",
-          data: {"filenames": filenames},
-        ).future,
+      final resp = await client.postJson(
+        "/API/user-data/check-images/$module",
+        data: {"filenames": filenames},
       );
 
-      if (module == 'essay') requireEssaySchema(resp?.data);
-      if (resp == null || resp.statusCode != 200) return allFiles;
+      if (module == 'essay') requireEssaySchema(resp.data);
+      if (resp.statusCode != 200) return allFiles;
 
       final missing = (resp.data['missing'] as List?)
           ?.map((e) => e.toString())
@@ -299,6 +356,7 @@ class TransferController extends _$TransferController {
   }
 
   Future<TransferResult> _downloadImages(
+    ApiClient client,
     Map<String, String> images,
     Directory directory,
   ) async {
@@ -313,7 +371,7 @@ class TransferController extends _$TransferController {
       _maxConcurrent,
     )) {
       final results = await Future.wait(
-        batch.map((image) => _downloadImage(image, directory)),
+        batch.map((image) => _downloadImage(client, image, directory)),
       );
       for (var i = 0; i < results.length; i++) {
         if (results[i] != null) failed.add(results[i]!);
@@ -331,27 +389,28 @@ class TransferController extends _$TransferController {
   }
 
   Future<FailedItem?> _downloadImage(
+    ApiClient client,
     MapEntry<String, String> image,
     Directory directory,
   ) async {
     for (var attempt = 0; ; attempt++) {
       try {
-        final response = await ref.read(
-          bytesFetcherProvider(path: '/static/${image.value}').future,
+        final response = await client.getBinary(
+          Uri(path: '/static/${image.value}').toString(),
         );
-        if (response?.statusCode != 200 || response?.data?.isEmpty != false) {
-          throw StateError('图片响应无效: ${response?.statusCode}');
+        if (response.statusCode != 200 || response.data?.isEmpty != false) {
+          throw StateError('图片响应无效: ${response.statusCode}');
         }
         final file = File(p.join(directory.path, image.key));
         await file.parent.create(recursive: true);
-        await file.writeAsBytes(response!.data!, flush: true);
+        await file.writeAsBytes(response.data!, flush: true);
         return null;
       } catch (e) {
         if (attempt >= _maxRetries) {
           return FailedItem(
             name: image.key,
             path: image.value,
-            error: e.toString(),
+            error: ApiClient.mapError(e).message,
             retryCount: attempt,
           );
         }
@@ -361,6 +420,7 @@ class TransferController extends _$TransferController {
   }
 
   Future<TransferResult> _uploadData({
+    required ApiClient client,
     required String path,
     required Map<String, dynamic> jsonData,
     required List<File> files,
@@ -373,33 +433,35 @@ class TransferController extends _$TransferController {
       );
 
       int uploadedCount = 0;
-      final resp = await ref
-          .read(apiClientManagerProvider)
-          .post(
-            path,
-            jsonData: jsonData,
-            files: files,
-            onSendProgress: (sent, total) {
-              if (total > 0) {
-                final progress = (sent / total * files.length).round();
-                if (progress > uploadedCount) {
-                  uploadedCount = progress;
-                  _updateProgress(
-                    current: uploadedCount,
-                    currentMessage: '已上传 $uploadedCount/${files.length}',
-                  );
-                }
-              }
-            },
-          );
+      final resp = await client.post(
+        path,
+        jsonData: jsonData,
+        files: files,
+        onSendProgress: (sent, total) {
+          if (total > 0) {
+            final progress = (sent / total * files.length).round();
+            if (progress > uploadedCount) {
+              uploadedCount = progress;
+              _updateProgress(
+                current: uploadedCount,
+                currentMessage: '已上传 $uploadedCount/${files.length}',
+              );
+            }
+          }
+        },
+      );
 
-      if (resp.statusCode == 200) {
+      if (resp.statusCode == 200 &&
+          resp.data is Map &&
+          resp.data['status'] == 'success') {
         return TransferResult.success(
           message: '上传成功',
           successCount: files.length + 1,
         );
       }
-      return TransferResult.failed(message: '上传失败: 状态码 ${resp.statusCode}');
+      return TransferResult.failed(
+        message: '服务端未确认写入成功 (HTTP ${resp.statusCode})',
+      );
     } catch (e) {
       return TransferResult.failed(
         message: '上传出错: ${ApiClient.mapError(e).message}',
@@ -519,6 +581,9 @@ class TransferController extends _$TransferController {
       allSuccess,
       allSuccess ? '全部数据$typeName成功' : '$typeName完成，部分失败',
       allFailedItems,
+      allSuccess
+          ? null
+          : results.where((r) => !r.success).map((r) => r.message).join('\n'),
     );
 
     return TransferResult(
@@ -536,10 +601,10 @@ class TransferController extends _$TransferController {
 
 /// TransferResult 扩展
 extension _TransferResultExtension on TransferResult {
-  TransferResult _withElapsed(DateTime startTime) {
+  TransferResult _withElapsed(DateTime startTime, {String? message}) {
     return TransferResult(
       success: success,
-      message: message,
+      message: message ?? this.message,
       successCount: successCount,
       failedCount: failedCount,
       failedItems: failedItems,

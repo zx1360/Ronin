@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:torrid/core/services/storage/box_replace.dart';
 import 'package:torrid/features/chat/models/review_models.dart';
 import 'package:torrid/features/chat/providers/chat_providers.dart';
 import 'package:torrid/features/chat/services/review_api_service.dart';
@@ -61,6 +62,7 @@ class ReviewPresetsController extends _$ReviewPresetsController {
 
   /// 从服务端拉取并覆盖本地镜像；失败时保留镜像并如实提示。
   Future<void> refresh() async {
+    if (state.syncing) return;
     state = state.copyWith(syncing: true, clearError: true);
     try {
       final presets = await ref.read(reviewApiProvider).fetchPresets();
@@ -73,6 +75,7 @@ class ReviewPresetsController extends _$ReviewPresetsController {
 
   /// 整体保存；返回是否成功（失败时本地与服务端都保持原样）。
   Future<bool> save(List<ReviewPreset> presets) async {
+    if (state.syncing) return false;
     state = state.copyWith(syncing: true, clearError: true);
     try {
       final saved = await ref.read(reviewApiProvider).savePresets(presets);
@@ -85,12 +88,11 @@ class ReviewPresetsController extends _$ReviewPresetsController {
     }
   }
 
-  Future<void> _replaceCache(List<ReviewPreset> presets) async {
-    await _box.clear();
-    for (final preset in presets) {
-      await _box.put(preset.id, preset);
-    }
-  }
+  Future<void> _replaceCache(List<ReviewPreset> presets) => replaceBoxes({
+    _box: <String, ReviewPreset>{
+      for (final preset in presets) preset.id: preset,
+    },
+  });
 
   /// 排序只为了展示稳定：镜像的读取顺序由 Hive 决定，不能反过来影响推送顺序。
   List<ReviewPreset> _sorted(List<ReviewPreset> items) =>

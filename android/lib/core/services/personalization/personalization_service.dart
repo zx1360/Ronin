@@ -111,12 +111,14 @@ class PersonalizationService {
   /// 获取某类型图片的所有文件
   Future<List<File>> getImageFiles(PersonalizationImageType type) async {
     try {
-      final dir = await _ensureImageDir(type);
-      final entities = await dir.list().toList();
-      return entities
-          .whereType<File>()
-          .where((f) => _isImageFile(f.path))
-          .toList();
+      final settings = getSettings();
+      final paths = switch (type) {
+        PersonalizationImageType.background => settings.backgroundImages,
+        PersonalizationImageType.sidebar => settings.sidebarImages,
+        PersonalizationImageType.avatar => [if (settings.avatarPath != null) settings.avatarPath!],
+      };
+      final files = await Future.wait(paths.map(getImageFile));
+      return files.whereType<File>().where((file) => _isImageFile(file.path)).toList();
     } catch (e) {
       AppLogger().error('获取图片列表失败: $e');
       return [];

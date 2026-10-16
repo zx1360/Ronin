@@ -66,10 +66,22 @@ class ReviewApiService {
   }
 
   List<ReviewPreset> _parsePresets(dynamic data) {
-    if (data is! Map<String, dynamic>) return const [];
-    return [
-      for (final item in (data['presets'] as List? ?? const []))
-        if (item is Map<String, dynamic>) ReviewPreset.fromJson(item),
-    ];
+    if (data is! Map || data['presets'] is! List) {
+      throw const FormatException('服务端返回了无效的回顾预设');
+    }
+    final presets = (data['presets'] as List)
+        .map(
+          (item) =>
+              ReviewPreset.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList();
+    final ids = <String>{};
+    if (presets.any(
+      (preset) =>
+          preset.id.isEmpty || !ids.add(preset.id) || preset.problem != null,
+    )) {
+      throw const FormatException('回顾预设缺少必要字段或 ID 重复');
+    }
+    return presets;
   }
 }
