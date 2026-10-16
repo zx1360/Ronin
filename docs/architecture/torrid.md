@@ -7,7 +7,6 @@ Torrid 是 Flutter Android-only 应用，入口在 [main.dart](../../android/lib
 ```text
 main
   ├─ WidgetsFlutterBinding / 竖屏锁定
-  ├─ CertTrust.init()                 自签证书信任
   └─ ProviderScope(MyApp)
        ├─ MaterialApp.router
        └─ GoRouter -> features/*/pages
@@ -40,6 +39,7 @@ flowchart LR
 - [NetworkConfigManager](../../android/lib/providers/network_config/network_config_provider.dart) 负责多主机、激活项、API key 和 mDNS 发现结果。
 - [ApiClientManager](../../android/lib/providers/api_client/api_client_provider.dart) 监听网络配置派生 `ApiClient`；不要在页面中手动推送 ApiClient。
 - [ApiClient](../../android/lib/core/services/network/api_client.dart) 统一 Dio、证书、header、GET 重试、二进制和 NDJSON 流。
+- 启动页初始化证书与本地存储，失败可重试且不清数据；公共 HTTPS 使用系统 CA，内置后端证书仅按证书内容精确放行主机名不匹配。切换网络配置时关闭旧 ApiClient，页面读请求随 provider 释放取消。
 - fetcher 系列把底层异常记录并转为可读错误；页面不应直接依赖 `DioException`。
 
 服务端 mDNS 只广播 HTTPS 端口；发现后端上保存的 host/port 不会自动切换激活项。
@@ -52,9 +52,15 @@ flowchart LR
 | Hive | 随笔/打卡、Chat 会话消息、Review 镜像和历史、漫画缓存 | 依功能决定是本地真源或缓存 |
 | Hive `essayDrafts` / 私有目录 `essay_drafts/` | 随笔多草稿与草稿图片 | 仅本机；不参与同步、备份和 AI 回顾 |
 | sqflite `gallery.db` | Gallery 媒体缓存、下载批次、待写操作 | 仅缓存，不覆盖服务端权威 |
-| 文件系统 | 聊天内联图片、下载媒体、临时缓存 | 随业务清理，不能只删数据库记录 |
+| 内部 Application Support `media/` | 打卡/随笔/聊天附件、草稿、个性化图片 | 持久用户文件，不属于缓存 |
+| 外部应用私有 `comics/`、`gallery/` | 漫画和画廊离线媒体 | 按模块清理，不随普通清缓存删除 |
+| 系统缓存 `media_share/`、`media_export/` | 分享和导出暂存 | 与网络图片缓存分开统计；保留近 24 小时分享文件 |
 
 Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/storage/hive_service.dart)。`typeId` 发布后不可复用，新增类型必须查看 [开发备忘](../../开发备忘.md)。
+
+文件操作统一经过 [IoService](../../android/lib/core/services/io/io_service.dart)：用户文件、离线文件和临时文件边界分开，导入使用唯一文件名与同盘暂存后重命名。`img_storage/booklet|essay|chat/...` 等同步键仍与后端兼容，映射到内部 `media/booklet|essay|chat/...`；不保存绝对用户图片路径。旧外部附件目录不自动迁移，重装后从后端恢复打卡、随笔与偏好；草稿、聊天和回顾仅存本机，卸载会丢失。
+
+公共导出走 Android MediaStore：图片进入 `Pictures/torrid/`，视频进入 `Movies/torrid/`，不覆盖同名文件。Android 10+ 无需存储权限；更早版本仅请求普通存储权限。画廊/视频先流式下载到隔离暂存文件，退出页面取消下载；后台仅执行当前导出操作，不新增常驻服务。
 
 ## 4. 功能域与后端映射
 

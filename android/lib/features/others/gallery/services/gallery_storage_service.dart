@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 
@@ -23,9 +22,9 @@ class GalleryStorageService {
   /// 初始化目录结构
   Future<void> initDirectories() async {
     await Future.wait([
-      IoService.ensureDirExists('$_galleryRoot/$_mediaDir'),
-      IoService.ensureDirExists('$_galleryRoot/$_thumbDir'),
-      IoService.ensureDirExists('$_galleryRoot/$_previewDir'),
+      IoService.offlineDirectory('$_galleryRoot/$_mediaDir'),
+      IoService.offlineDirectory('$_galleryRoot/$_thumbDir'),
+      IoService.offlineDirectory('$_galleryRoot/$_previewDir'),
     ]);
   }
 
@@ -34,24 +33,26 @@ class GalleryStorageService {
   /// 从服务端相对路径转换为本地绝对路径 (原图)
   /// 服务端: "2008-08/filename.jpg" -> 本地: ".../gallery/Media/2008-08/filename.jpg"
   Future<String> getLocalMediaPath(String serverPath) async {
-    final externalDir = await IoService.externalStorageDir;
-    // 将反斜杠统一为正斜杠
     final normalizedPath = serverPath.replaceAll('\\', '/');
-    return p.join(externalDir.path, _galleryRoot, _mediaDir, normalizedPath);
+    return (await IoService.offlineFile(
+      '$_galleryRoot/$_mediaDir/$normalizedPath',
+    )).path;
   }
 
   /// 从服务端相对路径转换为本地绝对路径 (缩略图)
   Future<String> getLocalThumbPath(String serverPath) async {
-    final externalDir = await IoService.externalStorageDir;
     final normalizedPath = serverPath.replaceAll('\\', '/');
-    return p.join(externalDir.path, _galleryRoot, _thumbDir, normalizedPath);
+    return (await IoService.offlineFile(
+      '$_galleryRoot/$_thumbDir/$normalizedPath',
+    )).path;
   }
 
   /// 从服务端相对路径转换为本地绝对路径 (预览图)
   Future<String> getLocalPreviewPath(String serverPath) async {
-    final externalDir = await IoService.externalStorageDir;
     final normalizedPath = serverPath.replaceAll('\\', '/');
-    return p.join(externalDir.path, _galleryRoot, _previewDir, normalizedPath);
+    return (await IoService.offlineFile(
+      '$_galleryRoot/$_previewDir/$normalizedPath',
+    )).path;
   }
 
   // 文件操作
@@ -62,10 +63,7 @@ class GalleryStorageService {
     required List<int> bytes,
   }) async {
     final localPath = await getLocalThumbPath(serverPath);
-    final file = File(localPath);
-    await file.parent.create(recursive: true);
-    await file.writeAsBytes(bytes);
-    return file;
+    return IoService.writeAtomically(File(localPath), bytes);
   }
 
   /// 保存预览图到本地
@@ -74,10 +72,7 @@ class GalleryStorageService {
     required List<int> bytes,
   }) async {
     final localPath = await getLocalPreviewPath(serverPath);
-    final file = File(localPath);
-    await file.parent.create(recursive: true);
-    await file.writeAsBytes(bytes);
-    return file;
+    return IoService.writeAtomically(File(localPath), bytes);
   }
 
   /// 获取本地缩略图文件 (如果存在)
@@ -98,8 +93,7 @@ class GalleryStorageService {
 
   /// 获取存储统计信息
   Future<GalleryStorageStats> getStorageStats() async {
-    final externalDir = await IoService.externalStorageDir;
-    final galleryDir = Directory(p.join(externalDir.path, _galleryRoot));
+    final galleryDir = await IoService.offlineDirectory(_galleryRoot);
 
     if (!await galleryDir.exists()) {
       return GalleryStorageStats(fileCount: 0, totalBytes: 0);
@@ -123,14 +117,8 @@ class GalleryStorageService {
 
   /// 清空所有 Gallery 文件 (保留目录结构)
   Future<void> clearAllFiles() async {
-    final externalDir = await IoService.externalStorageDir;
-    final galleryDir = Directory(p.join(externalDir.path, _galleryRoot));
-
-    if (await galleryDir.exists()) {
-      await IoService.deleteDirectoryContents(galleryDir);
-      // 重新创建目录结构
-      await initDirectories();
-    }
+    await IoService.deleteOfflineDirectory(_galleryRoot);
+    await initDirectories();
     AppLogger().info('Gallery 文件存储已清空');
   }
 }

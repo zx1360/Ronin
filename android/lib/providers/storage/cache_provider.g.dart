@@ -6,7 +6,7 @@ part of 'cache_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$cacheManagerHash() => r'1e1e3b8a3d60e02c98f3505500c543173f09b613';
+String _$cacheManagerHash() => r'5d46c3f33a47daae000c59094c4cb44df7198f6b';
 
 /// 缓存管理Provider
 ///

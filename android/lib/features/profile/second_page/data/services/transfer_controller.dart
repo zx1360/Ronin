@@ -145,18 +145,16 @@ class TransferController extends _$TransferController {
         local == null ? data : mergeUserData(target.name, local, data).data,
         relativeDir,
       );
-      final externalDir = await IoService.externalStorageDir;
+      final directory = await IoService.userDirectory(relativeDir);
       if (target != TransferTarget.preferences) {
         for (final key in images.keys.toList()) {
-          final file = File(p.join(externalDir.path, relativeDir, key));
+          final file = File(IoService.safePath(directory, key));
           if (await file.exists() && await file.length() > 0) {
             images.remove(key);
           }
         }
       }
-      files = await TransferFiles.create(
-        Directory(p.join(externalDir.path, relativeDir)),
-      );
+      files = await TransferFiles.create(directory);
       final result = await _downloadImages(client, images, files.staged);
       if (!result.success) {
         _completeTransfer(false, result.message, result.failedItems);
@@ -273,7 +271,6 @@ class TransferController extends _$TransferController {
         case TransferTarget.all:
           throw StateError('请指定数据模块');
       }
-      final externalDir = await IoService.externalStorageDir;
       final root = target == TransferTarget.preferences
           ? 'preferences'
           : 'img_storage/${target.name}';
@@ -284,10 +281,12 @@ class TransferController extends _$TransferController {
         ),
         root,
       );
-      final allFiles = images.keys
-          .map((path) => File(p.join(externalDir.path, root, path)))
-          .where((file) => file.existsSync())
-          .toList();
+      final directory = await IoService.userDirectory(root);
+      final allFiles = <File>[];
+      for (final key in images.keys) {
+        final file = File(IoService.safePath(directory, key));
+        if (await file.exists() && await file.length() > 0) allFiles.add(file);
+      }
       final files = await _filterMissingFiles(client, allFiles, target.name);
       _updateProgress(total: files.length + 1, message: '正在备份数据...');
       final result = await _uploadData(
@@ -399,7 +398,7 @@ class TransferController extends _$TransferController {
         if (response.statusCode != 200 || response.data?.isEmpty != false) {
           throw StateError('图片响应无效: ${response.statusCode}');
         }
-        final file = File(p.join(directory.path, image.key));
+        final file = File(IoService.safePath(directory, image.key));
         await file.parent.create(recursive: true);
         await file.writeAsBytes(response.data!, flush: true);
         return null;

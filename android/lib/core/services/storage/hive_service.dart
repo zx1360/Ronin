@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/models/message.dart';
 import 'package:torrid/core/models/mood.dart';
 // booklet打卡
@@ -39,66 +42,84 @@ class HiveService {
   static const String comicBoxName = "comicInfo";
   static const String chapterBoxName = "chapterInfo";
 
+  static void _register<Value>(TypeAdapter<Value> adapter) {
+    if (!Hive.isAdapterRegistered(adapter.typeId)) {
+      Hive.registerAdapter(adapter);
+    }
+  }
+
+  static Future<Box<Value>> _open<Value>(String name) {
+    final result = Completer<Box<Value>>();
+    // Hive 2 的打开失败还会向内部 completer 重复报告同一异常。
+    runZonedGuarded(() async {
+      try {
+        result.complete(await Hive.openBox<Value>(name));
+      } catch (error, stack) {
+        result.completeError(error, stack);
+      }
+    }, (error, stack) => AppLogger().error('Hive 打开失败: $name', error, stack));
+    return result.future;
+  }
+
   // 常用Box
   static Future<void> init() async {
     // 注册适配器
     // 通用
-    Hive.registerAdapter(MoodTypeAdapter());
+    _register(MoodTypeAdapter());
     // booklet打卡
-    Hive.registerAdapter(StyleAdapter());
-    Hive.registerAdapter(TaskAdapter());
-    Hive.registerAdapter(RecordAdapter());
+    _register(StyleAdapter());
+    _register(TaskAdapter());
+    _register(RecordAdapter());
     // essay随笔
-    Hive.registerAdapter(MonthSummaryAdapter());
-    Hive.registerAdapter(YearSummaryAdapter());
-    Hive.registerAdapter(LabelAdapter());
-    Hive.registerAdapter(EssayAdapter());
-    Hive.registerAdapter(MessageAdapter());
+    _register(MonthSummaryAdapter());
+    _register(YearSummaryAdapter());
+    _register(LabelAdapter());
+    _register(EssayAdapter());
+    _register(MessageAdapter());
 
     // comic漫画
-    Hive.registerAdapter(ComicInfoAdapter());
-    Hive.registerAdapter(ChapterInfoAdapter());
-    Hive.registerAdapter(ComicPreferenceAdapter());
+    _register(ComicInfoAdapter());
+    _register(ChapterInfoAdapter());
+    _register(ComicPreferenceAdapter());
 
     // chat对话
-    Hive.registerAdapter(ChatConversationAdapter());
-    Hive.registerAdapter(ChatMessageAdapter());
-    Hive.registerAdapter(ChatAttachmentAdapter());
+    _register(ChatConversationAdapter());
+    _register(ChatMessageAdapter());
+    _register(ChatAttachmentAdapter());
 
     // 近期回顾
-    Hive.registerAdapter(ReviewPresetAdapter());
-    Hive.registerAdapter(ReviewRecordAdapter());
+    _register(ReviewPresetAdapter());
+    _register(ReviewRecordAdapter());
 
     // 打开(创建)箱
-    await Hive.openBox<String>('userDataSync');
-    await Hive.openBox<Style>(styleBoxName);
-    await Hive.openBox<Record>(recordBoxName);
-
-    await Hive.openBox<YearSummary>(yearSummaryBoxName);
-    await Hive.openBox<Label>(labelBoxName);
-    await Hive.openBox<Essay>(essayBoxName);
-    await Hive.openBox<String>(essayDraftBoxName);
+    await Future.wait([
+      _open<String>('userDataSync'),
+      _open<Style>(styleBoxName),
+      _open<Record>(recordBoxName),
+      _open<YearSummary>(yearSummaryBoxName),
+      _open<Label>(labelBoxName),
+      _open<Essay>(essayBoxName),
+      _open<String>(essayDraftBoxName),
+      _open<ChatConversation>(chatBoxName),
+      _open<ReviewPreset>(reviewPresetBoxName),
+      _open<ReviewRecord>(reviewHistoryBoxName),
+    ]);
     final labels = Hive.box<Label>(labelBoxName);
     if (!labels.values.any((label) => label.isHiddenRoot)) {
       await labels.put(Label.hiddenId, Label.hidden());
     }
-
-    await Hive.openBox<ChatConversation>(chatBoxName);
-
-    await Hive.openBox<ReviewPreset>(reviewPresetBoxName);
-    await Hive.openBox<ReviewRecord>(reviewHistoryBoxName);
   }
 
   // 非常用Box
   static Future<void> initComic() async {
     if (!Hive.isBoxOpen(comicPrefBoxName)) {
-      await Hive.openBox<ComicPreference>(comicPrefBoxName);
+      await _open<ComicPreference>(comicPrefBoxName);
     }
     if (!Hive.isBoxOpen(comicBoxName)) {
-      await Hive.openBox<ComicInfo>(comicBoxName);
+      await _open<ComicInfo>(comicBoxName);
     }
     if (!Hive.isBoxOpen(chapterBoxName)) {
-      await Hive.openBox<ChapterInfo>(chapterBoxName);
+      await _open<ChapterInfo>(chapterBoxName);
     }
   }
 }

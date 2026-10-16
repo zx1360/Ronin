@@ -6,7 +6,6 @@ library;
 import 'dart:io';
 
 import 'package:hive/hive.dart';
-import 'package:path/path.dart' as path;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
@@ -173,8 +172,7 @@ class ComicService extends _$ComicService {
   /// - 对仍存在的漫画，比对并更新章节增删改
   /// - 新发现的漫画按全量方式入库
   Future<void> refreshChanged() async {
-    final externalDir = await IoService.externalStorageDir;
-    final comicsDir = Directory(path.join(externalDir.path, 'comics'));
+    final comicsDir = await IoService.offlineDirectory('comics');
 
     if (!await comicsDir.exists()) {
       await state.prefBox.clear();

@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +26,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
   late TextEditingController _messageController;
   bool _isSaving = false;
   bool _isDownloading = false;
+  CancelToken? _downloadCancelToken;
   bool _isGroupUpdating = false;
   final _pages = PageController();
   final Map<String, String> _messageDrafts = {};
@@ -85,6 +86,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
 
   @override
   void dispose() {
+    _downloadCancelToken?.cancel();
     _messageController.dispose();
     _pages.dispose();
     super.dispose();
@@ -119,9 +121,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                   )
                 : const Icon(Icons.download, size: 20),
             tooltip: '下载',
-            onPressed: _isDownloading
-                ? null
-                : () => _downloadToGallery(storage),
+            onPressed: _isDownloading ? null : _downloadToGallery,
           ),
         ],
       ),
@@ -636,44 +636,45 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     }
   }
 
-  Future<void> _downloadToGallery(GalleryStorageService storage) async {
+  Future<void> _downloadToGallery() async {
+    if (_isDownloading) return;
     final asset = _currentAsset;
+    final token = CancelToken();
+    _downloadCancelToken = token;
     setState(() => _isDownloading = true);
 
     try {
       final apiClient = ref.read(apiClientManagerProvider);
-      final response = await apiClient.getBinary(
-        "/API/gallery/${asset.id}/file",
-      );
-
-      if (response.data == null || response.data!.isEmpty) {
-        throw Exception('下载的文件数据为空');
-      }
-
       final fileName = _getFileName(asset.filePath);
-      final Uint8List bytes = response.data!;
-
-      final file = await PublicStorageService.saveBytes(
+      final file = await PublicStorageService.saveDownload(
         subDir: PublicStorageService.dirGallery,
         fileName: fileName,
-        bytes: bytes,
+        mimeType: asset.mimeType,
+        download: (target) async {
+          await apiClient.download(
+            '/API/gallery/${asset.id}/file',
+            target,
+            cancelToken: token,
+          );
+        },
       );
 
       if (file == null) {
         throw Exception('保存到公共目录失败，请检查存储权限');
       }
 
-      AppLogger().info('文件已保存: ${file.path}');
+      AppLogger().info('文件已保存: ${file.location}');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('已保存到 ${file.path}'),
+            content: Text('已保存到 ${file.location}'),
             action: SnackBarAction(label: '确定', onPressed: () {}),
           ),
         );
       }
     } catch (e) {
+      if (e is DioException && CancelToken.isCancel(e)) return;
       AppLogger().error('下载失败: $e');
       if (mounted) {
         ScaffoldMessenger.of(
@@ -681,6 +682,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         ).showSnackBar(SnackBar(content: Text('下载失败: $e')));
       }
     } finally {
+      _downloadCancelToken = null;
       if (mounted) {
         setState(() => _isDownloading = false);
       }

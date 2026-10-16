@@ -10,7 +10,9 @@ part 'sixty_api_provider.g.dart';
 // 60s API 基础客户端与通用类型
 @riverpod
 ApiClient sixtyApiClient(SixtyApiClientRef ref) {
-  return ApiClient(baseUrl: 'https://60s.viki.moe');
+  final client = ApiClient(baseUrl: 'https://60s.viki.moe');
+  ref.onDispose(client.close);
+  return client;
 }
 
 typedef Json = Map<String, dynamic>;

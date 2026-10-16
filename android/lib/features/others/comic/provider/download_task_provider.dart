@@ -2,7 +2,6 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -26,9 +25,7 @@ final comicDownloadTasksProvider =
     );
 
 class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
-  ComicDownloadTaskNotifier(this._ref) : super(const []) {
-    unawaited(initialize());
-  }
+  ComicDownloadTaskNotifier(this._ref) : super(const []);
 
   static const String _prefsKey = 'comic_download_tasks_v1';
   static const int _maxConcurrentComics = 2;
@@ -49,7 +46,12 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   Timer? _persistTimer;
 
   /// 预载任务缓存；并发调用共享同一次初始化，避免第二个调用者拿到空状态
-  Future<void> initialize() => _initFuture ??= _loadPersistedTasks();
+  Future<void> initialize() => _initFuture ??= _loadPersistedTasks().catchError(
+    (Object error, StackTrace stack) {
+      _initFuture = null;
+      Error.throwWithStackTrace(error, stack);
+    },
+  );
 
   Future<void> _loadPersistedTasks() async {
     final raw = PrefsService().prefs.getString(_prefsKey);
@@ -171,8 +173,8 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     );
 
     if (deleteLocalFiles) {
-      await IoService.clearSpecificDirectory(
-        path.join('comics', task.comicName),
+      await IoService.deleteOfflineDirectory(
+        path.posix.join('comics', task.comicName),
       );
       await _removeComicMeta(task.comicId);
     }
@@ -337,9 +339,8 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     }
     chapters.sort((a, b) => a.chapterIndex.compareTo(b.chapterIndex));
 
-    final externalRoot = await IoService.externalStorageDir;
-    final comicRootRelative = path.join('comics', task.comicName);
-    await IoService.ensureDirExists(comicRootRelative);
+    final comicRootRelative = path.posix.join('comics', task.comicName);
+    await IoService.offlineDirectory(comicRootRelative);
 
     final pendingJobs = <_ImageDownloadJob>[];
     final chapterRemaining = <String, int>{};
@@ -350,18 +351,20 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
     for (final chapter in chapters) {
       _assertTaskRunning(taskId);
-      final chapterDirRelative = path.join(comicRootRelative, chapter.dirName);
-      await IoService.ensureDirExists(chapterDirRelative);
+      final chapterDirRelative = path.posix.join(
+        comicRootRelative,
+        chapter.dirName,
+      );
+      await IoService.offlineDirectory(chapterDirRelative);
 
       int missingInChapter = 0;
       for (final image in chapter.images) {
         totalImages++;
         final remotePath = image['path']?.toString() ?? '';
         final fileName = path.basename(remotePath);
-        final relativePath = path.join(chapterDirRelative, fileName);
-        final localPath = path.join(externalRoot.path, relativePath);
-
-        final localFile = File(localPath);
+        final relativePath = path.posix.join(chapterDirRelative, fileName);
+        final localFile = await IoService.offlineFile(relativePath);
+        final localPath = localFile.path;
         if (await localFile.exists() && await localFile.length() > 0) {
           image['path'] = localPath;
           downloadedImages++;
@@ -531,12 +534,12 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
         '/static/${job.remotePath}',
         cancelToken: token,
       );
-      if (response.statusCode != 200 || response.data == null) {
+      if (response.statusCode != 200 || response.data?.isNotEmpty != true) {
         throw Exception('图片下载失败');
       }
-      await IoService.saveImageToExternalStorage(
-        relativePath: job.relativePath,
-        bytes: response.data!,
+      await IoService.writeAtomically(
+        await IoService.offlineFile(job.relativePath),
+        response.data!,
       );
       job.imageRef['path'] = job.localPath;
     } on DioException catch (e) {

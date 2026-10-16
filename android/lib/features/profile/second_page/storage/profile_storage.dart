@@ -38,46 +38,31 @@ class ProfileStorage extends ConsumerWidget {
               onClear: cacheState.isClearing
                   ? null
                   : () => _confirmClear(
-                        context,
-                        ref,
-                        '图片缓存',
-                        () =>
-                            ref.read(cacheManagerProvider.notifier).clearImageCache(),
-                      ),
+                      context,
+                      ref,
+                      '图片缓存',
+                      () => ref
+                          .read(cacheManagerProvider.notifier)
+                          .clearImageCache(),
+                    ),
             ),
             const Divider(height: 1),
             _CacheDetailTile(
               icon: Icons.folder_outlined,
               title: '临时文件',
-              subtitle: '应用运行临时数据',
+              subtitle: '分享与导出临时文件，保留近 24 小时文件供其他应用读取',
               size: cacheState.info.formattedTempCache,
               isLoading: cacheState.isLoading,
               onClear: cacheState.isClearing
                   ? null
                   : () => _confirmClear(
-                        context,
-                        ref,
-                        '临时文件',
-                        () =>
-                            ref.read(cacheManagerProvider.notifier).clearTempCache(),
-                      ),
-            ),
-            const Divider(height: 1),
-            _CacheDetailTile(
-              icon: Icons.storage_outlined,
-              title: '其他缓存',
-              subtitle: '应用缓存目录',
-              size: cacheState.info.formattedOtherCache,
-              isLoading: cacheState.isLoading,
-              onClear: cacheState.isClearing
-                  ? null
-                  : () => _confirmClear(
-                        context,
-                        ref,
-                        '其他缓存',
-                        () =>
-                            ref.read(cacheManagerProvider.notifier).clearOtherCache(),
-                      ),
+                      context,
+                      ref,
+                      '临时文件',
+                      () => ref
+                          .read(cacheManagerProvider.notifier)
+                          .clearTempCache(),
+                    ),
             ),
           ],
         ),
@@ -158,9 +143,7 @@ class ProfileStorage extends ConsumerWidget {
         ),
         Card(
           margin: EdgeInsets.zero,
-          child: Column(
-            children: children,
-          ),
+          child: Column(children: children),
         ),
       ],
     );
@@ -171,7 +154,9 @@ class ProfileStorage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('清理所有缓存'),
-        content: const Text('确定要清理所有缓存吗？这不会删除您的应用数据。'),
+        content: const Text(
+          '仅清理网络图片和过期临时文件，保留近 24 小时的分享文件。随笔、打卡、草稿、个性化图片及离线下载均不会删除。',
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         actions: [
           TextButton(
@@ -180,9 +165,7 @@ class ProfileStorage extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.error,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
             child: const Text('清理'),
           ),
         ],
@@ -230,10 +213,7 @@ class _CacheOverviewCard extends StatelessWidget {
   final CacheState cacheState;
   final VoidCallback? onClearAll;
 
-  const _CacheOverviewCard({
-    required this.cacheState,
-    this.onClearAll,
-  });
+  const _CacheOverviewCard({required this.cacheState, this.onClearAll});
 
   @override
   Widget build(BuildContext context) {
@@ -334,17 +314,11 @@ class _CacheOverviewCard extends StatelessWidget {
           children: [
             Text(
               '容量使用',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.onSurfaceVariant,
-              ),
+              style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
             ),
             Text(
               '${currentMB.toStringAsFixed(1)} / ${maxMB.toInt()} MB',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.onSurfaceVariant,
-              ),
+              style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -359,8 +333,8 @@ class _CacheOverviewCard extends StatelessWidget {
               percentage > 0.8
                   ? Colors.orange
                   : percentage > 0.95
-                      ? Colors.red
-                      : AppTheme.primary,
+                  ? Colors.red
+                  : AppTheme.primary,
             ),
           ),
         ),
@@ -394,10 +368,7 @@ class _CacheDetailTile extends StatelessWidget {
       title: Text(title),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(
-          fontSize: 12,
-          color: AppTheme.onSurfaceVariant,
-        ),
+        style: const TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -442,16 +413,13 @@ class _AutoCleanToggleTile extends ConsumerWidget {
       title: const Text('启用自动清理'),
       subtitle: const Text(
         '应用启动时自动检查并清理过期缓存',
-        style: TextStyle(
-          fontSize: 12,
-          color: AppTheme.onSurfaceVariant,
-        ),
+        style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
       ),
       value: cacheState.config.autoCleanEnabled,
       onChanged: (value) {
-        ref.read(cacheManagerProvider.notifier).updateConfig(
-              cacheState.config.copyWith(autoCleanEnabled: value),
-            );
+        ref
+            .read(cacheManagerProvider.notifier)
+            .updateConfig(cacheState.config.copyWith(autoCleanEnabled: value));
       },
     );
   }
@@ -470,10 +438,7 @@ class _ExpireDaysTile extends ConsumerWidget {
       title: const Text('缓存过期时间'),
       subtitle: Text(
         '超过此天数的缓存将被自动清理',
-        style: const TextStyle(
-          fontSize: 12,
-          color: AppTheme.onSurfaceVariant,
-        ),
+        style: const TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
       ),
       trailing: DropdownButton<int>(
         value: cacheState.config.expireDays,
@@ -486,9 +451,9 @@ class _ExpireDaysTile extends ConsumerWidget {
         ],
         onChanged: (value) {
           if (value != null) {
-            ref.read(cacheManagerProvider.notifier).updateConfig(
-                  cacheState.config.copyWith(expireDays: value),
-                );
+            ref
+                .read(cacheManagerProvider.notifier)
+                .updateConfig(cacheState.config.copyWith(expireDays: value));
           }
         },
       ),
@@ -509,10 +474,7 @@ class _MaxSizeTile extends ConsumerWidget {
       title: const Text('缓存容量上限'),
       subtitle: Text(
         '超过此容量将触发自动清理',
-        style: const TextStyle(
-          fontSize: 12,
-          color: AppTheme.onSurfaceVariant,
-        ),
+        style: const TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
       ),
       trailing: DropdownButton<int>(
         value: cacheState.config.maxSizeMB,
@@ -525,9 +487,9 @@ class _MaxSizeTile extends ConsumerWidget {
         ],
         onChanged: (value) {
           if (value != null) {
-            ref.read(cacheManagerProvider.notifier).updateConfig(
-                  cacheState.config.copyWith(maxSizeMB: value),
-                );
+            ref
+                .read(cacheManagerProvider.notifier)
+                .updateConfig(cacheState.config.copyWith(maxSizeMB: value));
           }
         },
       ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,7 +8,9 @@ import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/services/network/cert_trust.dart';
 import 'package:torrid/core/services/storage/cache_service.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
@@ -37,6 +40,8 @@ class _SplashPageState extends ConsumerState<SplashPage>
 
   /// 已加载的背景图文件
   File? _backgroundFile;
+  Object? _startupError;
+  bool _initializing = false;
 
   /// 加载指示器动画控制器
   late final AnimationController _loadingAnimCtrl;
@@ -62,45 +67,40 @@ class _SplashPageState extends ConsumerState<SplashPage>
 
   /// 初始化操作，完成后跳转到 HomePage
   Future<void> _initialize() async {
-    // 初始化操作
-    await Hive.initFlutter();
-    await PrefsService().initPrefs();
-    await Future.wait([
-      IoService.initDirs(),
-      HiveService.init(),
-      HiveService.initComic(),
-    ]);
-    await ref.read(comicDownloadTasksProvider.notifier).initialize();
+    if (_initializing) return;
+    _initializing = true;
+    setState(() => _startupError = null);
+    if (!_loadingAnimCtrl.isAnimating) _loadingAnimCtrl.repeat(reverse: true);
+    try {
+      await CertTrust.init();
+      await Hive.initFlutter();
+      await PrefsService().initPrefs();
+      await HiveService.init();
+      await HiveService.initComic();
+      await ref.read(comicDownloadTasksProvider.notifier).initialize();
+      await CacheService().init();
+      unawaited(CacheService().performStartupCleanup());
 
-    // 初始化缓存服务并执行启动清理（异步执行，不阻塞启动流程）
-    CacheService().init().then((_) {
-      CacheService().performStartupCleanup();
-    });
-
-    // Prefs 就绪后判定是否有自定义背景图
-    final settings = PersonalizationService().getSettings();
-    _hasCustomBg = settings.backgroundImages.isNotEmpty;
-
-    // 选取背景图：仅在已有自定义图时才加载
-    if (_hasCustomBg == true) {
       final service = PersonalizationService();
       _backgroundPath = service.getRandomBackgroundImage();
-
-      if (_backgroundPath != null) {
-        _backgroundFile = await IoService.getImageFile(_backgroundPath!);
-      }
-    }
-
-    if (mounted) {
-      setState(() {});
-      // 短暂停留让用户感知启动画面
-      await Future.delayed(const Duration(milliseconds: 400));
+      _backgroundFile = _backgroundPath == null
+          ? null
+          : await IoService.getImageFile(_backgroundPath!);
+      _hasCustomBg = _backgroundFile != null;
       if (mounted) {
         context.replaceNamed(
           "home",
           queryParameters: {"bgPath": _backgroundPath ?? ""},
         );
       }
+    } catch (error, stack) {
+      AppLogger().error('本地数据初始化失败', error, stack);
+      if (mounted) {
+        _loadingAnimCtrl.stop();
+        setState(() => _startupError = error);
+      }
+    } finally {
+      _initializing = false;
     }
   }
 
@@ -123,10 +123,34 @@ class _SplashPageState extends ConsumerState<SplashPage>
         _buildBackground(),
         // 加载指示器（仅在有自定义背景时显示）
         if (showLoadingHint)
-          Positioned(
-            right: 28,
-            bottom: 48,
-            child: _buildLoadingIndicator(),
+          Positioned(right: 28, bottom: 48, child: _buildLoadingIndicator()),
+        if (_startupError != null)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('本地数据初始化失败，已有数据未被清除。'),
+                      const SizedBox(height: 12),
+                      Text(
+                        '$_startupError',
+                        maxLines: 8,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _initialize,
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
       ],
     );

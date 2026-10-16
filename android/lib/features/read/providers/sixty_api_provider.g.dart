@@ -6,7 +6,7 @@ part of 'sixty_api_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sixtyApiClientHash() => r'261061f123a1611bfaa8fdaf29e9fea67713daa6';
+String _$sixtyApiClientHash() => r'cf45c77f2e0ebc37043819de34e644264372a39b';
 
 /// See also [sixtyApiClient].
 @ProviderFor(sixtyApiClient)

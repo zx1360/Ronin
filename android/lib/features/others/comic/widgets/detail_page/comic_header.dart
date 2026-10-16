@@ -64,8 +64,8 @@ class ComicHeader extends ConsumerWidget {
                                 confirmFunc: () {},
                               );
                               if (confirm == null || confirm == false) return;
-                              await IoService.clearSpecificDirectory(
-                                "/comics/${info.comicName}",
+                              await IoService.deleteOfflineDirectory(
+                                "comics/${info.comicName}",
                               );
                               await ref
                                   .read(comicServiceProvider.notifier)

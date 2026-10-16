@@ -42,6 +42,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
   bool _allowPop = false;
   String _status = '草稿仅存本机';
   int _revision = 0;
+  Timer? _autosave;
 
   @override
   void initState() {
@@ -82,12 +83,11 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
 
   Future<void> _cacheOriginalImages() async {
     try {
-      final root = await IoService.externalStorageDir;
       for (var i = 0; i < _images.length; i++) {
         if (_images[i].startsWith('essay_drafts/')) continue;
         _images[i] = await _store.importImage(
           _draft.essay.id,
-          File('${root.path}/${_images[i]}'),
+          await IoService.userFile(_images[i]),
         );
       }
       await _persist();
@@ -112,9 +112,17 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     updatedAt: DateTime.now(),
   );
 
-  void _changed() => unawaited(_persist());
+  void _changed() {
+    _autosave?.cancel();
+    setState(() => _status = '正在编辑…');
+    _autosave = Timer(
+      const Duration(milliseconds: 400),
+      () => unawaited(_persist()),
+    );
+  }
 
   Future<bool> _persist() async {
+    _autosave?.cancel();
     final revision = ++_revision;
     _draft = _snapshot();
     if (!_draft.hasContent && !_store.box.containsKey(_draft.essay.id)) {
@@ -188,6 +196,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
           : '确认丢弃这次编辑？已保存的原随笔会保留。',
       confirmFunc: () async {
         if (!mounted) return;
+        _autosave?.cancel();
         FocusManager.instance.primaryFocus?.unfocus();
         setState(() => _busy = true);
         try {
@@ -257,8 +266,12 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
         date: base?.date ?? DateTime.now(),
         messages: current?.messages ?? [],
       );
-      essay = await _store.publishImages(essay);
-      await ref.read(essayServiceProvider.notifier).writeEssay(essay: essay);
+      essay = await _store.publish(
+        essay,
+        (published) => ref
+            .read(essayServiceProvider.notifier)
+            .writeEssay(essay: published),
+      );
       // 保存成功后再删草稿；清理失败时保留可继续的同 ID 草稿。
       _draft = EssayDraft(
         essay: essay,
@@ -397,6 +410,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
 
   @override
   void dispose() {
+    _autosave?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _title.dispose();
     _content.dispose();

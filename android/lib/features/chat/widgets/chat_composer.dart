@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -5,8 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/utils/util.dart';
 import 'package:torrid/features/chat/models/chat_models.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -37,6 +38,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final List<ChatAttachment> _attachments = [];
+  final _unsentImages = <String>{};
   bool _picking = false;
 
   @override
@@ -53,6 +55,9 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   @override
   void dispose() {
+    for (final key in _unsentImages) {
+      unawaited(_deleteUnsentImage(key));
+    }
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -70,24 +75,25 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
       );
       if (picked == null) return;
 
-      final bytes = await picked.readAsBytes();
-      final extension = picked.path.split('.').last.toLowerCase();
-      final relativePath =
-          'img_storage/chat/${generateId()}.${extension.length <= 4 ? extension : 'jpg'}';
-      await IoService.saveImageToExternalStorage(
-        relativePath: relativePath,
-        bytes: bytes,
+      final relativePath = await IoService.importUserImage(
+        'img_storage/chat',
+        File(picked.path),
       );
-      if (!mounted) return;
+      if (!mounted) {
+        await IoService.deleteUserFile(relativePath);
+        return;
+      }
       setState(() {
+        _unsentImages.add(relativePath);
         _attachments.add(
           ChatAttachment.local(relativePath, fileName: picked.name),
         );
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
       }
     } finally {
       if (mounted) setState(() => _picking = false);
@@ -99,13 +105,23 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     final text = _controller.text;
     if (text.trim().isEmpty && _attachments.isEmpty) return;
     widget.onSend(text, List.of(_attachments));
+    _unsentImages.clear();
     _controller.clear();
     setState(() => _attachments.clear());
   }
 
+  Future<void> _deleteUnsentImage(String key) async {
+    try {
+      await IoService.deleteUserFile(key);
+    } catch (error) {
+      AppLogger().warning('清理未发送的对话图片失败: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canSend = _controller.text.trim().isNotEmpty || _attachments.isNotEmpty;
+    final canSend =
+        _controller.text.trim().isNotEmpty || _attachments.isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
@@ -140,8 +156,10 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                       decoration: const InputDecoration(
                         hintText: '说点什么…',
                         isDense: true,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                       ),
                     ),
                   ),
@@ -196,15 +214,24 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                 right: -6,
                 top: -6,
                 child: GestureDetector(
-                  onTap: () => setState(() => _attachments.removeAt(index)),
+                  onTap: () {
+                    final key = item.imagePath;
+                    setState(() => _attachments.removeAt(index));
+                    if (key != null && _unsentImages.remove(key)) {
+                      unawaited(_deleteUnsentImage(key));
+                    }
+                  },
                   child: Container(
                     padding: const EdgeInsets.all(2),
                     decoration: const BoxDecoration(
                       color: AppTheme.onSurface,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close,
-                        size: 13, color: AppTheme.surface),
+                    child: const Icon(
+                      Icons.close,
+                      size: 13,
+                      color: AppTheme.surface,
+                    ),
                   ),
                 ),
               ),

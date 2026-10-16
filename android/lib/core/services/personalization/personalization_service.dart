@@ -3,316 +3,208 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:path/path.dart' as path;
+import 'package:uuid/uuid.dart';
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
 
-/// 个性化图片类型
-enum PersonalizationImageType {
-  background, // 背景图（Splash/Home共用）
-  sidebar,    // 侧边栏背景图
-  avatar,     // 用户头像
-}
+enum PersonalizationImageType { background, sidebar, avatar }
 
-/// 个性化配置服务
-/// 管理背景图片、侧边栏图片、座右铭和用户信息
 class PersonalizationService {
-  // 单例模式
   static final PersonalizationService _instance = PersonalizationService._();
   PersonalizationService._();
   factory PersonalizationService() => _instance;
 
-  final PrefsService _prefsService = PrefsService();
+  static const _defaultMotto = '理想如星\n虽不能及,吾心往之';
   final Random _random = Random();
+  Future<void> _pending = Future.value();
 
-  // 目录路径常量
-  static const String _preferencesDir = 'preferences';
-  static const String _backgroundDir = 'background';
-  static const String _sidebarDir = 'sidebar';
-  static const String _avatarDir = 'avatar';
-
-  /// 获取图片类型对应的目录名
-  String _getDirName(PersonalizationImageType type) {
-    switch (type) {
-      case PersonalizationImageType.background:
-        return _backgroundDir;
-      case PersonalizationImageType.sidebar:
-        return _sidebarDir;
-      case PersonalizationImageType.avatar:
-        return _avatarDir;
-    }
-  }
-
-  /// 获取当前偏好设置
   AppSettings getSettings() {
-    final prefsString = _prefsService.prefs.getString('preferences');
-    if (prefsString == null || prefsString.isEmpty) {
-      return AppSettings.defaultValue();
-    }
+    final raw = PrefsService().prefs.getString('preferences');
+    if (raw == null || raw.isEmpty) return AppSettings.defaultValue();
     try {
-      return AppSettings.fromJson(jsonDecode(prefsString));
-    } catch (e) {
-      AppLogger().error('解析偏好设置失败: $e');
+      return AppSettings.fromJson(jsonDecode(raw));
+    } catch (error) {
+      AppLogger().error('解析偏好设置失败: $error');
       return AppSettings.defaultValue();
     }
   }
 
-  /// 保存偏好设置
-  Future<void> saveSettings(AppSettings settings) async {
-    await _prefsService.prefs.setString(
-      'preferences',
-      jsonEncode(settings.toJson()),
-    );
+  Future<T> _enqueue<T>(Future<T> Function() action) {
+    final result = _pending.then((_) => action());
+    _pending = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
   }
 
-  /// 确保图片目录存在
-  Future<Directory> _ensureImageDir(PersonalizationImageType type) async {
-    final dirName = _getDirName(type);
-    return IoService.ensureDirExists('$_preferencesDir/$dirName');
-  }
-
-  /// 保存图片到指定目录
-  /// 返回保存后的相对路径
-  Future<String?> saveImage({
-    required PersonalizationImageType type,
-    required List<int> bytes,
-    required String fileName,
+  Future<void> _write(
+    AppSettings settings, {
+    Future<void> Function()? onRollback,
   }) async {
+    final prefs = PrefsService().prefs;
+    final previous = prefs.getString('preferences');
     try {
-      final dirName = _getDirName(type);
-      final relativePath = '$_preferencesDir/$dirName/$fileName';
-      await IoService.saveImageToExternalStorage(
-        relativePath: relativePath,
-        bytes: bytes,
-      );
-      return relativePath;
-    } catch (e) {
-      AppLogger().error('保存图片失败: $e');
-      return null;
-    }
-  }
-
-  /// 删除图片
-  Future<bool> deleteImage(String relativePath) async {
-    try {
-      final externalDir = await IoService.externalStorageDir;
-      final file = File(path.join(externalDir.path, relativePath));
-      if (await file.exists()) {
-        await file.delete();
-        return true;
+      if (!await prefs.setString(
+        'preferences',
+        jsonEncode(settings.toJson()),
+      )) {
+        throw StateError('偏好设置保存失败');
       }
-      return false;
-    } catch (e) {
-      AppLogger().error('删除图片失败: $e');
-      return false;
+    } catch (error) {
+      final restored = previous == null
+          ? await prefs.remove('preferences')
+          : await prefs.setString('preferences', previous);
+      if (!restored) throw StateError('偏好保存失败且回退失败: $error');
+      await onRollback?.call();
+      rethrow;
     }
   }
 
-  /// 获取某类型图片的所有文件
-  Future<List<File>> getImageFiles(PersonalizationImageType type) async {
+  Future<void> _update(AppSettings Function(AppSettings) change) =>
+      _enqueue(() => _write(change(getSettings())));
+
+  Future<void> _deleteUnused(String? key) async {
+    if (key == null) return;
     try {
+      await IoService.deleteUserFile(key);
+    } catch (error) {
+      AppLogger().warning('清理未使用的个性化图片失败: $error');
+    }
+  }
+
+  Future<bool> _saveImage(
+    PersonalizationImageType type,
+    List<int> bytes,
+    String fileName,
+  ) => _enqueue(() async {
+    String? key;
+    try {
+      if (bytes.isEmpty) throw const FormatException('图片文件为空');
+      final extension = path.extension(fileName).toLowerCase();
+      key =
+          'preferences/${type.name}/${const Uuid().v4()}${extension.isEmpty ? '.jpg' : extension}';
+      await IoService.writeAtomically(await IoService.userFile(key), bytes);
       final settings = getSettings();
-      final paths = switch (type) {
-        PersonalizationImageType.background => settings.backgroundImages,
-        PersonalizationImageType.sidebar => settings.sidebarImages,
-        PersonalizationImageType.avatar => [if (settings.avatarPath != null) settings.avatarPath!],
+      final updated = switch (type) {
+        PersonalizationImageType.background => settings.copyWith(
+          backgroundImages: [...settings.backgroundImages, key],
+        ),
+        PersonalizationImageType.sidebar => settings.copyWith(
+          sidebarImages: [...settings.sidebarImages, key],
+        ),
+        PersonalizationImageType.avatar => settings.copyWith(avatarPath: key),
       };
-      final files = await Future.wait(paths.map(getImageFile));
-      return files.whereType<File>().where((file) => _isImageFile(file.path)).toList();
-    } catch (e) {
-      AppLogger().error('获取图片列表失败: $e');
-      return [];
-    }
-  }
-
-  /// 判断是否为图片文件
-  bool _isImageFile(String filePath) {
-    final ext = path.extension(filePath).toLowerCase();
-    return ['.jpg', '.jpeg', '.png', '.webp', '.gif'].contains(ext);
-  }
-
-  /// 获取图片文件（通过相对路径）
-  Future<File?> getImageFile(String relativePath) async {
-    return IoService.getImageFile(relativePath);
-  }
-
-  /// 随机选择一张背景图片路径
-  /// 如果没有自定义图片，返回null
-  String? getRandomBackgroundImage() {
-    final settings = getSettings();
-    if (settings.backgroundImages.isEmpty) {
-      return null;
-    }
-    final index = _random.nextInt(settings.backgroundImages.length);
-    return settings.backgroundImages[index];
-  }
-
-  /// 随机选择一张侧边栏图片路径
-  /// 如果没有自定义图片，返回null
-  String? getRandomSidebarImage() {
-    final settings = getSettings();
-    if (settings.sidebarImages.isEmpty) {
-      return null;
-    }
-    final index = _random.nextInt(settings.sidebarImages.length);
-    return settings.sidebarImages[index];
-  }
-
-  /// 随机选择一条座右铭
-  String getRandomMotto() {
-    final settings = getSettings();
-    if (settings.mottos.isEmpty) {
-      return "理想如星\n虽不能及,吾心往之";
-    }
-    final index = _random.nextInt(settings.mottos.length);
-    return settings.mottos[index];
-  }
-
-  // 背景图片管理
-
-  /// 添加背景图片
-  Future<bool> addBackgroundImage(List<int> bytes, String fileName) async {
-    final relativePath = await saveImage(
-      type: PersonalizationImageType.background,
-      bytes: bytes,
-      fileName: fileName,
-    );
-    if (relativePath != null) {
-      final settings = getSettings();
-      final newList = [...settings.backgroundImages, relativePath];
-      await saveSettings(settings.copyWith(backgroundImages: newList));
+      await _write(updated, onRollback: () => _deleteUnused(key));
+      if (type == PersonalizationImageType.avatar) {
+        await _deleteUnused(settings.avatarPath);
+      }
       return true;
+    } catch (error) {
+      AppLogger().error('保存个性化图片失败: $error');
+      return false;
     }
-    return false;
-  }
+  });
 
-  /// 删除背景图片
-  Future<bool> removeBackgroundImage(String relativePath) async {
-    final deleted = await deleteImage(relativePath);
-    if (deleted) {
-      final settings = getSettings();
-      final newList = settings.backgroundImages
-          .where((p) => p != relativePath)
-          .toList();
-      await saveSettings(settings.copyWith(backgroundImages: newList));
-    }
-    return deleted;
-  }
+  Future<bool> _removeImage(PersonalizationImageType type, String key) =>
+      _enqueue(() async {
+        try {
+          final settings = getSettings();
+          final updated = switch (type) {
+            PersonalizationImageType.background => settings.copyWith(
+              backgroundImages: settings.backgroundImages
+                  .where((item) => item != key)
+                  .toList(),
+            ),
+            PersonalizationImageType.sidebar => settings.copyWith(
+              sidebarImages: settings.sidebarImages
+                  .where((item) => item != key)
+                  .toList(),
+            ),
+            PersonalizationImageType.avatar => settings.copyWith(
+              clearAvatar: true,
+            ),
+          };
+          await _write(updated);
+          await _deleteUnused(key);
+          return true;
+        } catch (error) {
+          AppLogger().error('删除个性化图片失败: $error');
+          return false;
+        }
+      });
 
-  // 侧边栏图片管理
-
-  /// 添加侧边栏图片
-  Future<bool> addSidebarImage(List<int> bytes, String fileName) async {
-    final relativePath = await saveImage(
-      type: PersonalizationImageType.sidebar,
-      bytes: bytes,
-      fileName: fileName,
-    );
-    if (relativePath != null) {
-      final settings = getSettings();
-      final newList = [...settings.sidebarImages, relativePath];
-      await saveSettings(settings.copyWith(sidebarImages: newList));
-      return true;
-    }
-    return false;
-  }
-
-  /// 删除侧边栏图片
-  Future<bool> removeSidebarImage(String relativePath) async {
-    final deleted = await deleteImage(relativePath);
-    if (deleted) {
-      final settings = getSettings();
-      final newList = settings.sidebarImages
-          .where((p) => p != relativePath)
-          .toList();
-      await saveSettings(settings.copyWith(sidebarImages: newList));
-    }
-    return deleted;
-  }
-
-  // 座右铭管理
-
-  /// 添加座右铭
-  Future<void> addMotto(String motto) async {
-    if (motto.trim().isEmpty) return;
+  Future<List<File>> getImageFiles(PersonalizationImageType type) async {
     final settings = getSettings();
-    final newList = [...settings.mottos, motto.trim()];
-    await saveSettings(settings.copyWith(mottos: newList));
+    final keys = switch (type) {
+      PersonalizationImageType.background => settings.backgroundImages,
+      PersonalizationImageType.sidebar => settings.sidebarImages,
+      PersonalizationImageType.avatar => [
+        if (settings.avatarPath != null) settings.avatarPath!,
+      ],
+    };
+    return (await Future.wait(
+      keys.map(getImageFile),
+    )).whereType<File>().toList();
   }
 
-  /// 更新座右铭
-  Future<void> updateMotto(int index, String motto) async {
-    final settings = getSettings();
-    if (index < 0 || index >= settings.mottos.length) return;
-    final newList = List<String>.from(settings.mottos);
-    newList[index] = motto.trim();
-    await saveSettings(settings.copyWith(mottos: newList));
-  }
+  Future<File?> getImageFile(String key) => IoService.getImageFile(key);
 
-  /// 删除座右铭
-  Future<void> removeMotto(int index) async {
+  String? _choose(List<String> items) =>
+      items.isEmpty ? null : items[_random.nextInt(items.length)];
+
+  String? getRandomBackgroundImage() => _choose(getSettings().backgroundImages);
+  String? getRandomSidebarImage() => _choose(getSettings().sidebarImages);
+  String getRandomMotto() => _choose(getSettings().mottos) ?? _defaultMotto;
+
+  Future<bool> addBackgroundImage(List<int> bytes, String name) =>
+      _saveImage(PersonalizationImageType.background, bytes, name);
+
+  Future<bool> addSidebarImage(List<int> bytes, String name) =>
+      _saveImage(PersonalizationImageType.sidebar, bytes, name);
+
+  Future<bool> updateAvatar(List<int> bytes, String name) =>
+      _saveImage(PersonalizationImageType.avatar, bytes, name);
+
+  Future<bool> removeBackgroundImage(String key) =>
+      _removeImage(PersonalizationImageType.background, key);
+
+  Future<bool> removeSidebarImage(String key) =>
+      _removeImage(PersonalizationImageType.sidebar, key);
+
+  Future<void> clearAvatar() => _enqueue(() async {
     final settings = getSettings();
-    if (index < 0 || index >= settings.mottos.length) return;
-    final newList = List<String>.from(settings.mottos);
-    newList.removeAt(index);
-    // 确保至少保留一条座右铭
-    if (newList.isEmpty) {
-      newList.add("理想如星\n虽不能及,吾心往之");
+    await _write(settings.copyWith(clearAvatar: true));
+    await _deleteUnused(settings.avatarPath);
+  });
+
+  Future<void> addMotto(String motto) => _update(
+    (settings) => motto.trim().isEmpty
+        ? settings
+        : settings.copyWith(mottos: [...settings.mottos, motto.trim()]),
+  );
+
+  Future<void> updateMotto(int index, String motto) => _update((settings) {
+    if (index < 0 || index >= settings.mottos.length || motto.trim().isEmpty) {
+      return settings;
     }
-    await saveSettings(settings.copyWith(mottos: newList));
-  }
+    final mottos = List<String>.of(settings.mottos);
+    mottos[index] = motto.trim();
+    return settings.copyWith(mottos: mottos);
+  });
 
-  // 用户信息管理
+  Future<void> removeMotto(int index) => _update((settings) {
+    if (index < 0 || index >= settings.mottos.length) return settings;
+    final mottos = List<String>.of(settings.mottos)..removeAt(index);
+    return settings.copyWith(mottos: mottos.isEmpty ? [_defaultMotto] : mottos);
+  });
 
-  /// 更新昵称
-  Future<void> updateNickname(String nickname) async {
-    final settings = getSettings();
-    await saveSettings(settings.copyWith(
-      nickname: nickname.trim().isEmpty ? "用户昵称" : nickname.trim(),
-    ));
-  }
+  Future<void> updateNickname(String name) => _update(
+    (settings) =>
+        settings.copyWith(nickname: name.trim().isEmpty ? '用户昵称' : name.trim()),
+  );
 
-  /// 更新签名
-  Future<void> updateSignature(String signature) async {
-    final settings = getSettings();
-    await saveSettings(settings.copyWith(
-      signature: signature.trim().isEmpty ? "这个人很懒，什么都没写~" : signature.trim(),
-    ));
-  }
-
-  /// 更新头像
-  /// 会自动删除旧头像
-  Future<bool> updateAvatar(List<int> bytes, String fileName) async {
-    final settings = getSettings();
-    
-    // 删除旧头像
-    if (settings.avatarPath != null) {
-      await deleteImage(settings.avatarPath!);
-    }
-    
-    // 确保目录存在
-    await _ensureImageDir(PersonalizationImageType.avatar);
-    
-    // 保存新头像
-    final relativePath = await saveImage(
-      type: PersonalizationImageType.avatar,
-      bytes: bytes,
-      fileName: fileName,
-    );
-    
-    if (relativePath != null) {
-      await saveSettings(settings.copyWith(avatarPath: relativePath));
-      return true;
-    }
-    return false;
-  }
-
-  /// 清除头像（恢复默认）
-  Future<void> clearAvatar() async {
-    final settings = getSettings();
-    if (settings.avatarPath != null) {
-      await deleteImage(settings.avatarPath!);
-      await saveSettings(settings.copyWith(clearAvatar: true));
-    }
-  }
+  Future<void> updateSignature(String signature) => _update(
+    (settings) => settings.copyWith(
+      signature: signature.trim().isEmpty ? '这个人很懒，什么都没写~' : signature.trim(),
+    ),
+  );
 }

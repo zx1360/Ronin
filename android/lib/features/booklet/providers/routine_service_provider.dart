@@ -36,16 +36,6 @@ class RoutineService extends _$RoutineService {
 
   // Style 操作
 
-  /// 写入新 Style 记录
-  Future<void> putStyle({required Style style}) => userDataWrite(() async {
-    await state.styleBox.put(
-      style.id,
-      style.copyWith(
-        updatedAt: nextUserDataTime(state.styleBox.get(style.id)?.updatedAt),
-      ),
-    );
-  });
-
   // Record 操作
 
   /// 更新 Record，并更新对应的 Style 统计信息
@@ -81,7 +71,15 @@ class RoutineService extends _$RoutineService {
         });
       });
 
-  Future<void> clearBeforeNewStyle() => userDataWrite(() async {
+  Future<void> createStyle({
+    required Style style,
+    required bool replaceToday,
+  }) => userDataWrite(() async {
+    if (style.tasks.isEmpty ||
+        style.tasks.length > 5 ||
+        style.tasks.any((task) => task.title.trim().isEmpty)) {
+      throw const FormatException('样式需要 1–5 个非空任务');
+    }
     final styles = state.styleBox.toMap().cast<String, Style>();
     final records = state.recordBox.toMap().cast<String, Record>();
     var metadata = userDataSyncBox.toMap().cast<String, String>();
@@ -96,6 +94,10 @@ class RoutineService extends _$RoutineService {
               removedIds.contains(r.styleId),
         )
         .toList();
+    if (!replaceToday &&
+        (removedStyles.isNotEmpty || removedRecords.isNotEmpty)) {
+      throw StateError('今天的样式或打卡已变化，请重新确认');
+    }
     for (final record in removedRecords) {
       records.remove(record.id);
       metadata = deletedUserData(
@@ -122,10 +124,14 @@ class RoutineService extends _$RoutineService {
         metadata: metadata,
       );
     }
+    styles[style.id] = style.copyWith(updatedAt: nextUserDataTime());
     await replaceBoxes({
       userDataSyncBox: metadata,
       state.recordBox: records,
-      state.styleBox: styles,
+      state.styleBox: <String, Style>{
+        for (final item in styles.values)
+          item.id: _withStats(item, records.values),
+      },
     });
   });
 

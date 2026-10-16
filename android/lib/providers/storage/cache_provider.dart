@@ -61,10 +61,7 @@ class CacheManager extends _$CacheManager {
       final config = CacheService().config;
       state = state.copyWith(info: info, config: config, isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        message: '获取缓存信息失败: $e',
-      );
+      state = state.copyWith(isLoading: false, message: '获取缓存信息失败: $e');
     }
   }
 
@@ -83,10 +80,7 @@ class CacheManager extends _$CacheManager {
       await refresh();
       state = state.copyWith(isClearing: false, message: '图片缓存已清理');
     } catch (e) {
-      state = state.copyWith(
-        isClearing: false,
-        message: '清理失败: $e',
-      );
+      state = state.copyWith(isClearing: false, message: '清理失败: $e');
     }
   }
 
@@ -99,26 +93,7 @@ class CacheManager extends _$CacheManager {
       await refresh();
       state = state.copyWith(isClearing: false, message: '临时缓存已清理');
     } catch (e) {
-      state = state.copyWith(
-        isClearing: false,
-        message: '清理失败: $e',
-      );
-    }
-  }
-
-  /// 清理其他缓存
-  Future<void> clearOtherCache() async {
-    state = state.copyWith(isClearing: true, clearMessage: true);
-
-    try {
-      await CacheService().clearOtherCache();
-      await refresh();
-      state = state.copyWith(isClearing: false, message: '其他缓存已清理');
-    } catch (e) {
-      state = state.copyWith(
-        isClearing: false,
-        message: '清理失败: $e',
-      );
+      state = state.copyWith(isClearing: false, message: '清理失败: $e');
     }
   }
 
@@ -131,10 +106,7 @@ class CacheManager extends _$CacheManager {
       await refresh();
       state = state.copyWith(isClearing: false, message: '所有缓存已清理');
     } catch (e) {
-      state = state.copyWith(
-        isClearing: false,
-        message: '清理失败: $e',
-      );
+      state = state.copyWith(isClearing: false, message: '清理失败: $e');
     }
   }
 }
