@@ -170,8 +170,10 @@ Future<void> _downloadImageUsingClient(
       return;
     }
 
-    final fileName =
-        PublicStorageService.generateDateFileName(fileBaseName, 'jpg');
+    final fileName = PublicStorageService.generateDateFileName(
+      fileBaseName,
+      'jpg',
+    );
     final file = await PublicStorageService.saveBytes(
       subDir: PublicStorageService.dirBing,
       fileName: fileName,
@@ -179,7 +181,7 @@ Future<void> _downloadImageUsingClient(
     );
 
     if (file != null) {
-      if (context.mounted) displaySnackBar(context, '已保存到：${file.path}');
+      if (context.mounted) displaySnackBar(context, '已保存到：${file.location}');
     } else {
       if (context.mounted) displaySnackBar(context, '保存失败，请检查存储权限');
     }

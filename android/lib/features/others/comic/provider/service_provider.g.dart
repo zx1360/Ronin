@@ -6,7 +6,7 @@ part of 'service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$allInfosHash() => r'df8714f59117fce68264fb311db075e293064995';
+String _$allInfosHash() => r'12b6a99eae618ea0206d4381de20cd8abac4f63a';
 
 /// 扫描漫画目录获取所有漫画和章节元数据
 ///
@@ -25,7 +25,7 @@ final allInfosProvider =
 );
 
 typedef AllInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
-String _$deletedInfosHash() => r'75689efc5e105a5a473b4dfa473979366b14c08d';
+String _$deletedInfosHash() => r'5cc9dbf9a63c7f79e6bba66311f7dd4c6cda35fc';
 
 /// 获取需要删除的漫画记录
 ///
@@ -44,7 +44,7 @@ final deletedInfosProvider =
 );
 
 typedef DeletedInfosRef = AutoDisposeFutureProviderRef<Map<String, dynamic>>;
-String _$newInfosHash() => r'31c6c6672517c3c0c37d1a95cdf6dee471a394f5';
+String _$newInfosHash() => r'9c126246ffe8460140663f2c23d3166e17b5b804';
 
 /// 扫描未记录的新漫画目录
 ///

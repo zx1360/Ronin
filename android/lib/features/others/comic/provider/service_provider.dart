@@ -20,15 +20,14 @@ import 'package:torrid/core/services/io/io_service.dart';
 part 'service_provider.g.dart';
 
 /// 扫描漫画目录获取所有漫画和章节元数据
-/// 
+///
 /// 遍历 `comics` 目录下的所有子目录，生成 [ComicInfo] 和 [ChapterInfo]。
 @riverpod
 Future<Map<String, dynamic>> allInfos(AllInfosRef ref) async {
   final comicInfos = <ComicInfo>[];
   final chapterInfos = <ChapterInfo>[];
-  
-  final externalDir = await IoService.externalStorageDir;
-  final comicsDir = Directory("${externalDir.path}/comics");
+
+  final comicsDir = await IoService.offlineDirectory('comics');
   final comicsFolders = await comicsDir
       .list()
       .where((entity) => entity is Directory)
@@ -43,7 +42,7 @@ Future<Map<String, dynamic>> allInfos(AllInfosRef ref) async {
       message: "正在初始化漫画文件元数据...",
     ),
   );
-  
+
   int counter = 0;
   for (final folder in comicsFolders) {
     final comicDir = folder as Directory;
@@ -62,9 +61,9 @@ Future<Map<String, dynamic>> allInfos(AllInfosRef ref) async {
     final chapters = await _buildChapterInfos(comicDir, comicInfo.id);
     chapterInfos.addAll(chapters);
   }
-  
+
   ref.read(progressServiceProvider.notifier).resetStatus();
-  
+
   return {
     "comicInfos": {for (final info in comicInfos) info.id: info},
     "chapterInfos": {for (final info in chapterInfos) info.id: info},
@@ -72,27 +71,26 @@ Future<Map<String, dynamic>> allInfos(AllInfosRef ref) async {
 }
 
 /// 获取需要删除的漫画记录
-/// 
+///
 /// 返回 coverImage 文件不存在的漫画及其关联数据。
 @riverpod
 Future<Map<String, dynamic>> deletedInfos(DeletedInfosRef ref) async {
-  final deletedComics = ref
-      .read(comicInfosProvider)
-      .where((info) => !File(info.coverImage).existsSync())
-      .map((info) => info.id)
-      .toList();
-      
+  final deletedComics = <String>[];
+  for (final info in ref.read(comicInfosProvider)) {
+    if (!await File(info.coverImage).exists()) deletedComics.add(info.id);
+  }
+
   final deletedChapterInfos = (await ref.read(chapterInfoStreamProvider.future))
       .where((info) => deletedComics.contains(info.comicId))
       .map((info) => info.id)
       .toList();
-      
+
   final prefBox = ref.read(comicPrefBoxProvider);
   final deletedPrefs = deletedComics
       .map((comicId) => prefBox.get(comicId)?.comicId)
       .whereType<String>()
       .toList();
-      
+
   return {
     "comics": deletedComics,
     "chapters": deletedChapterInfos,
@@ -101,15 +99,14 @@ Future<Map<String, dynamic>> deletedInfos(DeletedInfosRef ref) async {
 }
 
 /// 扫描未记录的新漫画目录
-/// 
+///
 /// 只处理尚未在数据库中的漫画目录。
 @riverpod
 Future<Map<String, dynamic>> newInfos(NewInfosRef ref) async {
   final comicInfos = <ComicInfo>[];
   final chapterInfos = <ChapterInfo>[];
-  
-  final externalDir = await IoService.externalStorageDir;
-  final comicsDir = Directory("${externalDir.path}/comics");
+
+  final comicsDir = await IoService.offlineDirectory('comics');
   final comicsFolders = await comicsDir
       .list()
       .where((entity) => entity is Directory)
@@ -122,12 +119,10 @@ Future<Map<String, dynamic>> newInfos(NewInfosRef ref) async {
       .toSet();
 
   // 统计需要处理的数量
-  final newFolders = comicsFolders
-      .where((folder) {
-        final name = (folder as Directory).path.split(Platform.pathSeparator).last;
-        return !existingNames.contains(name);
-      })
-      .toList();
+  final newFolders = comicsFolders.where((folder) {
+    final name = (folder as Directory).path.split(Platform.pathSeparator).last;
+    return !existingNames.contains(name);
+  }).toList();
 
   final progressNotifier = ref.read(progressServiceProvider.notifier);
   progressNotifier.setProgress(
@@ -138,12 +133,12 @@ Future<Map<String, dynamic>> newInfos(NewInfosRef ref) async {
       message: "正在初始化漫画文件元数据...",
     ),
   );
-  
+
   int counter = 0;
   for (final folder in newFolders) {
     final comicDir = folder as Directory;
     final comicName = comicDir.path.split(Platform.pathSeparator).last;
-    
+
     progressNotifier.increaseProgress(
       current: counter,
       currentMessage: comicName,
@@ -158,9 +153,9 @@ Future<Map<String, dynamic>> newInfos(NewInfosRef ref) async {
     final chapters = await _buildChapterInfos(comicDir, comicInfo.id);
     chapterInfos.addAll(chapters);
   }
-  
+
   ref.read(progressServiceProvider.notifier).resetStatus();
-  
+
   return {
     "comicInfos": {for (final info in comicInfos) info.id: info},
     "chapterInfos": {for (final info in chapterInfos) info.id: info},
@@ -173,7 +168,7 @@ Future<ComicInfo> _buildComicInfo(Directory comicDir, String comicName) async {
   final stats = await countComicStats(comicDir);
   final chapterCount = stats.chapterCount;
   final imageCount = stats.imageCount;
-  
+
   return ComicInfo.newOne(
     comicName: comicName,
     coverImage: coverImage,
@@ -188,12 +183,12 @@ Future<List<ChapterInfo>> _buildChapterInfos(
   String comicId,
 ) async {
   final chapterInfos = <ChapterInfo>[];
-  
+
   final chapterDirs = await comicDir
       .list()
       .where((entity) => entity is Directory)
       .toList();
-      
+
   chapterDirs.sort((a, b) {
     final aName = (a as Directory).path.split(Platform.pathSeparator).last;
     final bName = (b as Directory).path.split(Platform.pathSeparator).last;
@@ -213,6 +208,6 @@ Future<List<ChapterInfo>> _buildChapterInfos(
     );
     chapterInfos.add(chapterInfo);
   }
-  
+
   return chapterInfos;
 }

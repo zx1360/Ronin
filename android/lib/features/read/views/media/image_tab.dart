@@ -331,7 +331,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
 
       if (!mounted) return;
       if (file != null) {
-        displaySnackBar(context, '已保存到：${file.path}');
+        displaySnackBar(context, '已保存到：${file.location}');
       } else {
         displaySnackBar(context, '保存失败，请检查存储权限');
       }

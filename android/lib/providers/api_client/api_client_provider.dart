@@ -28,10 +28,12 @@ class ApiClientManager extends _$ApiClientManager {
     final baseUrl = (activeConfig != null && activeConfig.isValid)
         ? 'https://${activeConfig.host}:${activeConfig.port}'
         : '';
-    return ApiClient(
+    final client = ApiClient(
       baseUrl: baseUrl,
       apiKey: apiKey.isEmpty ? null : apiKey,
     );
+    ref.onDispose(client.close);
+    return client;
   }
 }
 
@@ -45,15 +47,18 @@ Future<Response?> fetcher(
   ProgressCallback? onReceiveProgress,
 }) async {
   final apiClient = ref.watch(apiClientManagerProvider);
+  final token = cancelToken ?? CancelToken();
+  if (cancelToken == null) ref.onDispose(() => token.cancel());
   try {
     final resp = await apiClient.get(
       path,
       queryParams: params,
-      cancelToken: cancelToken,
+      cancelToken: token,
       onReceiveProgress: onReceiveProgress,
     );
     return resp;
   } catch (e) {
+    if (e is DioException && CancelToken.isCancel(e)) return null;
     final apiError = ApiClient.mapError(e);
     AppLogger().error("fetch '$path'出错: ${apiError.message}");
     return null;
@@ -70,15 +75,18 @@ Future<Response<Uint8List>?> bytesFetcher(
   ProgressCallback? onReceiveProgress,
 }) async {
   final apiClient = ref.watch(apiClientManagerProvider);
+  final token = cancelToken ?? CancelToken();
+  if (cancelToken == null) ref.onDispose(() => token.cancel());
   try {
     final resp = await apiClient.getBinary(
       path,
       queryParams: params,
-      cancelToken: cancelToken,
+      cancelToken: token,
       onReceiveProgress: onReceiveProgress,
     );
     return resp;
   } catch (e) {
+    if (e is DioException && CancelToken.isCancel(e)) return null;
     final apiError = ApiClient.mapError(e);
     AppLogger().error("bytesFetcher '$path'出错: ${apiError.message}");
     return null;

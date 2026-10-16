@@ -51,6 +51,8 @@ class ApiClient {
     _dio.interceptors.add(_RetryInterceptor(_dio));
   }
 
+  void close() => _dio.close();
+
   /// 将底层异常归一化为 [ApiException]
   ///
   /// 非 [DioException] 的错误原样包装，保证调用方始终拿到可读信息。

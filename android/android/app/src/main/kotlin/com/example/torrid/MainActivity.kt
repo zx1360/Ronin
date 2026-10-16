@@ -8,12 +8,24 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.security.cert.CertificateFactory
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.HostnameVerifier
 
 class MainActivity : FlutterActivity() {
+    companion object {
+        private val platformHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
+    }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "torrid/public_media")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "saveFile") {
+                    PublicMediaStore.save(applicationContext, call, result)
+                } else {
+                    result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "torrid/media_share")
             .setMethodCallHandler { call, result ->
                 if (call.method != "shareFile") {
@@ -43,10 +55,15 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
-        // 自签证书场景: 跳过主机名验证 (证书 SAN 为空,
-        // 且服务端 IP 在校园网环境下会变化, 无法固定)
+        val trustedCertificate = resources.openRawResource(R.raw.server).use {
+            CertificateFactory.getInstance("X.509").generateCertificate(it).encoded
+        }
         HttpsURLConnection.setDefaultHostnameVerifier(
-            HostnameVerifier { _, _ -> true }
+            HostnameVerifier { host, session ->
+                platformHostnameVerifier.verify(host, session) || runCatching {
+                    session.peerCertificates.first().encoded.contentEquals(trustedCertificate)
+                }.getOrDefault(false)
+            }
         )
         super.onCreate(savedInstanceState)
     }

@@ -1,4 +1,5 @@
 import 'package:chewie/chewie.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/modals/snack_bar.dart';
@@ -26,6 +27,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
   String? _videoUrl;
   bool _loading = false;
   bool _downloading = false;
+  CancelToken? _downloadCancelToken;
   String? _error;
 
   VideoPlayerController? _videoController;
@@ -41,6 +43,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
 
   @override
   void dispose() {
+    _downloadCancelToken?.cancel();
     _disposePlayer();
     super.dispose();
   }
@@ -295,13 +298,15 @@ class _VideoTabState extends ConsumerState<VideoTab>
   }
 
   Future<void> _downloadVideo() async {
-    if (_videoUrl == null) return;
+    final url = _videoUrl;
+    if (url == null || _downloading) return;
+    final token = CancelToken();
+    final headers = _source.extraHeaders;
+    _downloadCancelToken = token;
     setState(() => _downloading = true);
 
     try {
-      final bytes = await MediaUrlResolver.downloadBytes(_videoUrl!);
-
-      final uri = Uri.tryParse(_videoUrl!);
+      final uri = Uri.tryParse(url);
       final extFromUrl = uri == null ? '' : getFileExtension(uri.path);
       final ext = extFromUrl.isNotEmpty ? extFromUrl : 'mp4';
 
@@ -309,22 +314,29 @@ class _VideoTabState extends ConsumerState<VideoTab>
         'video',
         ext,
       );
-      final file = await PublicStorageService.saveBytes(
+      final file = await PublicStorageService.saveDownload(
         subDir: PublicStorageService.dirApi,
         fileName: fileName,
-        bytes: bytes,
+        download: (target) => MediaUrlResolver.downloadFile(
+          url,
+          target,
+          headers: headers,
+          cancelToken: token,
+        ),
       );
 
       if (!mounted) return;
       if (file != null) {
-        displaySnackBar(context, '已保存到：${file.path}');
+        displaySnackBar(context, '已保存到：${file.location}');
       } else {
         displaySnackBar(context, '保存失败，请检查存储权限');
       }
     } catch (e) {
+      if (e is DioException && CancelToken.isCancel(e)) return;
       if (!mounted) return;
       displaySnackBar(context, '下载出错：$e');
     } finally {
+      _downloadCancelToken = null;
       if (mounted) setState(() => _downloading = false);
     }
   }

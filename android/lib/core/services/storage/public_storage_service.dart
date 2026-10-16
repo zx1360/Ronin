@@ -1,167 +1,114 @@
 import 'dart:io';
-import 'dart:math';
 
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
-
 import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/utils/file_relates.dart';
 import 'package:torrid/core/utils/util.dart';
 
-/// 统一的外部公共存储服务
-///
-/// 管理保存到 /storage/emulated/0/Pictures/torrid/ 下各子目录的逻辑。
-/// 各模块通过指定 [SubDir] 或自定义子目录来保存文件。
+class SavedMedia {
+  final Uri uri;
+  final String location;
+
+  const SavedMedia({required this.uri, required this.location});
+}
+
 class PublicStorageService {
   PublicStorageService._();
 
-  /// 外部公共存储根路径
-  static const String _publicRoot = '/storage/emulated/0/Pictures/torrid';
+  static const _channel = MethodChannel('torrid/public_media');
+  static const dirComic = 'comic';
+  static const dirGallery = 'gallery';
+  static const dirApi = 'api';
+  static const dirBing = 'bing';
 
-  /// 预定义子目录
-  static const String dirComic = 'comic';
-  static const String dirGallery = 'gallery';
-  static const String dirApi = 'api';
-  static const String dirBing = 'bing';
-
-  /// 获取指定子目录的完整路径
-  static String getSubDirPath(String subDir) => '$_publicRoot/$subDir';
-
-  /// 确保存储权限并创建目录，返回是否成功
-  static Future<bool> ensureStorageAccess(String subDir) async {
-    final hasAccess = await _requestStoragePermission();
-    if (!hasAccess) {
-      AppLogger().warning('存储权限被拒绝');
-      return false;
-    }
-
-    final dir = Directory(getSubDirPath(subDir));
-    if (!await dir.exists()) {
-      try {
-        await dir.create(recursive: true);
-      } catch (e) {
-        AppLogger().error('创建公共目录失败: $e');
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /// 请求存储权限
-  static Future<bool> _requestStoragePermission() async {
-    // 检查 MANAGE_EXTERNAL_STORAGE 是否已授权
-    if (await Permission.manageExternalStorage.isGranted) {
-      return true;
-    }
-
-    // 请求 MANAGE_EXTERNAL_STORAGE（Android 11+ 会跳转系统设置页）
-    final result = await Permission.manageExternalStorage.request();
-    if (result.isGranted) return true;
-
-    // 如果被永久拒绝，尝试打开应用设置页让用户手动授权
-    if (result.isPermanentlyDenied) {
-      await openAppSettings();
-      // 用户从设置页返回后重新检查
-      return await Permission.manageExternalStorage.isGranted;
-    }
-
-    // 降级尝试普通存储权限（Android 10 以下）
-    final storageResult = await Permission.storage.request();
-    return storageResult.isGranted;
-  }
-
-  // 通用保存
-
-  /// 将字节数据保存到公共目录
-  ///
-  /// [subDir] 子目录名（如 'comic'、'gallery'、'api'、'bing'）
-  /// [fileName] 文件名（含扩展名）
-  /// [bytes] 文件数据
-  /// 返回保存的文件，失败返回 null
-  static Future<File?> saveBytes({
+  static Future<SavedMedia?> saveBytes({
     required String subDir,
     required String fileName,
     required List<int> bytes,
+    String? mimeType,
   }) async {
+    if (bytes.isEmpty) throw const FormatException('媒体文件为空');
+    return saveDownload(
+      subDir: subDir,
+      fileName: fileName,
+      mimeType: mimeType,
+      download: (target) async {
+        await File(target).writeAsBytes(bytes, flush: true);
+      },
+    );
+  }
+
+  static Future<SavedMedia?> saveDownload({
+    required String subDir,
+    required String fileName,
+    required Future<void> Function(String target) download,
+    String? mimeType,
+  }) async {
+    final root = await IoService.temporaryDirectory('media_export');
+    final work = await root.createTemp('export-');
     try {
-      if (!await ensureStorageAccess(subDir)) return null;
-
-      final targetPath = '${getSubDirPath(subDir)}/$fileName';
-      final file = File(targetPath);
-
-      if (await file.exists()) {
-        await file.delete();
+      final source = File(path.join(work.path, 'source'));
+      await download(source.path);
+      return await copyFile(
+        subDir: subDir,
+        sourceFilePath: source.path,
+        fileName: fileName,
+        mimeType: mimeType,
+      );
+    } finally {
+      try {
+        await work.delete(recursive: true);
+      } catch (error) {
+        AppLogger().warning('清理媒体导出暂存失败: $error');
       }
-
-      await file.writeAsBytes(bytes);
-      return file;
-    } catch (e) {
-      AppLogger().error('保存文件失败: $e');
-      return null;
     }
   }
 
-  /// 复制文件到公共目录
-  ///
-  /// [subDir] 子目录名
-  /// [sourceFilePath] 源文件路径
-  /// [fileName] 目标文件名（含扩展名），为空则自动生成
-  static Future<File?> copyFile({
+  static Future<SavedMedia?> copyFile({
     required String subDir,
     required String sourceFilePath,
     String? fileName,
+    String? mimeType,
   }) async {
+    final name = fileName == null || fileName.isEmpty
+        ? generateUniqueFileName('img', getFileExtension(sourceFilePath))
+        : fileName;
+    final arguments = {
+      'path': sourceFilePath,
+      'subDir': subDir,
+      'fileName': name,
+      'mimeType': mimeType,
+    };
+    Future<Map<String, dynamic>?> save() =>
+        _channel.invokeMapMethod<String, dynamic>('saveFile', arguments);
+
+    Map<String, dynamic>? saved;
     try {
-      if (!await ensureStorageAccess(subDir)) return null;
-
-      final sourceFile = File(sourceFilePath);
-      if (!await sourceFile.exists()) {
-        AppLogger().error('源文件不存在: $sourceFilePath');
-        return null;
+      saved = await save();
+    } on PlatformException catch (error) {
+      if (error.code != 'storage_permission_required') {
+        throw StateError(error.message ?? '媒体导出失败');
       }
-
-      if (fileName == null || fileName.isEmpty) {
-        final ext = getFileExtension(sourceFile.path);
-        final timestamp = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
-        final randomNum = Random().nextInt(10000);
-        fileName =
-            'img_${timestamp}_$randomNum${ext.isNotEmpty ? '.$ext' : ''}';
-      }
-
-      final targetFile = File('${getSubDirPath(subDir)}/$fileName');
-
-      if (await targetFile.exists()) {
-        await targetFile.delete();
-      }
-
-      await sourceFile.copy(targetFile.path);
-      return targetFile;
-    } catch (e) {
-      AppLogger().error('复制文件失败: $e');
-      return null;
+      if (!await Permission.storage.request().isGranted) return null;
+      saved = await save();
     }
+    if (saved == null) throw StateError('系统未确认媒体导出成功');
+    return SavedMedia(
+      uri: Uri.parse(saved['uri'] as String),
+      location: saved['location'] as String,
+    );
   }
 
-  // 便捷方法
-
-  /// 生成带时间戳的唯一文件名
-  ///
-  /// [baseName] 基础名称
-  /// [extension] 扩展名（不含点号）
   static String generateUniqueFileName(String baseName, String extension) {
     final safeBase = sanitizeDirectoryName(baseName.replaceAll(' ', '_'));
-    final dateStr = getTodayDateString();
-    final randomId = generateFileName();
-    return '${safeBase}_${dateStr}_$randomId.$extension';
+    return '${safeBase}_${getTodayDateString()}_${generateFileName()}.$extension';
   }
 
-  /// 生成日期文件名（不含随机后缀）
-  ///
-  /// [baseName] 基础名称
-  /// [extension] 扩展名（不含点号）
   static String generateDateFileName(String baseName, String extension) {
     final safeBase = sanitizeDirectoryName(baseName.replaceAll(' ', '_'));
-    final dateStr = getTodayDateString();
-    return '${safeBase}_$dateStr.$extension';
+    return '${safeBase}_${getTodayDateString()}.$extension';
   }
 }

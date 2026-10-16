@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
-import 'package:path/path.dart' as p;
+import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
@@ -60,48 +60,46 @@ class EssayDraftStore {
 
   Future<void> flush() => _enqueue(box.flush);
 
-  // 草稿图片独立存放；同步正式随笔时不会清理到它们。
-  Future<String> importImage(String draftId, File source) async {
-    final relative =
-        'essay_drafts/$draftId/${DateTime.now().microsecondsSinceEpoch}${p.extension(source.path)}';
-    final file = File(
-      p.join((await IoService.externalStorageDir).path, relative),
-    );
-    await file.parent.create(recursive: true);
-    await source.copy(file.path);
-    return relative;
-  }
+  Future<String> importImage(String draftId, File source) =>
+      IoService.importUserImage('essay_drafts/$draftId', source);
 
-  Future<Essay> publishImages(Essay essay) async {
-    if (!essay.imgs.any((image) => image.startsWith('essay_drafts/'))) {
-      return essay;
-    }
-    final root = await IoService.externalStorageDir;
+  Future<Essay> publish(
+    Essay essay,
+    Future<void> Function(Essay) writeEssay,
+  ) async {
     final images = <String>[];
-    for (final image in essay.imgs) {
-      if (!image.startsWith('essay_drafts/${essay.id}/')) {
-        images.add(image);
-        continue;
+    final imported = <String>[];
+    try {
+      for (final image in essay.imgs) {
+        if (image.startsWith('essay_drafts/')) {
+          if (!image.startsWith('essay_drafts/${essay.id}/')) {
+            throw const FormatException('图片不属于当前草稿');
+          }
+          final key = await IoService.importUserImage(
+            'img_storage/essay',
+            await IoService.userFile(image),
+          );
+          imported.add(key);
+          images.add(key);
+        } else {
+          images.add(image);
+        }
       }
-      final relative =
-          'img_storage/essay/draft_${essay.id}_${p.basename(image)}';
-      final target = File(p.join(root.path, relative));
-      await target.parent.create(recursive: true);
-      await File(p.join(root.path, image)).copy(target.path);
-      images.add(relative);
+      final published = essay.copyWith(imgs: images);
+      await writeEssay(published);
+      return published;
+    } catch (_) {
+      for (final key in imported) {
+        try {
+          await IoService.deleteUserFile(key);
+        } catch (error) {
+          AppLogger().warning('清理未发布的随笔图片失败: $error');
+        }
+      }
+      rethrow;
     }
-    return essay.copyWith(imgs: images);
   }
 
-  Future<void> cleanImages(String id) async {
-    final root = p.normalize((await IoService.externalStorageDir).path);
-    final directory = Directory(p.join(root, 'essay_drafts', id));
-    if (!p.isWithin(
-      p.join(root, 'essay_drafts'),
-      p.normalize(directory.path),
-    )) {
-      throw const FormatException('无效的草稿路径');
-    }
-    if (await directory.exists()) await directory.delete(recursive: true);
-  }
+  Future<void> cleanImages(String id) =>
+      IoService.deleteUserDirectory('essay_drafts/$id');
 }

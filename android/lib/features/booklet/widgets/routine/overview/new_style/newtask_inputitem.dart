@@ -5,17 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
 
 class NewTask {
-  final int index;
-  final TextEditingController titleCtrl;
-  final TextEditingController descCtrl;
-  String imagePath;
+  final titleCtrl = TextEditingController();
+  final descCtrl = TextEditingController();
+  String imagePath = '';
 
-  NewTask({
-    required this.index,
-    required this.titleCtrl,
-    required this.descCtrl,
-    this.imagePath = "",
-  });
+  void dispose() {
+    titleCtrl.dispose();
+    descCtrl.dispose();
+  }
 }
 
 /// 构建任务输入项（新建样式时的单个任务表单）
@@ -24,6 +21,7 @@ class NewTask {
 /// [onSelectImage]：选择图片回调
 Widget inputItem({
   required NewTask task,
+  required int index,
   required VoidCallback onDelete,
   required VoidCallback onSelectImage,
 }) {
@@ -42,7 +40,7 @@ Widget inputItem({
           controller: task.titleCtrl,
           style: noteText,
           decoration: InputDecoration(
-            labelText: '任务${task.index + 1}标题*',
+            labelText: '任务${index + 1}标题*',
             labelStyle: noteSmall,
             border: const OutlineInputBorder(
               borderSide: BorderSide(color: Color(0xFFD4C8B8)),
@@ -62,7 +60,7 @@ Widget inputItem({
           controller: task.descCtrl,
           style: noteText,
           decoration: InputDecoration(
-            labelText: '任务${task.index + 1}描述（可选）',
+            labelText: '任务${index + 1}描述（可选）',
             labelStyle: noteSmall,
             border: const OutlineInputBorder(
               borderSide: BorderSide(color: Color(0xFFD4C8B8)),
@@ -119,7 +117,7 @@ Widget inputItem({
             onPressed: onDelete,
             style: TextButton.styleFrom(padding: EdgeInsets.zero),
             child: Text(
-              '删除任务${task.index + 1}',
+              '删除任务${index + 1}',
               style: noteSmall.copyWith(color: const Color(0xFFD32F2F)),
             ),
           ),

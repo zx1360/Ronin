@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
+import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/services/storage/cache_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 
@@ -18,17 +19,8 @@ Future<void> shareMedia(
   Directory? work;
   var shared = false;
   try {
-    final temporary = await getTemporaryDirectory();
-    final root = await Directory(
-      path.join(temporary.path, 'media_share'),
-    ).create(recursive: true);
-    final cutoff = DateTime.now().subtract(const Duration(days: 1));
-    await for (final entry in root.list(followLinks: false)) {
-      if (entry is Directory &&
-          (await entry.stat()).modified.isBefore(cutoff)) {
-        await entry.delete(recursive: true);
-      }
-    }
+    await CacheService().clearTempCache();
+    final root = await IoService.temporaryDirectory('media_share');
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
     work = await root.createTemp('share-');
     final name = asset.filePath.split(RegExp(r'[/\\]')).last;
