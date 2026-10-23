@@ -158,10 +158,6 @@ class CurrentMediaTags extends _$CurrentMediaTags {
     return _update((_) => snapshot);
   }
 
-  Future<void> addTag(String tagId) => _update((ids) => ids..add(tagId));
-
-  Future<void> removeTag(String tagId) => _update((ids) => ids..remove(tagId));
-
   Future<void> toggleTag(String tagId) => _update((ids) {
     if (!ids.remove(tagId)) ids.add(tagId);
     return ids;

@@ -32,7 +32,6 @@ class Essay {
   @JsonKey(defaultValue: [])
   final List<Message> messages;
 
-  /// 心情记录 - 可选字段，兼容旧数据
   @HiveField(7)
   @MoodTypeConverter()
   final MoodType? mood;

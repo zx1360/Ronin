@@ -40,7 +40,7 @@ flowchart LR
 - [ApiClientManager](../../android/lib/providers/api_client/api_client_provider.dart) 监听网络配置派生 `ApiClient`；不要在页面中手动推送 ApiClient。
 - [ApiClient](../../android/lib/core/services/network/api_client.dart) 统一 Dio、证书、header、GET 重试、二进制和 NDJSON 流。
 - 启动页初始化证书与本地存储，失败可重试且不清数据；公共 HTTPS 使用系统 CA，内置后端证书仅按证书内容精确放行主机名不匹配。切换网络配置时关闭旧 ApiClient，页面读请求随 provider 释放取消。
-- fetcher 系列把底层异常记录并转为可读错误；页面不应直接依赖 `DioException`。
+- 网络错误通过 `ApiClient.mapError` 转为可读信息，业务请求由各功能的 service/provider 处理。
 
 服务端 mDNS 只广播 HTTPS 端口；发现后端上保存的 host/port 不会自动切换激活项。
 

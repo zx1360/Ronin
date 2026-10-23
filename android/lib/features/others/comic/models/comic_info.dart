@@ -17,7 +17,6 @@ class ComicInfo {
   @HiveField(2)
   final String coverImage;
 
-  // PS: 后端舍弃了设两个字段采用实时计算, 安卓端仍旧采用吧.
   @HiveField(3)
   final int chapterCount;
   @HiveField(4)
@@ -43,9 +42,9 @@ class ComicInfo {
     required this.coverImage,
     required this.chapterCount,
     required this.imageCount,
-  })  : id = generateId(),
-        isPublic = true,
-        readed = false;
+  }) : id = generateId(),
+       isPublic = true,
+       readed = false;
 
   ComicInfo copyWith({
     String? id,
@@ -68,6 +67,7 @@ class ComicInfo {
   }
 
   // 序列化
-  factory ComicInfo.fromJson(Map<String, dynamic> json) => _$ComicInfoFromJson(json);
+  factory ComicInfo.fromJson(Map<String, dynamic> json) =>
+      _$ComicInfoFromJson(json);
   Map<String, dynamic> toJson() => _$ComicInfoToJson(this);
 }

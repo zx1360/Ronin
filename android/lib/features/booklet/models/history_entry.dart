@@ -20,13 +20,12 @@ List<BookletHistoryEntry> buildBookletHistory(
   List<Record> records,
   List<Style> styles, {
   String? styleId,
-  bool onlyMessages = true,
 }) {
   final byId = {for (final style in styles) style.id: style};
   final entries = [
     for (final record in records)
       if ((styleId == null || record.styleId == styleId) &&
-          (!onlyMessages || record.message.trim().isNotEmpty))
+          record.message.trim().isNotEmpty)
         BookletHistoryEntry(record, byId[record.styleId]),
   ];
   int day(DateTime date) => date.year * 10000 + date.month * 100 + date.day;

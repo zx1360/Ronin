@@ -4,7 +4,7 @@ import { confirmAction, toast } from '../store.js';
 import { useUserData, MoodSelect, ImagePicker, day, stamp, clone, imageUrl, moodText } from './user-data.js';
 
 function statistics(records) {
-  let longest = 0, longestFull = 0, streak = 0, fullStreak = 0, previous = '', previousFull = '';
+  let longest = 0, longestFull = 0, streak = 0, fullStreak = 0, full = 0, previous = '', previousFull = '';
   const complete = (r) => Object.values(r.task_completion).every(Boolean);
   const consecutive = (a, b) => Date.parse(b) - Date.parse(a) === 86400000;
   for (const row of [...records].sort((a, b) => a.date.localeCompare(b.date))) {
@@ -12,12 +12,13 @@ function statistics(records) {
     previous = row.date;
     longest = Math.max(longest, streak);
     if (complete(row)) {
+      full++;
       fullStreak = consecutive(previousFull, row.date) ? fullStreak + 1 : 1;
       previousFull = row.date;
       longestFull = Math.max(longestFull, fullStreak);
     }
   }
-  return { count: records.length, full: records.filter(complete).length, longest, longestFull };
+  return { count: records.length, full, longest, longestFull };
 }
 
 export default {
@@ -84,9 +85,10 @@ export default {
     }
     const calendar = computed(() => {
       const first = new Date(`${month.value}-01T12:00:00`), offset = (first.getDay() + 6) % 7;
+      const byDate = new Map(related.value.map((record) => [record.date, record]));
       return Array.from({ length: 42 }, (_, i) => {
         const d = new Date(first); d.setDate(i - offset + 1);
-        const key = day(d), record = related.value.find((r) => r.date === key);
+        const key = day(d), record = byDate.get(key);
         const checked = record && (taskFilter.value ? !!record.task_completion[taskFilter.value] : Object.values(record.task_completion).every(Boolean));
         return { date: key, number: d.getDate(), outside: key.slice(0, 7) !== month.value, record, checked };
       });

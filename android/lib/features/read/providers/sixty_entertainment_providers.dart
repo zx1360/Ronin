@@ -2,17 +2,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 part 'sixty_entertainment_providers.g.dart';
 
-// 消遣娱乐
-@riverpod
-Future<Json> changyaAudio(ChangyaAudioRef ref) async {
-  final client = ref.read(sixtyApiClientProvider);
-  final resp = await client.get(
-    '/v2/changya',
-    queryParams: {'encoding': 'json'},
-  );
-  return (resp.data as Json)['data'] as Json;
-}
-
 @riverpod
 Future<Json> hitokoto(HitokotoRef ref) async {
   final client = ref.read(sixtyApiClientProvider);

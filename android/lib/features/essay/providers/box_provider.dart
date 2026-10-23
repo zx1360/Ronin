@@ -19,20 +19,6 @@ Box<YearSummary> summaryBox(SummaryBoxRef ref) {
   return Hive.box<YearSummary>(HiveService.yearSummaryBoxName);
 }
 
-/// 年度统计信息的响应式流
-/// 
-/// 使用 yield 手动触发一次以读取初始数据，之后监听 box 变化。
-@riverpod
-Stream<List<YearSummary>> summaryStream(SummaryStreamRef ref) async* {
-  final box = ref.read(summaryBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
-
 /// 随笔数据的 Hive Box
 @riverpod
 Box<Essay> essayBox(EssayBoxRef ref) {

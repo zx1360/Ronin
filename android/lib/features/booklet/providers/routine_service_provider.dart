@@ -13,9 +13,6 @@ import 'package:torrid/core/utils/util.dart';
 
 part 'routine_service_provider.g.dart';
 
-/// Routine 业务服务层：负责所有数据的增删改操作和业务逻辑。
-
-/// 数据容器 - 封装 Style 和 Record 的 Hive Box
 class RoutineDataContainer {
   final Box<Style> styleBox;
   final Box<Record> recordBox;
@@ -23,7 +20,6 @@ class RoutineDataContainer {
   RoutineDataContainer({required this.styleBox, required this.recordBox});
 }
 
-/// 核心业务操作，管理所有的数据修改
 @riverpod
 class RoutineService extends _$RoutineService {
   @override
@@ -34,12 +30,7 @@ class RoutineService extends _$RoutineService {
     );
   }
 
-  // Style 操作
-
-  // Record 操作
-
-  /// 更新 Record，并更新对应的 Style 统计信息
-  /// 如果完成情况和留言都为空，则删除记录（视为未打卡）
+  /// 保存记录并重算计划统计；无留言、心情和完成项时撤销打卡。
   Future<void> putRecord({required String styleId, required Record record}) =>
       userDataWrite(() async {
         final records = state.recordBox.toMap().cast<String, Record>();
@@ -135,16 +126,6 @@ class RoutineService extends _$RoutineService {
     });
   });
 
-  /// 刷新所有 Style 的统计信息
-  Future<void> refreshAllStats() => userDataWrite(() async {
-    final allStyles = state.styleBox.values.toList();
-    for (final style in allStyles) {
-      await _refreshStyleStats(style.id);
-    }
-  });
-
-  // 统计信息刷新
-
   Style _withStats(Style style, Iterable<Record> records) {
     final related = records.where((r) => r.styleId == style.id).toList();
     return style.copyWith(
@@ -154,18 +135,6 @@ class RoutineService extends _$RoutineService {
       longestFullyStreak: longestFullyStreak(related),
     );
   }
-
-  Future<void> _refreshStyleStats(String styleId) async {
-    final style = state.styleBox.get(styleId);
-    if (style != null) {
-      await state.styleBox.put(
-        style.id,
-        _withStats(style, state.recordBox.values),
-      );
-    }
-  }
-
-  // 数据同步
 
   /// 逐行合并，图片由传输控制器处理。
   Future<void> syncData(dynamic incoming, {String? cursorKey}) =>

@@ -22,25 +22,6 @@ final comicPrefBoxProvider = AutoDisposeProvider<Box<ComicPreference>>.internal(
 );
 
 typedef ComicPrefBoxRef = AutoDisposeProviderRef<Box<ComicPreference>>;
-String _$comicPrefStreamHash() => r'ed650de53bf0529a2b5ad455b5b32df96a3ae23d';
-
-/// 漫画阅读偏好的响应式流
-///
-/// Copied from [comicPrefStream].
-@ProviderFor(comicPrefStream)
-final comicPrefStreamProvider =
-    AutoDisposeStreamProvider<List<ComicPreference>>.internal(
-  comicPrefStream,
-  name: r'comicPrefStreamProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$comicPrefStreamHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef ComicPrefStreamRef
-    = AutoDisposeStreamProviderRef<List<ComicPreference>>;
 String _$comicInfoBoxHash() => r'9fe4133955c8a2583108903f3af2b3b8335f3ba1';
 
 /// 漫画信息的 Hive Box

@@ -3,13 +3,6 @@ import 'dart:math';
 import 'package:torrid/core/utils/util.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 
-/// ============================================================================
-/// 打卡统计通用函数
-///
-/// 供 RoutineService 等业务层复用，避免各文件重复实现私有版本。
-/// 所有"日期"均按日历日（dateOnly）比较，与 record.date 的语义一致。
-/// ============================================================================
-
 /// 计算完全完成（所有任务均勾选）的天数
 int countFullyDone(List<Record> records) {
   return records

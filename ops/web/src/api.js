@@ -41,12 +41,13 @@ export async function request(method, path, options = {}) {
 
   const controller = new AbortController();
   const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const abort = () => controller.abort();
   if (signal) {
     if (signal.aborted) controller.abort();
-    else signal.addEventListener('abort', () => controller.abort(), { once: true });
+    else signal.addEventListener('abort', abort, { once: true });
   }
 
-  let response;
+  let response, text;
   try {
     response = await fetch(path, {
       method,
@@ -55,13 +56,14 @@ export async function request(method, path, options = {}) {
       signal: controller.signal,
       cache: 'no-store',
     });
+    text = await response.text();
   } catch (error) {
     throw new ApiError(error.name === 'AbortError' ? '请求超时或已取消' : `网络请求失败: ${error.message}`);
   } finally {
     if (timer) clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
   }
 
-  const text = await response.text();
   let payload = null;
   if (text) {
     try {
