@@ -43,7 +43,10 @@ func runAcceptance(m *testing.M) int {
 			return 1
 		}
 	}
-	db.Init(config.DbConfig{File: dst, SchemaFile: schemaFile})
+	if err := db.Init(config.DbConfig{File: dst, SchemaFile: schemaFile}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	defer db.Close()
 	if src == "" {
 		if err := seedAcceptance(); err != nil {

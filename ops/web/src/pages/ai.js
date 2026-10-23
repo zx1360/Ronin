@@ -1,10 +1,9 @@
 // AI 媒体处理：能力就绪与进度、任务队列、人物分组、检索、近重复与软删除。
 //
-// 页面只负责装配与「按需轮询」：状态来自 /API/ai/status（配合 /API/ai/capabilities
-// 与 /API/ai/settings），只有确实有排队/运行中的任务或模型进程在跑时才定时刷新；
+// 进入/手动刷新时取诊断与配置；活动期间仅轮询 /API/ai/progress。
 // 各标签页只在被选中时挂载，自带加载与空态提示。
 
-import { ref, computed, watch, onMounted } from '../vue.js';
+import { ref, computed, watch, onMounted, onUnmounted } from '../vue.js';
 import { api } from '../api.js';
 import { state, toast } from '../store.js';
 import { usePolling } from '../ui.js';
@@ -14,6 +13,7 @@ import PersonsTab from './ai/persons.js';
 import SearchTab from './ai/search.js';
 import DuplicatesTab from './ai/duplicates.js';
 import DeletedTab from './ai/deleted.js';
+import { mergeProgress } from './ai/state.js';
 
 const TABS = [
   { key: 'overview', label: '概览' },
@@ -24,13 +24,6 @@ const TABS = [
   { key: 'deleted', label: '已删除' },
 ];
 
-/** 状态里缺 capabilities 段时（如尚未启动 worker）退回 /API/ai/capabilities。 */
-function capList(status, fallback) {
-  const fromStatus = status && Array.isArray(status.capabilities) ? status.capabilities : [];
-  if (fromStatus.length) return fromStatus;
-  return Array.isArray(fallback) ? fallback : [];
-}
-
 export default {
   components: {
     OverviewTab, JobsTab, PersonsTab, SearchTab, DuplicatesTab, DeletedTab,
@@ -39,7 +32,6 @@ export default {
     const tab = ref('overview');
     const status = ref(null);
     const runtime = ref(null);
-    const fallbackCapabilities = ref([]);
     const error = ref('');
     const pollError = ref('');
     const loading = ref(false);
@@ -50,12 +42,16 @@ export default {
       if (!status.value) return false;
       return status.value.schema_ready === false;
     });
-    const capabilities = computed(() => capList(status.value, fallbackCapabilities.value));
+    const capabilities = computed(() => status.value?.capabilities || []);
+    const controller = new AbortController();
+    let disposed = false;
+    onUnmounted(() => { disposed = true; controller.abort(); });
 
     /** 是否还有值得持续观察的活动（排队中/批次执行中/侧车或自拉 Ollama 在跑）。 */
     const active = computed(() => {
       const source = status.value;
       if (!source) return false;
+      if (source.sidecars?.some((sidecar) => sidecar.running)) return true;
       if (Array.isArray(source.capabilities) && source.capabilities.some(
         (cap) => cap && cap.sidecar && cap.sidecar.running === true,
       )) return true;
@@ -67,21 +63,25 @@ export default {
 
     /** 拉取一次页面状态；silent 用于轮询，失败只在角落里小声提示，不打扰也不刷屏。 */
     let inFlight = false;
+    let pendingRefresh = null;
     const load = async (options) => {
       const silent = !!(options && options.silent);
-      if (inFlight) return;
+      if (inFlight) {
+        if (!silent) pendingRefresh = { refresh: pendingRefresh?.refresh || options?.refresh };
+        return;
+      }
       inFlight = true;
       // 轮询不切换「刷新中…」，避免每几秒闪一次
       if (!silent) loading.value = true;
       const results = await Promise.allSettled([
-        api.get('/API/ai/status', { timeoutMs: 60000 }),
-        api.get('/API/ai/settings'),
-        api.get('/API/ai/capabilities'),
+        api.get(silent ? '/API/ai/progress' : `/API/ai/status${options?.refresh ? '?refresh=true' : ''}`, { signal: controller.signal }),
+        ...(!silent ? [api.get('/API/ai/settings', { signal: controller.signal })] : []),
       ]);
-      const [statusResult, settingsResult, capsResult] = results;
+      if (disposed) return;
+      const [statusResult, settingsResult] = results;
 
       if (statusResult.status === 'fulfilled') {
-        status.value = statusResult.value || null;
+        status.value = silent ? mergeProgress(status.value, statusResult.value) : statusResult.value;
         error.value = '';
         pollError.value = '';
       } else {
@@ -93,19 +93,15 @@ export default {
         else error.value = message;
       }
 
-      if (settingsResult.status === 'fulfilled') runtime.value = settingsResult.value || null;
-
-      if (capsResult.status === 'fulfilled') {
-        const data = capsResult.value || {};
-        fallbackCapabilities.value = Array.isArray(data.capabilities) ? data.capabilities : [];
-        // 能力契约也带配置段：设置接口不可用时用它兜底显示处理配置
-        if (!runtime.value && data.settings) runtime.value = data.settings;
-      } else {
-        fallbackCapabilities.value = [];
-      }
+      if (settingsResult?.status === 'fulfilled') runtime.value = settingsResult.value || null;
 
       inFlight = false;
       loading.value = false;
+      if (pendingRefresh) {
+        const pending = pendingRefresh;
+        pendingRefresh = null;
+        await load(pending);
+      }
     };
 
     // AI 关闭时一个请求都不再发出（状态里 enabled=false 即可判定），也不做任何重试
@@ -117,14 +113,17 @@ export default {
       enabled: () => !disabled.value && active.value,
     });
 
-    const reload = () => {
-      if (disabled.value) return undefined;
+    const reload = async () => {
+      await load({ refresh: true });
       return poller.trigger();
     };
 
-    onMounted(() => poller.trigger());
+    onMounted(async () => { await load(); poller.trigger(); });
     watch(active, (value) => {
       if (value && !disabled.value) poller.trigger();
+    });
+    watch(() => status.value?.pending_total, (next, previous) => {
+      if (next === 0 && previous > 0 && !disabled.value) load();
     });
 
     /** 统一的动作通道：忙标记 + 成功提示 + 重新拉取状态；失败提示具体原因。 */
@@ -134,6 +133,7 @@ export default {
       try {
         const result = await action();
         if (notice) toast(notice, 'success');
+        await load();
         poller.trigger();
         return result === undefined ? true : result;
       } catch (err) {

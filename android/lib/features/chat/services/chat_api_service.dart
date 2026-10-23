@@ -18,11 +18,7 @@ class ChatStreamEvent {
   final String content;
   final String? error;
 
-  const ChatStreamEvent({
-    required this.type,
-    this.content = '',
-    this.error,
-  });
+  const ChatStreamEvent({required this.type, this.content = '', this.error});
 
   factory ChatStreamEvent.fromJson(Map<String, dynamic> json) {
     return ChatStreamEvent(
@@ -54,7 +50,7 @@ class ChatModelOption {
   });
 }
 
-/// 服务端对话相关默认值（`/API/ai/status` 的 ollama 段 + `/API/ai/capabilities`）。
+/// 服务端对话默认值与模型候选。
 class ChatServerInfo {
   /// 当前选定的标注模型（即不逐次指定 model 时使用的那个）。
   final String model;
@@ -77,59 +73,35 @@ class ChatServerInfo {
     required this.keepAliveSeconds,
     required this.ready,
   });
+
+  factory ChatServerInfo.fromJson(Map<String, dynamic> data) => ChatServerInfo(
+    model: data['model'] as String,
+    activeModel: data['active_model'] as String,
+    candidates: [
+      for (final item in data['candidates'] as List)
+        ChatModelOption(
+          model: item['model'] as String,
+          installed: item['installed'] as bool,
+          vision: item['vision'] as bool,
+          current: item['is_current'] as bool,
+        ),
+    ],
+    numCtx: data['num_ctx'] as int,
+    keepAliveSeconds: data['keep_alive_seconds'] as int,
+    ready: data['ready'] as bool,
+  );
 }
 
 /// 读取服务端默认值；不可达时由调用方降级展示。
 final chatServerInfoProvider = FutureProvider<ChatServerInfo>((ref) async {
   final client = ref.watch(apiClientManagerProvider);
   try {
-    final response = await client.get('/API/ai/status');
-    final data = response.data as Map<String, dynamic>;
-    final ollama = data['ollama'] as Map<String, dynamic>? ?? const {};
-
-    // 候选就是本机已安装的模型（服务端实时从 Ollama 取，用户自行 pull/rm 后无需改端上代码）；
-    // 拿不到清单时给空列表，页面如实显示"无法获取模型清单"，不凭空造候选。
-    final candidates = await _fetchCandidates(client) ?? const <ChatModelOption>[];
-
-    return ChatServerInfo(
-      model: (ollama['model'] ?? '').toString(),
-      activeModel: (ollama['active_model'] ?? '').toString(),
-      candidates: candidates,
-      numCtx: (ollama['num_ctx'] as num?)?.toInt() ?? 0,
-      keepAliveSeconds:
-          (ollama['keep_alive_default_seconds'] as num?)?.toInt() ?? 300,
-      ready: ollama['model_ready'] == true,
-    );
+    final response = await client.get('/API/ai/chat/info');
+    return ChatServerInfo.fromJson(response.data as Map<String, dynamic>);
   } catch (e) {
     throw ApiClient.mapError(e);
   }
 });
-
-/// 取 VLM 能力的执行者候选；AI 表未初始化等情况下返回 null（设置页仍可用）。
-Future<List<ChatModelOption>?> _fetchCandidates(ApiClient client) async {
-  try {
-    final response = await client.get('/API/ai/capabilities');
-    final data = response.data as Map<String, dynamic>;
-    final list = data['capabilities'] as List? ?? const [];
-    for (final item in list) {
-      final capability = item as Map<String, dynamic>;
-      if (capability['capability'] != 'vlm') continue;
-      final raw = capability['executor_candidates'] as List? ?? const [];
-      return [
-        for (final candidate in raw)
-          ChatModelOption(
-            model: (candidate['model'] ?? '').toString(),
-            installed: candidate['installed'] == true,
-            vision: candidate['vision'] == true,
-            current: candidate['is_current'] == true,
-          ),
-      ];
-    }
-    return null;
-  } catch (_) {
-    return null;
-  }
-}
 
 class ChatApiService {
   ChatApiService(this._client);

@@ -30,7 +30,11 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "创建临时目录失败: %v\n", err)
 		os.Exit(1)
 	}
-	db.Init(config.DbConfig{File: filepath.Join(dir, "review_test.db"), SchemaFile: testSchema})
+	if err := db.Init(config.DbConfig{File: filepath.Join(dir, "review_test.db"), SchemaFile: testSchema}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.RemoveAll(dir)
+		os.Exit(1)
+	}
 
 	code := m.Run()
 

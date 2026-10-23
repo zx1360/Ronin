@@ -1,4 +1,4 @@
-﻿# 生成跨端契约快照（路由表 + CLI 帮助）。
+# 生成跨端契约快照（路由表 + CLI 帮助）。
 #
 # 真源永远是 Go 代码，任何时刻重跑本脚本即可得到最新契约。
 # 输出统一落在 references/generated/ 下，repositories 里只需维护本脚本。
@@ -42,7 +42,8 @@ function Capture-HelpSnapshot {
         [Parameter(Mandatory = $true)][string]$WorkingDir,
         [Parameter(Mandatory = $true)][string]$OutPath,
         [Parameter(Mandatory = $true)][string]$Command,
-        [Parameter(Mandatory = $true)][string[]]$Args
+        [Parameter(Mandatory = $true)][string[]]$Args,
+        [Parameter(Mandatory = $true)][string]$DisplayCommand
     )
 
     $stdoutFile = [System.IO.Path]::GetTempFileName()
@@ -54,8 +55,6 @@ function Capture-HelpSnapshot {
         $stdoutBytes = [System.IO.File]::ReadAllBytes($stdoutFile)
         $stderrBytes = [System.IO.File]::ReadAllBytes($stderrFile)
         $allBytes = Join-ByteArrays -First $stdoutBytes -Second $stderrBytes
-        # go run 把产物放在随机临时目录，flag 包又打印 os.Args[0]，该行含机器相关的绝对路径；
-        # 归一化掉才能重复生成出相同快照。
         $text = ([System.Text.Encoding]::UTF8.GetString($allBytes) -replace '(?m)^Usage of .*:$', 'Usage of <binary>:').TrimEnd()
         if ([string]::IsNullOrWhiteSpace($text)) {
             $text = "(no output)"
@@ -63,7 +62,7 @@ function Capture-HelpSnapshot {
 
         Ensure-Directory -Path (Split-Path -Parent $OutPath)
 
-        $cmdLine = "$Command $($Args -join ' ')"
+        $cmdLine = $DisplayCommand
         $content = @(
             "# CLI Help Snapshot",
             "",
@@ -100,19 +99,35 @@ function Invoke-Generation {
     Ensure-Directory -Path $apiDir
     Ensure-Directory -Path $cliDir
 
+    $buildDir = Join-Path ([System.IO.Path]::GetTempPath()) ("refs-build-" + [guid]::NewGuid().ToString("N"))
+    Ensure-Directory -Path $buildDir
     Push-Location $Root
     try {
-        Write-Host "[refs] exporting router snapshot..."
-        go run ./cmd/route_export -json (Join-Path $apiDir "routes.json") -md (Join-Path $apiDir "routes.md")
-
-        Write-Host "[refs] capturing CLI snapshots..."
-        Capture-HelpSnapshot -WorkingDir $Root -OutPath (Join-Path $cliDir "monarch-main.md") -Command "go" -Args @("run", "./cmd/main.go", "-h")
-
+        $exporter = Join-Path $buildDir "route-export.exe"
+        $monarch = Join-Path $buildDir "monarch.exe"
+        $gallery = Join-Path $buildDir "gallery.exe"
+        go build -o $exporter ./cmd/route_export
+        if ($LASTEXITCODE -ne 0) { throw "路由导出工具构建失败" }
+        & $exporter -json (Join-Path $apiDir "routes.json") -md (Join-Path $apiDir "routes.md")
+        if ($LASTEXITCODE -ne 0) { throw "路由导出失败" }
+        go build -o $monarch ./cmd
+        if ($LASTEXITCODE -ne 0) { throw "Monarch 构建失败" }
+        Capture-HelpSnapshot -WorkingDir $Root -OutPath (Join-Path $cliDir "monarch-main.md") -Command $monarch -Args @("-h") -DisplayCommand "monarch -h"
         $gizmosRoot = Join-Path $Root "gizmos"
-        Capture-HelpSnapshot -WorkingDir $gizmosRoot -OutPath (Join-Path $cliDir "gizmos-gallery.md") -Command "go" -Args @("run", "./cmd/gallery", "-h")
+        Push-Location $gizmosRoot
+        try {
+            go build -o $gallery ./cmd/gallery
+            if ($LASTEXITCODE -ne 0) { throw "Gallery 构建失败" }
+        }
+        finally { Pop-Location }
+        Capture-HelpSnapshot -WorkingDir $gizmosRoot -OutPath (Join-Path $cliDir "gizmos-gallery.md") -Command $gallery -Args @("-h") -DisplayCommand "gallery -h"
     }
     finally {
         Pop-Location
+        $resolvedBuildDir = [System.IO.Path]::GetFullPath($buildDir)
+        $tempParent = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+        if (-not $resolvedBuildDir.StartsWith($tempParent, [StringComparison]::OrdinalIgnoreCase)) { throw "临时构建目录越界" }
+        Remove-Item -LiteralPath $resolvedBuildDir -Recurse -Force
     }
 }
 
@@ -174,7 +189,10 @@ if ($Check) {
         Write-Host "[refs] check ok"
     }
     finally {
-        Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        $resolvedTempRoot = [System.IO.Path]::GetFullPath($tempRoot)
+        $tempParent = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+        if (-not $resolvedTempRoot.StartsWith($tempParent, [StringComparison]::OrdinalIgnoreCase)) { throw "临时校验目录越界" }
+        Remove-Item -LiteralPath $resolvedTempRoot -Recurse -Force
     }
 }
 else {

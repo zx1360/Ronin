@@ -67,6 +67,9 @@ Map<String, String> deletedUserData(
   if (incoming['sync_version'] != 2) {
     throw const FormatException('服务端不支持增量合并，请先更新后端');
   }
+  if (incoming['cursor'] is! int || (incoming['cursor'] as int) < 0) {
+    throw const FormatException('服务端返回了无效的同步游标');
+  }
   local = Map<String, dynamic>.from(jsonDecode(jsonEncode(local)) as Map);
   final metadata = userDataSyncBox.toMap().cast<String, String>();
   final collections = module == 'essay'

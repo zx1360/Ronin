@@ -1,79 +1,101 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
+
 	"monarch/internal/config"
 	"monarch/internal/router"
 	"monarch/internal/service/mdns"
 	"monarch/internal/service/tls"
-	"os"
-	"path/filepath"
-	"strconv"
 )
 
-// StartServer 同时提供局域网 HTTPS 与仅回环 HTTP，路由一致：
-//
-//	LOCAL_PORT      HTTPS（自签证书，供 Android 等局域网消费端）
-//	LOCAL_HTTP_PORT HTTP （供本机浏览器打开运维页面，免证书警告）
-//
-// 不需要"启动模式"开关：网页运维端与它的本机能力接口只接受回环地址
-// （见 router 的 LocalOnly），与走哪个端口无关；其余接口两个端口都要 X-API-Key。
-func StartServer() {
-	r := router.SetupRouter()
-
-	httpsPort := config.NetConf.LocalPort
-	httpPort := config.NetConf.LocalHTTPPort
-
+// StartServer 提供 HTTPS 与仅回环 HTTP；取消上下文或任一监听失败时关闭两端。
+func StartServer(ctx context.Context) error {
 	certFile := filepath.Join("cert", "server.crt")
 	keyFile := filepath.Join("cert", "server.key")
 	if err := tls.EnsureCert(certFile, keyFile); err != nil {
-		log.Fatalf("证书初始化失败: %v", err)
+		return fmt.Errorf("证书初始化失败: %w", err)
 	}
+	secure, err := net.Listen("tcp", ":"+config.NetConf.LocalPort)
+	if err != nil {
+		return fmt.Errorf("HTTPS 监听失败: %w", err)
+	}
+	defer secure.Close()
+	local, err := net.Listen("tcp", "127.0.0.1:"+config.NetConf.LocalHTTPPort)
+	if err != nil {
+		return fmt.Errorf("HTTP 监听失败: %w", err)
+	}
+	defer local.Close()
 
-	// mDNS 广播 HTTPS 端口：局域网消费端沿用原有连法
-	startMDNS(httpsPort)
-
-	errCh := make(chan error, 2)
-
-	go func() {
-		log.Printf("HTTPS 已监听 :%s（网页运维端: https://127.0.0.1:%s/ops/）", httpsPort, httpsPort)
-		if err := r.RunTLS(":"+httpsPort, certFile, keyFile); err != nil {
-			errCh <- fmt.Errorf("HTTPS 服务启动失败: %w", err)
-		}
-	}()
-
-	go func() {
-		log.Printf("HTTP  已监听 127.0.0.1:%s（网页端: http://127.0.0.1:%s/ops/）", httpPort, httpPort)
-		if err := r.Run("127.0.0.1:" + httpPort); err != nil {
-			errCh <- fmt.Errorf("HTTP 服务启动失败: %w", err)
-		}
-	}()
-
-	// 任一监听失败即整体退出：少一个端口属于配置问题，不该悄悄降级
-	log.Fatalf("%v", <-errCh)
+	stopMDNS := startMDNS(config.NetConf.LocalPort)
+	defer stopMDNS()
+	log.Printf("HTTPS 已监听 %s；HTTP 已监听 %s", secure.Addr(), local.Addr())
+	return serve(ctx, router.SetupRouter(), secure, local, certFile, keyFile)
 }
 
-// startMDNS 启动 mDNS 服务注册（供 Android 端自动发现，指向 HTTPS 端口）。
-func startMDNS(portStr string) {
+func serve(ctx context.Context, handler http.Handler, secure, local net.Listener, certFile, keyFile string) error {
+	defer secure.Close()
+	defer local.Close()
+	requests, cancel := context.WithCancel(ctx)
+	defer cancel()
+	servers := []*http.Server{
+		{Handler: handler, ReadHeaderTimeout: 10 * time.Second},
+		{Handler: handler, ReadHeaderTimeout: 10 * time.Second},
+	}
+	for _, server := range servers {
+		server.BaseContext = func(net.Listener) context.Context { return requests }
+	}
+	finished := make(chan error, 2)
+	go func() { finished <- servers[0].ServeTLS(secure, certFile, keyFile) }()
+	go func() { finished <- servers[1].Serve(local) }()
+	remaining := 2
+	var result error
+	select {
+	case <-ctx.Done():
+	case err := <-finished:
+		remaining--
+		if !errors.Is(err, http.ErrServerClosed) {
+			result = err
+		}
+	}
+	cancel()
+	shutdown, stop := context.WithTimeout(context.Background(), 10*time.Second)
+	defer stop()
+	for _, server := range servers {
+		if err := server.Shutdown(shutdown); err != nil {
+			result = errors.Join(result, err)
+			_ = server.Close()
+		}
+	}
+	for ; remaining > 0; remaining-- {
+		<-finished
+	}
+	return result
+}
+
+func startMDNS(portStr string) func() {
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		log.Printf("[mDNS] 端口解析失败，跳过服务注册: %v", err)
-		return
+		log.Printf("[mDNS] 端口解析失败，跳过注册: %v", err)
+		return func() {}
 	}
-
 	hostname, _ := os.Hostname()
-	instance := fmt.Sprintf("Monarch on %s", hostname)
-
-	go func() {
-		_, err := mdns.Register(mdns.ServiceInfo{
-			Instance: instance,
-			Port:     port,
-			IsHTTPS:  true,
-			HasAuth:  true,
-		})
-		if err != nil {
-			log.Printf("[mDNS] 服务注册失败: %v", err)
-		}
-	}()
+	server, err := mdns.Register(mdns.ServiceInfo{
+		Instance: fmt.Sprintf("Monarch on %s", hostname), Port: port,
+		IsHTTPS: true, HasAuth: true,
+	})
+	if err != nil {
+		log.Printf("[mDNS] 服务注册失败: %v", err)
+		return func() {}
+	}
+	return func() { _ = server.Shutdown() }
 }

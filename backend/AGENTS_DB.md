@@ -58,7 +58,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 - **模糊检索退化为 `LIKE '%kw%'` 全表扫描**（无 pg_trgm/FTS 索引）：`media_ai` 表窄、
   7 万行实测 29ms 反而更快，但**代价随文本量线性增长**，是必须留意的隐性上限；
   OCR/描述体量大幅增长时再引入 FTS5(trigram) 虚拟表。
-- AI 待处理统计是 3 路 LEFT JOIN，由 `/API/ai/status` 每 30s 刷新一次，靠上述覆盖索引压到 0.3s。
+- AI 尚无产物统计是 3 路 LEFT JOIN，仅由 `/API/ai/status` 按需查询；日常进度轮询不执行该统计。
 
 ## 验收
 

@@ -242,7 +242,7 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		log.Printf("[AI] 标记任务完成失败: %v", err)
 	}
 	// 用户主动中断 / 模型被切换抢占：未完成的任务退回队列，不计失败
-	if e.cancelRequested.Load() || e.TakeSwitchAbort() {
+	if parent.Err() != nil || e.cancelRequested.Load() || e.TakeSwitchAbort() {
 		if err := ai_repo.ReleaseRunning(failedJobIDs); err != nil {
 			log.Printf("[AI] 释放任务失败: %v", err)
 		}

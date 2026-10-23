@@ -79,6 +79,8 @@ const maxStderrTail = 4 * 1024
 // Manager 维护全部任务的内存注册表。
 type Manager struct {
 	mu      sync.Mutex
+	wg      sync.WaitGroup
+	closed  bool
 	seq     int
 	tasks   map[string]*Task
 	maxLogs int // 单任务日志行数上限
@@ -103,6 +105,10 @@ func (m *Manager) Start(spec Spec) (*Task, error) {
 	}
 
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return nil, errors.New("任务管理器已关闭")
+	}
 	m.seq++
 	taskID := fmt.Sprintf("t%d", m.seq)
 	task := &Task{
@@ -113,6 +119,7 @@ func (m *Manager) Start(spec Spec) (*Task, error) {
 		StartedAt: time.Now(),
 	}
 	m.tasks[taskID] = task
+	m.wg.Add(1)
 	snapshot := snapshotTask(task)
 	m.mu.Unlock()
 
@@ -128,6 +135,7 @@ func commandLine(spec Spec) string {
 
 // run 在子协程中执行命令并更新任务状态。
 func (m *Manager) run(task *Task, spec Spec) {
+	defer m.wg.Done()
 	process := exec.Command(spec.Exe, spec.Args...)
 	if spec.Dir != "" {
 		process.Dir = spec.Dir
@@ -141,18 +149,30 @@ func (m *Manager) run(task *Task, spec Spec) {
 		m.finish(task, StatusFailed, nil, 0, fmt.Errorf("创建 stdout 管道失败: %v", err))
 		return
 	}
+	defer stdoutPipe.Close()
 	stderrPipe, err := process.StderrPipe()
 	if err != nil {
 		m.finish(task, StatusFailed, nil, 0, fmt.Errorf("创建 stderr 管道失败: %v", err))
 		return
 	}
+	defer stderrPipe.Close()
 
-	if err := process.Start(); err != nil {
+	m.mu.Lock()
+	if task.killed.Load() {
+		m.mu.Unlock()
+		m.finish(task, StatusKilled, nil, 0, errors.New("任务已被中断"))
+		return
+	}
+	err = process.Start()
+	if err == nil {
+		task.PID = process.Process.Pid
+		task.proc = process
+	}
+	m.mu.Unlock()
+	if err != nil {
 		m.finish(task, StatusFailed, nil, 0, fmt.Errorf("启动进程失败: %v", err))
 		return
 	}
-	m.setPID(task, process.Process.Pid)
-	m.setProc(task, process)
 
 	// stdout 完整读取后交给 Parse；stderr 逐行追加为进度日志（同时保留尾部用于错误上报）。
 	var stdoutBuf strings.Builder
@@ -264,21 +284,26 @@ func (m *Manager) stderrTailOf(task *Task) string {
 func (m *Manager) Stop(taskID string) error {
 	m.mu.Lock()
 	task := m.tasks[taskID]
-	m.mu.Unlock()
 	if task == nil {
+		m.mu.Unlock()
 		return fmt.Errorf("任务 %s 不存在", taskID)
 	}
 	if task.Status != StatusRunning {
-		return fmt.Errorf("任务 %s 当前状态为 %s，无法中断", taskID, task.Status)
+		status := task.Status
+		m.mu.Unlock()
+		return fmt.Errorf("任务 %s 当前状态为 %s，无法中断", taskID, status)
 	}
 
 	task.killed.Store(true)
+	pid, process := task.PID, task.proc
+	m.mu.Unlock()
 	m.appendLog(task, "system", "正在中断任务（kill 进程树）...")
 
 	// 尽力清理进程树（权限允许时）
-	_ = exec.Command("taskkill", "/PID", fmt.Sprint(task.PID), "/T", "/F").Run()
+	if pid > 0 {
+		_ = exec.Command("taskkill", "/PID", fmt.Sprint(pid), "/T", "/F").Run()
+	}
 
-	process := m.getProc(task)
 	if process != nil && process.Process != nil {
 		// 主进程 TerminateProcess（幂等；进程已退出时返回错误可忽略）
 		_ = process.Process.Kill()
@@ -360,12 +385,14 @@ func (m *Manager) RunningCount() int {
 	return count
 }
 
-// KillAll 中断全部运行中任务（供服务退出前调用）。
-func (m *Manager) KillAll() {
+// Close 拒绝新任务，中断进程树并等待任务退出。
+func (m *Manager) Close() {
 	m.mu.Lock()
+	m.closed = true
 	var running []*Task
 	for _, t := range m.tasks {
 		if t.Status == StatusRunning {
+			t.killed.Store(true)
 			running = append(running, t)
 		}
 	}
@@ -373,27 +400,10 @@ func (m *Manager) KillAll() {
 	for _, t := range running {
 		_ = m.Stop(t.ID)
 	}
+	m.wg.Wait()
 }
 
 // --- 内部辅助 ---
-
-func (m *Manager) setPID(task *Task, pid int) {
-	m.mu.Lock()
-	task.PID = pid
-	m.mu.Unlock()
-}
-
-func (m *Manager) setProc(task *Task, process *exec.Cmd) {
-	m.mu.Lock()
-	task.proc = process
-	m.mu.Unlock()
-}
-
-func (m *Manager) getProc(task *Task) *exec.Cmd {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return task.proc
-}
 
 func (m *Manager) appendLog(task *Task, stream, text string) {
 	m.mu.Lock()

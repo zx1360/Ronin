@@ -9,7 +9,7 @@
 3. `db.Init()` 打开 SQLite，应用幂等 schema 和列迁移。
 4. 创建并加载 `ops_web.json` 对应的 `OpsStore`，注入 Ops handler。
 5. 创建 AI `Engine`，注入暂停状态存储并启动后台循环。
-6. 启动 HTTP/HTTPS 双端口；退出时停止 AI、Gallery 和 comix 子进程。
+6. 启动 HTTP/HTTPS 双端口；信号或监听失败会取消请求，关闭监听与 mDNS，等待 AI、Gallery、comix 退出后关闭数据库。服务层返回错误，不结束进程。
 
 这意味着 handler 不应自行创建数据库、配置或外部进程；这些资源由启动装配提供全局服务门面。
 
@@ -92,7 +92,7 @@ erDiagram
 
 - 异步启动、stdout/stderr 逐行日志、退出码和结构化结果。
 - 任务状态只保留在内存，服务重启即清空。
-- `Stop`/`KillAll` 负责杀进程树，避免 Python/CLI 孤儿进程。
+- `Stop` 中断单个任务；`Close` 拒绝新任务、杀进程树并等待任务退出。
 
 两个消费者：
 
@@ -121,6 +121,7 @@ cluster：人脸在线归并与批量重聚类
 - 本机只有一个 GPU，模型仲裁器保证同一时间只运行一个模型；前台聊天可抢占后台标注。
 - `AI_ENABLED=false` 或 AI schema 缺失时，主服务仍启动；端上应将 AI 失败降级而不是白屏。
 - `/API/ai/chat` 和 `/API/ai/review` 是 NDJSON 流；先有状态/通知类事件，再有增量内容。
+- `/API/ai/progress` 仅读取队列与内存进程状态；`/status` 按需提供媒体统计与依赖诊断，`?refresh=true` 刷新探测缓存。聊天配置与候选通过 `/chat/info` 获取，不触发媒体诊断。
 
 ## 7. 修改后验证
 

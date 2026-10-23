@@ -50,7 +50,22 @@ func Status(c *gin.Context) {
 	if e == nil {
 		return
 	}
+	if c.Query("refresh") == "true" {
+		e.RefreshDiagnostics()
+	}
 	c.JSON(http.StatusOK, e.Status(c.Request.Context()))
+}
+
+func Progress(c *gin.Context) {
+	if e := engine(c); e != nil {
+		c.JSON(http.StatusOK, e.Progress(c.Request.Context()))
+	}
+}
+
+func ChatInfo(c *gin.Context) {
+	if e := engine(c); e != nil {
+		c.JSON(http.StatusOK, e.ChatInfo(c.Request.Context()))
+	}
 }
 
 // ListJobs 处理 GET /API/ai/jobs
