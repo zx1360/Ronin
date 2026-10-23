@@ -54,6 +54,7 @@ type Engine struct {
 	wake     chan struct{}
 	cancel   context.CancelFunc
 	stopOnce sync.Once
+	loops    sync.WaitGroup
 
 	// 最近一次批次执行信息（供 /status 展示）
 	runMu       sync.RWMutex
@@ -69,12 +70,6 @@ type Engine struct {
 	pauseStore *config.OpsStore
 	// clusterRun 串行化重新聚类操作
 	clusterRun sync.Mutex
-
-	// "尚无产物"统计的缓存（整表扫描，不能每次状态轮询都算；异步刷新）
-	missingMu          sync.Mutex
-	missingCountsCache map[string]int
-	missingAt          time.Time
-	missingRefreshing  bool
 }
 
 // RunInfo 描述当前/最近一次批次执行。
@@ -122,7 +117,7 @@ func (e *Engine) Config() config.AiConfig { return e.rt.Config() }
 func (e *Engine) ConfigPath() string { return e.rt.StorePath() }
 
 // Start 启动后台循环；AI 未启用或 schema 缺失时安全退出（不影响主服务）。
-func (e *Engine) Start() {
+func (e *Engine) Start(parent context.Context) {
 	cfg := e.Config()
 	if !cfg.Enabled {
 		log.Println("[AI] 已通过 AI_ENABLED=false 关闭，跳过启动")
@@ -133,7 +128,7 @@ func (e *Engine) Start() {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parent)
 	e.cancel = cancel
 	e.started = true
 
@@ -156,15 +151,23 @@ func (e *Engine) Start() {
 		log.Printf("[AI] 已回收 %d 条中断任务", n)
 	}
 
-	go e.reconcileLoop(ctx)
-	go e.workerLoop(ctx)
+	e.startLoop(ctx, e.reconcileLoop)
+	e.startLoop(ctx, e.workerLoop)
 	for _, s := range e.sidecars() {
-		go s.supervise(ctx)
+		e.startLoop(ctx, s.supervise)
 	}
-	go e.ollama.supervise(ctx)
+	e.startLoop(ctx, e.ollama.supervise)
 
 	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s 配置=%s）",
 		cfg.Workers, cfg.BatchSize, cfg.IdleTimeout, cfg.OllamaIdle, e.ConfigPath())
+}
+
+func (e *Engine) startLoop(ctx context.Context, run func(context.Context)) {
+	e.loops.Add(1)
+	go func() {
+		defer e.loops.Done()
+		run(ctx)
+	}()
 }
 
 // Stop 停止全部后台循环并回收外部进程（服务退出时调用）。
@@ -177,6 +180,7 @@ func (e *Engine) Stop() {
 			s.Shutdown()
 		}
 		e.ollama.Shutdown()
+		e.loops.Wait()
 	})
 }
 

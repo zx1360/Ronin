@@ -42,13 +42,18 @@ func File() string {
 }
 
 // Init 打开数据库文件、应用 pragma 并执行幂等建表脚本。
-func Init(conf config.DbConfig) {
+func Init(conf config.DbConfig) (err error) {
+	defer func() {
+		if err != nil {
+			Close()
+		}
+	}()
 	abs, err := filepath.Abs(conf.File)
 	if err != nil {
-		log.Fatalf("解析数据库路径失败: %v", err)
+		return fmt.Errorf("解析数据库路径失败: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		log.Fatalf("创建数据库目录失败: %v", err)
+		return fmt.Errorf("创建数据库目录失败: %w", err)
 	}
 	dbFile = abs
 
@@ -57,14 +62,14 @@ func Init(conf config.DbConfig) {
 		"&_pragma=cache_size(-%d)", filepath.ToSlash(abs), busyTimeoutMS, pageCacheKiB)
 
 	if writePool, err = sql.Open("sqlite", base+"&_txlock=immediate"); err != nil {
-		log.Fatalf("打开数据库（写）失败: %v", err)
+		return fmt.Errorf("打开数据库（写）失败: %w", err)
 	}
 	writePool.SetMaxOpenConns(1)
 	writePool.SetMaxIdleConns(1)
 	writePool.SetConnMaxLifetime(0)
 
 	if readPool, err = sql.Open("sqlite", base); err != nil {
-		log.Fatalf("打开数据库（读）失败: %v", err)
+		return fmt.Errorf("打开数据库（读）失败: %w", err)
 	}
 	readPool.SetMaxOpenConns(8)
 	readPool.SetMaxIdleConns(1)
@@ -74,20 +79,21 @@ func Init(conf config.DbConfig) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := writePool.PingContext(ctx); err != nil {
-		log.Fatalf("数据库连接失败: %v", err)
+		return fmt.Errorf("数据库连接失败: %w", err)
 	}
 
 	if err := applySchema(ctx, conf.SchemaFile); err != nil {
-		log.Fatalf("初始化数据库结构失败: %v", err)
+		return fmt.Errorf("初始化数据库结构失败: %w", err)
 	}
 	if err := ensureColumns(ctx); err != nil {
-		log.Fatalf("数据库列迁移失败: %v", err)
+		return fmt.Errorf("数据库列迁移失败: %w", err)
 	}
 	if err := ensureUserDataSync(ctx); err != nil {
-		log.Fatalf("用户数据同步结构初始化失败: %v", err)
+		return fmt.Errorf("用户数据同步结构初始化失败: %w", err)
 	}
 
 	log.Printf("SQLite 数据库就绪: %s", abs)
+	return nil
 }
 
 // applySchema 执行幂等建表脚本（与 references/db/sqlite.sql 同源）。

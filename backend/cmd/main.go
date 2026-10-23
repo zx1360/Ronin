@@ -6,9 +6,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
+	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"monarch/internal/config"
 	"monarch/internal/handler/ops_handler"
@@ -23,9 +27,19 @@ func main() {
 	// 没有命令行参数；保留 flag.Parse() 让 `-h` 能打印用法并退出
 	// （契约快照脚本 references/scripts/generate_refs.ps1 会采集它）。
 	flag.Parse()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx); err != nil {
+		log.Print(err)
+		os.Exit(1)
+	}
+}
 
+func run(parent context.Context) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
 	if err := config.Load(); err != nil {
-		log.Fatalf("配置加载失败: %v", err)
+		return err
 	}
 
 	// 运行时可调的 AI 配置.
@@ -33,16 +47,18 @@ func main() {
 	store := config.NewConfigStore(
 		filepath.Join(config.AppConf.StaticDir, "data", "ai_config.json"), config.AiConf)
 	if err := store.Load(); err != nil {
-		log.Fatalf("AI 配置加载失败: %v", err)
+		return err
 	}
 
-	db.Init(config.DbConf)
+	if err := db.Init(config.DbConf); err != nil {
+		return err
+	}
 	defer db.Close()
 
 	// 网页运维端（ops）的界面偏好存 static/data/ops_web.json，由服务端读写
 	opsStore := config.NewOpsStore(filepath.Join(config.AppConf.StaticDir, "data", "ops_web.json"))
 	if err := opsStore.Load(); err != nil {
-		log.Fatalf("网页端偏好加载失败: %v", err)
+		return err
 	}
 	ops_handler.SetStore(opsStore)
 
@@ -52,12 +68,14 @@ func main() {
 	ai.Default = ai.New(store, config.AiConf)
 	// 任务队列的暂停状态随网页端偏好一起持久化：服务重启后不默认开跑
 	ai.Default.SetPauseStore(opsStore)
-	ai.Default.Start()
+	ai.Default.Start(ctx)
 	defer ai.Default.Stop()
 
 	// 被托管的子进程随服务退出一起中断（任务状态只存在内存里，留着也没人管）
-	defer gallery.Manager.KillAll()
-	defer comix.Manager.KillAll()
+	defer gallery.Manager.Close()
+	defer comix.Manager.Close()
 
-	server.StartServer()
+	err := server.StartServer(ctx)
+	cancel()
+	return err
 }

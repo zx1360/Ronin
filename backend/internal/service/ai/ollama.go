@@ -43,6 +43,11 @@ type Ollama struct {
 	lastUsed time.Time
 	// keepAlive 最近一次对话请求要求的模型驻留时长，用于放宽自拉服务的空闲回收
 	keepAlive time.Duration
+	closed    bool
+	modelsMu  sync.Mutex
+	models    []ModelInfo
+	modelsErr error
+	modelsAt  time.Time
 }
 
 // NewOllama 创建 Ollama 客户端。
@@ -123,6 +128,22 @@ func (o *Ollama) ListModels(ctx context.Context) ([]string, error) {
 
 // ListModelInfo 返回本地已安装模型及其能力信息（模型列表的唯一真源）。
 func (o *Ollama) ListModelInfo(ctx context.Context) ([]ModelInfo, error) {
+	o.modelsMu.Lock()
+	defer o.modelsMu.Unlock()
+	if time.Since(o.modelsAt) >= 5*time.Second {
+		models, err := o.loadModelInfo(ctx)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		o.models, o.modelsErr, o.modelsAt = models, err, time.Now()
+		if err != nil {
+			o.modelsAt = time.Time{}
+		}
+	}
+	return append([]ModelInfo(nil), o.models...), o.modelsErr
+}
+
+func (o *Ollama) loadModelInfo(ctx context.Context) ([]ModelInfo, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -198,6 +219,19 @@ func (o *Ollama) resolveExe() string {
 // EnsureReady 确保 Ollama 可用：已运行则直接复用（不接管用户自启的实例），
 // 未运行且能找到可执行文件时按需拉起，并在空闲后由 supervise 回收。
 func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	o.mu.Lock()
+	closed := o.closed
+	o.mu.Unlock()
+	if closed {
+		return errors.New("Ollama 客户端已关闭")
+	}
+	// 模型目录缓存不代表服务仍在线，执行前重新确认。
+	o.modelsMu.Lock()
+	o.modelsAt = time.Time{}
+	o.modelsMu.Unlock()
 	if _, err := o.ListModels(ctx); err == nil {
 		return nil
 	}
@@ -208,6 +242,10 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 	}
 
 	o.mu.Lock()
+	if o.closed || ctx.Err() != nil {
+		o.mu.Unlock()
+		return errors.New("Ollama 启动已取消")
+	}
 	if o.proc == nil {
 		cmd := exec.Command(exe, "serve")
 		// 继承本进程环境：若 backend/.env 里配置了 OLLAMA_MODELS（godotenv 会写入
@@ -629,30 +667,30 @@ func (o *Ollama) StopServer() {
 	o.mu.Unlock()
 	if proc != nil {
 		killProcessTree(proc)
+		_ = proc.Wait()
 	}
 }
 
 // Shutdown 关闭客户端（服务退出时调用）。
 func (o *Ollama) Shutdown() {
+	o.mu.Lock()
+	o.closed = true
+	o.mu.Unlock()
 	o.StopServer()
+	o.client.CloseIdleConnections()
 }
 
 // OllamaState Ollama 运行状态快照。
 type OllamaState struct {
+	OllamaProcessState
 	URL string `json:"url"`
 	// Model 当前选定的 VLM 标注模型（空 = 尚未选定）
-	Model       string `json:"model"`
-	ActiveModel string `json:"active_model"` // 当前正在推理的模型（空 = 空闲）
-	// LastSwitch 最近一次"后台批次被前台对话抢占"的说明（空 = 无）
-	LastSwitch  string   `json:"last_switch,omitempty"`
-	NumCtx      int      `json:"num_ctx"`
-	Reachable   bool     `json:"reachable"`
-	ModelReady  bool     `json:"model_ready"`
-	Error       string   `json:"error,omitempty"`
-	OwnedServer bool     `json:"owned_server"` // true 表示进程由本服务按需拉起
-	PID         int      `json:"pid"`
-	IdleSeconds int      `json:"idle_seconds"`
-	Models      []string `json:"models,omitempty"`
+	Model      string   `json:"model"`
+	NumCtx     int      `json:"num_ctx"`
+	Reachable  bool     `json:"reachable"`
+	ModelReady bool     `json:"model_ready"`
+	Error      string   `json:"error,omitempty"`
+	Models     []string `json:"models,omitempty"`
 	// ModelRoot 自拉的 ollama serve 会使用的模型目录（OLLAMA_MODELS，未配置时为默认目录）；
 	// 服务不可达时它是排查"拉起来了却看不到模型"的第一线索。
 	ModelRoot string `json:"model_root"`
@@ -664,10 +702,32 @@ type OllamaState struct {
 	Thinking bool `json:"thinking"`
 }
 
-// State 返回 Ollama 状态快照；model 为当前选定的 VLM 模型。
-func (o *Ollama) State(ctx context.Context, model string) OllamaState {
+type OllamaProcessState struct {
+	ActiveModel string `json:"active_model"`
+	LastSwitch  string `json:"last_switch,omitempty"`
+	OwnedServer bool   `json:"owned_server"`
+	PID         int    `json:"pid"`
+	IdleSeconds int    `json:"idle_seconds"`
+}
+
+func (o *Ollama) ProcessState() OllamaProcessState {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	state := OllamaProcessState{}
+	if o.proc != nil && o.proc.Process != nil {
+		state.OwnedServer = true
+		state.PID = o.proc.Process.Pid
+		if !o.lastUsed.IsZero() {
+			state.IdleSeconds = int(time.Since(o.lastUsed).Seconds())
+		}
+	}
+	return state
+}
+
+func (o *Ollama) snapshot(model string) OllamaState {
 	cfg := o.currentConfig()
 	state := OllamaState{
+		OllamaProcessState:      o.ProcessState(),
 		URL:                     cfg.OllamaURL,
 		Model:                   model,
 		NumCtx:                  cfg.OllamaVLMCTX,
@@ -677,16 +737,11 @@ func (o *Ollama) State(ctx context.Context, model string) OllamaState {
 		ModelRoot:               o.modelRoot(),
 	}
 
-	o.mu.Lock()
-	if o.proc != nil && o.proc.Process != nil {
-		state.OwnedServer = true
-		state.PID = o.proc.Process.Pid
-		if !o.lastUsed.IsZero() {
-			state.IdleSeconds = int(time.Since(o.lastUsed).Seconds())
-		}
-	}
-	o.mu.Unlock()
+	return state
+}
 
+func (o *Ollama) State(ctx context.Context, model string) OllamaState {
+	state := o.snapshot(model)
 	models, err := o.ListModelInfo(ctx)
 	if err != nil {
 		state.Error = err.Error()

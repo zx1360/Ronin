@@ -155,16 +155,16 @@ func (s *Sidecar) Installed() (bool, string) {
 // Probe 探测侧车依赖（结果缓存 probeTTL）。
 func (s *Sidecar) Probe(ctx context.Context) *ProbeResult {
 	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
 	cached := s.probe
-	s.probeMu.Unlock()
 	if cached != nil && time.Since(cached.ProbedAt) < probeTTL {
 		return cached
 	}
 
 	result := s.runProbe(ctx)
-	s.probeMu.Lock()
-	s.probe = result
-	s.probeMu.Unlock()
+	if ctx.Err() == nil {
+		s.probe = result
+	}
 	return result
 }
 
@@ -509,28 +509,29 @@ func killProcessTree(proc *exec.Cmd) {
 }
 
 // SidecarState 侧车运行状态。
-type SidecarState struct {
-	Capability    string     `json:"capability"`
-	Running       bool       `json:"running"`
-	PID           int        `json:"pid"`
-	StartedAt     *time.Time `json:"started_at"`
-	LastUsedAt    *time.Time `json:"last_used_at"`
-	IdleSeconds   int        `json:"idle_seconds"`
-	IdleTimeoutS  int        `json:"idle_timeout_seconds"`
-	Python        string     `json:"python"`
-	ProbeOK       bool       `json:"probe_ok"`
-	ProbeError    string     `json:"probe_error,omitempty"`
-	MissingModels []string   `json:"missing_models,omitempty"`
+type SidecarProcessState struct {
+	Capability   string     `json:"capability"`
+	Running      bool       `json:"running"`
+	PID          int        `json:"pid"`
+	StartedAt    *time.Time `json:"started_at"`
+	LastUsedAt   *time.Time `json:"last_used_at"`
+	IdleSeconds  int        `json:"idle_seconds"`
+	IdleTimeoutS int        `json:"idle_timeout_seconds"`
 }
 
-// State 返回侧车状态快照（供 /status 与桌面端展示）。
-//
-// 只读 stateMu，绝不触碰会话锁——批次执行期间也必须能秒回状态。
-func (s *Sidecar) State(ctx context.Context) SidecarState {
-	state := SidecarState{
+type SidecarState struct {
+	SidecarProcessState
+	Python        string   `json:"python"`
+	ProbeOK       bool     `json:"probe_ok"`
+	ProbeError    string   `json:"probe_error,omitempty"`
+	MissingModels []string `json:"missing_models,omitempty"`
+}
+
+// ProcessState 只读进程快照，不获取会话锁或执行依赖探测。
+func (s *Sidecar) ProcessState() SidecarProcessState {
+	state := SidecarProcessState{
 		Capability:   s.capability,
 		IdleTimeoutS: int(s.currentConfig().IdleTimeout.Seconds()),
-		Python:       s.resolvePython(),
 	}
 
 	s.stateMu.RLock()
@@ -543,7 +544,11 @@ func (s *Sidecar) State(ctx context.Context) SidecarState {
 		state.IdleSeconds = int(time.Since(used).Seconds())
 	}
 	s.stateMu.RUnlock()
+	return state
+}
 
+func (s *Sidecar) State(ctx context.Context) SidecarState {
+	state := SidecarState{SidecarProcessState: s.ProcessState(), Python: s.resolvePython()}
 	if probe := s.Probe(ctx); probe != nil {
 		state.ProbeOK = probe.OK
 		state.ProbeError = probe.Error

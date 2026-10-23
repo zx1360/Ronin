@@ -44,8 +44,8 @@ func (m *taskManager) List() []*taskengine.Task { return m.engine.List() }
 // Stop 中断运行中的任务。
 func (m *taskManager) Stop(taskID string) error { return m.engine.Stop(taskID) }
 
-// KillAll 中断全部运行中任务（供服务退出前调用）。
-func (m *taskManager) KillAll() { m.engine.KillAll() }
+// Close 中断全部任务并等待退出。
+func (m *taskManager) Close() { m.engine.Close() }
 
 // parseTaskResult 适配 taskengine 的解析钩子。
 func parseTaskResult(stdout, stderr string, exitCode int, runErr error) (any, error) {

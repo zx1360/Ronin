@@ -144,3 +144,36 @@ func TestStopKillsRunningTask(t *testing.T) {
 		t.Fatalf("中断后运行中任务数应为 0，实际 %d", m.RunningCount())
 	}
 }
+
+func TestCloseWaitsAndRejectsNewTasks(t *testing.T) {
+	requireWindows(t)
+	m := NewManager(50, 5)
+	for i := 0; i < 4; i++ {
+		if _, err := m.Start(Spec{Exe: "cmd.exe", Args: []string{"/c", "ping -n 30 127.0.0.1 > NUL"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		started := false
+		for _, task := range m.List() {
+			started = started || task.PID > 0
+		}
+		if started {
+			break
+		}
+		if time.Now().After(deadline) {
+			m.Close()
+			t.Fatal("测试子进程未启动")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	m.Close()
+	if m.RunningCount() != 0 {
+		t.Fatal("关闭后仍有运行中的任务")
+	}
+	if _, err := m.Start(Spec{Exe: "cmd.exe"}); err == nil {
+		t.Fatal("关闭后接受了新任务")
+	}
+	m.Close()
+}

@@ -1,0 +1,86 @@
+{
+  "chat_info": {
+    "model": "example:latest",
+    "active_model": "",
+    "candidates": [
+      {
+        "model": "example:latest",
+        "installed": true,
+        "vision": true,
+        "is_current": true,
+        "input_tier": "ai1024"
+      }
+    ],
+    "num_ctx": 65536,
+    "keep_alive_seconds": 300,
+    "ready": true
+  },
+  "diagnostics": {
+    "enabled": true,
+    "media_total": 100,
+    "person_count": 7,
+    "ollama": {
+      "model": "example:latest",
+      "model_ready": true,
+      "models": [
+        "example:latest"
+      ]
+    },
+    "capabilities": [
+      {
+        "capability": "embed",
+        "ready": true,
+        "missing_media": 9,
+        "stale_media": 2,
+        "executor_candidates": [],
+        "sidecar": {
+          "probe_ok": true,
+          "missing_models": []
+        }
+      }
+    ]
+  },
+  "progress": {
+    "enabled": true,
+    "schema_ready": true,
+    "started": true,
+    "paused": false,
+    "queue": [
+      {
+        "capability": "embed",
+        "pending": 3,
+        "running": 1,
+        "done": 80,
+        "failed": 2,
+        "total": 86
+      }
+    ],
+    "pending_total": 4,
+    "failed_total": 2,
+    "last_run": null,
+    "index": {
+      "model": "example",
+      "vectors": 80,
+      "loaded": true,
+      "memory_estimate_bytes": 61440
+    },
+    "cluster": {},
+    "sidecars": [
+      {
+        "capability": "embed",
+        "running": true,
+        "pid": 123,
+        "started_at": null,
+        "last_used_at": null,
+        "idle_seconds": 0,
+        "idle_timeout_seconds": 120
+      }
+    ],
+    "ollama": {
+      "active_model": "example:latest",
+      "owned_server": false,
+      "pid": 0,
+      "idle_seconds": 0
+    }
+  }
+}

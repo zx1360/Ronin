@@ -55,6 +55,8 @@
 
 ## 4. 验证命令
 
+跨端协议与生命周期：在仓库根运行 `pwsh -File backend/tools/check_contracts.ps1`，共享样例见 `contracts/README.md`。
+
 后端：
 
 ```powershell

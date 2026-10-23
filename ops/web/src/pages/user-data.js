@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from '../vue.js';
 import { api, assetUrl } from '../api.js';
 import { toast } from '../store.js';
+import { applySyncDelta } from './user-data-sync.js';
 
 export const moods = [
   { value: 'happy', label: '🥳 开心' }, { value: 'calm', label: '😌 平静' },
@@ -31,17 +32,10 @@ export function useUserData(module) {
       cursor = 0;
       result = await api.get(path, { signal: controller.signal });
     }
-    if (result?.sync_version !== 2) throw new Error('请先更新后端以支持增量合并');
     if (disposed) return;
-    for (const name of names) {
-      const rows = new Map(cursor ? data.value[name].map((row) => [row.id, row]) : []);
-      for (const row of result[name]) rows.set(row.id, row);
-      for (const item of result.tombstones) {
-        if (item.collection === name && (!rows.has(item.id) || Date.parse(rows.get(item.id).updated_at) <= Date.parse(item.updated_at))) rows.delete(item.id);
-      }
-      data.value[name] = [...rows.values()];
-    }
-    cursor = result.cursor;
+    const next = applySyncDelta(module, data.value, result, cursor);
+    data.value = next.data;
+    cursor = next.cursor;
   }
   async function refresh() {
     if (loading.value || busy.value) return;

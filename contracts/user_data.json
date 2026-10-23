@@ -1,0 +1,240 @@
+{
+  "id": "90000000-0000-4000-8000-000000000001",
+  "merge_cases": [
+    {
+      "name": "服务端更新较新",
+      "server": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "服务端",
+            "updated_at": "2026-01-01T00:00:00.003Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "client": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "本机",
+            "updated_at": "2026-01-01T00:00:00.001Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "expected": {
+        "id": "90000000-0000-4000-8000-000000000001",
+        "name": "服务端",
+        "updated_at": "2026-01-01T00:00:00.003Z"
+      }
+    },
+    {
+      "name": "本机更新较新",
+      "server": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "服务端",
+            "updated_at": "2026-01-01T00:00:00.001Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "client": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "本机",
+            "updated_at": "2026-01-01T00:00:00.003Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "expected": {
+        "id": "90000000-0000-4000-8000-000000000001",
+        "name": "本机",
+        "updated_at": "2026-01-01T00:00:00.003Z"
+      }
+    },
+    {
+      "name": "同毫秒保留服务端版本",
+      "server": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "服务端",
+            "updated_at": "2026-01-01T00:00:00.002Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "client": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "本机",
+            "updated_at": "2026-01-01T00:00:00.002Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "expected": {
+        "id": "90000000-0000-4000-8000-000000000001",
+        "name": "服务端",
+        "updated_at": "2026-01-01T00:00:00.002Z"
+      }
+    },
+    {
+      "name": "服务端删除较新",
+      "server": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [],
+        "essays": [],
+        "tombstones": [
+          {
+            "collection": "labels",
+            "id": "90000000-0000-4000-8000-000000000001",
+            "updated_at": "2026-01-01T00:00:00.003Z"
+          }
+        ]
+      },
+      "client": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "本机",
+            "updated_at": "2026-01-01T00:00:00.002Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "expected": null
+    },
+    {
+      "name": "本机删除较新",
+      "server": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "服务端",
+            "updated_at": "2026-01-01T00:00:00.002Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "client": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [],
+        "essays": [],
+        "tombstones": [
+          {
+            "collection": "labels",
+            "id": "90000000-0000-4000-8000-000000000001",
+            "updated_at": "2026-01-01T00:00:00.003Z"
+          }
+        ]
+      },
+      "expected": null
+    },
+    {
+      "name": "删除后较新记录可恢复",
+      "server": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [],
+        "essays": [],
+        "tombstones": [
+          {
+            "collection": "labels",
+            "id": "90000000-0000-4000-8000-000000000001",
+            "updated_at": "2026-01-01T00:00:00.001Z"
+          }
+        ]
+      },
+      "client": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "本机",
+            "updated_at": "2026-01-01T00:00:00.003Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "expected": {
+        "id": "90000000-0000-4000-8000-000000000001",
+        "name": "本机",
+        "updated_at": "2026-01-01T00:00:00.003Z"
+      }
+    },
+    {
+      "name": "同毫秒删除优先",
+      "server": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [],
+        "essays": [],
+        "tombstones": [
+          {
+            "collection": "labels",
+            "id": "90000000-0000-4000-8000-000000000001",
+            "updated_at": "2026-01-01T00:00:00.002Z"
+          }
+        ]
+      },
+      "client": {
+        "sync_version": 2,
+        "cursor": 1,
+        "labels": [
+          {
+            "id": "90000000-0000-4000-8000-000000000001",
+            "name": "本机",
+            "updated_at": "2026-01-01T00:00:00.002Z"
+          }
+        ],
+        "essays": [],
+        "tombstones": []
+      },
+      "expected": null
+    }
+  ],
+  "calendar_dates": [
+    "2026-03-01",
+    "2026-03-01T00:00:00Z",
+    "2024-02-29T00:00:00Z"
+  ],
+  "instants": [
+    "2026-01-01T00:30:00+08:00",
+    "2026-03-01T23:59:59.123Z"
+  ]
+}
