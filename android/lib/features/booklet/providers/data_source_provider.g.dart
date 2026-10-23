@@ -8,13 +8,7 @@ part of 'data_source_provider.dart';
 
 String _$styleBoxHash() => r'86f47eecfc56e0491415fcd052775a3ce09837aa';
 
-/// ============================================================================
-/// Booklet 模块数据源层
-/// 负责 Hive Box 的访问和数据流的提供
-/// ============================================================================
-/// Style Box Provider - 提供 Style 数据的 Hive Box 访问
-///
-/// Copied from [styleBox].
+/// See also [styleBox].
 @ProviderFor(styleBox)
 final styleBoxProvider = AutoDisposeProvider<Box<Style>>.internal(
   styleBox,
@@ -28,9 +22,7 @@ final styleBoxProvider = AutoDisposeProvider<Box<Style>>.internal(
 typedef StyleBoxRef = AutoDisposeProviderRef<Box<Style>>;
 String _$recordBoxHash() => r'fc03ea57a54bf80295d800e2ad0aebe798e7d2fa';
 
-/// Record Box Provider - 提供 Record 数据的 Hive Box 访问
-///
-/// Copied from [recordBox].
+/// See also [recordBox].
 @ProviderFor(recordBox)
 final recordBoxProvider = AutoDisposeProvider<Box<Record>>.internal(
   recordBox,
@@ -44,9 +36,7 @@ final recordBoxProvider = AutoDisposeProvider<Box<Record>>.internal(
 typedef RecordBoxRef = AutoDisposeProviderRef<Box<Record>>;
 String _$styleStreamHash() => r'8c12abed6b715ce0d3190f03b2b5d78aa26c471e';
 
-/// Style 数据流 - 监听 Box 变化，实时推送最新数据
-///
-/// Copied from [styleStream].
+/// See also [styleStream].
 @ProviderFor(styleStream)
 final styleStreamProvider = AutoDisposeStreamProvider<List<Style>>.internal(
   styleStream,
@@ -60,9 +50,7 @@ final styleStreamProvider = AutoDisposeStreamProvider<List<Style>>.internal(
 typedef StyleStreamRef = AutoDisposeStreamProviderRef<List<Style>>;
 String _$recordStreamHash() => r'761cd6e30b071492298fd15c2a689b34ed9447f5';
 
-/// Record 数据流 - 监听 Box 变化，实时推送最新数据
-///
-/// Copied from [recordStream].
+/// See also [recordStream].
 @ProviderFor(recordStream)
 final recordStreamProvider = AutoDisposeStreamProvider<List<Record>>.internal(
   recordStream,
@@ -76,9 +64,7 @@ final recordStreamProvider = AutoDisposeStreamProvider<List<Record>>.internal(
 typedef RecordStreamRef = AutoDisposeStreamProviderRef<List<Record>>;
 String _$allStylesHash() => r'0ecf8046a2aa10bfedbc1fb0afb9c7ce1da4b00f';
 
-/// 所有 Style 列表 - 同步访问接口
-///
-/// Copied from [allStyles].
+/// See also [allStyles].
 @ProviderFor(allStyles)
 final allStylesProvider = AutoDisposeProvider<List<Style>>.internal(
   allStyles,
@@ -92,9 +78,7 @@ final allStylesProvider = AutoDisposeProvider<List<Style>>.internal(
 typedef AllStylesRef = AutoDisposeProviderRef<List<Style>>;
 String _$allRecordsHash() => r'38724d4d0f4f0085c6b63111f037c87b372df35f';
 
-/// 所有 Record 列表 - 同步访问接口
-///
-/// Copied from [allRecords].
+/// See also [allRecords].
 @ProviderFor(allRecords)
 final allRecordsProvider = AutoDisposeProvider<List<Record>>.internal(
   allRecords,

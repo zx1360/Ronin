@@ -8,14 +8,8 @@ part 'history_provider.g.dart';
 Future<List<BookletHistoryEntry>> bookletHistory(
   BookletHistoryRef ref, {
   String? styleId,
-  bool onlyMessages = true,
 }) async {
   final records = ref.watch(recordStreamProvider.future);
   final styles = ref.watch(styleStreamProvider.future);
-  return buildBookletHistory(
-    await records,
-    await styles,
-    styleId: styleId,
-    onlyMessages: onlyMessages,
-  );
+  return buildBookletHistory(await records, await styles, styleId: styleId);
 }

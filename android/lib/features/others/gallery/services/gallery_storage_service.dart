@@ -30,15 +30,6 @@ class GalleryStorageService {
 
   // 路径转换
 
-  /// 从服务端相对路径转换为本地绝对路径 (原图)
-  /// 服务端: "2008-08/filename.jpg" -> 本地: ".../gallery/Media/2008-08/filename.jpg"
-  Future<String> getLocalMediaPath(String serverPath) async {
-    final normalizedPath = serverPath.replaceAll('\\', '/');
-    return (await IoService.offlineFile(
-      '$_galleryRoot/$_mediaDir/$normalizedPath',
-    )).path;
-  }
-
   /// 从服务端相对路径转换为本地绝对路径 (缩略图)
   Future<String> getLocalThumbPath(String serverPath) async {
     final normalizedPath = serverPath.replaceAll('\\', '/');

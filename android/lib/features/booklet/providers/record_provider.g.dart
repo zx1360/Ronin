@@ -29,37 +29,21 @@ class _SystemHash {
   }
 }
 
-/// ============================================================================
-/// Record 相关的 Providers
-/// 提供 Record 数据的查询和派生数据
-/// ============================================================================
 /// 根据 styleId 返回关联的倒序排列的所有 Records
 ///
 /// Copied from [recordsByStyleId].
 @ProviderFor(recordsByStyleId)
 const recordsByStyleIdProvider = RecordsByStyleIdFamily();
 
-/// ============================================================================
-/// Record 相关的 Providers
-/// 提供 Record 数据的查询和派生数据
-/// ============================================================================
 /// 根据 styleId 返回关联的倒序排列的所有 Records
 ///
 /// Copied from [recordsByStyleId].
 class RecordsByStyleIdFamily extends Family<List<Record>> {
-  /// ============================================================================
-  /// Record 相关的 Providers
-  /// 提供 Record 数据的查询和派生数据
-  /// ============================================================================
   /// 根据 styleId 返回关联的倒序排列的所有 Records
   ///
   /// Copied from [recordsByStyleId].
   const RecordsByStyleIdFamily();
 
-  /// ============================================================================
-  /// Record 相关的 Providers
-  /// 提供 Record 数据的查询和派生数据
-  /// ============================================================================
   /// 根据 styleId 返回关联的倒序排列的所有 Records
   ///
   /// Copied from [recordsByStyleId].
@@ -95,18 +79,10 @@ class RecordsByStyleIdFamily extends Family<List<Record>> {
   String? get name => r'recordsByStyleIdProvider';
 }
 
-/// ============================================================================
-/// Record 相关的 Providers
-/// 提供 Record 数据的查询和派生数据
-/// ============================================================================
 /// 根据 styleId 返回关联的倒序排列的所有 Records
 ///
 /// Copied from [recordsByStyleId].
 class RecordsByStyleIdProvider extends AutoDisposeProvider<List<Record>> {
-  /// ============================================================================
-  /// Record 相关的 Providers
-  /// 提供 Record 数据的查询和派生数据
-  /// ============================================================================
   /// 根据 styleId 返回关联的倒序排列的所有 Records
   ///
   /// Copied from [recordsByStyleId].
@@ -191,23 +167,7 @@ class _RecordsByStyleIdProviderElement
   String get styleId => (origin as RecordsByStyleIdProvider).styleId;
 }
 
-String _$todayRecordHash() => r'180fb666b436d0871670931d24d34ec4373e11be';
-
-/// 获取今天的 Record（最近的 Style），无则返回 null
-///
-/// Copied from [todayRecord].
-@ProviderFor(todayRecord)
-final todayRecordProvider = AutoDisposeProvider<Record?>.internal(
-  todayRecord,
-  name: r'todayRecordProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$todayRecordHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef TodayRecordRef = AutoDisposeProviderRef<Record?>;
-String _$recordByDateHash() => r'a7aeeccb6d520fdc7ff68d2f0bd57296a317c381';
+String _$recordByDateHash() => r'fb1f68f0b1c995d8e6ba5f5edc72e282bef9ed06';
 
 /// 根据日期获取 Record
 ///
@@ -347,199 +307,25 @@ class _RecordByDateProviderElement extends AutoDisposeProviderElement<Record?>
   DateTime get targetDate => (origin as RecordByDateProvider).targetDate;
 }
 
-String _$taskCompletionCountHash() =>
-    r'7ea389bd67452b05c6ebdf48bc24475f33a50448';
-
-/// 获取某个 Style 下某个任务的完成次数
-/// [styleId]: Style ID
-/// [taskId]: Task ID
-///
-/// Copied from [taskCompletionCount].
-@ProviderFor(taskCompletionCount)
-const taskCompletionCountProvider = TaskCompletionCountFamily();
-
-/// 获取某个 Style 下某个任务的完成次数
-/// [styleId]: Style ID
-/// [taskId]: Task ID
-///
-/// Copied from [taskCompletionCount].
-class TaskCompletionCountFamily extends Family<int> {
-  /// 获取某个 Style 下某个任务的完成次数
-  /// [styleId]: Style ID
-  /// [taskId]: Task ID
-  ///
-  /// Copied from [taskCompletionCount].
-  const TaskCompletionCountFamily();
-
-  /// 获取某个 Style 下某个任务的完成次数
-  /// [styleId]: Style ID
-  /// [taskId]: Task ID
-  ///
-  /// Copied from [taskCompletionCount].
-  TaskCompletionCountProvider call(
-    String styleId,
-    String taskId,
-  ) {
-    return TaskCompletionCountProvider(
-      styleId,
-      taskId,
-    );
-  }
-
-  @override
-  TaskCompletionCountProvider getProviderOverride(
-    covariant TaskCompletionCountProvider provider,
-  ) {
-    return call(
-      provider.styleId,
-      provider.taskId,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'taskCompletionCountProvider';
-}
-
-/// 获取某个 Style 下某个任务的完成次数
-/// [styleId]: Style ID
-/// [taskId]: Task ID
-///
-/// Copied from [taskCompletionCount].
-class TaskCompletionCountProvider extends AutoDisposeProvider<int> {
-  /// 获取某个 Style 下某个任务的完成次数
-  /// [styleId]: Style ID
-  /// [taskId]: Task ID
-  ///
-  /// Copied from [taskCompletionCount].
-  TaskCompletionCountProvider(
-    String styleId,
-    String taskId,
-  ) : this._internal(
-          (ref) => taskCompletionCount(
-            ref as TaskCompletionCountRef,
-            styleId,
-            taskId,
-          ),
-          from: taskCompletionCountProvider,
-          name: r'taskCompletionCountProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$taskCompletionCountHash,
-          dependencies: TaskCompletionCountFamily._dependencies,
-          allTransitiveDependencies:
-              TaskCompletionCountFamily._allTransitiveDependencies,
-          styleId: styleId,
-          taskId: taskId,
-        );
-
-  TaskCompletionCountProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.styleId,
-    required this.taskId,
-  }) : super.internal();
-
-  final String styleId;
-  final String taskId;
-
-  @override
-  Override overrideWith(
-    int Function(TaskCompletionCountRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: TaskCompletionCountProvider._internal(
-        (ref) => create(ref as TaskCompletionCountRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        styleId: styleId,
-        taskId: taskId,
-      ),
-    );
-  }
-
-  @override
-  AutoDisposeProviderElement<int> createElement() {
-    return _TaskCompletionCountProviderElement(this);
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is TaskCompletionCountProvider &&
-        other.styleId == styleId &&
-        other.taskId == taskId;
-  }
-
-  @override
-  int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, styleId.hashCode);
-    hash = _SystemHash.combine(hash, taskId.hashCode);
-
-    return _SystemHash.finish(hash);
-  }
-}
-
-mixin TaskCompletionCountRef on AutoDisposeProviderRef<int> {
-  /// The parameter `styleId` of this provider.
-  String get styleId;
-
-  /// The parameter `taskId` of this provider.
-  String get taskId;
-}
-
-class _TaskCompletionCountProviderElement
-    extends AutoDisposeProviderElement<int> with TaskCompletionCountRef {
-  _TaskCompletionCountProviderElement(super.provider);
-
-  @override
-  String get styleId => (origin as TaskCompletionCountProvider).styleId;
-  @override
-  String get taskId => (origin as TaskCompletionCountProvider).taskId;
-}
-
 String _$allTaskCompletionCountsHash() =>
     r'f7023265adac617feaf89bf3bf24852eb5734cfe';
 
-/// 获取某个 Style 下所有任务的完成次数映射
-/// 返回 Map `taskId` -> `completionCount`
+/// 各任务的完成次数，忽略不属于该计划的任务。
 ///
 /// Copied from [allTaskCompletionCounts].
 @ProviderFor(allTaskCompletionCounts)
 const allTaskCompletionCountsProvider = AllTaskCompletionCountsFamily();
 
-/// 获取某个 Style 下所有任务的完成次数映射
-/// 返回 Map `taskId` -> `completionCount`
+/// 各任务的完成次数，忽略不属于该计划的任务。
 ///
 /// Copied from [allTaskCompletionCounts].
 class AllTaskCompletionCountsFamily extends Family<Map<String, int>> {
-  /// 获取某个 Style 下所有任务的完成次数映射
-  /// 返回 Map `taskId` -> `completionCount`
+  /// 各任务的完成次数，忽略不属于该计划的任务。
   ///
   /// Copied from [allTaskCompletionCounts].
   const AllTaskCompletionCountsFamily();
 
-  /// 获取某个 Style 下所有任务的完成次数映射
-  /// 返回 Map `taskId` -> `completionCount`
+  /// 各任务的完成次数，忽略不属于该计划的任务。
   ///
   /// Copied from [allTaskCompletionCounts].
   AllTaskCompletionCountsProvider call(
@@ -574,14 +360,12 @@ class AllTaskCompletionCountsFamily extends Family<Map<String, int>> {
   String? get name => r'allTaskCompletionCountsProvider';
 }
 
-/// 获取某个 Style 下所有任务的完成次数映射
-/// 返回 Map `taskId` -> `completionCount`
+/// 各任务的完成次数，忽略不属于该计划的任务。
 ///
 /// Copied from [allTaskCompletionCounts].
 class AllTaskCompletionCountsProvider
     extends AutoDisposeProvider<Map<String, int>> {
-  /// 获取某个 Style 下所有任务的完成次数映射
-  /// 返回 Map `taskId` -> `completionCount`
+  /// 各任务的完成次数，忽略不属于该计划的任务。
   ///
   /// Copied from [allTaskCompletionCounts].
   AllTaskCompletionCountsProvider(
@@ -666,36 +450,24 @@ class _AllTaskCompletionCountsProviderElement
   String get styleId => (origin as AllTaskCompletionCountsProvider).styleId;
 }
 
-String _$currentStreakHash() => r'ab622392a9cc1b2ff7d6f36a1069e0b45ff5bc4c';
+String _$currentStreakHash() => r'62126411ce6b4de089488da19d42feec1c63eb3b';
 
-/// 当前的连续打卡记录 (传入 styleId)
-/// 如果今天有记录，则包含今天
-/// 如果今天没有记录，则计算截至昨天的连续天数
-/// 如果今天和昨天都没有记录，则返回 0
+/// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
 ///
 /// Copied from [currentStreak].
 @ProviderFor(currentStreak)
 const currentStreakProvider = CurrentStreakFamily();
 
-/// 当前的连续打卡记录 (传入 styleId)
-/// 如果今天有记录，则包含今天
-/// 如果今天没有记录，则计算截至昨天的连续天数
-/// 如果今天和昨天都没有记录，则返回 0
+/// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
 ///
 /// Copied from [currentStreak].
 class CurrentStreakFamily extends Family<int> {
-  /// 当前的连续打卡记录 (传入 styleId)
-  /// 如果今天有记录，则包含今天
-  /// 如果今天没有记录，则计算截至昨天的连续天数
-  /// 如果今天和昨天都没有记录，则返回 0
+  /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
   ///
   /// Copied from [currentStreak].
   const CurrentStreakFamily();
 
-  /// 当前的连续打卡记录 (传入 styleId)
-  /// 如果今天有记录，则包含今天
-  /// 如果今天没有记录，则计算截至昨天的连续天数
-  /// 如果今天和昨天都没有记录，则返回 0
+  /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
   ///
   /// Copied from [currentStreak].
   CurrentStreakProvider call(
@@ -730,17 +502,11 @@ class CurrentStreakFamily extends Family<int> {
   String? get name => r'currentStreakProvider';
 }
 
-/// 当前的连续打卡记录 (传入 styleId)
-/// 如果今天有记录，则包含今天
-/// 如果今天没有记录，则计算截至昨天的连续天数
-/// 如果今天和昨天都没有记录，则返回 0
+/// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
 ///
 /// Copied from [currentStreak].
 class CurrentStreakProvider extends AutoDisposeProvider<int> {
-  /// 当前的连续打卡记录 (传入 styleId)
-  /// 如果今天有记录，则包含今天
-  /// 如果今天没有记录，则计算截至昨天的连续天数
-  /// 如果今天和昨天都没有记录，则返回 0
+  /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
   ///
   /// Copied from [currentStreak].
   CurrentStreakProvider(
@@ -824,7 +590,7 @@ class _CurrentStreakProviderElement extends AutoDisposeProviderElement<int>
   String get styleId => (origin as CurrentStreakProvider).styleId;
 }
 
-String _$styleDateRangeHash() => r'cf5e6a38388ee1b76c702c795cefd08e9c6f5568';
+String _$styleDateRangeHash() => r'7b23cb2b263f7a82b0a0d82bc369b8d722260016';
 
 /// 根据 Style 获取该 Style 的日期范围
 ///

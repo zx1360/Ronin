@@ -294,15 +294,16 @@ func (m *Manager) Get(taskID string) (*Task, error) {
 	if task == nil {
 		return nil, fmt.Errorf("任务 %s 不存在", taskID)
 	}
-	return snapshotTask(task), nil
+	copy := snapshotTask(task)
+	copy.Logs = append([]LogEntry(nil), task.Logs...)
+	return copy, nil
 }
 
-// 调用方在锁外序列化；返回副本，避免与任务状态和日志写入并发。
+// 调用方在锁内取元数据副本；日志仅在 Get 中复制。
 func snapshotTask(task *Task) *Task {
 	copy := &Task{
 		ID: task.ID, Name: task.Name, Command: task.Command, Status: task.Status,
 		PID: task.PID, StartedAt: task.StartedAt, Result: task.Result, Error: task.Error,
-		Logs: append([]LogEntry(nil), task.Logs...),
 	}
 	if task.FinishedAt != nil {
 		value := *task.FinishedAt
@@ -315,7 +316,7 @@ func snapshotTask(task *Task) *Task {
 	return copy
 }
 
-// List 返回任务列表（新建在前），并裁剪超出上限的已完成任务。
+// List 返回不含日志的任务列表（新建在前），裁剪超限的已完成任务。
 func (m *Manager) List() []*Task {
 	m.mu.Lock()
 	defer m.mu.Unlock()

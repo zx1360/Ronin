@@ -270,30 +270,6 @@ class GalleryDatabaseService {
     });
   }
 
-  /// 批量标记媒体文件删除/恢复（单次事务，避免逐条操作）
-  Future<void> batchMarkMediaAssetDeleted(
-    List<String> ids, {
-    bool deleted = true,
-  }) async {
-    if (ids.isEmpty) return;
-    final db = await database;
-    final now = DateTime.now().toIso8601String();
-    final placeholders = List.filled(ids.length, '?').join(',');
-
-    await db.transaction((txn) async {
-      // 标记主文件自己
-      await txn.rawUpdate(
-        'UPDATE media_assets SET is_deleted = ?, updated_at = ? WHERE id IN ($placeholders)',
-        [deleted ? 1 : 0, now, ...ids],
-      );
-      // 标记所有以这些 id 为 group_id 的组成员
-      await txn.rawUpdate(
-        'UPDATE media_assets SET is_deleted = ?, updated_at = ? WHERE group_id IN ($placeholders)',
-        [deleted ? 1 : 0, now, ...ids],
-      );
-    });
-  }
-
   Future<Map<String, int>> getGroupSizes() async {
     final db = await database;
     final rows = await db.rawQuery(

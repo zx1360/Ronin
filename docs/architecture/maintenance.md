@@ -20,7 +20,7 @@
 
 ### 只改 Ops
 
-1. 保持无构建、同源、无浏览器持久化。
+1. 保持无构建、同源；草稿存 IndexedDB，密钥仅存内存，偏好由服务端持有。
 2. 页面请求集中经过 `src/api.js`。
 3. 页面操作捕获异常并提示；破坏性操作使用 `confirmAction`，轮询使用 `usePolling`。
 4. `python tools/smoke_ops_web.py`。

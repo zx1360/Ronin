@@ -16,7 +16,6 @@ class BookletHistoryPage extends ConsumerStatefulWidget {
 
 class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
   late String? _styleId = widget.styleId;
-  bool _onlyMessages = true;
 
   @override
   Widget build(BuildContext context) {
@@ -27,9 +26,7 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
     final selected = styles.any((style) => style.id == _styleId)
         ? _styleId
         : null;
-    final entries = ref.watch(
-      bookletHistoryProvider(styleId: selected, onlyMessages: _onlyMessages),
-    );
+    final entries = ref.watch(bookletHistoryProvider(styleId: selected));
     final styleColors = {
       for (final (index, style) in styles.indexed)
         style.id: Colors.primaries[index % Colors.primaries.length].shade600,
@@ -40,7 +37,7 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: DropdownButtonFormField<String>(
               key: ValueKey(selected),
               initialValue: selected ?? '',
@@ -69,25 +66,6 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
                   setState(() => _styleId = value == '' ? null : value),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                FilterChip(
-                  label: const Text('只看留言'),
-                  selected: _onlyMessages,
-                  onSelected: (value) => setState(() => _onlyMessages = value),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _onlyMessages ? '从写给自己的话开始回看' : '按时间查看留言、心情与完成情况',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: entries.when(
               skipLoadingOnRefresh: false,
@@ -95,20 +73,15 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
               error: (error, _) => Center(child: Text('读取历史失败：$error')),
               data: (entries) {
                 if (entries.isEmpty) {
-                  return Center(
+                  return const Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        _onlyMessages
-                            ? '还没有留言。关闭“只看留言”可回看打卡记录。'
-                            : '当前计划还没有历史记录',
-                        textAlign: TextAlign.center,
-                      ),
+                      padding: EdgeInsets.all(24),
+                      child: Text('还没有留言', textAlign: TextAlign.center),
                     ),
                   );
                 }
                 return ListView.builder(
-                  key: ValueKey((selected, _onlyMessages)),
+                  key: ValueKey(selected),
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   itemCount: entries.length,
                   itemBuilder: (context, index) {
@@ -202,15 +175,13 @@ class _HistoryCard extends StatelessWidget {
                         ),
                     ],
                   ),
-                  if (record.message.trim().isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    SelectableText(
-                      record.message,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(height: 1.4),
-                    ),
-                  ],
+                  const SizedBox(height: 6),
+                  SelectableText(
+                    record.message,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(height: 1.4),
+                  ),
                   ExpansionTile(
                     key: PageStorageKey(record.id),
                     dense: true,

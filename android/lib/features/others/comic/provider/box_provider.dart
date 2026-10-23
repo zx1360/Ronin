@@ -18,18 +18,6 @@ Box<ComicPreference> comicPrefBox(ComicPrefBoxRef ref) {
   return Hive.box(HiveService.comicPrefBoxName);
 }
 
-/// 漫画阅读偏好的响应式流
-@riverpod
-Stream<List<ComicPreference>> comicPrefStream(ComicPrefStreamRef ref) async* {
-  final box = ref.read(comicPrefBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
-
 /// 漫画信息的 Hive Box
 @riverpod
 Box<ComicInfo> comicInfoBox(ComicInfoBoxRef ref) {

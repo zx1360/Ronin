@@ -24,7 +24,7 @@ type runtimeStore struct {
 
 	mu   sync.RWMutex
 	snap config.AiConfig
-	// vlmModel 数据库中的人工选择；空串表示沿用 .env 的默认模型
+	// vlmModel 为 ai_config.json 中的人工选择；空串表示尚未选定。
 	vlmModel string
 }
 
@@ -55,8 +55,7 @@ func (e *Engine) UpdateRuntime(update config.RuntimeConfig) error {
 	if err := e.rt.store.Update(update); err != nil {
 		return err
 	}
-	// 模型选择由引擎侧单独持有（文件里存的是"人工选择"，空串表示沿用 .env 默认值）：
-	// 不在这里同步的话，界面切换模型只会写进文件，要重启才生效。
+	// 模型选择由引擎单独持有，保存配置后同步到内存。
 	if update.VLMModel != nil {
 		selected := strings.TrimSpace(*update.VLMModel)
 		e.rt.mu.Lock()

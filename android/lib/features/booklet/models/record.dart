@@ -27,7 +27,6 @@ class Record {
   @HiveField(4)
   late final Map<String, bool> taskCompletion;
 
-  /// 心情记录 - 可选字段，兼容旧数据
   @HiveField(5)
   @MoodTypeConverter()
   MoodType? mood;
