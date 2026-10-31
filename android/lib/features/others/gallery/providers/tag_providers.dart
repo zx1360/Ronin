@@ -150,6 +150,13 @@ class CurrentMediaTags extends _$CurrentMediaTags {
     if (currentMedia == null) return [];
 
     final db = ref.watch(galleryDatabaseProvider);
+    final pending = ref
+        .read(galleryWriteBufferProvider)
+        .pendingTags(currentMedia.id);
+    if (pending != null) {
+      final tags = await ref.watch(tagTreeProvider.future);
+      return tags.where((tag) => pending.contains(tag.id)).toList();
+    }
     return await db.getTagsForMedia(currentMedia.id);
   }
 
@@ -172,11 +179,11 @@ class CurrentMediaTags extends _$CurrentMediaTags {
     final db = container.read(galleryDatabaseProvider);
     final buffer = container.read(galleryWriteBufferProvider);
     final pending = _updates.then((_) async {
-      final baseline = await db.getTagIdsForMedia(mediaId);
+      final baseline =
+          buffer.pendingTags(mediaId) ?? await db.getTagIdsForMedia(mediaId);
       final next = change(baseline.toSet());
       if (setEquals(baseline.toSet(), next)) return;
       final tagIds = next.toList();
-      await db.setTagsForMedia(mediaId, tagIds);
       buffer.queueTags(mediaId, tagIds, baselineTagIds: baseline);
       if (container.read(currentMediaAssetProvider)?.id == mediaId) {
         container.invalidate(currentMediaTagsProvider);

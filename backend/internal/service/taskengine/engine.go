@@ -60,11 +60,12 @@ type Task struct {
 
 // Spec 描述一次任务如何执行。
 type Spec struct {
-	Name string
-	Exe  string
-	Args []string
-	Dir  string   // 工作目录，留空则沿用服务进程的当前目录
-	Env  []string // 追加到当前进程环境之上的变量（KEY=VALUE）
+	Name  string
+	Exe   string
+	Args  []string
+	Dir   string      // 工作目录，留空则沿用服务进程的当前目录
+	Env   []string    // 追加到当前进程环境之上的变量（KEY=VALUE）
+	Guard *sync.Mutex // 共用资源的子进程依次执行；等待期间不启动进程。
 	// StreamStdout 为 true 时把 stdout 逐行写入任务日志；无论真假，stdout 都被
 	// 完整捕获供 Parse 使用（comix 的 stdout 是单行大 JSON，写进日志只会刷屏）。
 	StreamStdout bool
@@ -136,6 +137,10 @@ func commandLine(spec Spec) string {
 // run 在子协程中执行命令并更新任务状态。
 func (m *Manager) run(task *Task, spec Spec) {
 	defer m.wg.Done()
+	if spec.Guard != nil {
+		spec.Guard.Lock()
+		defer spec.Guard.Unlock()
+	}
 	process := exec.Command(spec.Exe, spec.Args...)
 	if spec.Dir != "" {
 		process.Dir = spec.Dir

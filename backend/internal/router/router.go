@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
@@ -26,16 +25,7 @@ func SetupRouter() *gin.Engine {
 
 	r := gin.Default()
 
-	// CORS 跨域配置
-	r.Use(cors.New(cors.Config{
-		AllowAllOrigins:  true,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "X-API-Key", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length", "Content-Disposition"},
-		AllowCredentials: false,
-	}))
-
-	// 选择性鉴权中间件：漫画相关 + 测试接口 + 网页运维端免验证，其余均需 X-API-Key
+	// 漫画只读请求、测试接口及本机网页免密，其余需要 X-API-Key。
 	r.Use(selectiveAuth())
 
 	// 静态资源响应
@@ -63,7 +53,7 @@ func SetupRouter() *gin.Engine {
 			userDataGroup.POST("/check-images/:module", data_handler.CheckImagesHandler)
 		}
 
-		// 漫画请求相关（免鉴权，由 selectiveAuth 放行）
+		// 漫画读取免鉴权；修改需要 X-API-Key。
 		comicGroup := api.Group("/comic")
 		{
 			// 漫画列表 & 详情

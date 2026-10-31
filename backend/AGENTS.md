@@ -7,8 +7,8 @@ Go + Gin + `modernc.org/sqlite`；启动入口 `cmd/main.go`，路由真源 `int
 
 - `handler` 负责 HTTP 校验/响应，`service` 负责业务与进程，`repository` 负责 SQL。
 - `gizmos/` 是独立 Go module，处理媒体入库/编辑/刷新；`gizmos/comix/` 是 Python CLI，修改前读其 `AGENTS.md`。
-- gallery/comix 长任务共用 `service/taskengine/`；gallery 同时只允许一个任务。任务状态在内存，退出须杀进程树。
-- 通用 API 使用 `X-API-Key`，资源可用 `api_key` 查询参数。Ops 页面及本机接口由 `LocalOnly` 按 TCP 对端限制回环访问；回环地址不得封禁。
+- gallery/comix 长任务共用 `service/taskengine/`；gallery 启动互斥，comix 写任务依次执行并与初始化/删除互斥。任务状态在内存，退出须杀进程树。
+- 通用 API 使用 `X-API-Key`，资源可用 `api_key` 查询参数。Ops 页面及本机接口由 `LocalOnly` 校验 TCP 回环、Host 和浏览器同源；回环地址不得封禁。
 
 ## 数据与配置
 

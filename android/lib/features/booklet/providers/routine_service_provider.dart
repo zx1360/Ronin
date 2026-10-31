@@ -175,12 +175,12 @@ class RoutineService extends _$RoutineService {
           merged.metadata[cursorKey] = incoming['cursor'].toString();
         }
         await replaceBoxes({
-          userDataSyncBox: merged.metadata,
           state.styleBox: <String, Style>{
             for (final style in styles.values)
               style.id: _withStats(style, records.values),
           },
           state.recordBox: records,
+          userDataSyncBox: merged.metadata,
         });
       });
 

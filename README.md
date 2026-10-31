@@ -20,12 +20,14 @@
 
 ## 数据库(SQLite)
 
-> SQLite 3.50 单文件数据库(`modernc.org/sqlite` 纯 Go 驱动, 无需 cgo)
+> SQLite 单文件数据库（Go 驱动内置 3.51.3，纯 Go，无需 cgo）。comix 使用其 Python 的标准库 sqlite3；运行时应包含 WAL-reset 修复（3.51.3+ 或 3.50.7 补丁版）。
 
 漫画/媒体/随笔/打卡等全部业务数据存于一个文件: `backend/data/monarch.db`。
 Monarch、gizmos CLI 与 comix 爬虫三方共用同一文件(WAL + 单写者模型, 跨进程由 busy_timeout 兜底)。
 
-备份: 关闭所有访问进程后复制数据库文件。
+备份：停止 Monarch 与所有 CLI 后，在仓库根运行 `python backend/tools/backup_local.py --output backend/backups/manual-001`。目标必须是新目录；脚本独占数据库，备份并校验数据库、个人附件和配置，失败清理未完成副本。依赖现有 `python-dotenv`。
+
+恢复时保持停服，先将当前数据库及其 `-wal`/`-shm` 一并移走保存，保留现有附件和配置，再将备份的数据库、`img_storage/`、`data/`、`preferences/` 还原至对应位置；勿混用旧 WAL。`cert/` 还原至 backend，`backend.env` 核对路径后使用。Gallery/Comic 原始文件及手机/浏览器本机数据需单独备份。检查 Python 内核版本：`python -c "import sqlite3; print(sqlite3.sqlite_version)"`。
 
 ## 本机数据与运维端(Northstar)
 

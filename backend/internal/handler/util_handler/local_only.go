@@ -3,6 +3,8 @@ package util_handler
 import (
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,6 +22,22 @@ func LocalOnly() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		host := c.Request.Host
+		if name, _, err := net.SplitHostPort(host); err == nil {
+			host = name
+		}
+		host = strings.Trim(host, "[]")
+		origin, err := url.Parse(c.GetHeader("Origin"))
+		scheme := "http"
+		if c.Request.TLS != nil {
+			scheme = "https"
+		}
+		if (!strings.EqualFold(host, "localhost") && !isLoopbackAddr(host)) ||
+			(c.GetHeader("Origin") != "" && (err != nil || origin.Scheme != scheme || !strings.EqualFold(origin.Host, c.Request.Host))) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "仅允许本机同源页面访问"})
+			return
+		}
+		c.Header("Cache-Control", "no-store")
 		c.Next()
 	}
 }

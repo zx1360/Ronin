@@ -3,6 +3,7 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/others/gallery/models/gallery_overview.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
+import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -14,11 +15,11 @@ part 'stats_providers.g.dart';
 @Riverpod(keepAlive: true)
 Future<GalleryDbStats> galleryDbStats(GalleryDbStatsRef ref) async {
   final db = ref.watch(galleryDatabaseProvider);
-  
+
   final mediaCount = await db.getMediaAssetCount();
   final tagCount = await db.getTagCount();
   final linkCount = await db.getMediaTagLinkCount();
-  
+
   return GalleryDbStats(
     mediaAssetCount: mediaCount,
     tagCount: tagCount,
@@ -47,7 +48,9 @@ class GalleryCachedStorageStats extends _$GalleryCachedStorageStats {
       final storage = ref.read(galleryStorageProvider);
       AppLogger().info('[存储统计] 开始扫描文件系统...');
       final stats = await storage.getStorageStats();
-      AppLogger().info('[存储统计] 扫描完成: 文件数=${stats.fileCount}, 字节数=${stats.totalBytes}');
+      AppLogger().info(
+        '[存储统计] 扫描完成: 文件数=${stats.fileCount}, 字节数=${stats.totalBytes}',
+      );
       final prefs = PrefsService().prefs;
       await prefs.setInt(_fileCountKey, stats.fileCount);
       await prefs.setInt(_totalBytesKey, stats.totalBytes);
@@ -75,7 +78,9 @@ class GalleryDbStats {
 
 /// 服务端画廊总览 Provider
 @Riverpod(keepAlive: true)
-Future<GalleryOverview> galleryServerOverview(GalleryServerOverviewRef ref) async {
+Future<GalleryOverview> galleryServerOverview(
+  GalleryServerOverviewRef ref,
+) async {
   final apiClient = ref.watch(apiClientManagerProvider);
   final response = await apiClient.get('/API/gallery/overview');
   return GalleryOverview.fromJson(response.data as Map<String, dynamic>);
@@ -85,5 +90,16 @@ Future<GalleryOverview> galleryServerOverview(GalleryServerOverviewRef ref) asyn
 @Riverpod(keepAlive: true)
 Future<Set<String>> mediaIdsWithTags(MediaIdsWithTagsRef ref) async {
   final db = ref.watch(galleryDatabaseProvider);
-  return await db.getMediaIdsWithTags();
+  final buffer = ref.read(galleryWriteBufferProvider);
+  final ids = await db.getMediaIdsWithTags();
+  for (final id in buffer.pendingMediaIds) {
+    final tags = buffer.pendingTags(id);
+    if (tags == null) continue;
+    if (tags.isEmpty) {
+      ids.remove(id);
+    } else {
+      ids.add(id);
+    }
+  }
+  return ids;
 }

@@ -8,14 +8,14 @@
 - Riverpod + generator；DTO/Hive adapter 使用 build_runner 生成，不手改 `*.g.dart`。改生成源后运行 `dart run build_runner build --delete-conflicting-outputs`。
 - 验收：`flutter analyze` 零告警、`flutter test`。
 - 新增 Hive 类型前查 `../开发备忘.md` 的 typeId 占用表；发布后的 typeId/字段编号不得复用。
-- 随笔/打卡先上传再拉取增量，按 updated_at 合并；删除标记存 userDataSync，游标按主机隔离且成功落库后推进。解析校验后统一写 Box，失败回滚；统计重算，派生 provider 不得原地修改共享对象。
+- 随笔/打卡先上传再拉取增量，按 updated_at 合并；删除标记存 userDataSync，游标按主机隔离且最后落库。多 Box 写入经 `replaceBoxes`，启动时恢复未完成事务；统计重算，派生 provider 不得原地修改共享对象。
 - 随笔草稿与图片仅存本机独立空间；编辑正式随笔时保留原文至保存成功。“隐藏”标签子树默认不展示，AI 回顾始终排除。
 
 ## 网络与媒体
 
 - 连接配置唯一真源是 `providers/network_config/`，`ApiClientManager` 监听派生客户端，页面不手动推送。
 - 网络错误统一走 `ApiClient.mapError`；证书由 `CertTrust` 加载，mDNS 发现 HTTPS 端口。
-- Gallery 的标签/标注权威在服务端，`gallery.db` 仅缓存。画廊走 `GalleryWriteBuffer` 乐观写入/重试/回滚，在线相册走 `retryServerWrite`；保留两种写入语义。
+- Gallery 的标签/标注权威在服务端，`gallery.db` 仅存服务端确认结果。画廊走 `GalleryWriteBuffer` 内存乐观更新/重试/回滚，在线相册走 `retryServerWrite`；保留两种写入语义。
 - 单条标注经 `MediaAssetList` 更新内存与排队；页面不可自行拼 `updateMediaAsset + queuePatch`。清本机缓存走 `GalleryLocalDataController`。
 - 标签树复用 `models/tag_tree.dart`；AI 标签与人工标签隔离。AI 503 时入口/结果块降级，错误文案走 `aiFriendlyError`，模型与能力名来自服务端。
 - 全应用竖屏，媒体旋转由页面处理；标签浮层的命中用 `globalToLocal`，构建尺寸用 `LayoutBuilder`，不可在布局前读取 RenderBox.size。

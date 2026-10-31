@@ -26,10 +26,12 @@ func (m *taskManager) Start(name, cmd string, rest ...string) (*taskengine.Task,
 		return nil, errors.New(msg)
 	}
 	return m.engine.Start(taskengine.Spec{
+		Guard:        &MutationMu,
 		Name:         name,
 		Exe:          PythonExecutable(),
 		Args:         BuildArgs(cmd, rest...),
 		Dir:          config.ComixConf.Root,
+		Env:          []string{"MONARCH_DB_FILE=" + dbAbsPath(), "COMIC_STORAGE_ROOT=" + config.ComixConf.StorageRoot},
 		StreamStdout: false, // stdout 是单行 JSON 结果，写进日志只会刷屏
 		Parse:        parseTaskResult,
 	})

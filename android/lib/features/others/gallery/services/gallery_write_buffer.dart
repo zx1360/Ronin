@@ -10,6 +10,7 @@ class GalleryWriteBuffer {
     required this.pushPatch,
     required this.onRevert,
     this.onError,
+    this.onChanged,
     this.retryDelays = const [
       Duration(milliseconds: 400),
       Duration(milliseconds: 1200),
@@ -28,12 +29,20 @@ class GalleryWriteBuffer {
 
   /// 最终失败时的用户提示
   final void Function(String message)? onError;
+  final void Function()? onChanged;
 
   final List<Duration> retryDelays;
   final Duration debounce;
 
   final Map<String, _PendingWrite> _writes = {};
   bool _disposed = false;
+
+  List<String>? pendingTags(String mediaId) {
+    final write = _writes[mediaId];
+    return write?.tagIds ?? write?.sentTagIds;
+  }
+
+  Iterable<String> get pendingMediaIds => _writes.keys;
 
   /// 排队一次标签集合写入（[baselineTagIds] 为改动前的标签集合）
   void queueTags(
@@ -45,6 +54,7 @@ class GalleryWriteBuffer {
     final write = _writeFor(mediaId, baselineTagIds: baselineTagIds);
     write.tagIds = List<String>.from(tagIds);
     _schedule(mediaId);
+    onChanged?.call();
   }
 
   /// 排队一次媒体标注写入
@@ -112,6 +122,7 @@ class GalleryWriteBuffer {
     if (write == null || write.inFlight || _disposed) return;
 
     var tagIds = write.tagIds;
+    write.sentTagIds = tagIds;
     var patch = write.patch;
     if (tagIds == null && patch == null) {
       _writes.remove(mediaId);
@@ -157,6 +168,7 @@ class GalleryWriteBuffer {
         _schedule(mediaId);
       } else {
         _writes.remove(mediaId);
+        onChanged?.call();
         write.done.complete(true);
       }
     } catch (_) {
@@ -182,6 +194,7 @@ class GalleryWriteBuffer {
       // 最终失败: 回滚到写前状态
       final baseline = write.baseline;
       _writes.remove(mediaId);
+      onChanged?.call();
       try {
         await onRevert(mediaId, baseline);
       } catch (_) {
@@ -240,6 +253,7 @@ class _PendingWrite {
   final done = Completer<bool>();
 
   List<String>? tagIds;
+  List<String>? sentTagIds;
   MediaPatchIntent? patch;
   Timer? timer;
   bool inFlight = false;
