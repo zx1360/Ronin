@@ -7,12 +7,11 @@ part of 'write_buffer_provider.dart';
 // **************************************************************************
 
 String _$galleryWriteBufferHash() =>
-    r'521f8a26f012b1cd204de7afa274ea4cbcc38f72';
+    r'9d6cc077d39634a484885adae04d85e9b7edbb95';
 
 /// 乐观写缓冲 Provider
 ///
-/// 把"服务端推送"与"失败回滚"接到具体 provider: 本地先改, 后台合并推送,
-/// 重试仍失败则回滚本地缓存与内存状态, 保证本地始终向服务端看齐.
+/// 乐观状态仅在内存；服务端确认后才持久化缓存。
 ///
 /// Copied from [galleryWriteBuffer].
 @ProviderFor(galleryWriteBuffer)

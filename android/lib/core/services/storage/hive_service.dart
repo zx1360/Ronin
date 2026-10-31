@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:torrid/core/services/storage/box_replace.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/models/message.dart';
 import 'package:torrid/core/models/mood.dart';
@@ -92,7 +93,7 @@ class HiveService {
     _register(ReviewRecordAdapter());
 
     // 打开(创建)箱
-    await Future.wait([
+    final boxes = await Future.wait<Box<dynamic>>([
       _open<String>('userDataSync'),
       _open<Style>(styleBoxName),
       _open<Record>(recordBoxName),
@@ -104,6 +105,7 @@ class HiveService {
       _open<ReviewPreset>(reviewPresetBoxName),
       _open<ReviewRecord>(reviewHistoryBoxName),
     ]);
+    await recoverBoxWrites(boxes);
     final labels = Hive.box<Label>(labelBoxName);
     if (!labels.values.any((label) => label.isHiddenRoot)) {
       await labels.put(Label.hiddenId, Label.hidden());

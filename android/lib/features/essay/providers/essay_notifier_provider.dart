@@ -215,10 +215,10 @@ class EssayService extends _$EssayService {
       merged.metadata[cursorKey] = incoming['cursor'].toString();
     }
     await replaceBoxes({
-      userDataSyncBox: merged.metadata,
       state.summaryBox: _summaries(essays.values),
       state.labelBox: _countLabels(essays.values, completeLabels),
       state.essayBox: essays,
+      userDataSyncBox: merged.metadata,
     });
   });
 

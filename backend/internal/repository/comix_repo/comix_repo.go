@@ -264,6 +264,10 @@ type DeletedComic struct {
 // ⑤ 成功后移除改名目录（尽力而为，失败时报告残留路径）。
 // keepFiles=true 时只删 DB 记录，文件原样保留（便于可回退验收）。
 func DeleteComic(comicID int, keepFiles bool) (*DeletedComic, error) {
+	if !comix.MutationMu.TryLock() {
+		return nil, errors.New("漫画任务正在运行，请稍后重试")
+	}
+	defer comix.MutationMu.Unlock()
 	return withDB(func(ctx context.Context, conn *sql.DB) (*DeletedComic, error) {
 		var title, relDir string
 		err := conn.QueryRowContext(ctx,

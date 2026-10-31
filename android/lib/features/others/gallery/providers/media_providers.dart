@@ -57,15 +57,13 @@ class MediaAssetList extends _$MediaAssetList {
     if (index < 0) return currentList;
 
     final previous = currentList[index];
+    final db = ref.read(galleryDatabaseProvider);
+    final members = await db.getGroupMembers(id);
     state = AsyncData(
       List<MediaAsset>.from(currentList)
         ..[index] = previous.copyWith(isDeleted: deleted),
     );
 
-    // 本地缓存同样级联标记（与服务端行为一致）
-    final db = ref.read(galleryDatabaseProvider);
-    final members = await db.getGroupMembers(id);
-    await db.markMediaAssetDeleted(id, deleted: deleted);
     ref.invalidate(mediaIdsWithTagsProvider);
     ref
         .read(galleryWriteBufferProvider)
@@ -114,7 +112,7 @@ class MediaAssetList extends _$MediaAssetList {
             : MediaPatchIntent(editParams: params),
       );
 
-  /// 同步内存与本地缓存，再合并推送。
+  /// 内存先展示，持久化由写缓冲在服务端确认后完成。
   Future<void> _applyLocalAndQueue(
     MediaAsset target,
     MediaPatchIntent intent,
@@ -127,13 +125,6 @@ class MediaAssetList extends _$MediaAssetList {
       state = AsyncData(List<MediaAsset>.from(currentList)..[index] = updated);
     }
 
-    final db = ref.read(galleryDatabaseProvider);
-    try {
-      await db.updateMediaAsset(updated);
-    } catch (_) {
-      replaceAsset(baseline);
-      rethrow;
-    }
     ref
         .read(galleryWriteBufferProvider)
         .queuePatch(updated.id, intent, baselineAsset: baseline);
@@ -287,7 +278,7 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
   /// 标签自动套用：将当前媒体的标签写入目标媒体
   ///
   /// 在索引变更**之前**调用, 这样 [currentMediaTagsProvider] 因索引变更而
-  /// 重建时, 从本地缓存读取到的就是已经套用后的标签。
+  /// 重建时可读取尚未确认的内存标签。
   Future<void> _inheritTagsToTarget(
     int fromIndex,
     int toIndex,
@@ -304,14 +295,14 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
 
     try {
       final db = ref.read(galleryDatabaseProvider);
-      final tagIds = await db.getTagIdsForMedia(fromAsset.id);
+      final buffer = ref.read(galleryWriteBufferProvider);
+      final tagIds =
+          buffer.pendingTags(fromAsset.id) ??
+          await db.getTagIdsForMedia(fromAsset.id);
       final baseline = await db.getTagIdsForMedia(toAsset.id);
-      await db.setTagsForMedia(toAsset.id, tagIds);
       ref.invalidate(mediaIdsWithTagsProvider);
       // 服务端推送走缓冲（合并 + 重试 + 失败回滚）
-      ref
-          .read(galleryWriteBufferProvider)
-          .queueTags(toAsset.id, tagIds, baselineTagIds: baseline);
+      buffer.queueTags(toAsset.id, tagIds, baselineTagIds: baseline);
       await ref
           .read(mediaAssetListProvider.notifier)
           .bumpModifiedCount(toAsset.id);

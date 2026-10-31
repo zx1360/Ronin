@@ -1,6 +1,6 @@
 # 三端契约
 
-执行：`pwsh -File backend/tools/check_contracts.ps1`。检查只使用临时数据库，无需启动后端。
+执行：`pwsh -File backend/tools/check_contracts.ps1`；`-Scope backend|android|ops` 可只检查一端。检查只使用临时数据库，无需启动后端。
 
 - `user_data.json`：服务端与本机版本合并、删除竞争、重复提交、日历日与时刻。相同更新时间保留服务端记录；删除与记录同时间时删除优先。
 - `ai.json`：聊天默认值、模型候选与轻量进度；进度合并必须保留已有诊断信息。

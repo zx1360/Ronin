@@ -1,6 +1,6 @@
 # 数据库索引
 
-**SQLite 3.50（单文件）** — 表结构与触发器定义真源：`references/db/sqlite.sql`（幂等，可重复执行）。
+**SQLite（Go 内核 3.51.3，单文件）** — 表结构与触发器定义真源：`references/db/sqlite.sql`（幂等，可重复执行）。
 
 | 项 | 值 |
 |---|---|

@@ -10,28 +10,38 @@ part 'write_buffer_provider.g.dart';
 
 /// 乐观写缓冲 Provider
 ///
-/// 把"服务端推送"与"失败回滚"接到具体 provider: 本地先改, 后台合并推送,
-/// 重试仍失败则回滚本地缓存与内存状态, 保证本地始终向服务端看齐.
+/// 乐观状态仅在内存；服务端确认后才持久化缓存。
 @Riverpod(keepAlive: true)
 GalleryWriteBuffer galleryWriteBuffer(GalleryWriteBufferRef ref) {
   final api = ref.watch(galleryApiProvider);
   final db = ref.watch(galleryDatabaseProvider);
+  var disposed = false;
 
   final buffer = GalleryWriteBuffer(
-    pushTags: (mediaId, tagIds) => api.setMediaTags(mediaId, tagIds),
-    pushPatch: (mediaId, patch) =>
-        api.patchMedia(mediaIds: [mediaId], intent: patch),
+    pushTags: (mediaId, tagIds) async {
+      final confirmed = await api.setMediaTags(mediaId, tagIds);
+      if (!disposed) await db.setTagsForMedia(mediaId, confirmed);
+    },
+    pushPatch: (mediaId, patch) async {
+      final confirmed = await api.patchMedia(
+        mediaIds: [mediaId],
+        intent: patch,
+      );
+      if (!disposed) await db.updateMediaAssetsLocal(confirmed);
+    },
+    onChanged: () {
+      // 消费端读取缓冲快照，由这里失效，避免反向 watch。
+      ref.invalidate(currentMediaTagsProvider);
+      ref.invalidate(mediaIdsWithTagsProvider);
+    },
     onRevert: (mediaId, baseline) async {
       if (baseline.asset != null) {
-        await db.updateMediaAsset(baseline.asset!);
         ref.read(mediaAssetListProvider.notifier).replaceAsset(baseline.asset!);
       }
-      await db.updateMediaAssetsLocal(baseline.members);
       for (final member in baseline.members) {
         ref.read(mediaAssetListProvider.notifier).replaceAsset(member);
       }
       if (baseline.tagIds != null) {
-        await db.setTagsForMedia(mediaId, baseline.tagIds!);
         if (ref.read(currentMediaAssetProvider)?.id == mediaId) {
           ref.invalidate(currentMediaTagsProvider);
         }
@@ -42,7 +52,10 @@ GalleryWriteBuffer galleryWriteBuffer(GalleryWriteBufferRef ref) {
         ref.read(galleryWriteStatusProvider.notifier).report(message),
   );
 
-  ref.onDispose(buffer.dispose);
+  ref.onDispose(() {
+    disposed = true;
+    buffer.dispose();
+  });
   return buffer;
 }
 
