@@ -230,8 +230,11 @@ class ImmichMedia extends _$ImmichMedia {
       pageTags.putIfAbsent(link.mediaId, () => []).add(link.tagId);
     }
     if (requestId == _requestId) {
-      await db.updateMediaAssetsLocal(result.mediaAssets);
-      await db.replaceTagsForMediaBatch(pageTags);
+      await db.updateMediaAssetsLocal(
+        result.mediaAssets,
+        preserveOperations: true,
+      );
+      await db.replaceTagsForMediaBatch(pageTags, preserveOperations: true);
     }
 
     final assets = [...?previous?.assets, ...result.mediaAssets];
@@ -269,7 +272,10 @@ class ImmichActions extends _$ImmichActions {
   Future<T> _run<T>(Future<T> Function() action) async {
     state = true;
     try {
-      final result = await action();
+      final result = await ref
+          .read(galleryWriteBufferProvider)
+          .writeOnline(action);
+      ref.invalidate(mediaAssetListProvider);
       // 保持已加载条数, 避免操作后跳回第一页
       await ref.read(immichMediaProvider.notifier).reloadKeepingLength();
       ref.read(immichSelectionProvider.notifier).clear();

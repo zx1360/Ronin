@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS media_assets (
     mime_type    TEXT,
     is_deleted   INTEGER NOT NULL DEFAULT 0,
     sync_count   INTEGER NOT NULL DEFAULT 0,
+    last_processed_request TEXT,
     group_id     TEXT DEFAULT NULL REFERENCES media_assets(id) ON DELETE SET NULL,
     message      TEXT DEFAULT NULL,
     edit_params  TEXT DEFAULT NULL

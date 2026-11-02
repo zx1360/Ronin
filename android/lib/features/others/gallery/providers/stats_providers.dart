@@ -3,7 +3,6 @@ import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/others/gallery/models/gallery_overview.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
-import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -90,16 +89,5 @@ Future<GalleryOverview> galleryServerOverview(
 @Riverpod(keepAlive: true)
 Future<Set<String>> mediaIdsWithTags(MediaIdsWithTagsRef ref) async {
   final db = ref.watch(galleryDatabaseProvider);
-  final buffer = ref.read(galleryWriteBufferProvider);
-  final ids = await db.getMediaIdsWithTags();
-  for (final id in buffer.pendingMediaIds) {
-    final tags = buffer.pendingTags(id);
-    if (tags == null) continue;
-    if (tags.isEmpty) {
-      ids.remove(id);
-    } else {
-      ids.add(id);
-    }
-  }
-  return ids;
+  return db.getMediaIdsWithTags();
 }

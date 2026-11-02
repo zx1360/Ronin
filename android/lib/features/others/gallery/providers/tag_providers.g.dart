@@ -22,11 +22,11 @@ final favoriteTagsProvider = AutoDisposeProvider<List<Tag>>.internal(
 );
 
 typedef FavoriteTagsRef = AutoDisposeProviderRef<List<Tag>>;
-String _$tagTreeHash() => r'da14089aef1b68862f075ca42af58b5d9b9a5971';
+String _$tagTreeHash() => r'39d00ec461d10ad637edcd47d93681acee84be50';
 
 /// 标签树 Provider
 ///
-/// 读取本地缓存（离线可浏览）; 所有写操作先落服务端, 再把服务端结果写入缓存。
+/// Gallery 使用离线工作副本；在线相册写入前先确认待回传操作。
 ///
 /// Copied from [TagTree].
 @ProviderFor(TagTree)
@@ -41,7 +41,7 @@ final tagTreeProvider =
 );
 
 typedef _$TagTree = AutoDisposeAsyncNotifier<List<Tag>>;
-String _$currentMediaTagsHash() => r'5829274e7b05d4d2162082d194b2759a031c2f4e';
+String _$currentMediaTagsHash() => r'8571ad4f260c61b4691c770d549092efd1b0b8d8';
 
 /// 当前媒体文件的标签 Provider（读本地缓存）
 ///

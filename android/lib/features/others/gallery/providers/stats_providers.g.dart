@@ -41,7 +41,7 @@ final galleryServerOverviewProvider = FutureProvider<GalleryOverview>.internal(
 );
 
 typedef GalleryServerOverviewRef = FutureProviderRef<GalleryOverview>;
-String _$mediaIdsWithTagsHash() => r'ac63bb98887dbb0c2754edc066fb65bde096ced1';
+String _$mediaIdsWithTagsHash() => r'7ad619b02b6a1941994ecee07f402fd641f544dd';
 
 /// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）
 ///
