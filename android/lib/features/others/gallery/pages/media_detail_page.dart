@@ -11,6 +11,7 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/features/others/gallery/widgets/fullscreen_image_viewer.dart';
+import 'package:torrid/features/others/services/media_share_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class MediaDetailPage extends ConsumerStatefulWidget {
@@ -27,6 +28,8 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
   bool _isSaving = false;
   bool _isDownloading = false;
   CancelToken? _downloadCancelToken;
+  bool _isSharing = false;
+  CancelToken? _shareCancelToken;
   bool _isGroupUpdating = false;
   final _pages = PageController();
   final Map<String, String> _messageDrafts = {};
@@ -87,6 +90,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
   @override
   void dispose() {
     _downloadCancelToken?.cancel();
+    _shareCancelToken?.cancel();
     _messageController.dispose();
     _pages.dispose();
     super.dispose();
@@ -103,6 +107,17 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
           style: const TextStyle(fontSize: 14),
         ),
         actions: [
+          IconButton(
+            icon: _isSharing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.share, size: 20),
+            tooltip: '分享',
+            onPressed: _isSharing ? null : _shareCurrent,
+          ),
           IconButton(
             icon: const Icon(Icons.auto_awesome, size: 20),
             tooltip: '问问AI',
@@ -686,6 +701,28 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
       if (mounted) {
         setState(() => _isDownloading = false);
       }
+    }
+  }
+
+  Future<void> _shareCurrent() async {
+    final token = CancelToken();
+    _shareCancelToken = token;
+    setState(() => _isSharing = true);
+    try {
+      await shareMedia(
+        ref.read(apiClientManagerProvider),
+        _currentAsset,
+        cancelToken: token,
+      );
+    } catch (e) {
+      if (mounted && !token.isCancelled) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('分享失败: $e')));
+      }
+    } finally {
+      _shareCancelToken = null;
+      if (mounted) setState(() => _isSharing = false);
     }
   }
 

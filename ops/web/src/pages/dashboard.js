@@ -2,7 +2,7 @@
 //
 // 数据来自 /API/ops/overview（服务端按 TTL 缓存目录用量），按偏好里的间隔轮询。
 
-import { ref, onMounted } from '../vue.js';
+import { ref, onMounted, onUnmounted } from '../vue.js';
 import { api } from '../api.js';
 import { state } from '../store.js';
 import { usePolling, Card, Placeholder, Badge } from '../ui.js';
@@ -24,11 +24,14 @@ export default {
     const error = ref('');
     const updatedAt = ref(null);
     const loading = ref(false);
+    const controller = new AbortController();
+    onUnmounted(() => controller.abort());
 
     const load = async () => {
+      if (loading.value || controller.signal.aborted) return;
       loading.value = true;
       try {
-        overview.value = await api.get('/API/ops/overview', { timeoutMs: 30000 });
+        overview.value = await api.get('/API/ops/overview', { timeoutMs: 30000, signal: controller.signal });
         error.value = '';
         updatedAt.value = new Date().toISOString();
       } catch (err) {
@@ -39,7 +42,8 @@ export default {
     };
 
     const poller = usePolling(load, {
-      interval: () => state.settings.auto_refresh_seconds || 10,
+      interval: () => Object.values(overview.value?.storage || {}).some((row) => row.pending)
+        ? 1 : state.settings.auto_refresh_seconds || 10,
       enabled: () => true,
     });
 
@@ -120,11 +124,11 @@ export default {
               <tr v-for="row in storageRows()" :key="row.key">
                 <td>{{ row.label }}</td>
                 <td>
-                  <Badge :kind="row.exists ? 'success' : 'error'">{{ row.exists ? '存在' : '不存在' }}</Badge>
+                  <Badge :kind="row.pending ? 'warning' : row.exists ? 'success' : 'error'">{{ row.pending ? '统计中…' : row.exists ? '存在' : '不存在' }}</Badge>
                   <span class="small" style="color: var(--error)" v-if="row.error"> {{ row.error }}</span>
                 </td>
-                <td>{{ row.files }}</td>
-                <td>{{ formatBytes(row.bytes) }}</td>
+                <td>{{ row.pending ? '—' : row.files }}</td>
+                <td>{{ row.pending ? '—' : formatBytes(row.bytes) }}</td>
                 <td class="mono muted">{{ row.path }}</td>
               </tr>
             </tbody>

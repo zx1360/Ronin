@@ -18,6 +18,7 @@
 | mime_type    | TEXT                                                      |
 | is_deleted   | INTEGER NOT NULL DEFAULT 0                                |
 | sync_count   | INTEGER NOT NULL DEFAULT 0（由调用方显式 +1，非触发器）    |
+| last_processed_request | TEXT（最近一次批次标记请求 ID，防止重试重复计数） |
 | group_id     | TEXT DEFAULT NULL FK→media_assets (ON DELETE SET NULL)    |
 | message      | TEXT DEFAULT NULL                                         |
 | edit_params  | TEXT DEFAULT NULL（JSON 文本）                             |
@@ -53,7 +54,7 @@
 - **`full_path` 与子孙路径级联由 Go 维护**（`gallery_repo.rebuildTagPaths`）：
   写操作后整体重算全树路径，只更新变化的行
 - 删除标签级联删除子孙标签与媒体标签关联
-- 标签写操作一律走 `/API/gallery/tags`（服务端权威），客户端本地表仅作缓存
+- 标签最终写入 `/API/gallery/tags`；离线新建可携带固定 `id`，同一 ID 和内容的重试不会重复创建。
 
 ## media_tag_links
 

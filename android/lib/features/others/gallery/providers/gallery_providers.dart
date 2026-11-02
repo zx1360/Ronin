@@ -7,7 +7,7 @@
 /// - tag_providers.dart          - 标签数据
 /// - stats_providers.dart        - 统计信息
 /// - local_data_providers.dart   - 本地缓存清空（不触碰服务端）
-/// - write_buffer_provider.dart  - 服务端写缓冲 (乐观写入/重试/回滚)
+/// - write_buffer_provider.dart  - 持久操作记录与顺序回传
 library;
 
 export 'service_providers.dart';

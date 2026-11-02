@@ -694,6 +694,7 @@ func rebuildTagPaths(ctx context.Context, tx *sql.Tx) error {
 var (
 	ErrTagNotFound       = errors.New("标签不存在")
 	ErrTagNameConflict   = errors.New("同级已存在同名标签")
+	ErrTagIDConflict     = errors.New("标签 ID 已存在且内容不一致")
 	ErrTagParentNotFound = errors.New("父标签不存在")
 	ErrTagCycle          = errors.New("不能将标签移动到其子孙节点下")
 	ErrTagEmptyName      = errors.New("标签名不能为空")
@@ -712,6 +713,11 @@ type TagPatch struct {
 
 // CreateTag 创建标签（full_path 由 [rebuildTagPaths] 维护）
 func CreateTag(name string, parentID *uuid.UUID) (*model.Tag, error) {
+	return CreateTagWithID(uuid.New(), name, parentID)
+}
+
+// CreateTagWithID 支持离线客户端使用固定 ID 安全重试。
+func CreateTagWithID(id uuid.UUID, name string, parentID *uuid.UUID) (*model.Tag, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, ErrTagEmptyName
@@ -720,8 +726,24 @@ func CreateTag(name string, parentID *uuid.UUID) (*model.Tag, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	id := uuid.New()
+	if id == uuid.Nil {
+		return nil, ErrTagIDConflict
+	}
 	err := db.Tx(ctx, func(tx *sql.Tx) error {
+		var existingName string
+		var existingParent *uuid.UUID
+		err := tx.QueryRowContext(ctx, `SELECT name, parent_id FROM tags WHERE id = ?`, id).
+			Scan(&existingName, &existingParent)
+		if err == nil {
+			if existingName == name && ((existingParent == nil && parentID == nil) ||
+				(existingParent != nil && parentID != nil && *existingParent == *parentID)) {
+				return nil
+			}
+			return ErrTagIDConflict
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		if err := ensureParentExist(ctx, tx, parentID); err != nil {
 			return err
 		}
@@ -1032,6 +1054,7 @@ func ensureAllExist(ctx context.Context, q rowQuerier, table string, ids []uuid.
 
 // MediaPatch 媒体标注更新意图（nil/空字段表示不修改）
 type MediaPatch struct {
+	RequestID       *uuid.UUID
 	MediaIDs        []uuid.UUID
 	IsDeleted       *bool
 	Message         *string // 空串表示清空
@@ -1147,8 +1170,18 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 		} else if patch.ClearEditParams {
 			b.raw("edit_params = NULL")
 		}
-		if patch.MarkProcessed {
+		if patch.MarkProcessed && patch.RequestID == nil {
 			b.raw("sync_count = sync_count + 1")
+		}
+		if patch.MarkProcessed && patch.RequestID != nil {
+			clause, args := inClause(ids)
+			args = append([]any{*patch.RequestID}, args...)
+			args = append(args, *patch.RequestID)
+			if _, err := tx.ExecContext(ctx, `UPDATE media_assets
+				SET sync_count = sync_count + 1, last_processed_request = ?
+				WHERE id `+clause+` AND (last_processed_request IS NULL OR last_processed_request <> ?)`, args...); err != nil {
+				return err
+			}
 		}
 		if err := update(ids, b); err != nil {
 			return err

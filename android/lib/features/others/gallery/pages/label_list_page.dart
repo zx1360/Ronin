@@ -464,7 +464,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     try {
       await ref
           .read(tagTreeProvider.notifier)
-          .createTag(name: name, parentId: parentId);
+          .createTag(name: name, parentId: parentId, localFirst: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -489,7 +489,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     if (name == null || name.isEmpty || name == tag.name) return;
 
     try {
-      await ref.read(tagTreeProvider.notifier).renameTag(tag, name);
+      await ref
+          .read(tagTreeProvider.notifier)
+          .renameTag(tag, name, localFirst: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -502,7 +504,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 切换快捷标签（服务端持久化）
   Future<void> _toggleFavorite(Tag tag, bool value) async {
     try {
-      await ref.read(tagTreeProvider.notifier).setFavorite(tag.id, value);
+      await ref
+          .read(tagTreeProvider.notifier)
+          .setFavorite(tag.id, value, localFirst: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -536,7 +540,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
     if (confirmed != true) return;
 
     try {
-      await ref.read(tagTreeProvider.notifier).deleteTag(tag.id);
+      await ref
+          .read(tagTreeProvider.notifier)
+          .deleteTag(tag.id, localFirst: true);
       if (mounted) setState(() => _expandedIds.remove(tag.id));
     } catch (e) {
       if (mounted) {
@@ -550,7 +556,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 移动标签
   Future<void> _moveTag(String tagId, String? newParentId) async {
     try {
-      await ref.read(tagTreeProvider.notifier).moveTag(tagId, newParentId);
+      await ref
+          .read(tagTreeProvider.notifier)
+          .moveTag(tagId, newParentId, localFirst: true);
       if (newParentId != null && mounted) {
         setState(() => _expandedIds.add(newParentId));
       }

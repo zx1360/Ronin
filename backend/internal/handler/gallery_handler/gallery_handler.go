@@ -190,7 +190,7 @@ func respondRepoError(c *gin.Context, err error) {
 	case errors.Is(err, gallery_repo.ErrTagNotFound),
 		errors.Is(err, gallery_repo.ErrMediaNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-	case errors.Is(err, gallery_repo.ErrTagNameConflict):
+	case errors.Is(err, gallery_repo.ErrTagNameConflict), errors.Is(err, gallery_repo.ErrTagIDConflict):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, gallery_repo.ErrTagParentNotFound),
 		errors.Is(err, gallery_repo.ErrTagCycle),
@@ -228,7 +228,11 @@ func CreateTag(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	tag, err := gallery_repo.CreateTag(req.Name, req.ParentID)
+	id := uuid.New()
+	if req.ID != nil {
+		id = *req.ID
+	}
+	tag, err := gallery_repo.CreateTagWithID(id, req.Name, req.ParentID)
 	if err != nil {
 		respondRepoError(c, err)
 		return
@@ -379,12 +383,17 @@ func PatchMedia(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "media_ids 不能为空"})
 		return
 	}
+	if req.RequestID != nil && (!req.MarkProcessed || *req.RequestID == uuid.Nil) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "request_id 仅用于标记已处理，且不能为空 UUID"})
+		return
+	}
 
 	patch := gallery_repo.MediaPatch{
 		MediaIDs:      req.MediaIDs,
 		IsDeleted:     req.IsDeleted,
 		Message:       req.Message,
 		MarkProcessed: req.MarkProcessed,
+		RequestID:     req.RequestID,
 	}
 
 	if len(req.GroupID) > 0 {
@@ -423,7 +432,7 @@ func PatchMedia(c *gin.Context) {
 		respondRepoError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, model.MediaPatchResponse{MediaAssets: assets})
+	c.JSON(http.StatusOK, model.MediaPatchResponse{MediaAssets: assets, RequestID: req.RequestID})
 }
 
 // normalizeJSONText 归一化 edit_params 取值：同时接受 JSON 字符串与 JSON 对象/数组文本

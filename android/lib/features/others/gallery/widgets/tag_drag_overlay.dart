@@ -551,7 +551,9 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     );
     if (remove != true || !mounted) return;
     try {
-      await ref.read(tagTreeProvider.notifier).setFavorite(tag.id, false);
+      await ref
+          .read(tagTreeProvider.notifier)
+          .setFavorite(tag.id, false, localFirst: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

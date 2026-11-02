@@ -14,6 +14,16 @@ func TestDirUsageCacheConcurrentAndRefresh(t *testing.T) {
 	if err := os.WriteFile(file, []byte("abc"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if usage := getCachedDirUsage(root); !usage.Pending {
+		t.Fatal("首次访问应立即返回待统计状态")
+	}
+	initialDeadline := time.Now().Add(3 * time.Second)
+	for getCachedDirUsage(root).Pending {
+		if time.Now().After(initialDeadline) {
+			t.Fatal("首次异步统计未完成")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)

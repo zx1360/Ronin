@@ -51,7 +51,7 @@ flowchart LR
 | SharedPreferences | 主机列表、API key、聊天设置、界面偏好 | Android 本地设置真源 |
 | Hive | 随笔/打卡、Chat 会话消息、Review 镜像和历史、漫画缓存 | 依功能决定是本地真源或缓存 |
 | Hive `essayDrafts` / 私有目录 `essay_drafts/` | 随笔多草稿与草稿图片 | 仅本机；不参与同步、备份和 AI 回顾 |
-| sqflite `gallery.db` | Gallery 媒体缓存、下载批次 | 仅保存服务端确认结果 |
+| sqflite `gallery.db` | Gallery 工作副本、操作表、下载批次 | 离线修改持久化；服务端仍是最终权威 |
 | 内部 Application Support `media/` | 打卡/随笔/聊天附件、草稿、个性化图片 | 持久用户文件，不属于缓存 |
 | 外部应用私有 `comics/`、`gallery/` | 漫画和画廊离线媒体 | 按模块清理，不随普通清缓存删除 |
 | 系统缓存 `media_share/`、`media_export/` | 分享和导出暂存 | 与网络图片缓存分开统计；保留近 24 小时分享文件 |
@@ -71,7 +71,7 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 | 对话 | `features/chat` | `/API/ai/chat` NDJSON；会话/消息只落 Hive |
 | 近期回顾 | `features/chat` | 后端计算统计，端上消费 `stats -> delta`；结果只存本机 |
 | 漫画 | `features/others/comic` | `/API/comic/*`；服务端库 + 端上阅读/下载缓存 |
-| Gallery | `features/others/gallery` | `/API/gallery/*`；离线浏览，写入需服务端确认 |
+| Gallery | `features/others/gallery` | `/API/gallery/*`；离线编辑，批次回传校验 |
 | Immich 相册 | `features/others/immich` | 在线直达服务端写入，不复用 Gallery 离线缓冲 |
 | 智能相册/AI | `features/others/smart_album`、`ai` | `/API/ai/*`；503 时隐藏可选 AI 块或给明确提示 |
 | 阅读/RSS | `features/read` | 独立第三方接口，不依赖 Monarch 主数据 |
@@ -83,18 +83,17 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 页面动作进入 `MediaAssetList` 的统一操作入口，执行：
 
 ```text
-本地内存立即更新
-  -> gallery_write_buffer 合并
-  -> 后台推送 PATCH/标签 API
-  -> 失败退避重试
-  -> 成功后持久化缓存，最终失败回滚内存
+操作与本地工作副本同事务落盘
+  -> gallery_write_buffer 按序回传 PATCH/标签 API
+  -> 失败保留，有限次后台重试
+  -> 标记已处理时补传并逐项校验，成功后清理
 ```
 
 不要在页面中手写 `updateMediaAsset + queuePatch`，否则容易漏掉内存态同步。
 
 ### Immich 相册
 
-该页始终按在线模型走 `retryServerWrite`，失败重试直接针对服务端。Gallery 则在内存中合并高频修改，均只将服务端确认结果持久化。
+该页始终按在线模型走 `retryServerWrite`，失败重试直接针对服务端。Gallery 的操作表按服务器地址隔离，已回传记录仍保留至批次校验；标记已处理的请求 ID 持久化，超时或重启后重试不会重复递增游标。
 
 ## 6. Chat / Review 流式边界
 

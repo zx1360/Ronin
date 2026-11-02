@@ -4,12 +4,13 @@ import 'dart:isolate';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -99,6 +100,8 @@ class GallerySyncService extends _$GallerySyncService {
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
     final apiClient = ref.read(apiClientManagerProvider);
+    final buffer = ref.read(galleryWriteBufferProvider);
+    var confirmedWrites = false;
 
     try {
       state = SyncProgress(
@@ -108,8 +111,10 @@ class GallerySyncService extends _$GallerySyncService {
         total: 0,
       );
 
-      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
-        throw StateError('部分修改未同步，请确认后重试');
+      await buffer.confirmAndLock();
+      confirmedWrites = true;
+      if ((await db.operations()).any((op) => op.kind == 'processed')) {
+        throw StateError('请先重试完成上次的标记已处理');
       }
       final offset = await db.getMediaAssetCount();
 
@@ -241,6 +246,7 @@ class GallerySyncService extends _$GallerySyncService {
 
       // 5. 刷新数据
       ref.invalidate(mediaAssetListProvider);
+      ref.invalidate(tagTreeProvider);
       ref.invalidate(mediaIdsWithTagsProvider);
 
       state = SyncProgress(
@@ -264,6 +270,7 @@ class GallerySyncService extends _$GallerySyncService {
       AppLogger().error('Gallery 下载失败: $e');
       return false;
     } finally {
+      if (confirmedWrites) buffer.unlock();
       _cancelToken = null;
     }
   }
@@ -294,7 +301,7 @@ class GallerySyncService extends _$GallerySyncService {
 
   /// 标记已处理并清理本地缓存
   ///
-  /// 标签/标注都已通过操作接口实时写入服务端, 这里只做两件事:
+  /// 先回传并逐项校验本地操作，再推进服务端游标和清理本机记录。
   /// 1. 把队列前段 `0..[processedUpperIndex]` 的媒体在服务端 `sync_count + 1`
   ///    （批次处理游标, 使已处理媒体排到队尾, 下次下载取到的就是未处理的）;
   /// 2. 删除这批媒体的本地记录与缩略图/预览图, 腾出空间下载下一批.
@@ -308,6 +315,8 @@ class GallerySyncService extends _$GallerySyncService {
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
     final api = ref.read(galleryApiProvider);
+    final buffer = ref.read(galleryWriteBufferProvider);
+    var confirmedWrites = false;
 
     try {
       state = const SyncProgress(
@@ -315,9 +324,9 @@ class GallerySyncService extends _$GallerySyncService {
         message: '正在准备数据...',
       );
 
-      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
-        throw StateError('部分修改未同步，请确认后重试');
-      }
+      state = state.copyWith(message: '正在回传并校验操作...');
+      await buffer.confirmAndLock();
+      confirmedWrites = true;
 
       final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
       final upperIndex = processedUpperIndex(
@@ -327,8 +336,22 @@ class GallerySyncService extends _$GallerySyncService {
       );
 
       // 1. 取队列中 0..upperIndex 的媒体及其组成员
-      final processedAssets = await db.getProcessedAssets(upperIndex);
+      final operations = await db.operations();
+      final saved = operations
+          .where((op) => op.kind == 'processed')
+          .firstOrNull;
+      final processedAssets = saved == null
+          ? await db.getProcessedAssets(upperIndex)
+          : [
+              for (final id in (saved.body['media_ids'] as List).cast<String>())
+                if (await db.getMediaAssetById(id) case final asset?) asset,
+            ];
+      if (saved != null &&
+          processedAssets.length != (saved.body['media_ids'] as List).length) {
+        throw StateError('本地待回传批次不完整，已保留操作记录');
+      }
       if (processedAssets.isEmpty) {
+        await db.deleteProcessedData([]);
         state = const SyncProgress(
           status: SyncStatus.success,
           message: '没有需要标记的媒体',
@@ -343,18 +366,19 @@ class GallerySyncService extends _$GallerySyncService {
 
       final mediaIds = processedAssets.map((a) => a.id).toList();
 
-      // 2. 服务端标记已处理（游标推进）
-      await api.patchMedia(
-        mediaIds: mediaIds,
-        intent: const MediaPatchIntent(markProcessed: true),
-      );
-
-      state = SyncProgress(
-        status: SyncStatus.success,
-        message: '已处理 ${mediaIds.length} 条记录',
-        current: mediaIds.length,
-        total: mediaIds.length,
-      );
+      if (saved == null) {
+        await db.recordOperation(
+          ref.read(apiClientManagerProvider).baseUrl,
+          'processed',
+          {
+            'media_ids': mediaIds,
+            'mark_processed': true,
+            'request_id': const Uuid().v4(),
+          },
+        );
+      }
+      final completion = saved ?? (await db.operations()).last;
+      await api.sendOperation(completion);
 
       // 3. 删除本地记录与文件
       await db.deleteProcessedData(mediaIds);
@@ -367,6 +391,13 @@ class GallerySyncService extends _$GallerySyncService {
       await ref.read(mediaAssetListProvider.future);
 
       _deleteLocalFilesInBackground(processedAssets, storage);
+
+      state = SyncProgress(
+        status: SyncStatus.success,
+        message: '已处理 ${mediaIds.length} 条记录',
+        current: mediaIds.length,
+        total: mediaIds.length,
+      );
 
       AppLogger().info('Gallery 标记已处理: ${mediaIds.length} 条记录');
       return true;
@@ -386,6 +417,7 @@ class GallerySyncService extends _$GallerySyncService {
       AppLogger().error('Gallery 标记已处理失败: $e');
       return false;
     } finally {
+      if (confirmedWrites) buffer.unlock();
       _cancelToken = null;
     }
   }

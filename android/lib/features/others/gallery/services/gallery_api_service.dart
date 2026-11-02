@@ -4,6 +4,7 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
+import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'gallery_api_service.g.dart';
@@ -36,6 +37,67 @@ class GalleryApiService {
   GalleryApiService(this._client);
 
   final ApiClient _client;
+
+  Future<void> sendOperation(GalleryOperation operation) => _guard(() async {
+    final body = Map<String, dynamic>.from(operation.body);
+    final id = body.remove('id');
+    body.remove('deleted_ids');
+    body.remove('affected_ids');
+    switch (operation.kind) {
+      case 'patch':
+      case 'processed':
+        final response = await _client.patchJson(
+          '/API/gallery/media',
+          data: body,
+        );
+        final data = response.data as Map<String, dynamic>;
+        if (operation.kind == 'processed' &&
+            data['request_id'] != body['request_id']) {
+          throw const FormatException('服务器不支持安全重试，请更新后端后重试回传');
+        }
+        final ids = _parseList(
+          data['media_assets'],
+          MediaAsset.fromJson,
+        ).map((a) => a.id).toSet();
+        if (!(body['media_ids'] as List).every(ids.contains)) {
+          throw const FormatException('服务端未确认全部媒体');
+        }
+      case 'tags':
+        final confirmed = await setMediaTags(
+          body['media_id'] as String,
+          (body['tag_ids'] as List).cast<String>(),
+        );
+        final expected = (body['tag_ids'] as List).toSet();
+        if (confirmed.length != expected.length ||
+            !confirmed.every(expected.contains)) {
+          throw const FormatException('服务端未确认全部标签');
+        }
+      case 'tagCreate':
+        final response = await _client.postJson(
+          '/API/gallery/tags',
+          data: {'id': id, ...body},
+        );
+        if (_tagOf(response.data)['id'] != id) {
+          throw const FormatException('服务器不支持离线新建标签，请更新后端');
+        }
+      case 'tagUpdate':
+        final response = await _client.putJson(
+          '/API/gallery/tags/$id',
+          data: body,
+        );
+        if (_tagOf(response.data)['id'] != id) {
+          throw const FormatException('服务端未确认标签');
+        }
+      case 'tagDelete':
+        try {
+          await _client.delete('/API/gallery/tags/$id');
+        } catch (error) {
+          if (ApiClient.mapError(error).statusCode != 404) rethrow;
+        }
+      default:
+        throw StateError('未知画廊操作');
+    }
+  });
 
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {

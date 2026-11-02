@@ -18,6 +18,7 @@ type addedColumn struct {
 
 // addedColumns 为既有库补齐的列，顺序无关。
 var addedColumns = []addedColumn{
+	{table: "media_assets", name: "last_processed_request", ddl: "last_processed_request TEXT"},
 	{table: "essay_articles", name: "title", ddl: "title TEXT NOT NULL DEFAULT ''"},
 	{table: "essay_labels", name: "parent_id", ddl: "parent_id TEXT"},
 	// 任务与产物的输入档位、执行者指纹。

@@ -75,7 +75,10 @@ export default {
       if (!silent) loading.value = true;
       const results = await Promise.allSettled([
         api.get(silent ? '/API/ai/progress' : `/API/ai/status${options?.refresh ? '?refresh=true' : ''}`, { signal: controller.signal }),
-        ...(!silent ? [api.get('/API/ai/settings', { signal: controller.signal })] : []),
+        ...(!silent ? [api.get('/API/ai/settings', { signal: controller.signal }).then((value) => {
+          if (!disposed) runtime.value = value || null;
+          return value;
+        })] : []),
       ]);
       if (disposed) return;
       const [statusResult, settingsResult] = results;
@@ -118,7 +121,13 @@ export default {
       return poller.trigger();
     };
 
-    onMounted(async () => { await load(); poller.trigger(); });
+    onMounted(async () => {
+      const initialProgress = api.get('/API/ai/progress', { signal: controller.signal }).then((progress) => {
+        if (!disposed && !status.value) status.value = mergeProgress(null, progress);
+      });
+      await Promise.allSettled([initialProgress, load()]);
+      if (!disposed) poller.trigger();
+    });
     watch(active, (value) => {
       if (value && !disabled.value) poller.trigger();
     });
