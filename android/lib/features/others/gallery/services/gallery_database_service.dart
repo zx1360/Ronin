@@ -1,11 +1,14 @@
+import 'dart:convert';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 
-/// Gallery 模块数据库服务 - 单例模式
-/// 管理 media_assets, tags, media_tag_links 三张表
+part 'gallery_operation_store.dart';
+
+/// Gallery 工作副本与操作表。
 class GalleryDatabaseService {
   static final GalleryDatabaseService _instance =
       GalleryDatabaseService._internal();
@@ -14,7 +17,7 @@ class GalleryDatabaseService {
 
   static Database? _database;
   static const String _dbName = 'gallery.db';
-  static const int _dbVersion = 4;
+  static const int _dbVersion = 5;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -71,10 +74,12 @@ class GalleryDatabaseService {
         'ALTER TABLE tags ADD COLUMN media_count INTEGER NOT NULL DEFAULT 0',
       );
     }
+    if (oldVersion < 5) await _createOperations(db);
   }
 
   /// 创建表结构 - 与服务端字段保持一致（仅本地缓存，权威在服务端）
   Future<void> _onCreate(Database db, int version) async {
+    await _createOperations(db);
     // 媒体文件表
     await db.execute('''
       CREATE TABLE IF NOT EXISTS media_assets (
@@ -210,19 +215,25 @@ class GalleryDatabaseService {
   }
 
   /// 批量写入服务端返回的媒体行（仅更新已存在的缓存行）
-  Future<void> updateMediaAssetsLocal(List<MediaAsset> assets) async {
+  Future<void> updateMediaAssetsLocal(
+    List<MediaAsset> assets, {
+    bool preserveOperations = false,
+  }) async {
     if (assets.isEmpty) return;
     final db = await database;
-    final batch = db.batch();
-    for (final asset in assets) {
-      batch.update(
-        'media_assets',
-        asset.toDbMap(),
-        where: 'id = ?',
-        whereArgs: [asset.id],
-      );
-    }
-    await batch.commit(noResult: true);
+    await db.transaction((txn) async {
+      if (preserveOperations && await _hasOperations(txn)) return;
+      final batch = txn.batch();
+      for (final asset in assets) {
+        batch.update(
+          'media_assets',
+          asset.toDbMap(),
+          where: 'id = ?',
+          whereArgs: [asset.id],
+        );
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   /// 只更新本地已缓存媒体的某个字段（用于批量标注写入后的缓存同步）
@@ -270,7 +281,10 @@ class GalleryDatabaseService {
   /// 先按父先子顺序写入/更新服务端返回的标签, 再删除本地多出来的标签
   /// （其标签关联随外键级联清除）. 标签表很小, 因此每次同步都做整表镜像.
   /// 被删除的标签会记入日志, 便于需要时人工恢复.
-  Future<void> syncTagsCache(List<Tag> serverTags) async {
+  Future<void> syncTagsCache(
+    List<Tag> serverTags, {
+    bool preserveOperations = true,
+  }) async {
     final db = await database;
     final ordered = sortTagsByHierarchy(serverTags);
     final serverIds = {for (final tag in serverTags) tag.id};
@@ -279,13 +293,11 @@ class GalleryDatabaseService {
       for (final tag in await getAllTags())
         if (!serverIds.contains(tag.id)) tag,
     ];
-    if (localOnly.isNotEmpty) {
-      AppLogger().info(
-        '标签镜像: 移除服务端不存在的本地标签 ${localOnly.map((t) => t.fullPath ?? t.name).join(', ')}',
-      );
-    }
-
     await db.transaction((txn) async {
+      if (preserveOperations && await _hasOperations(txn)) return;
+      if (localOnly.isNotEmpty) {
+        AppLogger().info('标签镜像: 移除 ${localOnly.length} 个服务端不存在的标签');
+      }
       for (final tag in ordered) {
         await _writeTag(txn, tag);
       }
@@ -494,8 +506,9 @@ class GalleryDatabaseService {
 
   /// 用服务端结果整批覆盖若干媒体的标签关联（仅处理本地已缓存的媒体）
   Future<void> replaceTagsForMediaBatch(
-    Map<String, List<String>> tagIdsByMedia,
-  ) async {
+    Map<String, List<String>> tagIdsByMedia, {
+    bool preserveOperations = false,
+  }) async {
     if (tagIdsByMedia.isEmpty) return;
     final db = await database;
     final mediaIds = tagIdsByMedia.keys.toList();
@@ -503,6 +516,7 @@ class GalleryDatabaseService {
     if (cached.isEmpty) return;
 
     await db.transaction((txn) async {
+      if (preserveOperations && await _hasOperations(txn)) return;
       for (final mediaId in cached) {
         await txn.delete(
           'media_tag_links',
@@ -571,6 +585,7 @@ class GalleryDatabaseService {
       await txn.delete('media_tag_links');
       await txn.delete('tags');
       await txn.delete('media_assets');
+      await txn.delete('gallery_operations');
     });
     AppLogger().info('Gallery 数据库已清空');
   }
@@ -601,11 +616,45 @@ class GalleryDatabaseService {
 
   /// 删除已处理媒体的本地记录及其标签关联。
   Future<void> deleteProcessedData(List<String> mediaIds) async {
-    if (mediaIds.isEmpty) return;
     final db = await database;
     final placeholders = List.filled(mediaIds.length, '?').join(',');
 
     await db.transaction((txn) async {
+      final operations = await txn.query('gallery_operations');
+      for (final row in operations) {
+        final operation = GalleryOperation.fromRow(row);
+        final ids = {
+          ...(operation.body['media_ids'] as List? ?? []).cast<String>(),
+          if (operation.kind == 'patch')
+            ...(operation.body['affected_ids'] as List? ?? []).cast<String>(),
+          if (operation.kind == 'tags') operation.body['media_id'] as String,
+        };
+        final remaining = ids.where((id) => !mediaIds.contains(id)).toList();
+        if ((operation.synced && remaining.isEmpty) ||
+            operation.kind == 'processed') {
+          await txn.delete(
+            'gallery_operations',
+            where: 'seq = ?',
+            whereArgs: [operation.seq],
+          );
+        } else if (operation.synced && remaining.length != ids.length) {
+          await txn.update(
+            'gallery_operations',
+            {
+              'body': jsonEncode({
+                ...operation.body,
+                'media_ids': (operation.body['media_ids'] as List? ?? [])
+                    .where((id) => !mediaIds.contains(id))
+                    .toList(),
+                if (operation.kind == 'patch') 'affected_ids': remaining,
+              }),
+            },
+            where: 'seq = ?',
+            whereArgs: [operation.seq],
+          );
+        }
+      }
+      if (mediaIds.isEmpty) return;
       // 先删除关联记录
       await txn.delete(
         'media_tag_links',

@@ -16,15 +16,16 @@ import (
 )
 
 type dirUsage struct {
-	Path   string `json:"path"`
-	Exists bool   `json:"exists"`
-	Files  int64  `json:"files"`
-	Bytes  int64  `json:"bytes"`
-	Error  string `json:"error,omitempty"`
+	Path    string `json:"path"`
+	Exists  bool   `json:"exists"`
+	Files   int64  `json:"files"`
+	Bytes   int64  `json:"bytes"`
+	Pending bool   `json:"pending,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
-// 目录用量缓存：首次访问计算，过期后返回旧值并异步刷新。
+// 目录用量按需异步扫描；首次返回待统计，过期时返回旧值。
 // gallery 的 Media/Deleted 数量与体积不遍历磁盘，改由 DB 聚合提供。
 // ---------------------------------------------------------------------------
 
@@ -39,16 +40,12 @@ type dirUsageEntry struct {
 	usage      dirUsage
 	updatedAt  time.Time
 	refreshing bool
-	ready      chan struct{}
 }
 
 func refreshDirUsage(root string, entry *dirUsageEntry) {
 	usage := collectDirUsage(root)
 	usageCacheMu.Lock()
 	defer usageCacheMu.Unlock()
-	if entry.updatedAt.IsZero() {
-		close(entry.ready)
-	}
 	entry.usage, entry.updatedAt, entry.refreshing = usage, time.Now(), false
 }
 
@@ -57,17 +54,10 @@ func getCachedDirUsage(root string) dirUsage {
 	usageCacheMu.Lock()
 	entry, ok := usageCache[root]
 	if !ok {
-		entry = &dirUsageEntry{ready: make(chan struct{})}
+		entry = &dirUsageEntry{usage: dirUsage{Path: root, Pending: true}}
 		usageCache[root] = entry
 	}
-	if entry.updatedAt.IsZero() {
-		usageCacheMu.Unlock()
-		if !ok {
-			refreshDirUsage(root, entry)
-		}
-		<-entry.ready
-		usageCacheMu.Lock()
-	} else if !entry.refreshing && time.Since(entry.updatedAt) >= usageCacheTTL {
+	if !entry.refreshing && (entry.updatedAt.IsZero() || time.Since(entry.updatedAt) >= usageCacheTTL) {
 		entry.refreshing = true
 		go refreshDirUsage(root, entry)
 	}

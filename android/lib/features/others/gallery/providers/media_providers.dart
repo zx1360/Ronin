@@ -5,8 +5,6 @@ import 'package:torrid/features/others/gallery/providers/service_providers.dart'
 import 'package:torrid/features/others/gallery/providers/settings_providers.dart';
 import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
 import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
-import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
-import 'package:torrid/features/others/gallery/services/gallery_write_buffer.dart';
 
 part 'media_providers.g.dart';
 
@@ -22,7 +20,7 @@ final mediaGroupSizesProvider = FutureProvider.autoDispose<Map<String, int>>((
 
 /// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
 ///
-/// 本地缓存供离线浏览; 标注修改乐观作用于本地并后台推送服务端。
+/// 读取持久工作副本；媒体编辑经操作表回传服务端。
 @riverpod
 class MediaAssetList extends _$MediaAssetList {
   @override
@@ -41,57 +39,25 @@ class MediaAssetList extends _$MediaAssetList {
     return result.valueOrNull ?? [];
   }
 
-  /// 替换列表中的某一行（写缓冲回滚用, 不触发服务端写入）
-  void replaceAsset(MediaAsset asset) {
-    final currentList = state.valueOrNull;
-    if (currentList == null) return;
-    final index = currentList.indexWhere((a) => a.id == asset.id);
-    if (index < 0) return;
-    state = AsyncData(List<MediaAsset>.from(currentList)..[index] = asset);
-  }
-
-  /// 单条标记删除/恢复（乐观更新 + 后台合并推送）
+  /// 单条标记删除/恢复，同时处理组成员。
   Future<List<MediaAsset>> markDeleted(String id, {bool deleted = true}) async {
-    final currentList = state.valueOrNull ?? [];
-    final index = currentList.indexWhere((a) => a.id == id);
-    if (index < 0) return currentList;
-
-    final previous = currentList[index];
-    final db = ref.read(galleryDatabaseProvider);
-    final members = await db.getGroupMembers(id);
-    state = AsyncData(
-      List<MediaAsset>.from(currentList)
-        ..[index] = previous.copyWith(isDeleted: deleted),
-    );
-
-    ref.invalidate(mediaIdsWithTagsProvider);
-    ref
-        .read(galleryWriteBufferProvider)
-        .queuePatch(
-          id,
-          MediaPatchIntent(isDeleted: deleted),
-          baselineAsset: previous,
-          baselineMembers: members,
-        );
+    await ref.read(galleryWriteBufferProvider).queuePatch([
+      id,
+    ], MediaPatchIntent(isDeleted: deleted));
+    await refresh();
     await bumpModifiedCount(id);
     return state.valueOrNull ?? [];
   }
 
-  /// 批量操作在服务端确认后更新缓存。
+  /// 整批操作与本地状态在同一事务提交。
   Future<List<MediaAsset>> batchMarkDeleted(
     List<String> ids, {
     bool deleted = true,
   }) async {
     if (ids.isEmpty) return state.valueOrNull ?? [];
-    await _flushWrites();
-    final api = ref.read(galleryApiProvider);
-    final updated = await retryServerWrite(
-      () => api.patchMedia(
-        mediaIds: ids,
-        intent: MediaPatchIntent(isDeleted: deleted),
-      ),
-    );
-    await ref.read(galleryDatabaseProvider).updateMediaAssetsLocal(updated);
+    await ref
+        .read(galleryWriteBufferProvider)
+        .queuePatch(ids, MediaPatchIntent(isDeleted: deleted));
     ref.invalidate(mediaIdsWithTagsProvider);
     await refresh();
     for (final id in ids) {
@@ -112,43 +78,19 @@ class MediaAssetList extends _$MediaAssetList {
             : MediaPatchIntent(editParams: params),
       );
 
-  /// 内存先展示，持久化由写缓冲在服务端确认后完成。
+  /// 本地提交完成后更新界面。
   Future<void> _applyLocalAndQueue(
     MediaAsset target,
     MediaPatchIntent intent,
   ) async {
-    final currentList = state.valueOrNull ?? [];
-    final index = currentList.indexWhere((a) => a.id == target.id);
-    final baseline = index < 0 ? target : currentList[index];
-    final updated = intent.applyTo(baseline);
-    if (index >= 0) {
-      state = AsyncData(List<MediaAsset>.from(currentList)..[index] = updated);
-    }
-
-    ref
-        .read(galleryWriteBufferProvider)
-        .queuePatch(updated.id, intent, baselineAsset: baseline);
+    await ref.read(galleryWriteBufferProvider).queuePatch([target.id], intent);
+    await refresh();
+    await bumpModifiedCount(target.groupId ?? target.id);
   }
 
-  Future<void> _flushWrites() async {
-    if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
-      throw StateError('部分修改未同步，请确认后重试');
-    }
-  }
-
-  /// 捆绑或解绑在服务端确认后更新缓存。
+  /// 捆绑或解绑后保持当前浏览位置。
   Future<void> _setGroup(List<String> memberIds, String? leadId) async {
     if (memberIds.isEmpty) return;
-    await _flushWrites();
-    final api = ref.read(galleryApiProvider);
-    final updated = await retryServerWrite(
-      () => api.patchMedia(
-        mediaIds: memberIds,
-        intent: leadId == null
-            ? const MediaPatchIntent(clearGroup: true)
-            : MediaPatchIntent(groupId: leadId),
-      ),
-    );
     final before = state.valueOrNull ?? [];
     final index = ref.read(galleryCurrentIndexProvider);
     final currentId = index >= 0 && index < before.length
@@ -156,7 +98,14 @@ class MediaAssetList extends _$MediaAssetList {
         : null;
     final modified = ref.read(galleryModifiedCountProvider);
     final processedIds = before.take(modified + 1).map((a) => a.id).toSet();
-    await ref.read(galleryDatabaseProvider).updateMediaAssetsLocal(updated);
+    await ref
+        .read(galleryWriteBufferProvider)
+        .queuePatch(
+          memberIds,
+          leadId == null
+              ? const MediaPatchIntent(clearGroup: true)
+              : MediaPatchIntent(groupId: leadId),
+        );
     final after = await refresh();
     var nextIndex = after.indexWhere((a) => a.id == currentId);
     if (nextIndex < 0) nextIndex = after.indexWhere((a) => a.id == leadId);
@@ -275,10 +224,7 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     // 全部都被删除了，保持当前索引
   }
 
-  /// 标签自动套用：将当前媒体的标签写入目标媒体
-  ///
-  /// 在索引变更**之前**调用, 这样 [currentMediaTagsProvider] 因索引变更而
-  /// 重建时可读取尚未确认的内存标签。
+  /// 标签自动套用：先落盘，再更新浏览位置。
   Future<void> _inheritTagsToTarget(
     int fromIndex,
     int toIndex,
@@ -296,18 +242,15 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     try {
       final db = ref.read(galleryDatabaseProvider);
       final buffer = ref.read(galleryWriteBufferProvider);
-      final tagIds =
-          buffer.pendingTags(fromAsset.id) ??
-          await db.getTagIdsForMedia(fromAsset.id);
-      final baseline = await db.getTagIdsForMedia(toAsset.id);
+      final tagIds = await db.getTagIdsForMedia(fromAsset.id);
       ref.invalidate(mediaIdsWithTagsProvider);
-      // 服务端推送走缓冲（合并 + 重试 + 失败回滚）
-      buffer.queueTags(toAsset.id, tagIds, baselineTagIds: baseline);
+      await buffer.queueTags(toAsset.id, tagIds);
       await ref
           .read(mediaAssetListProvider.notifier)
           .bumpModifiedCount(toAsset.id);
-    } catch (_) {
-      // 标签套用失败时静默处理，不阻塞导航
+    } catch (error) {
+      ref.read(galleryWriteStatusProvider.notifier).report('标签套用未保存：$error');
+      rethrow;
     }
   }
 }

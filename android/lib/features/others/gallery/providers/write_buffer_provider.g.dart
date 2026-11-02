@@ -7,13 +7,9 @@ part of 'write_buffer_provider.dart';
 // **************************************************************************
 
 String _$galleryWriteBufferHash() =>
-    r'9d6cc077d39634a484885adae04d85e9b7edbb95';
+    r'df1d1af607459665f8975cd255d0a4677d222eff';
 
-/// 乐观写缓冲 Provider
-///
-/// 乐观状态仅在内存；服务端确认后才持久化缓存。
-///
-/// Copied from [galleryWriteBuffer].
+/// See also [galleryWriteBuffer].
 @ProviderFor(galleryWriteBuffer)
 final galleryWriteBufferProvider = Provider<GalleryWriteBuffer>.internal(
   galleryWriteBuffer,
@@ -29,9 +25,7 @@ typedef GalleryWriteBufferRef = ProviderRef<GalleryWriteBuffer>;
 String _$galleryWriteStatusHash() =>
     r'c64f476e51a919a9e92685967aef9a3154054ee6';
 
-/// 服务端写入的用户提示通道（由浮层/页面监听并弹出提示）
-///
-/// Copied from [GalleryWriteStatus].
+/// See also [GalleryWriteStatus].
 @ProviderFor(GalleryWriteStatus)
 final galleryWriteStatusProvider =
     NotifierProvider<GalleryWriteStatus, String?>.internal(

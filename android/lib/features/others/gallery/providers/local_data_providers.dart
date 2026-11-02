@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_sync_service.dart';
+import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
 
 part 'local_data_providers.g.dart';
 
@@ -24,7 +25,7 @@ class GalleryLocalDataController extends _$GalleryLocalDataController {
   Future<void> clearFiles() => _run(() async {
     await ref.read(galleryStorageProvider).clearAllFiles();
     await _refreshStorageStats();
-  });
+  }, preservesEdits: true);
 
   /// 清空数据库与文件。
   Future<void> clearAll() => _run(() async {
@@ -35,14 +36,27 @@ class GalleryLocalDataController extends _$GalleryLocalDataController {
     await _refreshStorageStats();
   });
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(
+    Future<void> Function() action, {
+    bool preservesEdits = false,
+  }) async {
+    if (state) return;
     state = true;
+    final buffer = ref.read(galleryWriteBufferProvider);
+    var confirmedWrites = false;
     try {
-      if (!await ref.read(galleryWriteBufferProvider).flushAll()) {
-        throw StateError('部分修改未同步，请确认后重试');
+      if (!preservesEdits) {
+        await buffer.confirmAndLock();
+        confirmedWrites = true;
+        if ((await ref.read(galleryDatabaseProvider).operations()).any(
+          (op) => op.kind == 'processed',
+        )) {
+          throw StateError('请先重试完成上次的标记已处理');
+        }
       }
       await action();
     } finally {
+      if (confirmedWrites) buffer.unlock();
       state = false;
     }
   }

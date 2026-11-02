@@ -134,6 +134,7 @@ type BatchData struct {
 
 // TagCreateRequest POST /api/gallery/tags 请求结构
 type TagCreateRequest struct {
+	ID       *uuid.UUID `json:"id"`
 	Name     string     `json:"name"`
 	ParentID *uuid.UUID `json:"parent_id"`
 }
@@ -200,7 +201,9 @@ type MediaTagsBatchRequest struct {
 //   - GroupID 传 null 表示解绑，传 UUID 表示捆绑到该主文件
 //   - EditParams 传 null 表示清除，传 JSON 字符串/对象表示设置
 //   - MarkProcessed 为 true 时 sync_count + 1（批次处理游标）
+//   - RequestID 用于批次标记重试，同一媒体的最近请求不重复计数
 type MediaPatchRequest struct {
+	RequestID     *uuid.UUID      `json:"request_id"`
 	MediaIDs      []uuid.UUID     `json:"media_ids"`
 	IsDeleted     *bool           `json:"is_deleted"`
 	Message       *string         `json:"message"`
@@ -212,6 +215,7 @@ type MediaPatchRequest struct {
 // MediaPatchResponse PATCH /api/gallery/media 响应结构（返回更新后的行, 供客户端刷新缓存）
 type MediaPatchResponse struct {
 	MediaAssets []MediaAsset `json:"media_assets"`
+	RequestID   *uuid.UUID   `json:"request_id,omitempty"`
 }
 
 // GalleryOverview  /api/gallery/overview 响应结构

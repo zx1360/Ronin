@@ -44,7 +44,7 @@ flowchart LR
 | 数据域 | 真源 | Android 本地 | Ops 本地 |
 | --- | --- | --- | --- |
 | 随笔/打卡 | Monarch SQLite 的 user-data 表 | Hive 工作副本，按 updated_at 合并并传播 tombstone | 在线编辑与消费 |
-| Gallery 媒体、人工标签、标注 | Monarch SQLite + Gallery 文件树 | 离线浏览；内存乐观修改，服务端确认后才更新 `gallery.db` | 查询和运维 |
+| Gallery 媒体、人工标签、标注 | Monarch SQLite + Gallery 文件树 | 离线工作副本与持久操作表；批次回传校验后清理 | 查询和运维 |
 | AI 产物、任务、人物、去重否决 | Monarch AI 表与内存索引 | 查询/聊天/智能相册的消费端 | 主要控制面 |
 | 漫画元数据与下载任务 | `comic_*` 表与 Comic 文件树 | 阅读、下载到设备、本地阅读状态 | 爬虫、库管理、追更 |
 | Chat 会话与消息 | Android Hive（本地） | 唯一真源；服务端只负责本轮推理 | 不展示会话 |

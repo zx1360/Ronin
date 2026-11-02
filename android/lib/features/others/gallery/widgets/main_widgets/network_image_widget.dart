@@ -49,6 +49,7 @@ class NetworkImageWidget extends StatefulWidget {
   final GalleryStorageService storage;
   final int rotationQuarterTurns;
   final Map<String, String> httpHeaders;
+  final ValueChanged<double>? onAspectRatio;
 
   const NetworkImageWidget({
     super.key,
@@ -57,6 +58,7 @@ class NetworkImageWidget extends StatefulWidget {
     required this.storage,
     this.rotationQuarterTurns = 0,
     this.httpHeaders = const {},
+    this.onAspectRatio,
   });
 
   @override
@@ -112,6 +114,17 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
     if (oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns) {
       _transformController.value = Matrix4.identity();
     }
+    if (oldWidget.asset.editParams != widget.asset.editParams &&
+        _layoutImageSize != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _reportAspectRatio();
+      });
+    }
+  }
+
+  void _reportAspectRatio() {
+    final size = _layoutImageSize;
+    if (size != null) widget.onAspectRatio?.call(size.width / size.height);
   }
 
   void _updateImageProvider() {
@@ -135,9 +148,13 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
         info.image.width.toDouble(),
         info.image.height.toDouble(),
       );
+      info.dispose();
       if (size.width <= 0 || size.height <= 0 || !mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.imageUrl == url) setState(() => apply(size));
+        if (mounted && widget.imageUrl == url) {
+          setState(() => apply(size));
+          _reportAspectRatio();
+        }
       });
     }, onError: (_, __) => stream.removeListener(listener));
     stream.addListener(listener);

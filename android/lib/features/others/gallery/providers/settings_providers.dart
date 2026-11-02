@@ -3,6 +3,18 @@ import 'package:torrid/core/services/storage/prefs_service.dart';
 
 part 'settings_providers.g.dart';
 
+@Riverpod(keepAlive: true)
+class GalleryAutoOrientation extends _$GalleryAutoOrientation {
+  @override
+  bool build() =>
+      PrefsService().prefs.getBool('gallery_auto_orientation') ?? false;
+
+  Future<void> update(bool value) async {
+    await PrefsService().prefs.setBool('gallery_auto_orientation', value);
+    state = value;
+  }
+}
+
 // 设置项 Providers (SharedPreferences)
 
 /// Gallery 设置常量
