@@ -20,13 +20,10 @@ import (
 
 // SetupRouter 构建全部路由与中间件。
 func SetupRouter() *gin.Engine {
-	// 封禁日志写在 static 目录下，随应用目录一起迁移/删除
-	util_handler.SetBanLogPath(filepath.Join(config.AppConf.StaticDir, "logs.txt"))
-
 	r := gin.Default()
 
 	// 漫画只读请求、测试接口及本机网页免密，其余需要 X-API-Key。
-	r.Use(selectiveAuth())
+	r.Use(selectiveAuth(filepath.Join(config.AppConf.StaticDir, "logs.txt")))
 
 	// 静态资源响应
 	r.Static("/static", config.AppConf.StaticDir)
@@ -147,6 +144,7 @@ func SetupRouter() *gin.Engine {
 			// 交互式对话（NDJSON 流；Android 端聊天页使用）
 			aiGroup.POST("/chat", ai_handler.Chat)
 			aiGroup.GET("/chat/info", ai_handler.ChatInfo)
+			aiGroup.POST("/chat/start", ai_handler.StartChatModel)
 
 			// 近期回顾：后端算确定性统计（+ 可选随机素材）后交本地模型叙述
 			aiGroup.POST("/review", ai_handler.Review)

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
@@ -13,26 +12,31 @@ class ZhihuTab extends ConsumerWidget {
     final async = ref.watch(zhihuHotProvider);
     return async.when(
       loading: () => const LoadingView(),
-      error: (e, _) => ErrorWithRetryView(
-        message: '知乎热榜加载失败：$e',
+      error: (e, _) => ErrorView(
+        '知乎热榜加载失败：$e',
         onRetry: () => ref.invalidate(zhihuHotProvider),
       ),
-      data: (data) {
-        final list = (data is List)
-            ? data
-            : ((data['list'] as List<dynamic>?) ?? []);
+      data: (list) {
+        if (list.isEmpty) {
+          return ErrorView(
+            '暂无知乎热榜',
+            onRetry: () => ref.invalidate(zhihuHotProvider),
+          );
+        }
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(zhihuHotProvider),
+          onRefresh: () =>
+              waitForFeedRefresh(ref.refresh(zhihuHotProvider.future)),
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: list.length,
             itemBuilder: (ctx, i) {
-              final m = list[i] as Map<String, dynamic>;
-              final title = (m['title'] ?? '') as String;
-              final detail = (m['detail'] ?? '') as String;
-              final cover = (m['cover'] ?? '') as String;
-              final hotDesc = (m['hot_value_desc'] ?? '') as String;
-              final created = (m['created'] ?? '') as String;
-              final link = (m['link']) as String?;
+              final m = list[i];
+              final title = feedText(m['title']) ?? '未命名话题';
+              final detail = feedText(m['detail']);
+              final cover = feedUri(m['cover'])?.toString() ?? '';
+              final hotDesc = feedText(m['hot_value_desc']);
+              final created = feedText(m['created']);
+              final link = feedUri(m['link']) ?? feedUri(m['url']);
               final index = i + 1;
               return Padding(
                 padding: const EdgeInsets.symmetric(
@@ -50,16 +54,27 @@ class ZhihuTab extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(title, style: Theme.of(context).textTheme.titleMedium),
-                              if (detail.isNotEmpty) ...[
+                              Text(
+                                title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              if (detail != null) ...[
                                 const SizedBox(height: AppSpacing.xs),
                                 Text(detail),
                               ],
-                              const SizedBox(height: AppSpacing.xs),
-                              Text('热度：$hotDesc', style: Theme.of(context).textTheme.bodySmall),
-                              if (created.isNotEmpty) ...[
+                              if (hotDesc != null) ...[
                                 const SizedBox(height: AppSpacing.xs),
-                                Text('时间：$created', style: Theme.of(context).textTheme.bodySmall),
+                                Text(
+                                  '热度：$hotDesc',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                              if (created != null) ...[
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  '时间：$created',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               ],
                             ],
                           ),
@@ -74,16 +89,12 @@ class ZhihuTab extends ConsumerWidget {
                               height: 72,
                               radius: 8,
                             ),
-                            const SizedBox(height: AppSpacing.xs),
-                            IconButton(
-                              tooltip: '打开链接',
-                              icon: const Icon(Icons.open_in_new),
-                              onPressed: () async {
-                                if (link == null || link.isEmpty) return;
-                                final uri = Uri.parse(link);
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              },
-                            ),
+                            if (link != null)
+                              IconButton(
+                                tooltip: '打开链接',
+                                icon: const Icon(Icons.open_in_new),
+                                onPressed: () => openFeedLink(context, link),
+                              ),
                           ],
                         ),
                       ],

@@ -1,8 +1,4 @@
 // Package gallery 提供 gallery CLI（本仓库 gizmos 模块构建的 gallery.exe）的集成调用。
-//
-// CLI 以子进程方式执行（`gallery.exe -mode <mode> -gallery-root <dir> ...`），
-// 由服务端任务引擎托管生命周期：状态/日志/中断，与 comix 爬虫同一范式。
-// CLI 自带 backend 根目录探测（按 references/db/sqlite.sql 标志），无需注入配置。
 package gallery
 
 import (
@@ -14,6 +10,7 @@ import (
 	"sync"
 
 	"monarch/internal/config"
+	"monarch/internal/service/db"
 	"monarch/internal/service/taskengine"
 )
 
@@ -154,6 +151,10 @@ func Start(opt Options) (*taskengine.Task, error) {
 	if Manager.RunningCount() > 0 {
 		return nil, errors.New("已有 Gallery 任务在运行，请先等待或中断")
 	}
+	dbFile := db.File()
+	if dbFile == "" {
+		return nil, errors.New("Monarch 数据库未初始化")
+	}
 
 	exe := ExecutablePath()
 	return Manager.Start(taskengine.Spec{
@@ -161,6 +162,7 @@ func Start(opt Options) (*taskengine.Task, error) {
 		Exe:          exe,
 		Args:         BuildArgs(opt),
 		Dir:          filepath.Dir(exe),
+		Env:          []string{"DB_FILE=" + dbFile},
 		StreamStdout: true, // CLI 的统计与进度都打在 stdout
 	})
 }

@@ -14,8 +14,8 @@ import (
 //	需鉴权：其余所有路由
 //
 // 网页运维端及其本机接口由 LocalOnly 校验回环连接、Host 与浏览器来源。
-func selectiveAuth() gin.HandlerFunc {
-	auth := util_handler.APIKeyAuth()
+func selectiveAuth(banLogPath string) gin.HandlerFunc {
+	auth := util_handler.APIKeyAuth(banLogPath)
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 		if path == "/API/test" ||

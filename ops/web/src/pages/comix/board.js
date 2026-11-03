@@ -112,33 +112,32 @@ export function useComixBoard() {
   const pendingIds = ref([]);
   let pendingRounds = 0;
 
-  const loadTasks = async () => {
+  const loadTasks = async (signal) => {
     try {
-      const data = unwrap(await api.get('/API/comix/tasks'), '获取任务列表');
+      const data = unwrap(await api.get('/API/comix/tasks', { signal }), '获取任务列表');
       const list = Array.isArray(data.tasks) ? data.tasks : [];
       tasks.value = list;
       tasksError.value = '';
       const ids = new Set(list.map((item) => item.id));
-      if (pendingIds.value.some((id) => ids.has(id))) {
-        pendingIds.value = pendingIds.value.filter((id) => !ids.has(id));
-      }
+      pendingIds.value = pendingIds.value.filter((id) => !ids.has(id));
     } catch (err) {
-      tasksError.value = err.message;
+      if (!signal.aborted) tasksError.value = err.message;
     }
   };
 
-  const loadDetail = async (taskId) => {
-    const id = taskId || selectedTaskId.value;
+  const loadDetail = async (signal) => {
+    const id = selectedTaskId.value;
     if (!id) {
       taskDetail.value = null;
       return;
     }
     try {
-      const data = unwrap(await api.get(`/API/comix/tasks/${encodeURIComponent(id)}`), '获取任务详情');
+      const data = unwrap(await api.get(`/API/comix/tasks/${encodeURIComponent(id)}`, { signal }), '获取任务详情');
+      if (signal.aborted || id !== selectedTaskId.value) return;
       taskDetail.value = data || null;
       detailError.value = '';
     } catch (err) {
-      detailError.value = err.message;
+      if (!signal.aborted && id === selectedTaskId.value) detailError.value = err.message;
     }
     if (autoScroll.value) {
       await nextTick();
@@ -149,8 +148,9 @@ export function useComixBoard() {
   const runningCount = computed(() => tasks.value.filter((item) => item.status === 'running').length);
   const hasWork = computed(() => runningCount.value > 0 || pendingIds.value.length > 0);
 
-  const poller = usePolling(async () => {
-    await loadTasks();
+  const poller = usePolling(async (signal) => {
+    await loadTasks(signal);
+    if (signal.aborted) return;
     // 已提交的任务若始终不出现（被裁剪/提交被吞），不能让轮询永远跑下去
     if (pendingIds.value.length) {
       pendingRounds += 1;
@@ -161,7 +161,7 @@ export function useComixBoard() {
     } else {
       pendingRounds = 0;
     }
-    if (selectedTaskId.value) await loadDetail();
+    if (selectedTaskId.value) await loadDetail(signal);
   }, { interval: () => 2, enabled: () => hasWork.value });
 
   /** 登记刚提交的任务，并立刻启动/续期轮询。 */
@@ -490,8 +490,7 @@ export function useComixBoard() {
     selectedTaskId.value = task.id;
     taskDetail.value = null;
     detailError.value = '';
-    loadDetail(task.id);
-    if (hasWork.value) poller.trigger();
+    poller.trigger();
   };
 
   const stopTask = async (task) => {

@@ -12,17 +12,28 @@ class EpicGamesTab extends ConsumerWidget {
     final async = ref.watch(epicGamesProvider);
     return async.when(
       loading: () => const LoadingView(),
-      error: (e, _) => ErrorView('Epic 免费游戏加载失败：$e'),
+      error: (e, _) => ErrorView(
+        'Epic 免费游戏加载失败：$e',
+        onRetry: () => ref.invalidate(epicGamesProvider),
+      ),
       data: (list) {
+        if (list.isEmpty) {
+          return ErrorView(
+            '暂无免费游戏信息',
+            onRetry: () => ref.invalidate(epicGamesProvider),
+          );
+        }
         return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(epicGamesProvider);
-          },
+          onRefresh: () =>
+              waitForFeedRefresh(ref.refresh(epicGamesProvider.future)),
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: list.length,
             itemBuilder: (ctx, i) {
-              final item = list[i] as Map<String, dynamic>;
+              final item = list[i];
               final isFree = item['is_free_now'] == true;
+              final cover = feedUri(item['cover'])?.toString();
+              final link = feedUri(item['link'])?.toString();
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.md,
@@ -32,30 +43,33 @@ class EpicGamesTab extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: Image.network(
-                            item['cover'] ?? '',
-                            fit: BoxFit.cover,
+                      if (cover != null)
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(12),
+                          ),
+                          child: AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: Image.network(
+                              cover,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  const Center(child: Text('封面暂时无法加载')),
+                            ),
                           ),
                         ),
-                      ),
                       Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item['title'] ?? '',
+                              feedText(item['title']) ?? '未命名游戏',
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              item['description'] ?? '',
+                              feedText(item['description']) ?? '',
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                             const SizedBox(height: 12),
@@ -73,20 +87,16 @@ class EpicGamesTab extends ConsumerWidget {
                                 Text('原价：${item['original_price_desc'] ?? ''}'),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () => Clipboard.setData(
-                                    ClipboardData(
-                                      text: (item['link'] ?? '') as String,
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.link),
-                                  label: const Text('复制商店链接'),
+                            if (link != null) ...[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () => Clipboard.setData(
+                                  ClipboardData(text: link),
                                 ),
-                              ],
-                            ),
+                                icon: const Icon(Icons.link),
+                                label: const Text('复制商店链接'),
+                              ),
+                            ],
                           ],
                         ),
                       ),

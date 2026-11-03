@@ -70,30 +70,22 @@ func (o *Ollama) currentConfig() config.AiConfig {
 	return o.getCfg()
 }
 
-// Available 报告服务是否可达且指定模型已安装。
-func (o *Ollama) Available(ctx context.Context, model string) (bool, string) {
-	tags, err := o.ListModels(ctx)
-	if err != nil {
-		return false, err.Error()
-	}
-	if o.modelInList(tags, model) {
-		return true, ""
-	}
-	return false, fmt.Sprintf("模型 %s 未安装（ollama pull %s）", model, model)
-}
-
 // Ready 报告该能力是否**具备执行条件**（不一定已在运行）。
 //
 // 与侧车的就绪语义保持一致：检查的是"依赖是否齐备"，而不是"进程是否已启动"。
 // 服务未运行时，只要能找到 ollama 可执行文件就算就绪——真正执行时
 // Generate 会经 EnsureReady 按需拉起；连可执行文件都没有才算不可用。
 func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
-	if ok, reason := o.Available(ctx, model); ok {
-		return true, ""
-	} else if o.resolveExe() == "" {
-		return false, reason
+	tags, err := o.ListModels(ctx)
+	if err != nil {
+		if o.resolveExe() != "" {
+			return true, ""
+		}
+		return false, err.Error()
 	}
-	// 可达但模型缺失的情况已在上面拦下；此处是"服务未启动但可按需拉起"
+	if err := o.checkModel(tags, model); err != nil {
+		return false, err.Error()
+	}
 	return true, ""
 }
 
@@ -229,11 +221,9 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 		return errors.New("Ollama 客户端已关闭")
 	}
 	// 模型目录缓存不代表服务仍在线，执行前重新确认。
-	o.modelsMu.Lock()
-	o.modelsAt = time.Time{}
-	o.modelsMu.Unlock()
-	if _, err := o.ListModels(ctx); err == nil {
-		return nil
+	o.RefreshModels()
+	if tags, err := o.ListModels(ctx); err == nil {
+		return o.checkModel(tags, model)
 	}
 
 	exe := o.resolveExe()
@@ -275,13 +265,7 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 	for time.Now().Before(deadline) {
 		tags, err := o.ListModels(ctx)
 		if err == nil {
-			if o.modelInList(tags, model) {
-				return nil
-			}
-			return fmt.Errorf(
-				"ollama 已启动但看不到模型 %s：自拉的 ollama serve 使用的模型目录是 %q，"+
-					"请在 backend/.env 里把 OLLAMA_MODELS 指向 Ollama 应用实际使用的模型目录",
-				model, o.modelRoot())
+			return o.checkModel(tags, model)
 		}
 		lastErr = err
 		select {
@@ -291,6 +275,19 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 		}
 	}
 	return fmt.Errorf("ollama serve 启动后仍未就绪: %v", lastErr)
+}
+
+func (o *Ollama) checkModel(tags []string, model string) error {
+	if model == "" || o.modelInList(tags, model) {
+		return nil
+	}
+	return fmt.Errorf("模型 %s 未安装，请检查 Ollama 模型库（后端自启时使用 %q）", model, o.modelRoot())
+}
+
+func (o *Ollama) RefreshModels() {
+	o.modelsMu.Lock()
+	o.modelsAt = time.Time{}
+	o.modelsMu.Unlock()
 }
 
 // Unload 立即卸载指定模型（释放显存）；模型本来就没加载时同样返回成功。
@@ -334,7 +331,7 @@ func (o *Ollama) modelRoot() string {
 // modelInList 判断目标模型是否在已安装列表中（容忍 tag 差异）。
 func (o *Ollama) modelInList(tags []string, model string) bool {
 	for _, name := range tags {
-		if name == model || strings.HasPrefix(name, model+":") {
+		if strings.EqualFold(name, model) || strings.EqualFold(name, model+":latest") {
 			return true
 		}
 	}
@@ -458,6 +455,7 @@ type ChatOptions struct {
 	NumCtx      int
 	Think       bool
 	Temperature float64
+	JSON        bool
 	// KeepAliveSeconds 模型驻留秒数：负数 = 沿用服务端默认（OLLAMA_KEEP_ALIVE），
 	// 0 = 回答完立即卸载，正数 = 显式驻留时长。
 	KeepAliveSeconds int
@@ -496,17 +494,20 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 		temperature = defaultTemperature
 	}
 
-	body, err := json.Marshal(map[string]any{
+	options := map[string]any{"temperature": temperature, "num_ctx": numCtx}
+	payload := map[string]any{
 		"model":      model,
 		"messages":   messages,
 		"stream":     true,
 		"think":      opt.Think,
 		"keep_alive": o.keepAliveSeconds(opt.KeepAliveSeconds),
-		"options": map[string]any{
-			"temperature": temperature,
-			"num_ctx":     numCtx,
-		},
-	})
+		"options":    options,
+	}
+	if opt.JSON {
+		payload["format"] = "json"
+		options["num_predict"] = 256
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
@@ -547,9 +548,6 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 			TotalDuration int64  `json:"total_duration"`
 		}
 		if err := decoder.Decode(&chunk); err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
 			return fmt.Errorf("读取对话流失败: %w", err)
 		}
 		if chunk.Error != "" {

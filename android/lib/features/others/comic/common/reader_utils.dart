@@ -19,7 +19,11 @@ double sliderValue(int currentIndex, int totalCount) {
 }
 
 /// 解析图片的访问地址
-String resolveImageUrl(Map<String, dynamic> image, bool isLocal, WidgetRef ref) {
+String resolveImageUrl(
+  Map<String, dynamic> image,
+  bool isLocal,
+  WidgetRef ref,
+) {
   if (isLocal) return image['path'] as String;
   final baseUrl = ref.read(apiClientManagerProvider).baseUrl;
   return "$baseUrl/static/${image['path']}";
@@ -43,14 +47,23 @@ ImageProvider resolveImageProvider(
 /// 计算图片在指定最大宽度下的显示高度（宽度异常时回退为等于宽度）
 double computeImageHeight(Map<String, dynamic> image, double maxWidth) {
   final width = image['width'];
-  if (width is num && width > 0) {
-    return (image['height'] as num) * (maxWidth / width);
+  final height = image['height'];
+  if (width is num &&
+      width.isFinite &&
+      width > 0 &&
+      height is num &&
+      height.isFinite &&
+      height > 0) {
+    return height * (maxWidth / width);
   }
   return maxWidth;
 }
 
 /// 计算列表中每张图片的累计偏移量（用于快速定位滚动位置）
-List<double> computeImageOffsets(List<Map<String, dynamic>> images, double maxWidth) {
+List<double> computeImageOffsets(
+  List<Map<String, dynamic>> images,
+  double maxWidth,
+) {
   final offsets = <double>[];
   double current = 0.0;
   for (final img in images) {

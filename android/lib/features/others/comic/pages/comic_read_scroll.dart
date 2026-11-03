@@ -45,12 +45,9 @@ class ComicScrollPage extends ConsumerStatefulWidget {
 
 class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
     with ControlsAutoHideMixin<ComicScrollPage> {
-  // 为了使ListView的跳转正常.  使用globalKey使每次刷新重新构建, 防止遗留信息阻止正常显示.
-  Key _listviewKey = UniqueKey();
-  // comic信息相关
-  late List<ChapterInfo> chapters = widget.chapters;
+  late final List<ChapterInfo> chapters = widget.chapters;
   late int chapterIndex = widget.chapterIndex;
-  late ChapterInfo currentChapter = chapters[chapterIndex];
+  ChapterInfo get currentChapter => chapters[chapterIndex];
   late List<Map<String, dynamic>> images = currentChapter.images;
   late int imageCount = effectiveImageCount(currentChapter);
 
@@ -74,17 +71,13 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
   @override
   void initState() {
     super.initState();
-    init();
-    // 初始化滚动监听器
+    _recordChapter();
     _scrollController.addListener(_onScroll);
     _zoomController.addListener(_onZoomMatrixChanged);
   }
 
   @override
   void dispose() {
-    disposeControlsTimer();
-    _scrollController.removeListener(_onScroll); // 移除监听器
-    _zoomController.removeListener(_onZoomMatrixChanged);
     _scrollController.dispose();
     _zoomController.dispose();
     super.dispose();
@@ -93,13 +86,12 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
   /// 计算所有图片的高度和累计偏移量
   void _calculateImageOffsets() {
     final maxWidth = MediaQuery.of(context).size.width;
-    // 抽离后的通用计算，便于维护
     _imageOffsets
       ..clear()
       ..addAll(computeImageOffsets(images, maxWidth));
   }
 
-  void init() {
+  void _recordChapter() {
     ref
         .read(comicServiceProvider.notifier)
         .modifyComicPref(
@@ -108,12 +100,6 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         );
     initializeControlsTimer();
   }
-
-  // 初始化计时器
-  // 由 ControlsAutoHideMixin 提供
-
-  // 重置计时器
-  // 由 ControlsAutoHideMixin 提供
 
   bool get _isZoomed {
     final scale = _zoomController.value.getMaxScaleOnAxis();
@@ -645,38 +631,16 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
     }
   }
 
-  // 上一章节
-  void _prevChapter() {
-    if (chapterIndex <= 0) return;
-    chapterIndex--;
-    currentChapter = chapters[chapterIndex];
-    _zoomController.value = Matrix4.identity();
-    setState(() {
-      _currentImageIndex = 0;
-      _isCustomRangeSelecting = false;
-      _customRangeStartOffset = null;
-      _zoomGestureMode = false;
-      _viewerInteracting = false;
-      _activePointerCount = 0;
-    });
-    _listviewKey = UniqueKey();
-    setState(() {
-      images = currentChapter.images;
-      imageCount = effectiveImageCount(currentChapter);
-    });
-    _scrollController.jumpTo(0.0);
-    _calculateImageOffsets();
-    cancelControlsTimer();
-    init();
-  }
+  void _prevChapter() => _changeChapter(chapterIndex - 1);
+  void _nextChapter() => _changeChapter(chapterIndex + 1);
 
-  // 下一章节
-  void _nextChapter() {
-    if (chapterIndex >= chapters.length - 1) return;
-    chapterIndex++;
-    currentChapter = chapters[chapterIndex];
+  void _changeChapter(int index) {
+    if (index < 0 || index >= chapters.length) return;
     _zoomController.value = Matrix4.identity();
     setState(() {
+      chapterIndex = index;
+      images = currentChapter.images;
+      imageCount = effectiveImageCount(currentChapter);
       _currentImageIndex = 0;
       _isCustomRangeSelecting = false;
       _customRangeStartOffset = null;
@@ -684,15 +648,9 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
       _viewerInteracting = false;
       _activePointerCount = 0;
     });
-    _listviewKey = UniqueKey();
-    setState(() {
-      images = currentChapter.images;
-      imageCount = effectiveImageCount(currentChapter);
-    });
-    _scrollController.jumpTo(0.0);
     _calculateImageOffsets();
-    cancelControlsTimer();
-    init();
+    if (_scrollController.hasClients) _scrollController.jumpTo(0.0);
+    _recordChapter();
   }
 
   @override
@@ -758,17 +716,8 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
                 nextFunc: _nextChapter,
                 slideVal: slideVal,
                 onSlideFunc: _onSlideFunc,
-                onSlideStart: () {
-                  cancelControlsTimer();
-                  if (!showControls) {
-                    setState(() {
-                      showControls = true;
-                    });
-                  }
-                },
-                onSlideEnd: () {
-                  resetControlsTimer();
-                },
+                onSlideStart: cancelControlsTimer,
+                onSlideEnd: resetControlsTimer,
               ),
           ],
         ),
@@ -804,7 +753,7 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         onInteractionUpdate: _onViewerInteractionUpdate,
         onInteractionEnd: _onViewerInteractionEnd,
         child: ListView.builder(
-          key: _listviewKey,
+          key: ValueKey(chapterIndex),
           controller: _scrollController,
           physics: _shouldLockListScroll
               ? const NeverScrollableScrollPhysics()
@@ -813,7 +762,6 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
           itemBuilder: (context, index) {
             final image = images[index];
             final url = resolveImageUrl(image, widget.isLocal, ref);
-            // 抽离后的通用高度计算
             final height = computeImageHeight(image, maxWidth);
             return SizedBox(
               width: maxWidth,

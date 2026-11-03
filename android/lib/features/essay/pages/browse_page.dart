@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/essay/pages/essay_label_suggestions_page.dart';
 import 'package:torrid/features/essay/pages/drafts_page.dart';
 import 'package:torrid/features/essay/models/essay_reread.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
@@ -65,6 +66,16 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
       appBar: AppBar(
         title: const Text('随笔'),
         actions: [
+          IconButton(
+            tooltip: 'AI 标签建议',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const EssayLabelSuggestionsPage(),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: '本机草稿',
             icon: Badge.count(

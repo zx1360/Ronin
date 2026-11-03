@@ -89,50 +89,40 @@ export const ConfirmHost = {
   },
 };
 
-/**
- * 按需轮询：只在 enabled 为真时定时执行，页面卸载自动停止。
- *
- * @param {() => Promise<any>} callback 每次轮询执行的动作
- * @param {{interval: () => number, enabled: () => boolean}} options
- *        interval 与 enabled 用函数读取，便于跟随偏好与页面状态变化。
- */
+// 显式刷新可在空闲时执行；执行中的多次刷新合并为下一轮。
 export function usePolling(callback, { interval, enabled }) {
-  let timer = null;
-  let busy = false;
-  let disposed = false;
-
-  const stop = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
+  const controller = new AbortController();
+  let timer;
+  let pending;
+  let refresh = false;
 
   const run = async () => {
-    if (busy || disposed) return;
-    busy = true;
-    try {
-      await callback();
-    } catch {
-      // 轮询失败由各页面在 callback 内提示，这里不重复打扰
-    } finally {
-      busy = false;
+    while (!controller.signal.aborted && refresh) {
+      refresh = false;
+      try {
+        await callback(controller.signal);
+      } catch {
+        // 请求错误由页面显示。
+      }
     }
-    stop();
-    if (!disposed && enabled()) {
-      timer = setTimeout(run, Math.max(1000, interval() * 1000));
+    pending = null;
+    if (!controller.signal.aborted && enabled()) {
+      timer = setTimeout(() => {
+        if (enabled()) trigger();
+      }, Math.max(1000, interval() * 1000));
     }
   };
 
-  /** 立即执行一次，并按需续期。 */
   const trigger = () => {
-    stop();
-    return run();
+    if (controller.signal.aborted) return;
+    clearTimeout(timer);
+    refresh = true;
+    return pending ??= Promise.resolve().then(run);
   };
 
   onUnmounted(() => {
-    disposed = true;
-    stop();
+    controller.abort();
+    clearTimeout(timer);
   });
-  return { trigger, stop };
+  return { trigger };
 }

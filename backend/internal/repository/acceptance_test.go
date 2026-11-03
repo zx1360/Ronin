@@ -292,9 +292,9 @@ func TestAiJobQueue(t *testing.T) {
 	if n, err := ai_repo.Enqueue(model.CapVLM, mediaIDs, "ai1024|ollama:test"); err != nil || n != 0 {
 		t.Fatalf("重复入队应幂等: n=%d err=%v", n, err)
 	}
-	pending, err := ai_repo.PendingCount(model.CapVLM)
-	if err != nil || pending < len(mediaIDs) {
-		t.Fatalf("待处理计数不符: n=%d err=%v", pending, err)
+	pending, err := ai_repo.HasPending(context.Background(), model.CapVLM)
+	if err != nil || !pending {
+		t.Fatalf("入队后应有待处理任务: pending=%v err=%v", pending, err)
 	}
 
 	claimed, err := ai_repo.Claim(model.CapVLM, 16)

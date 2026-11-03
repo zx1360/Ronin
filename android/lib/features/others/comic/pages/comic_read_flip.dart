@@ -41,27 +41,23 @@ class ComicReadPage extends ConsumerStatefulWidget {
 
 class _ComicReadPageState extends ConsumerState<ComicReadPage>
     with ControlsAutoHideMixin<ComicReadPage> {
-  late List<ChapterInfo> chapters = widget.chapters;
+  late final List<ChapterInfo> chapters = widget.chapters;
   late int chapterIndex = widget.chapterIndex;
-  late ChapterInfo currentChapter = chapters[chapterIndex];
+  ChapterInfo get currentChapter => chapters[chapterIndex];
   late List<Map<String, dynamic>> images = currentChapter.images;
   late int imageCount = effectiveImageCount(currentChapter);
-  // 是否展示操作栏
-  // 图片加载相关
   int _currentImageIndex = 0;
-  late PageController _pageController;
+  final PageController _pageController = PageController();
   bool _isSaving = false;
-  // 自动关闭操作栏计时器
   final Duration switchImgDuration = const Duration(milliseconds: 300);
 
   @override
   void initState() {
     super.initState();
-    init();
-    _pageController = PageController(initialPage: _currentImageIndex);
+    _recordChapter();
   }
 
-  void init() {
+  void _recordChapter() {
     ref
         .read(comicServiceProvider.notifier)
         .modifyComicPref(
@@ -73,16 +69,12 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
 
   @override
   void dispose() {
-    disposeControlsTimer();
     _pageController.dispose();
     // 退出时恢复系统UI
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
-  // 计时器逻辑由 ControlsAutoHideMixin 提供
-
-  // 导航到上一页
   void _prevImage() {
     if (_currentImageIndex > 0) {
       _pageController.previousPage(
@@ -94,7 +86,6 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
     }
   }
 
-  // 导航到下一页
   void _nextImage() {
     if (_currentImageIndex < images.length - 1) {
       _pageController.nextPage(
@@ -106,38 +97,19 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
     }
   }
 
-  // 上一章节
-  void _prevChapter() {
-    if (chapterIndex > 0) {
-      chapterIndex--;
-      currentChapter = chapters[chapterIndex];
-      _currentImageIndex = 0;
-      setState(() {
-        images = currentChapter.images;
-        imageCount = effectiveImageCount(currentChapter);
-      });
-      cancelControlsTimer();
-      init();
-      _pageController.animateToPage(
-        0,
-        duration: switchImgDuration,
-        curve: Curves.easeInOut,
-      );
-    }
-  }
+  void _prevChapter() => _changeChapter(chapterIndex - 1);
+  void _nextChapter() => _changeChapter(chapterIndex + 1);
 
-  // 下一章节
-  void _nextChapter() {
-    if (chapterIndex < chapters.length - 1) {
-      chapterIndex++;
-      currentChapter = chapters[chapterIndex];
+  void _changeChapter(int index) {
+    if (index < 0 || index >= chapters.length) return;
+    setState(() {
+      chapterIndex = index;
       _currentImageIndex = 0;
-      setState(() {
-        images = currentChapter.images;
-        imageCount = effectiveImageCount(currentChapter);
-      });
-      cancelControlsTimer();
-      init();
+      images = currentChapter.images;
+      imageCount = effectiveImageCount(currentChapter);
+    });
+    _recordChapter();
+    if (_pageController.hasClients) {
       _pageController.animateToPage(
         0,
         duration: switchImgDuration,
@@ -285,7 +257,7 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
               BottomControllBar(
                 prevFunc: _prevChapter,
                 nextFunc: _nextChapter,
-                slideVal: _getSliderValue(),
+                slideVal: sliderValue(_currentImageIndex, imageCount),
                 onSlideFunc: (value) {
                   if (images.isNotEmpty) {
                     _pageController.jumpToPage(
@@ -293,27 +265,13 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
                     );
                   }
                 },
-                onSlideStart: () {
-                  cancelControlsTimer();
-                  if (!showControls) {
-                    setState(() {
-                      showControls = true;
-                    });
-                  }
-                },
-                onSlideEnd: () {
-                  resetControlsTimer();
-                },
+                onSlideStart: cancelControlsTimer,
+                onSlideEnd: resetControlsTimer,
               ),
           ],
         ),
       ),
     );
-  }
-
-  // 获取滑块进度条.
-  double _getSliderValue() {
-    return sliderValue(_currentImageIndex, imageCount);
   }
 
   /// 预加载相邻图片（前后各1张）
