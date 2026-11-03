@@ -42,10 +42,7 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 		if strings.TrimSpace(e.VLMModel()) == "" {
 			return false, "尚未选定标注模型：本机没有可用的 Ollama 模型"
 		}
-		if ok, reason := e.ollama.Ready(ctx, e.VLMModel()); !ok {
-			return false, reason
-		}
-		return true, ""
+		return e.ollama.Ready(ctx, e.VLMModel(), true)
 	}
 
 	sidecar := e.sidecarFor(capability)
@@ -72,6 +69,9 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 	}
 	for _, name := range requirement.models {
 		if !probe.Models[name] {
+			if capability == model.CapFace {
+				return false, "请将有授权的检测和识别权重放入 tools/ai/models/buffalo_l"
+			}
 			return false, fmt.Sprintf("缺少模型 %s（运行 tools/ai/install.ps1）", name)
 		}
 	}

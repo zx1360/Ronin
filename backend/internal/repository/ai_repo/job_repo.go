@@ -567,18 +567,12 @@ func ListJobs(capability, status string, limit, offset int) ([]model.AiJob, int,
 	return jobs, total, rows.Err()
 }
 
-// PendingCount 返回能力维度待处理任务数（0 表示已排空）。
-func PendingCount(capability string) (int, error) {
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	var n int
+func HasPending(ctx context.Context, capability string) (bool, error) {
+	var pending bool
 	err := db.Read().QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM jobs WHERE capability = ? AND status IN ('pending','running')`,
-		capability).Scan(&n)
-	if err != nil {
-		return 0, fmt.Errorf("统计待处理任务失败: %w", err)
-	}
-	return n, nil
+        SELECT EXISTS(SELECT 1 FROM jobs WHERE capability = ? AND status = 'pending')`,
+		capability).Scan(&pending)
+	return pending, err
 }
 
 // int64Args 把 int64 列表转为 SQL 参数。

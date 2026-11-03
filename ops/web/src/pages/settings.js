@@ -35,12 +35,22 @@ export default {
       const key = state.apiKey || '';
       if (!key) return '（服务端未启用鉴权）';
       if (showKey.value) return key;
-      return `${key.slice(0, 6)}${'*'.repeat(Math.max(4, key.length - 10))}${key.slice(-4)}`;
+      return '••••••••';
+    });
+
+    const components = computed(() => {
+      const { gallery, comix } = state.cli;
+      return [
+        ['gallery CLI', gallery.available, gallery.available ? gallery.path : gallery.message],
+        ['comix 爬虫', comix.available, comix.available ? comix.root : comix.message],
+        ['ffmpeg', state.deps.ffmpeg, '视频取帧、剪辑和图像解码后备'],
+        ['ffprobe', state.deps.ffprobe, '视频时长与分辨率'],
+      ];
     });
 
     const origin = window.location.origin;
 
-    return { state, form, saving, showKey, maskedKey, origin, save };
+    return { state, form, saving, showKey, maskedKey, origin, save, components };
   },
   template: `
     <div>
@@ -91,7 +101,11 @@ export default {
               <Badge kind="primary">X-API-Key 鉴权</Badge>
               <span class="muted"> 端口 {{ state.service.port }}</span>
             </div>
-            <div class="small muted">本机能力接口仅回环可用：<span class="mono">/API/ops/local/*</span></div>
+            <div class="small muted">Android 配对</div>
+            <div>在 Torrid 的网络设置中发现服务，或输入本机局域网 IP 与 HTTPS 端口 {{ state.service.httpsPort }}。</div>
+            <div>保存地址后，在该配置的「证书指纹」中粘贴以下 SHA-256，再填入 API 密钥。</div>
+            <input v-if="state.service.certificateSHA256" readonly aria-label="证书 SHA-256 指纹"
+              :value="state.service.certificateSHA256" @focus="$event.target.select()" />
           </div>
         </div>
       </Card>
@@ -112,29 +126,10 @@ export default {
         <table class="data">
           <thead><tr><th>组件</th><th>状态</th><th>说明</th></tr></thead>
           <tbody>
-            <tr>
-              <td>gallery CLI</td>
-              <td><Badge :kind="state.cli.gallery.available ? 'success' : 'error'">
-                {{ state.cli.gallery.available ? '就绪' : '不可用' }}</Badge></td>
-              <td class="mono">{{ state.cli.gallery.available ? state.cli.gallery.path : state.cli.gallery.message }}</td>
-            </tr>
-            <tr>
-              <td>comix 爬虫</td>
-              <td><Badge :kind="state.cli.comix.available ? 'success' : 'error'">
-                {{ state.cli.comix.available ? '就绪' : '不可用' }}</Badge></td>
-              <td class="mono">{{ state.cli.comix.available ? state.cli.comix.root : state.cli.comix.message }}</td>
-            </tr>
-            <tr>
-              <td>ffmpeg</td>
-              <td><Badge :kind="state.deps.ffmpeg ? 'success' : 'warning'">
-                {{ state.deps.ffmpeg ? '就绪' : '缺失' }}</Badge></td>
-              <td class="small muted">视频处理与取帧（视频剪辑功能依赖）</td>
-            </tr>
-            <tr>
-              <td>ffprobe</td>
-              <td><Badge :kind="state.deps.ffprobe ? 'success' : 'warning'">
-                {{ state.deps.ffprobe ? '就绪' : '缺失' }}</Badge></td>
-              <td class="small muted">视频时长/分辨率探测</td>
+            <tr v-for="[name, ready, details] in components" :key="name">
+              <td>{{ name }}</td>
+              <td><Badge :kind="ready ? 'success' : 'warning'">{{ ready ? '就绪' : '不可用' }}</Badge></td>
+              <td>{{ details }}</td>
             </tr>
           </tbody>
         </table>

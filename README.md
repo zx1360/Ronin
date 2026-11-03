@@ -1,4 +1,14 @@
-# 项目组成及技术细节
+# Ronin
+
+Monarch 在 Windows 上维护本机媒体和 SQLite 数据，随服务提供 Northstar 运维网页。Torrid 安装在 Android 手机上，通过局域网连接 Monarch。
+
+## 分发
+
+- Windows x64 便携包在仓库根用 `pwsh -File backend/tools/release/build-windows.ps1` 构建，输出到 `backend/dist/`。
+- Torrid 在 `android/` 配置自己的发布签名后运行 `flutter build apk --release`。发布者保管签名密钥，同一安装需使用同一签名更新。
+- 将 ZIP 和 APK 交给使用者。[安装、手机配对与可选 AI 组件](backend/tools/release/使用说明.md)
+
+## 项目组成及技术细节
 
 ## 后端(Go)
 
@@ -93,7 +103,7 @@ PS: 除了某些页面手动点击"保存"按钮后, 保存在外部公共空间
 
 后端与安卓应用的网络交互通过https协议实现, 并通过x-api-key再套层验证. 保证数据的隐私与安全.
 
-> 不过需要注意的是, 自部署需自行生成自签证书或申请权威证书.
+> 自部署时 Monarch 首次启动会生成自签证书。手机在网络设置中录入 Northstar 显示的证书指纹。
 
 # 其他说明
 

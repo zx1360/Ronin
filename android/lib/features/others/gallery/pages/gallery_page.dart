@@ -371,7 +371,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                   ? () => _tagDragKey.currentState?.openPinned()
                   : null,
               child: _BottomBarButton(
-                icon: const IconData(0xe63e, fontFamily: "iconfont"),
+                icon: Icons.label_outline,
                 label: "标签",
                 onPressed: currentMedia != null
                     ? () => _openLabelPage(context, currentMedia.id)
@@ -380,13 +380,13 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
             ),
             // 网格视图 / 捆绑
             _BottomBarButton(
-              icon: const IconData(0xe604, fontFamily: "iconfont"),
+              icon: Icons.grid_view,
               label: "网格",
               onPressed: () => _openGridView(context),
             ),
             // 删除当前媒体文件
             _BottomBarButton(
-              icon: const IconData(0xe649, fontFamily: "iconfont"),
+              icon: Icons.delete_outline,
               label: "删除",
               color: currentMedia?.isDeleted == true ? Colors.red : null,
               onPressed: currentMedia != null
@@ -395,7 +395,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
             ),
             // 详情页面
             _BottomBarButton(
-              icon: const IconData(0xe611, fontFamily: "iconfont"),
+              icon: Icons.info_outline,
               label: "详情",
               onPressed: currentMedia != null
                   ? () => _openDetailPage(context)

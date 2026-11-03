@@ -6,7 +6,7 @@ part of 'network_config_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serverReachableHash() => r'b6e249130b05c3935cd8ded5daa3d1df753e3cc0';
+String _$serverReachableHash() => r'4752aa6c68b74ecbf27f66fdf7e5c1e316b13d6b';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -186,7 +186,7 @@ class _ServerReachableProviderElement extends FutureProviderElement<bool>
 }
 
 String _$networkConfigManagerHash() =>
-    r'a53702f0f0c9f6cbf9b1b44eaf6e84c095377942';
+    r'33a0924ec738a15edc71ae7b66056ce0f898a666';
 
 /// 网络配置管理Provider
 ///

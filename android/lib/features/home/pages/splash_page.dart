@@ -72,9 +72,9 @@ class _SplashPageState extends ConsumerState<SplashPage>
     setState(() => _startupError = null);
     if (!_loadingAnimCtrl.isAnimating) _loadingAnimCtrl.repeat(reverse: true);
     try {
-      await CertTrust.init();
       await Hive.initFlutter();
       await PrefsService().initPrefs();
+      CertTrust.init();
       await HiveService.init();
       await HiveService.initComic();
       await ref.read(comicDownloadTasksProvider.notifier).initialize();

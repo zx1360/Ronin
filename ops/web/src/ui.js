@@ -120,7 +120,9 @@ export function usePolling(callback, { interval, enabled }) {
     }
     stop();
     if (!disposed && enabled()) {
-      timer = setTimeout(run, Math.max(1000, interval() * 1000));
+      timer = setTimeout(() => {
+        if (!disposed && enabled()) run();
+      }, Math.max(1000, interval() * 1000));
     }
   };
 
@@ -134,5 +136,5 @@ export function usePolling(callback, { interval, enabled }) {
     disposed = true;
     stop();
   });
-  return { trigger, stop };
+  return { trigger };
 }

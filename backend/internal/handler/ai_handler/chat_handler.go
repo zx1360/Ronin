@@ -234,7 +234,7 @@ func streamChat(c *gin.Context, e *ai.Engine, purpose, modelName string, options
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "服务端未启用 AI"})
 		return
 	}
-	if ok, reason := e.OllamaProvider().Ready(c.Request.Context(), modelName); !ok {
+	if ok, reason := e.OllamaProvider().Ready(c.Request.Context(), modelName, false); !ok {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": reason + "。请在对话设置的模型区检查或启动 Ollama"})
 		return
 	}

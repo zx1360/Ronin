@@ -4,19 +4,42 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 )
+
+const (
+	CertFile = "cert/server.crt"
+	KeyFile  = "cert/server.key"
+)
+
+func Fingerprint() string {
+	data, err := os.ReadFile(CertFile)
+	if err != nil {
+		return ""
+	}
+	block, _ := pem.Decode(data)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return ""
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(block.Bytes))
+}
 
 // EnsureCert 确保证书文件存在，不存在则自动生成自签证书（10年有效期）
 func EnsureCert(certFile, keyFile string) error {
 	if fileExists(certFile) && fileExists(keyFile) {
 		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(certFile), 0700); err != nil {
+		return err
 	}
 	return generateSelfSignedCert(certFile, keyFile)
 }
