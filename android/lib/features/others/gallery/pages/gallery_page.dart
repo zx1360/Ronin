@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/models/media_orientation.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/pages/image_editor_page.dart';
 import 'package:torrid/features/others/gallery/pages/label_list_page.dart';
@@ -63,6 +64,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270°)
   int _quarterTurns = 0;
+  String? _ratioMediaId;
+  double? _aspectRatio;
+  String? _manualMediaId;
 
   /// 拖拽打标签浮层控制器（由"标签"按钮手势驱动）
   final GlobalKey<TagDragOverlayState> _tagDragKey = GlobalKey();
@@ -86,7 +90,30 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 
   void _toggleRotation() {
+    _manualMediaId = ref.read(currentMediaAssetProvider)?.id;
     setState(() => _quarterTurns = _quarterTurns == 0 ? 1 : 0);
+  }
+
+  void _onAspectRatio(String id, double ratio) {
+    if (!mounted || ref.read(currentMediaAssetProvider)?.id != id) return;
+    _ratioMediaId = id;
+    _aspectRatio = ratio;
+    if (!ref.read(galleryAutoOrientationProvider) || _manualMediaId == id) {
+      return;
+    }
+    final turns = mediaOrientationTurns(ratio, _quarterTurns);
+    if (turns != _quarterTurns) setState(() => _quarterTurns = turns);
+  }
+
+  Future<void> _toggleAutoOrientation() async {
+    await ref
+        .read(galleryAutoOrientationProvider.notifier)
+        .update(!ref.read(galleryAutoOrientationProvider));
+    if (!mounted) return;
+    _manualMediaId = null;
+    if (_ratioMediaId != null && _aspectRatio != null) {
+      _onAspectRatio(_ratioMediaId!, _aspectRatio!);
+    }
   }
 
   @override
@@ -100,8 +127,11 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
+    ref.listen(currentMediaAssetProvider, (previous, next) {
+      if (previous?.id != next?.id) _manualMediaId = null;
+    });
 
-    // 服务端写入最终失败（已回滚）时的提示
+    // 本地保存异常的提示。
     ref.listen(galleryWriteStatusProvider, (prev, next) {
       if (next == null || next == prev) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -129,6 +159,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
             Positioned.fill(
               child: ContentWidget(
                 rotationQuarterTurns: _quarterTurns,
+                onAspectRatio: _onAspectRatio,
                 onToggleBars: _toggleBarsVisibility,
                 onPrevious: _goToPrevious,
                 onNext: _goToNext,
@@ -248,6 +279,19 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                 tooltip: "编辑",
               ),
               IconButton(
+                onPressed: _toggleAutoOrientation,
+                icon: Icon(
+                  Icons.screen_rotation,
+                  size: 22,
+                  color: ref.watch(galleryAutoOrientationProvider)
+                      ? Colors.lightBlueAccent
+                      : Colors.white,
+                ),
+                tooltip: ref.watch(galleryAutoOrientationProvider)
+                    ? '自动方向：开启'
+                    : '自动方向：关闭',
+              ),
+              IconButton(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const GallerySettingPage()),
@@ -320,7 +364,8 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                   : null,
               onPanUpdate: (d) =>
                   _tagDragKey.currentState?.updateDrag(d.globalPosition),
-              onPanEnd: (d) => _tagDragKey.currentState?.endDrag(d.globalPosition),
+              onPanEnd: (d) =>
+                  _tagDragKey.currentState?.endDrag(d.globalPosition),
               onPanCancel: () => _tagDragKey.currentState?.cancelDrag(),
               onLongPress: currentMedia != null
                   ? () => _tagDragKey.currentState?.openPinned()

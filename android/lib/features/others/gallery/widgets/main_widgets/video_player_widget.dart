@@ -19,6 +19,7 @@ class VideoPlayerWidget extends ConsumerStatefulWidget {
 
   /// 初始化完成后是否自动开始播放（全屏查看器用；画廊网格保持手动播放）。
   final bool autoPlay;
+  final ValueChanged<double>? onAspectRatio;
 
   const VideoPlayerWidget({
     super.key,
@@ -26,6 +27,7 @@ class VideoPlayerWidget extends ConsumerStatefulWidget {
     this.storage,
     this.rotationQuarterTurns = 0,
     this.autoPlay = false,
+    this.onAspectRatio,
   });
 
   @override
@@ -40,6 +42,7 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
+    unawaited(_reportPreviewAspect());
     unawaited(_initVideoPlayer());
   }
 
@@ -49,7 +52,35 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
     if (oldWidget.asset.id != widget.asset.id ||
         oldWidget.asset.hash != widget.asset.hash) {
       _disposeControllers();
+      unawaited(_reportPreviewAspect());
       unawaited(_initVideoPlayer());
+    }
+  }
+
+  Future<void> _reportPreviewAspect() async {
+    final asset = widget.asset;
+    final storage = widget.storage;
+    if (storage == null || widget.onAspectRatio == null) return;
+    try {
+      File? file;
+      if (asset.previewPath != null) file = await storage.getPreviewFile(asset.previewPath!);
+      if (file == null && asset.thumbPath != null) file = await storage.getThumbFile(asset.thumbPath!);
+      if (!mounted || file == null) return;
+      final stream = FileImage(file).resolve(ImageConfiguration.empty);
+      late final ImageStreamListener listener;
+      listener = ImageStreamListener((info, _) {
+        stream.removeListener(listener);
+        final ratio = info.image.width / info.image.height;
+        info.dispose();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_isVideoInitialized && widget.asset.id == asset.id && widget.asset.hash == asset.hash) {
+            widget.onAspectRatio?.call(ratio);
+          }
+        });
+      }, onError: (_, __) => stream.removeListener(listener));
+      stream.addListener(listener);
+    } catch (_) {
+      // 无可用尺寸时保持当前方向。
     }
   }
 
@@ -80,6 +111,7 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
       await controller.initialize();
       if (!mounted || _videoController != controller) return;
       setState(() => _isVideoInitialized = true);
+      widget.onAspectRatio?.call(controller.value.aspectRatio);
 
       if (widget.autoPlay) {
         unawaited(controller.play().catchError((Object _) {}));

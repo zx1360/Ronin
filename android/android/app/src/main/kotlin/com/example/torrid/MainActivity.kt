@@ -28,22 +28,39 @@ class MainActivity : FlutterActivity() {
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "torrid/media_share")
             .setMethodCallHandler { call, result ->
-                if (call.method != "shareFile") {
+                if (call.method != "shareFile" && call.method != "shareFiles") {
                     result.notImplemented()
                     return@setMethodCallHandler
                 }
                 try {
-                    val file = File(requireNotNull(call.argument<String>("path"))).canonicalFile
+                    val entries = if (call.method == "shareFile") {
+                        listOf(mapOf("path" to call.argument<String>("path"), "mimeType" to call.argument<String>("mimeType")))
+                    } else {
+                        requireNotNull(call.argument<List<Map<String, String?>>>("files"))
+                    }
+                    require(entries.isNotEmpty())
                     val root = File(cacheDir, "media_share").canonicalFile
-                    require(file.isFile && file.path.startsWith(root.path + File.separator))
-                    val uri = FileProvider.getUriForFile(this, "$packageName.media_share", file)
-                    val mime = call.argument<String>("mimeType")?.takeIf { it.isNotBlank() }
-                        ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase())
-                        ?: "application/octet-stream"
-                    val intent = Intent(Intent.ACTION_SEND).apply {
+                    val files = entries.map { entry ->
+                        val file = File(requireNotNull(entry["path"])).canonicalFile
+                        require(file.isFile && file.length() > 0 && file.path.startsWith(root.path + File.separator))
+                        file
+                    }
+                    val uris = ArrayList(files.map { FileProvider.getUriForFile(this, "$packageName.media_share", it) })
+                    val types = entries.mapIndexed { index, entry ->
+                        entry["mimeType"]?.takeIf { it.isNotBlank() }
+                            ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(files[index].extension.lowercase())
+                            ?: "application/octet-stream"
+                    }.toSet()
+                    val families = types.map { it.substringBefore('/') }.toSet()
+                    val mime = if (types.size == 1) types.first()
+                        else if (families.size == 1) "${families.first()}/*" else "*/*"
+                    val intent = Intent(if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE).apply {
                         type = mime
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        clipData = ClipData.newUri(contentResolver, file.name, uri)
+                        if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris.first())
+                        else putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                        clipData = ClipData.newUri(contentResolver, files.first().name, uris.first()).also { clip ->
+                            uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+                        }
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     startActivity(Intent.createChooser(intent, "分享"))

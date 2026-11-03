@@ -23,6 +23,7 @@ class ImmichSelectionBar extends StatelessWidget {
   final VoidCallback onBundle;
   final VoidCallback onUnbundle;
   final VoidCallback onClear;
+  final VoidCallback onShare;
 
   const ImmichSelectionBar({
     super.key,
@@ -35,6 +36,7 @@ class ImmichSelectionBar extends StatelessWidget {
     required this.onBundle,
     required this.onUnbundle,
     required this.onClear,
+    required this.onShare,
   });
 
   @override
@@ -64,6 +66,7 @@ class ImmichSelectionBar extends StatelessWidget {
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
+                    _BarAction(icon: Icons.share, label: '分享', onTap: onShare),
                     _BarAction(
                         icon: Icons.label_outline,
                         label: '加标签',

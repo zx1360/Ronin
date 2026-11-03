@@ -12,11 +12,13 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 class MediaItemView extends ConsumerWidget {
   final MediaAsset asset;
   final int rotationQuarterTurns;
+  final ValueChanged<double>? onAspectRatio;
 
   const MediaItemView({
     super.key,
     required this.asset,
     this.rotationQuarterTurns = 0,
+    this.onAspectRatio,
   });
 
   @override
@@ -25,21 +27,23 @@ class MediaItemView extends ConsumerWidget {
     final apiClient = ref.read(apiClientManagerProvider);
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
+    final editedTurns = ImageEdit.parse(asset.editParams).quarterTurns;
+    void reportAspect(double ratio) {
+      onAspectRatio?.call(editedTurns.isOdd ? 1 / ratio : ratio);
+    }
 
-    final effectiveTurns =
-        (rotationQuarterTurns +
-            ImageEdit.parse(asset.editParams).quarterTurns) %
-        4;
+    final effectiveTurns = (rotationQuarterTurns + editedTurns) % 4;
 
     if (asset.isImage) {
       final imageUrl = galleryMediaUrl(baseUrl, asset);
       return NetworkImageWidget(
-        key: ValueKey('image_${asset.id}_$effectiveTurns'),
+        key: ValueKey('image_${asset.id}'),
         imageUrl: imageUrl,
         asset: asset,
         storage: storage,
         rotationQuarterTurns: effectiveTurns,
         httpHeaders: headers,
+        onAspectRatio: reportAspect,
       );
     }
 
@@ -49,6 +53,7 @@ class MediaItemView extends ConsumerWidget {
         asset: asset,
         storage: storage,
         rotationQuarterTurns: effectiveTurns,
+        onAspectRatio: reportAspect,
       );
     }
 

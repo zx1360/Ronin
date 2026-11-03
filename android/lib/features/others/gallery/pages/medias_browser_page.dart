@@ -6,6 +6,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/others/services/media_share_service.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part '../widgets/browser/scroll_wrapper.dart';
 part '../widgets/browser/grid_tile.dart';
@@ -424,15 +426,11 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
       );
     }
     final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final selected = _selectedIds
-        .map((id) {
-          for (final asset in allAssets) {
-            if (asset.id == id) return asset;
-          }
-          return null;
-        })
-        .whereType<MediaAsset>()
-        .toList();
+    final byId = {for (final asset in allAssets) asset.id: asset};
+    final selected = [
+      for (final id in _selectionOrder)
+        if (byId[id] != null) byId[id]!,
+    ];
     final hasDeletedSelected = selected.any((asset) => asset.isDeleted);
     final hasNonDeletedSelected = selected.any((asset) => !asset.isDeleted);
 
@@ -443,6 +441,15 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
+            _BottomButton(
+              icon: Icons.share,
+              label: '分享',
+              onPressed: () => showMediaShareDialog(
+                context,
+                ref.read(apiClientManagerProvider),
+                selected,
+              ),
+            ),
             // 捆绑按钮 (需要至少选择2个)
             if (_selectedIds.length >= 2 && !hasDeletedSelected)
               _BottomButton(
@@ -578,6 +585,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
                 Flexible(
                   child: ListView.builder(
                     shrinkWrap: true,
+                    itemExtent: 64,
                     itemCount: selected.length,
                     itemBuilder: (_, index) {
                       final asset = selected[index];

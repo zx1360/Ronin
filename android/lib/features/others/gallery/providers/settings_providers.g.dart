@@ -6,6 +6,23 @@ part of 'settings_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+String _$galleryAutoOrientationHash() =>
+    r'3c799ff5dcb017899640d57d0042f3a2dacdde2a';
+
+/// See also [GalleryAutoOrientation].
+@ProviderFor(GalleryAutoOrientation)
+final galleryAutoOrientationProvider =
+    NotifierProvider<GalleryAutoOrientation, bool>.internal(
+  GalleryAutoOrientation.new,
+  name: r'galleryAutoOrientationProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$galleryAutoOrientationHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$GalleryAutoOrientation = Notifier<bool>;
 String _$galleryModifiedCountHash() =>
     r'd0c0b8767e9086366e97a72fe955b8e8f5999a7d';
 
