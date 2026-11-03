@@ -23,6 +23,7 @@ class ContentWidget extends ConsumerStatefulWidget {
   final VoidCallback? onRotate;
   final double topExcludeHeight;
   final double bottomExcludeHeight;
+  final void Function(String mediaId, double aspectRatio)? onAspectRatio;
 
   const ContentWidget({
     super.key,
@@ -33,6 +34,7 @@ class ContentWidget extends ConsumerStatefulWidget {
     this.onRotate,
     this.topExcludeHeight = 0,
     this.bottomExcludeHeight = 0,
+    this.onAspectRatio,
   });
 
   @override
@@ -144,6 +146,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
               key: ValueKey(currentAsset.id),
               asset: currentAsset,
               rotationQuarterTurns: widget.rotationQuarterTurns,
+              onAspectRatio: (ratio) => widget.onAspectRatio?.call(currentAsset.id, ratio),
             ),
           ),
           // 底部进度

@@ -11,6 +11,8 @@ import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_ops_sheet.dart';
 import 'package:torrid/features/others/immich/widgets/immich_tag_tree.dart';
 import 'package:torrid/features/others/widgets/media_viewer_page.dart';
+import 'package:torrid/features/others/services/media_share_service.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 相册页 (immich)
 ///
@@ -109,6 +111,17 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
               onBundle: _bundleSelection,
               onUnbundle: _unbundleSelection,
               onClear: _clearSelection,
+              onShare: () {
+                final selected = [
+                  for (final asset in page?.assets ?? <MediaAsset>[])
+                    if (selection.contains(asset.id)) asset,
+                ];
+                showMediaShareDialog(
+                  context,
+                  ref.read(apiClientManagerProvider),
+                  selected,
+                );
+              },
             ),
     );
   }
@@ -122,7 +135,8 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     final byId = {for (final tag in tags) tag.id: tag};
     final favorites = ref.watch(favoriteTagsProvider);
     final total = ref.watch(immichMediaProvider).valueOrNull?.total;
-    final active = filter.tagIds.isNotEmpty ||
+    final active =
+        filter.tagIds.isNotEmpty ||
         filter.untagged ||
         filter.includeDeleted ||
         filter.vlmTags.isNotEmpty ||
@@ -257,7 +271,11 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
             children: [
               IconButton(
                 onPressed: () => showImmichAiTagSheet(context),
-                icon: const Icon(Icons.auto_awesome, size: 18, color: Colors.teal),
+                icon: const Icon(
+                  Icons.auto_awesome,
+                  size: 18,
+                  color: Colors.teal,
+                ),
                 tooltip: 'AI 标签筛选',
                 visualDensity: VisualDensity.compact,
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -346,11 +364,13 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.photo_library_outlined,
-                size: 56, color: Colors.grey),
+            const Icon(
+              Icons.photo_library_outlined,
+              size: 56,
+              color: Colors.grey,
+            ),
             const SizedBox(height: 12),
-            const Text('没有符合条件的媒体',
-                style: TextStyle(color: Colors.grey)),
+            const Text('没有符合条件的媒体', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () {
@@ -433,7 +453,8 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
 
   /// 打开全屏查看器；管理入口（备注/人工标签/删除）作为右上角操作注入。
   void _openViewer(String mediaId) {
-    final assets = ref.read(immichMediaProvider).valueOrNull?.assets ?? const [];
+    final assets =
+        ref.read(immichMediaProvider).valueOrNull?.assets ?? const [];
     final index = assets.indexWhere((item) => item.id == mediaId);
     if (index < 0) return;
 
@@ -571,10 +592,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
   Future<void> _editSelectionMessage() async {
     final ids = _selectedIdsOrdered;
     if (ids.isEmpty) return;
-    final assets = _assetsByIds(
-      ids,
-      ref.read(immichMediaProvider).valueOrNull,
-    );
+    final assets = _assetsByIds(ids, ref.read(immichMediaProvider).valueOrNull);
     final first = assets.isEmpty ? null : assets.first.message;
     final same = assets.every((a) => (a.message ?? '') == (first ?? ''));
     final text = await showImmichTextDialog(
@@ -598,10 +616,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
       _snack('请至少选择两个媒体');
       return;
     }
-    final assets = _assetsByIds(
-      ids,
-      ref.read(immichMediaProvider).valueOrNull,
-    );
+    final assets = _assetsByIds(ids, ref.read(immichMediaProvider).valueOrNull);
     if (assets.length < 2) {
       _snack('请至少选择两个媒体');
       return;

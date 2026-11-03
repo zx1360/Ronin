@@ -57,13 +57,15 @@ extension GalleryOperationStore on GalleryDatabaseService {
   ) async {
     final db = await database;
     await db.transaction((txn) async {
-      final previous = await txn.query('gallery_operations');
-      if (previous.any((row) => row['server'] != server)) {
-        throw StateError('请切回原画廊服务器完成回传');
-      }
-      if (previous.any((row) => row['kind'] == 'processed')) {
-        throw StateError('请先重试完成上次的标记已处理');
-      }
+      final checks = (await txn.rawQuery(
+        '''
+        SELECT EXISTS(SELECT 1 FROM gallery_operations WHERE server <> ?) AS other_server,
+               EXISTS(SELECT 1 FROM gallery_operations WHERE kind = 'processed') AS completing
+      ''',
+        [server],
+      )).single;
+      if (checks['other_server'] == 1) throw StateError('请切回原画廊服务器完成回传');
+      if (checks['completing'] == 1) throw StateError('请先重试完成上次的标记已处理');
       final body = Map<String, dynamic>.from(data);
       switch (kind) {
         case 'patch':
@@ -116,50 +118,62 @@ extension GalleryOperationStore on GalleryDatabaseService {
 
   Future<void> _applyPatch(Transaction txn, Map<String, dynamic> body) async {
     final ids = (body['media_ids'] as List).cast<String>().toSet();
-    final rows = await txn.query('media_assets');
-    final assets = {for (final row in rows) row['id'] as String: row};
-    if (!ids.every(assets.containsKey)) throw StateError('媒体未缓存');
-    final expanded = {...ids};
-    if (body.containsKey('is_deleted') || body['group_id'] != null) {
-      var changed = true;
-      while (changed) {
-        changed = false;
-        for (final row in rows) {
-          if (expanded.contains(row['group_id']) &&
-              expanded.add(row['id'] as String)) {
-            changed = true;
-          }
-        }
+    if (ids.isEmpty) throw StateError('未选择媒体');
+    final expanded = <String>{};
+    final cascade = body.containsKey('is_deleted') || body['group_id'] != null;
+    for (final chunk in _mediaChunks(ids)) {
+      final marks = List.filled(chunk.length, '?').join(',');
+      final existing = await txn.rawQuery(
+        'SELECT id FROM media_assets WHERE id IN ($marks)',
+        chunk,
+      );
+      if (existing.length != chunk.length) throw StateError('媒体未缓存');
+      if (cascade) {
+        final rows = await txn.rawQuery('''
+          WITH RECURSIVE members(id) AS (
+            SELECT id FROM media_assets WHERE id IN ($marks)
+            UNION SELECT m.id FROM media_assets m JOIN members g ON m.group_id = g.id
+          ) SELECT id FROM members
+        ''', chunk);
+        expanded.addAll(rows.map((row) => row['id'] as String));
+      } else {
+        expanded.addAll(chunk);
       }
     }
     final lead = body['group_id'];
-    if (lead != null &&
-        (expanded.contains(lead) ||
-            assets[lead] == null ||
-            assets[lead]!['group_id'] != null ||
-            assets[lead]!['is_deleted'] == 1)) {
-      throw StateError('主文件必须为未删除的独立媒体');
+    if (lead != null) {
+      final rows = await txn.query(
+        'media_assets',
+        columns: ['group_id', 'is_deleted'],
+        where: 'id = ?',
+        whereArgs: [lead],
+      );
+      if (expanded.contains(lead) ||
+          rows.isEmpty ||
+          rows.single['group_id'] != null ||
+          rows.single['is_deleted'] == 1) {
+        throw StateError('主文件必须为未删除的独立媒体');
+      }
     }
-    // 固定受影响成员，重放时不依赖之后的本地分组状态。
     body['affected_ids'] = expanded.toList();
-    for (final id in expanded) {
-      final values = <String, Object?>{};
-      if (body.containsKey('is_deleted')) {
-        values['is_deleted'] = body['is_deleted'] == true ? 1 : 0;
-      }
-      if (body.containsKey('group_id')) values['group_id'] = lead;
-      if (ids.contains(id)) {
-        if (body.containsKey('message')) values['message'] = body['message'];
-        if (body.containsKey('edit_params')) {
-          values['edit_params'] = body['edit_params'];
-        }
-      }
-      if (values.isNotEmpty) {
+    final propagated = <String, Object?>{
+      if (body.containsKey('is_deleted'))
+        'is_deleted': body['is_deleted'] == true ? 1 : 0,
+      if (lead != null) 'group_id': lead,
+    };
+    final annotations = <String, Object?>{
+      if (body.containsKey('group_id') && lead == null) 'group_id': null,
+      if (body.containsKey('message')) 'message': body['message'],
+      if (body.containsKey('edit_params')) 'edit_params': body['edit_params'],
+    };
+    for (final change in [(expanded, propagated), (ids, annotations)]) {
+      if (change.$2.isEmpty) continue;
+      for (final chunk in _mediaChunks(change.$1)) {
         await txn.update(
           'media_assets',
-          values,
-          where: 'id = ?',
-          whereArgs: [id],
+          change.$2,
+          where: 'id IN (${List.filled(chunk.length, '?').join(',')})',
+          whereArgs: chunk,
         );
       }
     }
@@ -213,5 +227,12 @@ extension GalleryOperationStore on GalleryDatabaseService {
       tags[tag.id] = updated;
       await _writeTag(txn, updated);
     }
+  }
+}
+
+Iterable<List<String>> _mediaChunks(Iterable<String> ids) sync* {
+  final list = ids.toList();
+  for (var offset = 0; offset < list.length; offset += 400) {
+    yield list.sublist(offset, (offset + 400).clamp(0, list.length));
   }
 }
