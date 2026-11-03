@@ -64,6 +64,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     setState(() => _startupError = null);
     if (!_loadingAnimCtrl.isAnimating) _loadingAnimCtrl.repeat(reverse: true);
     try {
+<<<<<<< HEAD
       await CertTrust.init();
       await PrefsService().initPrefs();
       try {
@@ -72,6 +73,13 @@ class _SplashPageState extends ConsumerState<SplashPage>
         if (mounted) ref.invalidate(appDatabaseProvider);
         rethrow;
       }
+=======
+      await Hive.initFlutter();
+      await PrefsService().initPrefs();
+      CertTrust.init();
+      await HiveService.init();
+      await HiveService.initComic();
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
       await ref.read(comicDownloadTasksProvider.notifier).initialize();
       unawaited(const CacheService().performStartupCleanup());
 

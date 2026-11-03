@@ -26,8 +26,24 @@ class HostConfig {
     return HostConfig(id: id, host: host ?? this.host, port: port ?? this.port);
   }
 
-  /// "host:port", 用于连通性探测键与去重
-  String get address => '$host:$port';
+  Uri? get _endpoint {
+    final number = int.tryParse(port);
+    if (number == null ||
+        number < 1 ||
+        number > 65535 ||
+        host.isEmpty ||
+        host.contains(RegExp(r'[\s/?#@\\]'))) {
+      return null;
+    }
+    try {
+      return Uri(host: host, port: number);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  String get address => _endpoint?.authority ?? '';
+  bool get isValid => _endpoint != null;
 
   Map<String, dynamic> toJson() => {'id': id, 'host': host, 'port': port};
 
@@ -41,8 +57,6 @@ class HostConfig {
     }
     return HostConfig.create();
   }
-
-  bool get isValid => host.isNotEmpty && port.isNotEmpty;
 }
 
 class NetworkConfigState {
@@ -157,10 +171,22 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     if (index < 0 || index >= state.configs.length) return;
 
     final newConfigs = List<HostConfig>.from(state.configs);
+<<<<<<< HEAD
     newConfigs[index] = newConfigs[index].copyWith(
       host: host.trim(),
       port: port.trim(),
     );
+=======
+    final updated = newConfigs[index].copyWith(
+      host: host.trim(),
+      port: port.trim(),
+    );
+    if (!updated.isValid) {
+      state = state.copyWith(message: '请输入有效的主机地址与 HTTPS 端口');
+      return;
+    }
+    newConfigs[index] = updated;
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
     state = state.copyWith(configs: newConfigs);
     await _persist();
     state = state.copyWith(message: '配置已保存');
@@ -237,7 +263,7 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 
       final newConfigs = List<HostConfig>.from(state.configs);
       for (final svc in discovered) {
-        final key = '${svc.host}:${svc.port}';
+        final key = Uri(host: svc.host, port: svc.port).authority;
         if (!existingHosts.contains(key)) {
           newConfigs.add(
             HostConfig.create(host: svc.host, port: '${svc.port}'),
@@ -274,17 +300,31 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 /// keepAlive 保证页面重建不会反复重测；
 /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
 @Riverpod(keepAlive: true)
+<<<<<<< HEAD
 Future<bool> serverReachable(Ref ref, String address) async {
+=======
+Future<bool> serverReachable(ServerReachableRef ref, String address) async {
+  final apiKey = ref.watch(
+    networkConfigManagerProvider.select((s) => s.apiKey),
+  );
+
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
   final dio = CertTrust.createDio(
     options: BaseOptions(
       baseUrl: 'https://$address',
       connectTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 8),
+<<<<<<< HEAD
+=======
+      headers: apiKey.isNotEmpty
+          ? {'X-API-Key': apiKey}
+          : const <String, String>{},
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
     ),
   );
 
   try {
-    final resp = await dio.get('/API/test');
+    final resp = await dio.get('/');
     return resp.statusCode == 200;
   } catch (_) {
     return false;

@@ -2,10 +2,20 @@ const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 export const syncVersion = 2;
 export const syncCollections = (module) => module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
 
+<<<<<<< HEAD
 // 在完整应用增量前，调用方持有的快照和游标都不变。
 export function applySyncDelta(module, current, payload, after) {
   const names = syncCollections(module);
   if (payload?.sync_version !== syncVersion) throw new Error('请先更新后端以支持增量合并');
+=======
+export const collectionsFor = (module) =>
+  module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
+
+// 整批验证后应用，再由调用方推进游标。
+export function applySyncDelta(module, current, payload, after) {
+  const names = collectionsFor(module);
+  if (payload?.sync_version !== 2) throw new Error('请先更新后端以支持增量合并');
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
   if (!Number.isSafeInteger(payload.cursor) || payload.cursor < after || payload.cursor < 0) throw new Error('同步游标无效');
   if (!Array.isArray(payload.tombstones)) throw new Error('删除标记无效');
   const validRow = (row) => row && uuid.test(row.id) && Number.isFinite(Date.parse(row.updated_at));

@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 // Package gallery 托管 Gallery CLI 任务。
+=======
+// Package gallery 提供 gallery CLI（本仓库 gizmos 模块构建的 gallery.exe）的集成调用。
+//
+// CLI 以子进程方式执行（`gallery.exe -mode <mode> -gallery-root <dir> ...`），
+// 由服务端任务引擎托管生命周期：状态/日志/中断，与 comix 爬虫同一范式。
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 package gallery
 
 import (
@@ -119,9 +126,10 @@ func Validate(opt Options) error {
 
 // BuildArgs 构建 CLI 参数。
 func BuildArgs(opt Options) []string {
+	root, _ := filepath.Abs(config.AppConf.GalleryDir)
 	args := []string{
 		"-mode", opt.Mode,
-		"-gallery-root", config.AppConf.GalleryDir,
+		"-gallery-root", root,
 		"-concurrency", fmt.Sprint(opt.Concurrency),
 		"-batch", fmt.Sprint(opt.Batch),
 	}
@@ -166,7 +174,11 @@ func Start(opt Options, afterExit func()) (*taskengine.Task, error) {
 		Exe:          exe,
 		Args:         BuildArgs(opt),
 		Dir:          filepath.Dir(exe),
+<<<<<<< HEAD
 		Env:          []string{"DB_FILE=" + dbFile, "DB_SCHEMA_FILE=" + schemaFile},
+=======
+		Env:          []string{"DB_FILE=" + db.File()},
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 		StreamStdout: true, // CLI 的统计与进度都打在 stdout
 		AfterExit:    afterExit,
 	})

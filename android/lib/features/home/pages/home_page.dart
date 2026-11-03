@@ -211,7 +211,6 @@ class _HomePageState extends ConsumerState<HomePage>
               child: Text(
                 _motto,
                 style: TextStyle(
-                  fontFamily: "kaiti",
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.primary,

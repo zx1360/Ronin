@@ -1,7 +1,11 @@
 import { ref, onMounted } from 'vue';
 import { useApi, assetUrl } from '../api.js';
 import { toast } from '../store.js';
+<<<<<<< HEAD
 import { applySyncDelta, syncCollections, syncVersion } from './user-data-sync.js';
+=======
+import { applySyncDelta, collectionsFor } from './user-data-sync.js';
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 
 export const moods = [
   { value: 'happy', label: '🥳 开心' }, { value: 'calm', label: '😌 平静' },
@@ -17,8 +21,12 @@ export const imageUrl = (path) => {
 };
 
 export function useUserData(module) {
+<<<<<<< HEAD
   const api = useApi();
   const names = syncCollections(module);
+=======
+  const names = collectionsFor(module);
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
   const data = ref(Object.fromEntries(names.map((name) => [name, []])));
   const loading = ref(false), busy = ref(false), error = ref('');
   let cursor = 0;
@@ -59,6 +67,7 @@ export function useUserData(module) {
         body.append('jsonData', JSON.stringify(payload));
         for (const [name, file] of files) body.append('files', file, name);
       }
+<<<<<<< HEAD
       const essays = changes.essays || [];
       const response = await api.post(`/API/user-data/edit/${module}${essays.length ? '?receipt=1' : ''}`, body);
       await pull();
@@ -76,13 +85,27 @@ export function useUserData(module) {
         }
       }
       const accepted = names.filter((name) => name !== 'essays').every((name) => (changes[name] || []).every((row) => data.value[name].some((current) => current.id === row.id && Date.parse(current.updated_at) === Date.parse(row.updated_at))))
+=======
+      await api.post(`/API/user-data/sync/${module}`, body);
+      if (disposed) return false;
+      await pull();
+      if (disposed) return false;
+      const accepted = names.every((name) => (changes[name] || []).every((row) => data.value[name].some((current) => current.id === row.id && Date.parse(current.updated_at) === Date.parse(row.updated_at))))
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
         && (changes.tombstones || []).every((item) => !data.value[item.collection].some((row) => row.id === item.id));
       if (!accepted) toast('另一端已有更新版本，请刷新编辑内容后重试', 'warning');
       return accepted;
     } catch (e) {
+<<<<<<< HEAD
       if (api.signal.aborted) return false;
       error.value = e.status === 404 ? '后端尚不支持安全在线编辑，请更新并重启 Monarch 后再保存' : e.message;
       toast(error.value, 'error');
+=======
+      if (!disposed) {
+        error.value = e.message;
+        toast(e.message, 'error');
+      }
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
       return false;
     }
     finally { busy.value = false; }

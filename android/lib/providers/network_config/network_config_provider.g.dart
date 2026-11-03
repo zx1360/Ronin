@@ -6,8 +6,12 @@ part of 'network_config_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+<<<<<<< HEAD
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+=======
+String _$serverReachableHash() => r'4752aa6c68b74ecbf27f66fdf7e5c1e316b13d6b';
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 
 @ProviderFor(NetworkConfigManager)
 final networkConfigManagerProvider = NetworkConfigManagerProvider._();
@@ -154,3 +158,28 @@ final class ServerReachableFamily extends $Family
   @override
   String toString() => r'serverReachableProvider';
 }
+<<<<<<< HEAD
+=======
+
+String _$networkConfigManagerHash() =>
+    r'33a0924ec738a15edc71ae7b66056ce0f898a666';
+
+/// 网络配置管理Provider
+///
+/// Copied from [NetworkConfigManager].
+@ProviderFor(NetworkConfigManager)
+final networkConfigManagerProvider =
+    NotifierProvider<NetworkConfigManager, NetworkConfigState>.internal(
+  NetworkConfigManager.new,
+  name: r'networkConfigManagerProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$networkConfigManagerHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$NetworkConfigManager = Notifier<NetworkConfigState>;
+// ignore_for_file: type=lint
+// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)

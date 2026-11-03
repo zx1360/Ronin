@@ -135,7 +135,15 @@ func (e *Engine) runOneBatch(ctx context.Context) (bool, error) {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
+<<<<<<< HEAD
 		if !slices.Contains(pending, capability) {
+=======
+		pending, err := ai_repo.HasPending(ctx, capability)
+		if err != nil {
+			return false, err
+		}
+		if !pending {
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 			continue
 		}
 		if ready, _ := e.CapabilityReady(ctx, capability); !ready {

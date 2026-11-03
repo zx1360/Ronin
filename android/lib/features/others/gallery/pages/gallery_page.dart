@@ -343,8 +343,59 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
       child: SizedBox(
         height: _bottomBarHeight,
         child: Row(
+<<<<<<< HEAD
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [for (final button in buttons) Expanded(child: button)],
+=======
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // 标签管理：点击打开标签管理页；向上拖动激活"拖拽打标签"浮层；长按打开常驻浮层
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanStart: currentMedia != null
+                  ? (d) => _tagDragKey.currentState?.startDrag(d.globalPosition)
+                  : null,
+              onPanUpdate: (d) =>
+                  _tagDragKey.currentState?.updateDrag(d.globalPosition),
+              onPanEnd: (d) =>
+                  _tagDragKey.currentState?.endDrag(d.globalPosition),
+              onPanCancel: () => _tagDragKey.currentState?.cancelDrag(),
+              onLongPress: currentMedia != null
+                  ? () => _tagDragKey.currentState?.openPinned()
+                  : null,
+              child: _BottomBarButton(
+                icon: Icons.label_outline,
+                label: "标签",
+                onPressed: currentMedia != null
+                    ? () => _openLabelPage(context, currentMedia.id)
+                    : null,
+              ),
+            ),
+            // 网格视图 / 捆绑
+            _BottomBarButton(
+              icon: Icons.grid_view,
+              label: "网格",
+              onPressed: () => _openGridView(context),
+            ),
+            // 删除当前媒体文件
+            _BottomBarButton(
+              icon: Icons.delete_outline,
+              label: "删除",
+              color: currentMedia?.isDeleted == true ? Colors.red : null,
+              onPressed: currentMedia != null
+                  ? () => _toggleDelete(currentMedia)
+                  : null,
+            ),
+            // 详情页面
+            _BottomBarButton(
+              icon: Icons.info_outline,
+              label: "详情",
+              onPressed: currentMedia != null
+                  ? () => _openDetailPage(context)
+                  : null,
+            ),
+          ],
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
         ),
       ),
     );

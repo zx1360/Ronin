@@ -75,7 +75,11 @@ func (o *Ollama) currentConfig() config.AiConfig {
 // 与侧车的就绪语义保持一致：检查的是"依赖是否齐备"，而不是"进程是否已启动"。
 // 服务未运行时，只要能找到 ollama 可执行文件就算就绪——真正执行时
 // Generate 会经 EnsureReady 按需拉起；连可执行文件都没有才算不可用。
+<<<<<<< HEAD
 func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
+=======
+func (o *Ollama) Ready(ctx context.Context, model string, vision bool) (bool, string) {
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 	models, err := o.ListModelInfo(ctx)
 	if err != nil {
 		if o.resolveExe() != "" {
@@ -83,7 +87,19 @@ func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
 		}
 		return false, err.Error()
 	}
+<<<<<<< HEAD
 	if err := o.checkModel(models, model); err != nil {
+=======
+	for _, info := range models {
+		if strings.EqualFold(info.Name, model) {
+			if vision && !info.Vision {
+				return false, "图像标注需要支持视觉的 Ollama 模型"
+			}
+			return true, ""
+		}
+	}
+	if err := o.checkModel(nil, model); err != nil {
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 		return false, err.Error()
 	}
 	return true, ""

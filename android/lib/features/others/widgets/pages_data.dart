@@ -9,8 +9,12 @@ class OtherPagesData {
   static List<PageItem> get pages => [
     PageItem(
       label: "漫画",
+<<<<<<< HEAD
       description: '阅读、下载与离线收藏',
       icon: const IconData(0xe600, fontFamily: "iconfont"),
+=======
+      icon: Icons.menu_book_outlined,
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
       builder: (context) => ComicPage(),
     ),
     PageItem(

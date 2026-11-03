@@ -573,6 +573,7 @@ func ListJobs(capability, status string, limit, offset int) ([]model.AiJob, int,
 	return jobs, total, rows.Err()
 }
 
+<<<<<<< HEAD
 // 每种能力只做一次索引存在性检查，不扫描历史任务或探测模型。
 func PendingCapabilities(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -598,6 +599,14 @@ func PendingCapabilities(ctx context.Context) ([]string, error) {
 		pending = append(pending, capability)
 	}
 	return pending, rows.Err()
+=======
+func HasPending(ctx context.Context, capability string) (bool, error) {
+	var pending bool
+	err := db.Read().QueryRowContext(ctx, `
+        SELECT EXISTS(SELECT 1 FROM jobs WHERE capability = ? AND status = 'pending')`,
+		capability).Scan(&pending)
+	return pending, err
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
 }
 
 // int64Args 把 int64 列表转为 SQL 参数。

@@ -147,6 +147,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
   }
 
   Widget _defaultAvatar() {
+<<<<<<< HEAD
     return Image.asset(
       'assets/icons/six.ico',
       fit: BoxFit.cover,
@@ -154,6 +155,11 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
         color: AppTheme.primaryContainer,
         child: Icon(Icons.person, size: 60, color: AppTheme.primary),
       ),
+=======
+    return Container(
+      color: AppTheme.primaryContainer,
+      child: Icon(Icons.person, size: 60, color: AppTheme.primary),
+>>>>>>> 1fc83d9 (重构瘦身+分发性.)
     );
   }
 

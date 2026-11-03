@@ -16,7 +16,7 @@
 ## 安装
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+pwsh -File .\install.ps1
 ```
 
 可选参数：`-SkipModels`（只装 python 依赖）、`-Recreate`（重建 venv）、
@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 下载来源：
 
 - SigLIP 2 双塔 ONNX + 分词器 ← HF `onnx-community/siglip2-base-patch16-224-ONNX`（经 hf-mirror）
-- buffalo_l 的 `det_10g.onnx` / `w600k_r50.onnx` ← HF `public-data/insightface`（经 hf-mirror）
+- 取得使用授权后，可用 `-IncludeFace` 下载 buffalo_l 的检测与识别模型。见 [InsightFace 模型许可](https://github.com/deepinsight/insightface#license)。
 - PP-OCR 模型 ← **随 rapidocr wheel 一起提供**，无需额外下载
 
 > **向量模型必须支持中文。** SigLIP 1（`Xenova/siglip-base-patch16-224`）的分词器只有
