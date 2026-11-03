@@ -64,6 +64,9 @@ func Progress(c *gin.Context) {
 
 func ChatInfo(c *gin.Context) {
 	if e := engine(c); e != nil {
+		if c.Query("refresh") == "true" {
+			e.OllamaProvider().RefreshModels()
+		}
 		c.JSON(http.StatusOK, e.ChatInfo(c.Request.Context()))
 	}
 }

@@ -141,13 +141,17 @@ class ApiClient {
     required Map<String, dynamic> data,
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
+    Duration? receiveTimeout,
   }) async {
     return _dio.post(
       path,
       data: data,
       cancelToken: cancelToken,
       onSendProgress: onSendProgress,
-      options: Options(contentType: 'application/json'),
+      options: Options(
+        contentType: 'application/json',
+        receiveTimeout: receiveTimeout,
+      ),
     );
   }
 

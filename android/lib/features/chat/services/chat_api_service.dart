@@ -78,7 +78,7 @@ class ChatServerInfo {
     model: data['model'] as String,
     activeModel: data['active_model'] as String,
     candidates: [
-      for (final item in data['candidates'] as List)
+      for (final item in (data['candidates'] as List? ?? const []))
         ChatModelOption(
           model: item['model'] as String,
           installed: item['installed'] as bool,
@@ -92,33 +92,54 @@ class ChatServerInfo {
   );
 }
 
-/// 读取服务端默认值；不可达时由调用方降级展示。
-final chatServerInfoProvider = FutureProvider<ChatServerInfo>((ref) async {
-  final client = ref.watch(apiClientManagerProvider);
-  try {
-    final response = await client.get('/API/ai/chat/info');
-    return ChatServerInfo.fromJson(response.data as Map<String, dynamic>);
-  } catch (e) {
-    throw ApiClient.mapError(e);
-  }
-});
-
 class ChatApiService {
   ChatApiService(this._client);
 
   final ApiClient _client;
+
+  Future<ChatServerInfo> info() async {
+    try {
+      final response = await _client.get(
+        '/API/ai/chat/info',
+        queryParams: {'refresh': 'true'},
+      );
+      return ChatServerInfo.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      throw ApiClient.mapError(e);
+    }
+  }
+
+  Future<ChatServerInfo> startModel(ChatOptions options, String model) async {
+    try {
+      final response = await _client.postJson(
+        '/API/ai/chat/start',
+        data: {
+          'model': model,
+          'num_ctx': options.numCtx,
+          if (options.customKeepAlive)
+            'keep_alive_seconds': options.keepAliveSeconds,
+        },
+        receiveTimeout: const Duration(seconds: 125),
+      );
+      return ChatServerInfo.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      throw ApiClient.mapError(e);
+    }
+  }
 
   /// 发起一次流式对话。
   Stream<ChatStreamEvent> chat({
     required List<Map<String, dynamic>> messages,
     required ChatOptions options,
     CancelToken? cancelToken,
+    bool json = false,
   }) {
     return streamNdjsonEvents(
       _client,
       '/API/ai/chat',
       {
         'messages': messages,
+        if (json) 'json': true,
         if (options.model.isNotEmpty) 'model': options.model,
         if (options.numCtx > 0) 'num_ctx': options.numCtx,
         'think': options.think,

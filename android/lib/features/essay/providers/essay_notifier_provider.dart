@@ -81,18 +81,42 @@ class EssayService extends _$EssayService {
       if (essay.labels.any((id) => !state.labelBox.containsKey(id))) {
         throw const FormatException('部分标签已不存在，请重新选择');
       }
-      essay = essay.copyWith(
-        updatedAt: nextUserDataTime(state.essayBox.get(essay.id)?.updatedAt),
-      );
-      await _replaceEssays({
-        for (final item in state.essayBox.values) item.id: item,
-        essay.id: essay,
-      });
-      ref.read(contentServerProvider.notifier).switchEssay(essay);
+      await _saveEssay(essay);
     } finally {
       keepAlive.close();
     }
   });
+
+  Future<void> _saveEssay(Essay essay) async {
+    essay = essay.copyWith(
+      updatedAt: nextUserDataTime(state.essayBox.get(essay.id)?.updatedAt),
+    );
+    await _replaceEssays({
+      for (final item in state.essayBox.values) item.id: item,
+      essay.id: essay,
+    });
+    ref.read(contentServerProvider.notifier).switchEssay(essay);
+  }
+
+  Future<void> acceptSuggestedLabel(Essay source, String labelId) {
+    final keepAlive = ref.keepAlive();
+    return userDataWrite(() async {
+      final essay = state.essayBox.get(source.id);
+      final hidden = hiddenLabelIds(state.labelBox.values);
+      if (essay == null ||
+          essay.content != source.content ||
+          essay.title != source.title ||
+          essay.labels.any(hidden.contains)) {
+        throw StateError('随笔已变更，请重新分析');
+      }
+      if (!state.labelBox.containsKey(labelId) || hidden.contains(labelId)) {
+        throw StateError('标签已不可用');
+      }
+      if (essay.labels.contains(labelId)) return;
+      if (essay.labels.length >= 4) throw StateError('随笔最多可有 4 个标签');
+      await _saveEssay(essay.copyWith(labels: [...essay.labels, labelId]));
+    }).whenComplete(keepAlive.close);
+  }
 
   Future<void> deleteEssay(Essay essay) => userDataWrite(
     () => _replaceEssays({

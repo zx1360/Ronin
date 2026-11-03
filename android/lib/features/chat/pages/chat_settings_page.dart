@@ -20,12 +20,16 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
 
   /// 服务端默认值；读取失败时使用本地缺省。
   ChatServerInfo? _server;
+  String? _modelStatus;
+  bool _loadingModels = false;
 
   @override
   void initState() {
     super.initState();
-    _keepAliveController.text =
-        ref.read(chatOptionsControllerProvider).keepAliveSeconds.toString();
+    _keepAliveController.text = ref
+        .read(chatOptionsControllerProvider)
+        .keepAliveSeconds
+        .toString();
     _loadServerInfo();
   }
 
@@ -35,34 +39,32 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
     super.dispose();
   }
 
-  Future<void> _loadServerInfo() async {
+  Future<void> _loadServerInfo({bool start = false}) async {
+    setState(() {
+      _loadingModels = true;
+      _modelStatus = null;
+    });
     try {
-      final info = await ref.read(chatServerInfoProvider.future);
+      final api = ref.read(chatApiProvider);
+      final options = ref.read(chatOptionsControllerProvider);
+      final model = options.model.isEmpty
+          ? (_server?.model ?? '')
+          : options.model;
+      final info = start
+          ? await api.startModel(options, model)
+          : await api.info();
       if (!mounted) return;
-      setState(() => _server = info);
-      _dropUnavailableModel(info);
-    } catch (_) {
-      // 服务端不可达时只影响"默认值/已安装"的展示，不影响设置项本身
+      setState(() {
+        _server = info;
+        if (start) {
+          _modelStatus = model.isEmpty ? 'Ollama 已启动' : '已加载 $model';
+        }
+      });
+    } catch (e) {
+      if (mounted) setState(() => _modelStatus = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingModels = false);
     }
-  }
-
-  /// 本地保存的模型可能已被删掉（后端 ollama rm）：清空表示"跟随后端"，
-  /// 否则每一轮对话都会因该模型不可用而失败。
-  void _dropUnavailableModel(ChatServerInfo info) {
-    final options = ref.read(chatOptionsControllerProvider);
-    if (options.model.isEmpty || info.candidates.isEmpty) return;
-    for (final candidate in info.candidates) {
-      if (candidate.installed &&
-          candidate.model.toLowerCase() == options.model.toLowerCase()) {
-        return;
-      }
-    }
-    ref
-        .read(chatOptionsControllerProvider.notifier)
-        .update(options.copyWith(model: ''));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${options.model} 已不可用，已切回跟随后端')),
-    );
   }
 
   @override
@@ -77,49 +79,78 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _section(
-            '模型',
-            [
-              if (server == null)
-                const Text(
-                  '未能读取服务端模型清单（服务端不可达）。',
-                  style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
-                )
-              else if (server.candidates.isEmpty)
-                const Text(
-                  '未能获取可用模型清单：请确认后端已启用 AI 且本机 Ollama 可访问（后端页面可一键拉起）。',
-                  style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
-                )
-              else
-                for (final candidate in server.candidates)
-                  _ModelOption(
-                    model: candidate.model,
-                    installed: candidate.installed,
-                    vision: candidate.vision,
-                    // 未显式选过模型（model 为空）时以服务端当前选定的模型为准
-                    selected: selectedModel.isEmpty
-                        ? candidate.current
-                        : selectedModel == candidate.model.toLowerCase(),
-                    active: server.activeModel.toLowerCase() ==
-                        candidate.model.toLowerCase(),
-                    // 未安装的模型不允许选中：选中后每次对话都会失败
-                    onTap: candidate.installed
-                        ? () => controller.update(
-                              options.copyWith(model: candidate.model),
-                            )
-                        : null,
+          _section('模型', [
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  onPressed: _loadingModels ? null : () => _loadServerInfo(),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('刷新清单'),
+                ),
+                TextButton.icon(
+                  onPressed: _loadingModels
+                      ? null
+                      : () => _loadServerInfo(start: true),
+                  icon: const Icon(Icons.play_arrow),
+                  label: Text(
+                    (selectedModel.isEmpty && (server?.model.isEmpty ?? true))
+                        ? '启动 Ollama'
+                        : '加载所选模型',
                   ),
-              const SizedBox(height: 4),
+                ),
+              ],
+            ),
+            if (_loadingModels) const LinearProgressIndicator(),
+            if (_modelStatus case final status?) Text(status),
+            if (server != null && server.candidates.isEmpty)
               const Text(
-                '候选实时来自本机 Ollama 的已安装模型（在后端 ollama pull / rm 后刷新即可）。'
-                '两端选用不同模型时，对话会抢占后台标注并释放显存（原任务会被中断，之后自动重排）。',
+                '暂无可用模型。请启动 Ollama，或确认后端已启用 AI 且模型已安装。',
                 style: TextStyle(
                   fontSize: 12,
                   color: AppTheme.onSurfaceVariant,
                 ),
               ),
+            if (server != null) ...[
+              if (selectedModel.isNotEmpty &&
+                  !server.candidates.any(
+                    (c) => c.model.toLowerCase() == selectedModel,
+                  ))
+                Text('已选模型 ${options.model} 当前不可用'),
+              if (server.model.isNotEmpty)
+                TextButton(
+                  onPressed: _loadingModels || selectedModel.isEmpty
+                      ? null
+                      : () => controller.update(options.copyWith(model: '')),
+                  child: const Text('跟随后端'),
+                ),
+              for (final candidate in server.candidates)
+                _ModelOption(
+                  model: candidate.model,
+                  installed: candidate.installed,
+                  vision: candidate.vision,
+                  // 未显式选过模型（model 为空）时以服务端当前选定的模型为准
+                  selected: selectedModel.isEmpty
+                      ? candidate.current
+                      : selectedModel == candidate.model.toLowerCase(),
+                  active:
+                      server.activeModel.toLowerCase() ==
+                      candidate.model.toLowerCase(),
+                  // 未安装的模型不允许选中：选中后每次对话都会失败
+                  onTap: candidate.installed && !_loadingModels
+                      ? () => controller.update(
+                          options.copyWith(model: candidate.model),
+                        )
+                      : null,
+                ),
             ],
-          ),
+            const SizedBox(height: 4),
+            const Text(
+              '候选实时来自本机 Ollama 的已安装模型（在后端 ollama pull / rm 后刷新即可）。'
+              '两端选用不同模型时，对话会抢占后台标注并释放显存（原任务会被中断，之后自动重排）。',
+              style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
+            ),
+          ]),
           _section(
             '上下文大小',
             [

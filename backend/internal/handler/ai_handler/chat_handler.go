@@ -1,12 +1,14 @@
 package ai_handler
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +35,49 @@ type chatTuning struct {
 	Think            bool     `json:"think"`
 	Temperature      *float64 `json:"temperature"`
 	KeepAliveSeconds *int     `json:"keep_alive_seconds"`
+}
+
+// StartChatModel 启动 Ollama，并在指定模型时将其加载到显存。
+func StartChatModel(c *gin.Context) {
+	e := engine(c)
+	if e == nil {
+		return
+	}
+	if !e.Config().Enabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "服务端未启用 AI"})
+		return
+	}
+	var req chatTuning
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4096)
+	if err := c.ShouldBindJSON(&req); err != nil || req.NumCtx < 0 || req.NumCtx > 262144 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "模型启动参数无效"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	defer cancel()
+	ollama := e.OllamaProvider()
+	if err := ollama.EnsureReady(ctx, ""); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Model) != "" {
+		modelName, options, err := req.resolve(e)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		// 即使对话设置为立即卸载，手动预热也至少驻留一分钟。
+		if options.KeepAliveSeconds == 0 || (options.KeepAliveSeconds < 0 && e.Config().OllamaKeepAlive == 0) {
+			options.KeepAliveSeconds = 60
+		}
+		lease := e.UseModel(ctx, modelName, "模型预热", ai.ModelForeground)
+		defer lease.Release()
+		if err := ollama.Chat(lease.Context(), modelName, []ai.ChatMessage{}, options, nil); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, e.ChatInfo(ctx))
 }
 
 // resolve 校验可调项并换算为引擎选项，返回本次实际使用的模型名。
@@ -65,6 +110,7 @@ func (t chatTuning) resolve(e *ai.Engine) (string, ai.ChatOptions, error) {
 // chatRequest POST /API/ai/chat 请求体。
 type chatRequest struct {
 	Messages []chatMessage `json:"messages"`
+	JSON     bool          `json:"json"`
 	chatTuning
 }
 
@@ -175,6 +221,7 @@ func Chat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	options.JSON = req.JSON
 	streamChat(c, e, "对话", modelName, options, messages)
 }
 
@@ -183,8 +230,12 @@ func Chat(c *gin.Context) {
 // 调用方负责参数校验与消息组装；prelude 是正文之前先下发的事件（如回顾的确定性统计）。
 // 模型未就绪时以 503 返回 JSON，因此必须发生在写出流式响应头之前。
 func streamChat(c *gin.Context, e *ai.Engine, purpose, modelName string, options ai.ChatOptions, messages []ai.ChatMessage, prelude ...ai.ChatEvent) {
+	if !e.Config().Enabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "服务端未启用 AI"})
+		return
+	}
 	if ok, reason := e.OllamaProvider().Ready(c.Request.Context(), modelName); !ok {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": reason})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": reason + "。请在对话设置的模型区检查或启动 Ollama"})
 		return
 	}
 

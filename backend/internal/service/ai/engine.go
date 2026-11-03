@@ -123,13 +123,14 @@ func (e *Engine) Start(parent context.Context) {
 		log.Println("[AI] 已通过 AI_ENABLED=false 关闭，跳过启动")
 		return
 	}
+	ctx, cancel := context.WithCancel(parent)
+	e.cancel = cancel
+	e.startLoop(ctx, e.ollama.supervise)
 	if !ai_repo.SchemaReady(context.Background()) {
 		log.Println("[AI] ai schema 未初始化，AI 能力停用（执行 references/db/sqlite.sql 后重启）")
 		return
 	}
 
-	ctx, cancel := context.WithCancel(parent)
-	e.cancel = cancel
 	e.started = true
 
 	// 恢复上次的暂停状态（缺省即暂停）：批处理会长时间占满 CPU/GPU，
@@ -156,7 +157,6 @@ func (e *Engine) Start(parent context.Context) {
 	for _, s := range e.sidecars() {
 		e.startLoop(ctx, s.supervise)
 	}
-	e.startLoop(ctx, e.ollama.supervise)
 
 	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s 配置=%s）",
 		cfg.Workers, cfg.BatchSize, cfg.IdleTimeout, cfg.OllamaIdle, e.ConfigPath())
