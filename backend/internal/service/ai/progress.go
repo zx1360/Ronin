@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"time"
 
 	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
@@ -68,9 +67,7 @@ func (e *Engine) ChatInfo(ctx context.Context) ChatInfo {
 }
 
 func (e *Engine) RefreshDiagnostics() {
-	e.ollama.modelsMu.Lock()
-	e.ollama.modelsAt = time.Time{}
-	e.ollama.modelsMu.Unlock()
+	e.ollama.RefreshModels()
 	for _, sidecar := range e.sidecars() {
 		sidecar.probeMu.Lock()
 		sidecar.probe = nil

@@ -331,7 +331,7 @@ func (e *Engine) NormalizeModel(requested string) (string, error) {
 	}
 	available := e.installedModelNames()
 	if len(available) == 0 {
-		return "", fmt.Errorf("模型 %s 不可用：本机 Ollama 未运行或未安装任何模型", selected)
+		return "", fmt.Errorf("模型 %s 不可用，请在对话设置的模型区启动 Ollama 或检查模型是否已安装", selected)
 	}
 	return "", fmt.Errorf("模型 %s 不可用（本机已安装: %s）", selected, strings.Join(available, "、"))
 }
