@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 # comix 项目根（comix 包的上一级）：backend/gizmos/comix
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -19,7 +19,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_ROOT = PROJECT_ROOT.parent.parent
 
 load_dotenv(BACKEND_ROOT / ".env")
-load_dotenv(PROJECT_ROOT / ".env", override=True)
+for key, value in dotenv_values(PROJECT_ROOT / ".env").items():
+    if value is not None and key not in {"MONARCH_DB_FILE", "DB_FILE", "COMIC_STORAGE_ROOT"}:
+        os.environ[key] = value
 
 
 def _resolve(raw: str, default: Path) -> str:

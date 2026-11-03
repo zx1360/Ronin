@@ -87,146 +87,134 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
 
     // UI
     return Scaffold(
-      body: Container(
-        color: const Color(0xFFF5F0E1),
-        child: Container(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: const AssetImage('assets/images/1.png'),
-              fit: BoxFit.cover,
-              opacity: 0.15,
+      backgroundColor: const Color(0xFFF5F0E1),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        children: [
+          // 页面标题
+          Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      BookletHistoryPage(styleId: _currentStyle?.id),
+                ),
+              ),
+              icon: const Icon(Icons.history),
+              label: const Text('留言时间轴'),
             ),
           ),
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          const SizedBox(height: 20),
+
+          // 顶部操作栏（样式选择 + 新建按钮）
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // 页面标题
-              Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          BookletHistoryPage(styleId: _currentStyle?.id),
-                    ),
-                  ),
-                  icon: const Icon(Icons.history),
-                  label: const Text('留言时间轴'),
+              Expanded(
+                child: StyleDropdown(
+                  currentStyle: _currentStyle,
+                  onStyleChanged: _onStyleChanged,
                 ),
               ),
-              const SizedBox(height: 20),
-
-              // 顶部操作栏（样式选择 + 新建按钮）
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: StyleDropdown(
-                      currentStyle: _currentStyle,
-                      onStyleChanged: _onStyleChanged,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _openCreateStyleBottomSheet,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF8B5A2B),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    child: Text('开始新样式', style: TextStyle(color: Colors.amber)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // 打卡计划概览卡片
-              CompactStyleOverview(currentStyle: _currentStyle),
-              const SizedBox(height: 6),
-
-              // 打卡样式的任务展示（点击可筛选日历）
-              if (_currentStyle != null) ...[
-                Row(
-                  children: [
-                    Expanded(child: Text('打卡任务', style: noteTitle)),
-                    if (_selectedTaskId != null)
-                      TextButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _selectedTaskId = null;
-                          });
-                        },
-                        icon: const Icon(Icons.clear, size: 14),
-                        label: Text('清除筛选', style: noteSmall),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF8B5A2B),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: const Size(0, 32),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  height: 200,
-                  child: ListView.builder(
-                    padding: EdgeInsets.only(top: 0),
-                    itemCount: _currentStyle!.tasks.length,
-                    itemBuilder: (context, index) {
-                      Task task = _currentStyle!.tasks[index];
-                      final completionCount =
-                          taskCompletionCounts[task.id] ?? 0;
-                      final isSelected = _selectedTaskId == task.id;
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            if (_selectedTaskId == task.id) {
-                              _selectedTaskId = null; // 再次点击取消选中
-                            } else {
-                              _selectedTaskId = task.id;
-                            }
-                          });
-                        },
-                        child: TaskSimpleWidget(
-                          title: task.title,
-                          description: task.description,
-                          imgUrl: task.image,
-                          completionCount: completionCount,
-                          isSelected: isSelected,
-                        ),
-                      );
-                    },
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: _openCreateStyleBottomSheet,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF8B5A2B),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
                   ),
                 ),
-              ],
-
-              const SizedBox(height: 18),
-
-              // 打卡记录日历
-              Text(
-                _selectedTaskId != null
-                    ? '「${_selectedTaskTitle()}」完成记录'
-                    : '打卡记录总览',
-                style: noteTitle,
-              ),
-              const SizedBox(height: 12),
-              CheckinCalendar(
-                style: _currentStyle,
-                records: _relatedRecords,
-                selectedTaskId: _selectedTaskId,
+                child: Text('开始新样式', style: TextStyle(color: Colors.amber)),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 20),
+
+          // 打卡计划概览卡片
+          CompactStyleOverview(currentStyle: _currentStyle),
+          const SizedBox(height: 6),
+
+          // 打卡样式的任务展示（点击可筛选日历）
+          if (_currentStyle != null) ...[
+            Row(
+              children: [
+                Expanded(child: Text('打卡任务', style: noteTitle)),
+                if (_selectedTaskId != null)
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedTaskId = null;
+                      });
+                    },
+                    icon: const Icon(Icons.clear, size: 14),
+                    label: Text('清除筛选', style: noteSmall),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF8B5A2B),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 32),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              clipBehavior: Clip.antiAlias,
+              height: 200,
+              child: ListView.builder(
+                padding: EdgeInsets.only(top: 0),
+                itemCount: _currentStyle!.tasks.length,
+                itemBuilder: (context, index) {
+                  Task task = _currentStyle!.tasks[index];
+                  final completionCount = taskCompletionCounts[task.id] ?? 0;
+                  final isSelected = _selectedTaskId == task.id;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (_selectedTaskId == task.id) {
+                          _selectedTaskId = null; // 再次点击取消选中
+                        } else {
+                          _selectedTaskId = task.id;
+                        }
+                      });
+                    },
+                    child: TaskSimpleWidget(
+                      title: task.title,
+                      description: task.description,
+                      imgUrl: task.image,
+                      completionCount: completionCount,
+                      isSelected: isSelected,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 18),
+
+          // 打卡记录日历
+          Text(
+            _selectedTaskId != null
+                ? '「${_selectedTaskTitle()}」完成记录'
+                : '打卡记录总览',
+            style: noteTitle,
+          ),
+          const SizedBox(height: 12),
+          CheckinCalendar(
+            style: _currentStyle,
+            records: _relatedRecords,
+            selectedTaskId: _selectedTaskId,
+          ),
+        ],
       ),
     );
   }

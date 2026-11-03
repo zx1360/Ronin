@@ -101,7 +101,6 @@ export default {
           idleSeconds: sidecar ? num(sidecar.idle_seconds) : 0,
           idleTimeout: sidecar ? num(sidecar.idle_timeout_seconds) : 0,
           probeError: (sidecar && sidecar.probe_error) || '',
-          missingModels: sidecar && Array.isArray(sidecar.missing_models) ? sidecar.missing_models : [],
           isVlm: source.capability === 'vlm',
         };
       });
@@ -556,9 +555,6 @@ export default {
             </div>
             <div class="small" style="color: var(--warning)" v-if="!card.ready && card.reason">{{ card.reason }}</div>
             <div class="small" style="color: var(--warning)" v-if="card.probeError">侧车探测失败：{{ card.probeError }}</div>
-            <div class="small" style="color: var(--warning)" v-if="card.missingModels.length">
-              缺少模型：{{ card.missingModels.join('、') }}（运行 tools/ai/install.ps1）
-            </div>
 
             <div class="progress"><div :style="{ width: card.percent + '%' }"></div></div>
             <div class="small muted">

@@ -47,10 +47,9 @@ func PythonExecutable() string {
 		if configured == "" {
 			configured = "python"
 		}
-		if abs, err := exec.LookPath(configured); err == nil {
-			pythonPath = abs
-		} else {
-			pythonPath = configured
+		pythonPath = configured
+		if resolved, err := exec.LookPath(configured); err == nil {
+			pythonPath, _ = filepath.Abs(resolved)
 		}
 	})
 	return pythonPath

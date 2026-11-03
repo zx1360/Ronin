@@ -1,24 +1,10 @@
-﻿# Ronin 本地 AI 侧车安装脚本
-#
-# 全部产物都落在本目录内，可随时整体删除回滚：
-#   .venv/                独立虚拟环境
-#   models/siglip/        SigLIP 2 双塔 ONNX + 分词器（约 200MB）
-#   models/buffalo_l/     人脸检测/识别模型（约 183MB）
-#
-# 用法：
-#   powershell -ExecutionPolicy Bypass -File .\install.ps1
-#   powershell -ExecutionPolicy Bypass -File .\install.ps1 -SkipModels   # 只装 python 依赖
-
+#Requires -Version 7
 param(
-    # 默认走清华镜像：直连 pypi.org 在本机实测只有 ~40KB/s，装完要一个多小时。
-    # 如需官方源：-PipIndex https://pypi.org/simple
     [string]$PipIndex = "https://pypi.tuna.tsinghua.edu.cn/simple",
     [string]$HfEndpoint = "https://hf-mirror.com",
-    # SigLIP 2：与 SigLIP 1 同构（视觉/文本双塔 + tokenizer.json），但分词器是
-    # Gemma 的 25.6 万词表多语版本。SigLIP 1 的 3.2 万词表**不支持中文**，
-    # 中文查询会整体退化成 <unk>，语义搜索直接失效。
     [string]$HfRepo = "onnx-community/siglip2-base-patch16-224-ONNX",
     [string]$BuffaloRepo = "public-data/insightface",
+    [switch]$IncludeFace,
     [switch]$SkipModels,
     [switch]$Recreate
 )
@@ -45,22 +31,18 @@ function Get-VenvPython {
     return $candidate
 }
 
-# 运行 python 并合并 stderr。
-#
-# Windows PowerShell 会把原生命令写到 stderr 的每一行都变成 NativeCommandError，
-# 在 $ErrorActionPreference=Stop 下直接中断脚本（pip / rapidocr 都会往 stderr 打
-# 正常日志）。这里临时放宽首选项并显式回传退出码，由调用方决定如何处理。
-function Invoke-Python {
-    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+function Invoke-Python([string[]]$Arguments) {
+    & $Python @Arguments | Out-Host
+    return $LASTEXITCODE
+}
 
-    $previous = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
+function Save-Model([string]$Url, [string]$Target, [int]$Timeout) {
+    $partial = "$Target.part"
     try {
-        & $Python @Arguments 2>&1 | ForEach-Object { Write-Host "  $_" }
-        return $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $previous
+        Invoke-WebRequest -Uri $Url -OutFile $partial -TimeoutSec $Timeout
+        Move-Item -LiteralPath $partial -Destination $Target -Force
+    } finally {
+        if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force }
     }
 }
 
@@ -68,12 +50,17 @@ function Invoke-Python {
 
 if ($Recreate -and (Test-Path -LiteralPath $VenvDir)) {
     Write-Step "删除已有虚拟环境"
-    Remove-Item -LiteralPath $VenvDir -Recurse -Force
+    $resolved = Get-Item -LiteralPath $VenvDir
+    if ($resolved.LinkType -or $resolved.Parent.FullName -ne $PSScriptRoot) {
+        throw "拒绝删除非本目录虚拟环境：$VenvDir"
+    }
+    Remove-Item -LiteralPath $resolved.FullName -Recurse -Force
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $VenvDir "Scripts\python.exe"))) {
     Write-Step "创建虚拟环境 $VenvDir"
     python -m venv $VenvDir
+    if ($LASTEXITCODE -ne 0) { throw "无法创建 Python 虚拟环境" }
 }
 $Python = Get-VenvPython
 Write-Step "使用解释器: $Python"
@@ -135,24 +122,18 @@ foreach ($file in $siglipFiles) {
         continue
     }
     Write-Step "下载 $($file.Local)"
-    Invoke-WebRequest -Uri "$HfEndpoint/$HfRepo/resolve/main/$($file.Remote)" -OutFile $target -TimeoutSec 1800
+    Save-Model "$HfEndpoint/$HfRepo/resolve/main/$($file.Remote)" $target 1800
 }
 
-# ---------- 4. 人脸模型 buffalo_l（只取检测与识别两个） ----------
-
-# 逐个文件从 HF 镜像下载，而不是拉 GitHub Release 的整包：
-# 一是 GitHub 直连实测只有 ~1.5MB/分钟，二是整包里的 3D/年龄性别模型我们用不到。
-$BuffaloDir = Join-Path $ModelsDir "buffalo_l"
-New-Item -ItemType Directory -Path $BuffaloDir -Force | Out-Null
-
-foreach ($name in @("det_10g.onnx", "w600k_r50.onnx")) {
-    $target = Join-Path $BuffaloDir $name
-    if ((Test-Path -LiteralPath $target) -and ((Get-Item -LiteralPath $target).Length -gt 1MB)) {
-        Write-Step "已存在，跳过: $name"
-        continue
+if ($IncludeFace) {
+    $BuffaloDir = Join-Path $ModelsDir "buffalo_l"
+    New-Item -ItemType Directory -Path $BuffaloDir -Force | Out-Null
+    foreach ($name in @("det_10g.onnx", "w600k_r50.onnx")) {
+        $target = Join-Path $BuffaloDir $name
+        if (!(Test-Path -LiteralPath $target)) {
+            Save-Model "$HfEndpoint/$BuffaloRepo/resolve/main/models/buffalo_l/$name" $target 3600
+        }
     }
-    Write-Step "下载 $name"
-    Invoke-WebRequest -Uri "$HfEndpoint/$BuffaloRepo/resolve/main/models/buffalo_l/$name" -OutFile $target -TimeoutSec 3600
 }
 
 # ---------- 5. 预热 OCR（rapidocr 初始化时校验模型） ----------

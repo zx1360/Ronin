@@ -11,7 +11,7 @@ class OtherPagesData {
     // 漫画页
     PageItem(
       label: "漫画",
-      icon: const IconData(0xe600, fontFamily: "iconfont"),
+      icon: Icons.menu_book_outlined,
       builder: (context) => ComicPage(),
     ),
     // 战利品页.

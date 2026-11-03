@@ -1,8 +1,11 @@
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
-/** 整批验证后返回新快照；调用方成功应用后才能推进游标。 */
+export const collectionsFor = (module) =>
+  module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
+
+// 整批验证后应用，再由调用方推进游标。
 export function applySyncDelta(module, current, payload, after) {
-  const names = module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
+  const names = collectionsFor(module);
   if (payload?.sync_version !== 2) throw new Error('请先更新后端以支持增量合并');
   if (!Number.isSafeInteger(payload.cursor) || payload.cursor < after || payload.cursor < 0) throw new Error('同步游标无效');
   if (!Array.isArray(payload.tombstones)) throw new Error('删除标记无效');

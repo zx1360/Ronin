@@ -1,7 +1,7 @@
 import { ref, onMounted, onUnmounted } from '../vue.js';
 import { api, assetUrl } from '../api.js';
 import { toast } from '../store.js';
-import { applySyncDelta } from './user-data-sync.js';
+import { applySyncDelta, collectionsFor } from './user-data-sync.js';
 
 export const moods = [
   { value: 'happy', label: '🥳 开心' }, { value: 'calm', label: '😌 平静' },
@@ -17,7 +17,7 @@ export const imageUrl = (path) => {
 };
 
 export function useUserData(module) {
-  const names = module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
+  const names = collectionsFor(module);
   const data = ref(Object.fromEntries(names.map((name) => [name, []])));
   const loading = ref(false), busy = ref(false), error = ref('');
   let cursor = 0, disposed = false;
@@ -57,12 +57,20 @@ export function useUserData(module) {
         for (const [name, file] of files) body.append('files', file, name);
       }
       await api.post(`/API/user-data/sync/${module}`, body);
+      if (disposed) return false;
       await pull();
+      if (disposed) return false;
       const accepted = names.every((name) => (changes[name] || []).every((row) => data.value[name].some((current) => current.id === row.id && Date.parse(current.updated_at) === Date.parse(row.updated_at))))
         && (changes.tombstones || []).every((item) => !data.value[item.collection].some((row) => row.id === item.id));
       if (!accepted) toast('另一端已有更新版本，请刷新编辑内容后重试', 'warning');
       return accepted;
-    } catch (e) { error.value = e.message; toast(e.message, 'error'); return false; }
+    } catch (e) {
+      if (!disposed) {
+        error.value = e.message;
+        toast(e.message, 'error');
+      }
+      return false;
+    }
     finally { busy.value = false; }
   }
   onMounted(refresh);

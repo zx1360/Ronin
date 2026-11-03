@@ -2,7 +2,6 @@
 //
 // CLI 以子进程方式执行（`gallery.exe -mode <mode> -gallery-root <dir> ...`），
 // 由服务端任务引擎托管生命周期：状态/日志/中断，与 comix 爬虫同一范式。
-// CLI 自带 backend 根目录探测（按 references/db/sqlite.sql 标志），无需注入配置。
 package gallery
 
 import (
@@ -14,6 +13,7 @@ import (
 	"sync"
 
 	"monarch/internal/config"
+	"monarch/internal/service/db"
 	"monarch/internal/service/taskengine"
 )
 
@@ -122,9 +122,10 @@ func Validate(opt Options) error {
 
 // BuildArgs 构建 CLI 参数。
 func BuildArgs(opt Options) []string {
+	root, _ := filepath.Abs(config.AppConf.GalleryDir)
 	args := []string{
 		"-mode", opt.Mode,
-		"-gallery-root", config.AppConf.GalleryDir,
+		"-gallery-root", root,
 		"-concurrency", fmt.Sprint(opt.Concurrency),
 		"-batch", fmt.Sprint(opt.Batch),
 	}
@@ -161,6 +162,7 @@ func Start(opt Options) (*taskengine.Task, error) {
 		Exe:          exe,
 		Args:         BuildArgs(opt),
 		Dir:          filepath.Dir(exe),
+		Env:          []string{"DB_FILE=" + db.File()},
 		StreamStdout: true, // CLI 的统计与进度都打在 stdout
 	})
 }

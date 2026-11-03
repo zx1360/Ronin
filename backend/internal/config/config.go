@@ -115,7 +115,10 @@ func Load() error {
 
 	loadAiConfig()
 
-	return Validate()
+	if err := Validate(); err != nil {
+		return err
+	}
+	return loadAPIKey()
 }
 
 // envAbs 读取路径配置并解析为绝对路径（相对路径按当前工作目录 = backend/ 解析）。
