@@ -52,7 +52,7 @@ export default {
       return '共 ' + count + ' 条 · 第 ' + page.value + '/' + lastPage.value + ' 页';
     });
 
-    const load = async () => {
+    const load = async (signal) => {
       loading.value = true;
       const size = num(pageSize.value) || DEFAULT_PAGE_SIZE;
       const offset = Math.max(0, page.value - 1) * size;
@@ -60,7 +60,7 @@ export default {
       if (capability.value) params.push('capability=' + encodeURIComponent(capability.value));
       if (status.value) params.push('status=' + encodeURIComponent(status.value));
       try {
-        const data = await api.get('/API/ai/jobs?' + params.join('&'));
+        const data = await api.get('/API/ai/jobs?' + params.join('&'), { signal });
         jobs.value = Array.isArray(data && data.jobs) ? data.jobs : [];
         total.value = num(data && data.total);
         error.value = '';
@@ -68,11 +68,11 @@ export default {
         if (!clamping && !jobs.value.length && page.value > lastPage.value) {
           clamping = true;
           page.value = lastPage.value;
-          await load();
+          await load(signal);
           clamping = false;
         }
       } catch (err) {
-        error.value = err.message;
+        if (!signal.aborted) error.value = err.message;
       } finally {
         loading.value = false;
       }
@@ -134,8 +134,7 @@ export default {
       try {
         const data = await api.post('/API/ai/retry', capability.value ? { capability: capability.value } : {});
         toast('已重新排队 ' + num(data && data.retried) + ' 条失败任务', 'success');
-        await load();
-        if (props.active) poller.trigger();
+        await poller.trigger();
       } catch (err) {
         toast('重试失败: ' + err.message, 'error');
       } finally {
