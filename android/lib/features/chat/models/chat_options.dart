@@ -33,7 +33,7 @@ class ChatOptions {
   });
 
   /// 可选上下文档位（与服务端 2048~262144 的取值区间一致）。
-  static const List<int> ctxChoices = [0, 8192, 16384, 32768, 65536];
+  static const List<int> ctxChoices = [0, 16384, 24576, 32768, 65536];
 
   ChatOptions copyWith({
     int? numCtx,
@@ -67,8 +67,9 @@ class ChatPrefsKeys {
 /// 从本地读取对话设置（缺省即默认值）。
 ChatOptions loadChatOptions() {
   final prefs = PrefsService().prefs;
+  final savedCtx = prefs.getInt(ChatPrefsKeys.numCtx) ?? 0;
   return ChatOptions(
-    numCtx: prefs.getInt(ChatPrefsKeys.numCtx) ?? 0,
+    numCtx: savedCtx == 8192 ? 16384 : savedCtx,
     think: prefs.getBool(ChatPrefsKeys.think) ?? false,
     // 以 0.1 为步长存整数，避免浮点持久化的精度烦恼
     temperature:
