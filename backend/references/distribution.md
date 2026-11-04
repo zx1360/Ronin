@@ -1,6 +1,6 @@
 # 面向普通用户的分发方案
 
-分发目标已确定为 Windows 10/11 x64，首版不包含其它操作系统或 ARM64。Monarch 使用纯 Go SQLite，不需要朋友安装 Go 或数据库服务；但单独发送 `cmd.exe` 无法提供完整功能。网页、建表 SQL、Gallery CLI、Python 运行时与依赖、视频工具和 AI 模型都需要纳入交付方案。
+首版交付 Windows 10/11 x64 便携包和 Torrid 签名 APK。Monarch 使用纯 Go SQLite。完整的 Windows 交付还需要网页、建表 SQL、Gallery CLI、Python 运行时与依赖、视频工具和按能力选装的 AI 资源。
 
 建议发布可解压的程序目录，保留现有 `backend/`、`ops/web/` 和资源目录关系，减少路径改造。Go 端交付编译产物，Python 包是随程序运行的资源，用户不需要编译或修改源码。当前还没有实现安装器或打包流水线；以下是分发前需要完成的工作。
 
@@ -11,7 +11,7 @@
 | 主程序 ZIP | 两个 Go 编译产物、Ops 网页、SQL、Python 运行时及已锁定的 comix/AI 依赖、Chromium、FFmpeg/ffprobe、启动入口与第三方许可；解压后基础服务、画廊和漫画操作不依赖用户另外安装开发工具 |
 | 默认 AI 模型包 | 经验证的 SigLIP 2 与中文/英文 OCR 资源，可通过 Ops 下载或从本地包导入；完成校验后启用对应能力，支持离线使用 |
 | 人脸模型资源 | 单独处理模型许可与兼容性，满足分发条件后再提供，保留现有自用配置 |
-| VLM | 复用朋友本机的 Ollama，未安装时提供引导；用户在 Ops 选择已安装的视觉模型，大模型不塞进主程序 ZIP |
+| VLM | 复用朋友本机的 Ollama，未安装时从 Ops 引导选装。运行时和权重单独交付，标注与对话按需使用 |
 
 普通用户使用系统已有的启动入口，不需要安装 PowerShell 7、执行 pip 或修改环境变量。开发和打包命令仍使用 pwsh 7；启动器只为 Monarch 及其子进程设置工具路径，不修改系统 PATH，不添加开机启动项或后台服务。
 
@@ -23,20 +23,26 @@
 
 | 当前依赖/行为 | 分发前需要处理 |
 | --- | --- |
-| `.env` 必须给出存储路径、两种端口；相对路径依赖工作目录 | 使用相对安装目录的默认值，首次启动建立空目录和配置；启动器固定工作目录，不使用目前写死 `D:\products\Ronin\backend` 的 VBS |
-| 主服务读取 `references/db/sqlite.sql`，Gallery CLI 和 comix 也用该目录定位后端根 | 主包必须携带同一份 SQL；保留目录结构可以暂不改这三处定位逻辑 |
+| `.env` 必须给出存储路径、两种端口；相对路径依赖工作目录 | 启动器固定工作目录，首次启动生成空目录、配置与 `cert/`，使用相对安装目录的默认路径 |
+| Monarch 和 comix 初始化使用 `references/db/sqlite.sql`，Gallery 依赖已初始化的库 | 主包携带同一份 SQL，保留独立运行 CLI 时的目录定位。托管子进程由 Monarch 注入数据库绝对路径 |
 | `OPS_WEB_DIR` 默认 `../ops/web` | 完整复制 `ops/web`，包括 Vue vendor 文件；现有网页无需 Node/npm 构建 |
 | Gallery 任务调用 `gizmos/gallery.exe` | 构建并携带第二个 Go 产物；视频探测、剪辑及部分格式转换仍需 FFmpeg/ffprobe |
 | 视频工具只从 PATH 查找 | 随包携带适当的 Windows 构建与许可文件，由启动器为本进程及子进程补 PATH；也可在后端统一解析配置的工具目录 |
-| comix 使用 Python、requests、lxml、Playwright 等 | 交付独立 Python 运行时与锁定的依赖；若要完整支持需要浏览器的站点，还需 Chromium，并固定 `PLAYWRIGHT_BROWSERS_PATH` |
+| comix 使用 Python、requests、lxml、Playwright 等 | 交付独立 Python 运行时与锁定的依赖，校验其 `sqlite3.sqlite_version` 含 WAL-reset 修复。完整支持浏览器站点需带 Chromium，并固定 `PLAYWRIGHT_BROWSERS_PATH` |
 | AI 使用工作区 `.venv`，且安装脚本从网络下载依赖和模型 | 为发布制作可搬运的运行时/资源包；不能直接复制开发机 `.venv`。官方说明 venv 不适合搬移或复制：[Python venv](https://docs.python.org/3/library/venv.html) |
 | 依赖范围较宽、模型从 `main` 下载且只按文件大小判断存在 | 发布时锁定已验收的依赖版本、模型 revision 和 SHA-256；下载到临时文件，校验完成后原子替换，失败保留旧资源 |
-| `API_KEY_SERVER` 缺失时放行；证书由本机生成 | 每次安装独立生成密钥；保留本机 Ops 的引导流程。发布包禁止包含开发机 `.env`、证书私钥、数据库、媒体、聊天/回顾配置和模型选择偏好 |
+| `API_KEY_SERVER` 缺失时放行；证书由本机生成 | 每次安装独立生成密钥，提供给手机配对。资源 URL 的 `api_key` 要从访问日志中隐藏；确认漫画免密只读的局域网可见范围符合分发预期 |
 | 暂停状态默认开启，缺少模型时已有就绪提示 | 保留首次暂停；只为用户选中且已安装的能力开启自动处理，不让新用户一启动就积累不可执行任务 |
-| 退出依赖 `defer` 清理，当前 `log.Fatalf` 和窗口关闭不能保证执行它们 | 补优雅退出与单实例限制，回收本程序启动的任务/侧车；用户自行运行的 Ollama 继续由用户管理 |
+| 服务收到退出信号会关闭监听并清理托管进程，便携包尚无停止入口和单实例约束 | 启动器提供明确的停止入口，并验证 Windows 关窗行为。数据目录按实例独占，防止重复启动触发队列恢复 |
 | 程序与用户数据缺少升级交付规则 | 升级只替换程序/资源，保留数据和配置；升级前用 SQLite backup/只读 `VACUUM INTO` 做一致快照，不裸拷贝运行中的 `.db` |
 
-最小布局可以保留：`backend/cmd.exe`、`backend/gizmos/gallery.exe`、`backend/gizmos/comix/`、`backend/tools/ai/`、`backend/references/db/sqlite.sql`、`ops/web/`。额外提供启动器、Python/视频工具目录、第三方许可和首次生成的数据目录。不要分发整个工作区，也不要让朋友运行 `go build` 或手工执行 pip 命令。
+保留 `backend/cmd.exe`、`backend/gizmos/gallery.exe`、`backend/gizmos/comix/`、`backend/tools/ai/`、`backend/references/db/sqlite.sql`、`ops/web/` 的相对布局。使用发布文件清单装包，排除开发机的 `.env`、证书、数据库、媒体、运行偏好和私有密钥。
+
+## Android 安装与配对
+
+- 签名 APK 可直接侧载。优先提供 ARM64，按朋友的设备补其它 ABI。维护者应保存签名材料，并用相同 applicationId、签名和递增的 versionCode 发布覆盖升级。当前 `key.properties`、keystore 和部分 `assets/` 是本地未跟踪的构建输入，需整理可复现的资源与签名配置，并核对字体、图片和图标的分发许可。[Flutter Android 发布文档](https://docs.flutter.dev/deployment/android)
+- 当前 Dart 的 `CertTrust` 和 Android 的 `network_security_config.xml` 固定信任构建时的证书。建议 Ops 显示本机地址、端口和证书 SHA-256 指纹，手机通过扫码或手动核对把证书指纹与该连接一起保存，再通过受信任连接验证密钥。mDNS 只负责发现。覆盖升级应兼容已有自用连接，证书更换时重新核对。
+- API key 目前是全局偏好，分发配对应将它与服务端连接绑定，切换主机时同时切换证书与密钥。首次配对验收要覆盖 Dio、图片和原生播放器实际使用的 TLS 路径。
 
 ## 五种 AI 能力
 
@@ -54,7 +60,7 @@ SigLIP 2 原始模型使用 Apache-2.0；打包 ONNX 转换物还应保存其具
 
 InsightFace 的 MIT 代码许可不等于模型许可；官方对 `buffalo_l` 等权重声明了非商业研究限制，因此不能仅因免费分享给朋友就直接把权重纳入默认包：[InsightFace 官方说明](https://github.com/deepinsight/insightface#license)。此项应在选定分发资源前解决。
 
-Ollama 官方列出的 Qwen 3.5 2b/4b 都支持图片输入，4b 下载体积约 3.3–4.0 GB；实际内存/显存还包括运行时、图片和上下文。新安装可从 8K 上下文开始验收，避免直接沿用开发机的 65,536；保留当前对话的可调能力和 `think=false` 标注行为：[Ollama 模型列表](https://ollama.com/library/qwen3.5)。
+Ollama 的 Windows 应用会在后台运行。需要随选装包提供离线运行时，可以评估官方独立 ZIP，让 Monarch 沿用现有按需拉起与空闲回收。Qwen 3.5 2b/4b 都支持图片输入，4b 权重约 3.3–4.0 GB。内存和显存需求还取决于图片和上下文，首版从 8K 上下文做样本验收，保留 `think=false`。[Ollama Windows 文档](https://docs.ollama.com/windows) · [Qwen 3.5 模型列表](https://ollama.com/library/qwen3.5)
 
 ## 当前模型配置的关键缺口
 
@@ -72,9 +78,9 @@ Ollama 官方列出的 Qwen 3.5 2b/4b 都支持图片输入，4b 下载体积约
 1. 首次引导：选择/创建媒体库，确认端口与本机工具位置，显示启动失败或不可写的具体原因。
 2. 组件与模型：推荐包、大小、磁盘位置、已安装/可用状态；安装、导入、校验、升级/卸载、下载进度与取消。已有 Ollama 模型可直接使用。
 3. 模型切换：只列可兼容且校验通过的资源；明确告知受影响的数据，用户选择重算范围，人物相关操作提供备份/回退。
-4. 资源设置：AI 存储目录、设备选择、批大小、空闲回收和 VLM 上下文；高级路径入口可以折叠，日常默认值应足够使用。
+4. 配对与资源设置：展示手机连接所需信息；在现有设置区补工具和模型路径，复用设备、批大小、空闲回收和 VLM 上下文配置。
 
-文件操作与安装配置接口放在本机 `/API/ops/local/*` 范围内，继续执行 LocalOnly；列表、就绪状态和模型选择仍由后端权威下发。长操作复用现有任务引擎，不增加常驻安装/下载组件。本次仅改 backend 的性能及验收代码，Ops 源码和分发安装流程尚未变更。
+文件操作与安装配置接口放在本机 `/API/ops/local/*`，继续执行 LocalOnly。列表、就绪状态和模型选择由后端下发，安装与下载复用现有任务引擎。以上界面是发布待办。
 
 ## 分发验收
 
@@ -84,5 +90,6 @@ Ollama 官方列出的 Qwen 3.5 2b/4b 都支持图片输入，4b 下载体积约
 - 安装/下载中断不破坏旧资源；更换模型后的检索与人物分组可以回退。
 - 端口冲突、重复启动、关窗口退出、任务中断后重启均给出明确行为，并检查无孤儿进程。
 - 升级和回退保留数据库、用户配置及媒体；压缩包检查不含开发机私有数据。
+- 在新装 APK 与两个独立的 Windows 实例上验证局域网发现、配对、错误证书、切换连接和覆盖升级；随笔、打卡与已有下载仍可读取。
 
 建议先完成基础包、启动器和首次引导，再做兼容的 AI 资源包与 Ops 安装入口；VLM 保持 Ollama 的独立模型管理方式。完整包是否真正可直接运行，应以上述干净机器验收为准。

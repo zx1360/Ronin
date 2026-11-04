@@ -29,19 +29,17 @@ export default {
     const error = ref('');
     const starting = ref(false);
 
-    const load = async () => {
+    const load = async (signal) => {
       try {
-        const data = await api.get('/API/ops/local/tasks');
+        const data = await api.get('/API/ops/local/tasks', { signal });
         tasks.value = data?.data?.tasks || [];
         error.value = '';
       } catch (err) {
-        error.value = err.message;
+        if (!signal.aborted) error.value = err.message;
       }
     };
 
     const hasRunning = computed(() => tasks.value.some((task) => task.status === 'running'));
-    // enabled 只在"有任务在跑"时为真，因此每次操作后都必须经 poller.trigger() 走一遍：
-    // 它才是那个会按 enabled 续期轮询的入口，直接调 load() 会让页面停在启动前的快照上。
     const poller = usePolling(load, { interval: () => 2, enabled: () => hasRunning.value });
     onMounted(() => poller.trigger());
 

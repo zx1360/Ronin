@@ -120,11 +120,11 @@ func (e *Engine) runOneBatch(ctx context.Context) (bool, error) {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
-		pending, err := ai_repo.PendingCount(capability)
+		pending, err := ai_repo.HasPending(ctx, capability)
 		if err != nil {
 			return false, err
 		}
-		if pending == 0 {
+		if !pending {
 			continue
 		}
 		if ready, _ := e.CapabilityReady(ctx, capability); !ready {
