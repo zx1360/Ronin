@@ -27,7 +27,11 @@ class ApiClient {
   final String baseUrl;
   final String? apiKey;
 
-  ApiClient({required this.baseUrl, this.apiKey}) {
+  ApiClient({
+    required this.baseUrl,
+    this.apiKey,
+    bool retryConnections = true,
+  }) {
     // 只有当 baseUrl 非空时才设置，避免无效 URL 错误
     if (baseUrl.isNotEmpty) {
       _dio.options.baseUrl = baseUrl;
@@ -48,7 +52,7 @@ class ApiClient {
       ),
     );
     // 统一请求生命周期：幂等 GET 请求在连接类错误时自动重试
-    _dio.interceptors.add(_RetryInterceptor(_dio));
+    if (retryConnections) _dio.interceptors.add(_RetryInterceptor(_dio));
   }
 
   void close() => _dio.close();

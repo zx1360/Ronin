@@ -68,6 +68,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
     return RefreshIndicator(
       onRefresh: _fetchImage,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
           const SectionTitle(title: '随机图片', icon: Icons.image_outlined),
@@ -113,9 +114,11 @@ class _ImageTabState extends ConsumerState<ImageTab>
           child: Text(kImageGroups[i].name, overflow: TextOverflow.ellipsis),
         );
       }),
-      onChanged: (v) {
-        if (v != null) _onGroupChanged(v);
-      },
+      onChanged: _loading
+          ? null
+          : (v) {
+              if (v != null) _onGroupChanged(v);
+            },
     );
   }
 
@@ -135,9 +138,11 @@ class _ImageTabState extends ConsumerState<ImageTab>
           child: Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
         );
       }),
-      onChanged: (v) {
-        if (v != null) _onSourceChanged(v);
-      },
+      onChanged: _loading
+          ? null
+          : (v) {
+              if (v != null) _onSourceChanged(v);
+            },
     );
   }
 
@@ -290,6 +295,7 @@ class _ImageTabState extends ConsumerState<ImageTab>
   // ──────── 获取 / 下载 ────────
 
   Future<void> _fetchImage() async {
+    if (_loading) return;
     setState(() {
       _loading = true;
       _error = null;

@@ -6,11 +6,11 @@ part of 'sixty_api_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sixtyApiClientHash() => r'fa7a69974ef86e6dd79cb252ba93ec38b207b824';
+String _$sixtyApiClientHash() => r'f7dd53caa9a33c1f6c9d7348bf1e1c10fb6adbcc';
 
 /// See also [sixtyApiClient].
 @ProviderFor(sixtyApiClient)
-final sixtyApiClientProvider = Provider<ApiClient>.internal(
+final sixtyApiClientProvider = Provider<SixtyApiClient>.internal(
   sixtyApiClient,
   name: r'sixtyApiClientProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -20,8 +20,8 @@ final sixtyApiClientProvider = Provider<ApiClient>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef SixtyApiClientRef = ProviderRef<ApiClient>;
-String _$sixtySecondsHash() => r'796bfbcf7f26199999cf52ca72f26f3255940d38';
+typedef SixtyApiClientRef = ProviderRef<SixtyApiClient>;
+String _$sixtySecondsHash() => r'c9f07eda36aba644ab87bdc0b106d586814369f1';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -170,7 +170,7 @@ class _SixtySecondsProviderElement
   String? get date => (origin as SixtySecondsProvider).date;
 }
 
-String _$bingWallpaperHash() => r'e4c044665565dd9bbae67ae3b33587b9954944d6';
+String _$bingWallpaperHash() => r'a97d0eba14415349ac3fc98f9b5f294f2a6d3382';
 
 /// See also [bingWallpaper].
 @ProviderFor(bingWallpaper)
@@ -185,11 +185,11 @@ final bingWallpaperProvider = AutoDisposeFutureProvider<Json>.internal(
 );
 
 typedef BingWallpaperRef = AutoDisposeFutureProviderRef<Json>;
-String _$epicGamesHash() => r'a19486752ef172a2505f561f62bd7fda6addc376';
+String _$epicGamesHash() => r'e07df46c3255b97f51d59a2fb5b391e0979b065f';
 
 /// See also [epicGames].
 @ProviderFor(epicGames)
-final epicGamesProvider = AutoDisposeFutureProvider<List<dynamic>>.internal(
+final epicGamesProvider = AutoDisposeFutureProvider<List<Json>>.internal(
   epicGames,
   name: r'epicGamesProvider',
   debugGetCreateSourceHash:
@@ -198,12 +198,12 @@ final epicGamesProvider = AutoDisposeFutureProvider<List<dynamic>>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef EpicGamesRef = AutoDisposeFutureProviderRef<List<dynamic>>;
-String _$toutiaoHotHash() => r'7a2977eb75b673298c51fe11f828660acc979f9c';
+typedef EpicGamesRef = AutoDisposeFutureProviderRef<List<Json>>;
+String _$toutiaoHotHash() => r'eb9c422c3fe4d8892bebc0abb2364d9d9d7b3495';
 
 /// See also [toutiaoHot].
 @ProviderFor(toutiaoHot)
-final toutiaoHotProvider = AutoDisposeFutureProvider<dynamic>.internal(
+final toutiaoHotProvider = AutoDisposeFutureProvider<List<Json>>.internal(
   toutiaoHot,
   name: r'toutiaoHotProvider',
   debugGetCreateSourceHash:
@@ -212,12 +212,12 @@ final toutiaoHotProvider = AutoDisposeFutureProvider<dynamic>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef ToutiaoHotRef = AutoDisposeFutureProviderRef<dynamic>;
-String _$zhihuHotHash() => r'1f49875e34269e0d187823c2cfc6aa1cce5ad52d';
+typedef ToutiaoHotRef = AutoDisposeFutureProviderRef<List<Json>>;
+String _$zhihuHotHash() => r'9e4814de36d80398a63a7eede1c4889cfa880dbe';
 
 /// See also [zhihuHot].
 @ProviderFor(zhihuHot)
-final zhihuHotProvider = AutoDisposeFutureProvider<dynamic>.internal(
+final zhihuHotProvider = AutoDisposeFutureProvider<List<Json>>.internal(
   zhihuHot,
   name: r'zhihuHotProvider',
   debugGetCreateSourceHash:
@@ -226,12 +226,12 @@ final zhihuHotProvider = AutoDisposeFutureProvider<dynamic>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef ZhihuHotRef = AutoDisposeFutureProviderRef<dynamic>;
-String _$baiduTiebaHash() => r'2b3d5c5e359d2f671cb6bd34173f384b33bc2dbd';
+typedef ZhihuHotRef = AutoDisposeFutureProviderRef<List<Json>>;
+String _$baiduTiebaHash() => r'38ba8935966c3058663406b2c0695218c7a437b5';
 
 /// See also [baiduTieba].
 @ProviderFor(baiduTieba)
-final baiduTiebaProvider = AutoDisposeFutureProvider<dynamic>.internal(
+final baiduTiebaProvider = AutoDisposeFutureProvider<List<Json>>.internal(
   baiduTieba,
   name: r'baiduTiebaProvider',
   debugGetCreateSourceHash:
@@ -240,12 +240,12 @@ final baiduTiebaProvider = AutoDisposeFutureProvider<dynamic>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef BaiduTiebaRef = AutoDisposeFutureProviderRef<dynamic>;
-String _$hitokotoHash() => r'79fe8926c2d4026ec664276b5183b7bf415c451e';
+typedef BaiduTiebaRef = AutoDisposeFutureProviderRef<List<Json>>;
+String _$hitokotoHash() => r'13052ce8cd700eaa68279ae97d6a0dc4f2bd01ea';
 
 /// See also [hitokoto].
 @ProviderFor(hitokoto)
-final hitokotoProvider = AutoDisposeFutureProvider<Json>.internal(
+final hitokotoProvider = AutoDisposeFutureProvider<String>.internal(
   hitokoto,
   name: r'hitokotoProvider',
   debugGetCreateSourceHash:
@@ -254,12 +254,12 @@ final hitokotoProvider = AutoDisposeFutureProvider<Json>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef HitokotoRef = AutoDisposeFutureProviderRef<Json>;
-String _$duanziHash() => r'ec21984c4fd5fe1c04f0a6a474b943e1132feb53';
+typedef HitokotoRef = AutoDisposeFutureProviderRef<String>;
+String _$duanziHash() => r'65f6029fc0871cb3753521a439a77b743eee213e';
 
 /// See also [duanzi].
 @ProviderFor(duanzi)
-final duanziProvider = AutoDisposeFutureProvider<Json>.internal(
+final duanziProvider = AutoDisposeFutureProvider<String>.internal(
   duanzi,
   name: r'duanziProvider',
   debugGetCreateSourceHash:
@@ -268,15 +268,15 @@ final duanziProvider = AutoDisposeFutureProvider<Json>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef DuanziRef = AutoDisposeFutureProviderRef<Json>;
-String _$fabingHash() => r'a6bbd965c85d23070109193effdcfc331505866c';
+typedef DuanziRef = AutoDisposeFutureProviderRef<String>;
+String _$fabingHash() => r'ebd5b102576648e24b88a8b00f86ead8ed9bca59';
 
 /// See also [fabing].
 @ProviderFor(fabing)
 const fabingProvider = FabingFamily();
 
 /// See also [fabing].
-class FabingFamily extends Family<AsyncValue<Json>> {
+class FabingFamily extends Family<AsyncValue<String>> {
   /// See also [fabing].
   const FabingFamily();
 
@@ -314,7 +314,7 @@ class FabingFamily extends Family<AsyncValue<Json>> {
 }
 
 /// See also [fabing].
-class FabingProvider extends AutoDisposeFutureProvider<Json> {
+class FabingProvider extends AutoDisposeFutureProvider<String> {
   /// See also [fabing].
   FabingProvider(
     String? person,
@@ -348,7 +348,7 @@ class FabingProvider extends AutoDisposeFutureProvider<Json> {
 
   @override
   Override overrideWith(
-    FutureOr<Json> Function(FabingRef provider) create,
+    FutureOr<String> Function(FabingRef provider) create,
   ) {
     return ProviderOverride(
       origin: this,
@@ -365,7 +365,7 @@ class FabingProvider extends AutoDisposeFutureProvider<Json> {
   }
 
   @override
-  AutoDisposeFutureProviderElement<Json> createElement() {
+  AutoDisposeFutureProviderElement<String> createElement() {
     return _FabingProviderElement(this);
   }
 
@@ -383,12 +383,12 @@ class FabingProvider extends AutoDisposeFutureProvider<Json> {
   }
 }
 
-mixin FabingRef on AutoDisposeFutureProviderRef<Json> {
+mixin FabingRef on AutoDisposeFutureProviderRef<String> {
   /// The parameter `person` of this provider.
   String? get person;
 }
 
-class _FabingProviderElement extends AutoDisposeFutureProviderElement<Json>
+class _FabingProviderElement extends AutoDisposeFutureProviderElement<String>
     with FabingRef {
   _FabingProviderElement(super.provider);
 
@@ -396,11 +396,11 @@ class _FabingProviderElement extends AutoDisposeFutureProviderElement<Json>
   String? get person => (origin as FabingProvider).person;
 }
 
-String _$kfcCopyHash() => r'79b8b52759a473725eec45bdb21b57771c8486c5';
+String _$kfcCopyHash() => r'170b21f04d2df7e954a8ee09e45b97cd9250d3b6';
 
 /// See also [kfcCopy].
 @ProviderFor(kfcCopy)
-final kfcCopyProvider = AutoDisposeFutureProvider<Json>.internal(
+final kfcCopyProvider = AutoDisposeFutureProvider<String>.internal(
   kfcCopy,
   name: r'kfcCopyProvider',
   debugGetCreateSourceHash:
@@ -409,12 +409,12 @@ final kfcCopyProvider = AutoDisposeFutureProvider<Json>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef KfcCopyRef = AutoDisposeFutureProviderRef<Json>;
-String _$dadJokeHash() => r'f263a40ae998f6de19878da0f264f5e914ca4cf9';
+typedef KfcCopyRef = AutoDisposeFutureProviderRef<String>;
+String _$dadJokeHash() => r'11ccf8c6ef3a91b91d64e588a2096f033274f2cf';
 
 /// See also [dadJoke].
 @ProviderFor(dadJoke)
-final dadJokeProvider = AutoDisposeFutureProvider<Json>.internal(
+final dadJokeProvider = AutoDisposeFutureProvider<String>.internal(
   dadJoke,
   name: r'dadJokeProvider',
   debugGetCreateSourceHash:
@@ -423,6 +423,6 @@ final dadJokeProvider = AutoDisposeFutureProvider<Json>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef DadJokeRef = AutoDisposeFutureProviderRef<Json>;
+typedef DadJokeRef = AutoDisposeFutureProviderRef<String>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

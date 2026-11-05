@@ -185,16 +185,4 @@ const kVideoGroups = <MediaApiGroup>[
       ),
     ],
   ),
-  MediaApiGroup(
-    id: 'tmini',
-    name: 'Tmini 随机',
-    sources: [
-      RandomMediaSource(
-        label: '随机小姐姐',
-        apiUrl: 'https://tmini.net/api/meinv?mp4=json',
-        responseType: ApiResponseType.json,
-        jsonUrlKey: 'url',
-      ),
-    ],
-  ),
 ];
