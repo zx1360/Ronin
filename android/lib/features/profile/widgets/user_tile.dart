@@ -65,7 +65,7 @@ class UserTile extends ConsumerWidget {
   Widget _defaultAvatar() {
     return const CircleAvatar(
       radius: 30,
-      backgroundImage: AssetImage("assets/icons/six.png"),
+      backgroundImage: AssetImage("assets/icons/six.ico"),
     );
   }
 }
