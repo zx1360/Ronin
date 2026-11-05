@@ -16,6 +16,9 @@ Future<void> showImagePreview(
           PhotoView(
             imageProvider: NetworkImage(imageUrl, headers: headers),
             backgroundDecoration: const BoxDecoration(color: Colors.black),
+            errorBuilder: (_, _, _) => const Center(
+              child: Text('图片暂时无法加载', style: TextStyle(color: Colors.white)),
+            ),
           ),
           Positioned(
             right: 12,

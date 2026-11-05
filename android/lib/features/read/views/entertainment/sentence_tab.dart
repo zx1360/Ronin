@@ -16,7 +16,6 @@ class SentenceTab extends ConsumerWidget {
         _sectionCard(
           context,
           async: ref.watch(hitokotoProvider),
-          contentSelector: (m) => (m['hitokoto'] ?? '') as String,
           onRefresh: () => ref.invalidate(hitokotoProvider),
         ),
 
@@ -24,7 +23,6 @@ class SentenceTab extends ConsumerWidget {
         _sectionCard(
           context,
           async: ref.watch(duanziProvider),
-          contentSelector: (m) => (m['duanzi'] ?? '') as String,
           onRefresh: () => ref.invalidate(duanziProvider),
         ),
 
@@ -32,7 +30,6 @@ class SentenceTab extends ConsumerWidget {
         _sectionCard(
           context,
           async: ref.watch(fabingProvider(null)),
-          contentSelector: (m) => (m['saying'] ?? '') as String,
           onRefresh: () => ref.invalidate(fabingProvider(null)),
         ),
 
@@ -40,7 +37,6 @@ class SentenceTab extends ConsumerWidget {
         _sectionCard(
           context,
           async: ref.watch(kfcCopyProvider),
-          contentSelector: (m) => (m['kfc'] ?? '') as String,
           onRefresh: () => ref.invalidate(kfcCopyProvider),
         ),
 
@@ -48,7 +44,6 @@ class SentenceTab extends ConsumerWidget {
         _sectionCard(
           context,
           async: ref.watch(dadJokeProvider),
-          contentSelector: (m) => (m['content'] ?? '') as String,
           onRefresh: () => ref.invalidate(dadJokeProvider),
         ),
 
@@ -59,8 +54,7 @@ class SentenceTab extends ConsumerWidget {
 
   Widget _sectionCard(
     BuildContext context, {
-    required AsyncValue<Map<String, dynamic>> async,
-    required String Function(Map<String, dynamic>) contentSelector,
+    required AsyncValue<String> async,
     required void Function() onRefresh,
   }) {
     return Padding(
@@ -70,9 +64,8 @@ class SentenceTab extends ConsumerWidget {
       ),
       child: async.when(
         loading: () => const LoadingView(),
-        error: (e, _) => ErrorView('加载失败：$e'),
-        data: (m) {
-          final content = contentSelector(m);
+        error: (e, _) => ErrorView('加载失败：$e', onRetry: onRefresh),
+        data: (content) {
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -84,7 +77,7 @@ class SentenceTab extends ConsumerWidget {
                   Row(
                     children: [
                       FilledButton.icon(
-                        onPressed: onRefresh,
+                        onPressed: async.isLoading ? null : onRefresh,
                         icon: const Icon(Icons.refresh),
                         label: const Text('刷新'),
                       ),

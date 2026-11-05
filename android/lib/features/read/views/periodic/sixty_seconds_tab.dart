@@ -23,143 +23,148 @@ class _SixtySecondsTabState extends ConsumerState<SixtySecondsTab> {
     final min = now.subtract(const Duration(days: 180));
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selected,
+      initialDate: _selected.isBefore(min) || _selected.isAfter(now)
+          ? now
+          : _selected,
       firstDate: min,
       lastDate: now,
     );
-    if (picked != null) {
-      setState(() => _selected = picked);
-      // 选中后刷新对应日期数据
-      ref.invalidate(sixtySecondsProvider(_dateStr));
-    }
+    if (picked != null && mounted) setState(() => _selected = picked);
   }
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(sixtySecondsProvider(_dateStr));
-    return async.when(
-      loading: () => const LoadingView(),
-      error: (e, _) => ErrorView('60秒读懂世界加载失败：$e'),
-      data: (data) {
-        final news = (data['news'] as List<dynamic>?) ?? [];
-        final image = data['image'] as String?;
-        final tip = data['tip'] as String?;
-        final link = data['link'] as String?;
-        return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(sixtySecondsProvider(_dateStr));
-          },
-          child: ListView(
+    final provider = sixtySecondsProvider(_dateStr);
+    final async = ref.watch(provider);
+    return Column(
+      children: [
+        const SectionTitle(title: '日期选择', icon: Icons.calendar_month),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Wrap(
+            spacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              // 日期选择
-              const SectionTitle(title: '日期选择', icon: Icons.calendar_month),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.xs,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: Text('当前日期：$_dateStr')),
-                    OutlinedButton.icon(
-                      onPressed: _pickDate,
-                      icon: const Icon(Icons.edit_calendar),
-                      label: const Text('选择日期'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () {
-                        setState(() => _selected = DateTime.now());
-                        ref.invalidate(sixtySecondsProvider(_dateStr));
-                      },
-                      child: const Text('重置为今天'),
-                    ),
-                  ],
-                ),
+              Text(_dateStr),
+              OutlinedButton(onPressed: _pickDate, child: const Text('选择日期')),
+              TextButton(
+                onPressed: () => setState(() => _selected = DateTime.now()),
+                child: const Text('重置为今天'),
               ),
-
-              const SectionTitle(title: '封面'),
-              if (image != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Stack(
-                      children: [
-                        AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: Image.network(image, fit: BoxFit.cover),
-                        ),
-                        Positioned(
-                          right: 8,
-                          bottom: 8,
-                          child: FilledButton.icon(
-                            onPressed: () => showImagePreview(context, image),
-                            icon: const Icon(Icons.fullscreen),
-                            label: const Text('查看大图'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SectionTitle(title: '要闻'),
-              ...news.map(
-                (n) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        n.toString(),
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (tip != null) const SectionTitle(title: 'Tip'),
-              if (tip != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.lightbulb),
-                      title: Text(tip),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.copy),
-                        onPressed: () =>
-                            Clipboard.setData(ClipboardData(text: tip)),
-                      ),
-                    ),
-                  ),
-                ),
-              if (link != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: OutlinedButton.icon(
-                    onPressed: () =>
-                        Clipboard.setData(ClipboardData(text: link)),
-                    icon: const Icon(Icons.link),
-                    label: const Text('复制原文链接'),
-                  ),
-                ),
-              const SizedBox(height: AppSpacing.md),
             ],
           ),
-        );
-      },
+        ),
+        Expanded(
+          child: async.when(
+            loading: () => const LoadingView(),
+            error: (e, _) => ErrorView(
+              '60秒读懂世界加载失败：$e',
+              onRetry: () => ref.invalidate(provider),
+            ),
+            data: (data) {
+              final news = (data['news'] as List).whereType<String>();
+              final image = (feedUri(data['image']) ?? feedUri(data['cover']))
+                  ?.toString();
+              final tip = feedText(data['tip']);
+              final link = feedUri(data['link'])?.toString();
+              return RefreshIndicator(
+                onRefresh: () =>
+                    waitForFeedRefresh(ref.refresh(provider.future)),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    if (image != null) const SectionTitle(title: '封面'),
+                    if (image != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Stack(
+                            children: [
+                              AspectRatio(
+                                aspectRatio: 16 / 9,
+                                child: Image.network(
+                                  image,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) =>
+                                      const Center(child: Text('封面暂时无法加载')),
+                                ),
+                              ),
+                              Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: FilledButton.icon(
+                                  onPressed: () =>
+                                      showImagePreview(context, image),
+                                  icon: const Icon(Icons.fullscreen),
+                                  label: const Text('查看大图'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    const SectionTitle(title: '要闻'),
+                    if (news.isEmpty) const ErrorView('暂无当天要闻'),
+                    ...news.map(
+                      (n) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              n.toString(),
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (tip != null) const SectionTitle(title: 'Tip'),
+                    if (tip != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.lightbulb),
+                            title: Text(tip),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.copy),
+                              onPressed: () =>
+                                  Clipboard.setData(ClipboardData(text: tip)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (link != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              Clipboard.setData(ClipboardData(text: link)),
+                          icon: const Icon(Icons.link),
+                          label: const Text('复制原文链接'),
+                        ),
+                      ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

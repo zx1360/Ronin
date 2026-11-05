@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
@@ -13,26 +12,29 @@ class ToutiaoTab extends ConsumerWidget {
     final async = ref.watch(toutiaoHotProvider);
     return async.when(
       loading: () => const LoadingView(),
-      error: (e, _) => ErrorWithRetryView(
-        message: '头条热榜加载失败：$e',
+      error: (e, _) => ErrorView(
+        '头条热榜加载失败：$e',
         onRetry: () => ref.invalidate(toutiaoHotProvider),
       ),
-      data: (data) {
-        final list = (data is List)
-            ? data
-            : ((data['list'] as List<dynamic>?) ??
-                  (data['items'] as List<dynamic>?) ??
-                  []);
+      data: (list) {
+        if (list.isEmpty) {
+          return ErrorView(
+            '暂无头条热榜',
+            onRetry: () => ref.invalidate(toutiaoHotProvider),
+          );
+        }
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(toutiaoHotProvider),
+          onRefresh: () =>
+              waitForFeedRefresh(ref.refresh(toutiaoHotProvider.future)),
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: list.length,
             itemBuilder: (ctx, i) {
-              final m = list[i] as Map<String, dynamic>;
-              final title = (m['title'] ?? '') as String;
-              final hotValue = (m['hot_value'] ?? '') as Object?;
-              final cover = (m['cover'] ?? '') as String;
-              final link = (m['link']) as String?;
+              final m = list[i];
+              final title = feedText(m['title']) ?? '未命名话题';
+              final hotValue = m['hot_value'];
+              final cover = feedUri(m['cover'])?.toString() ?? '';
+              final link = feedUri(m['link']) ?? feedUri(m['url']);
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.md,
@@ -56,21 +58,26 @@ class ToutiaoTab extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(title, style: Theme.of(context).textTheme.titleMedium),
-                              const SizedBox(height: AppSpacing.xs),
-                              Text('热度：$hotValue', style: Theme.of(context).textTheme.bodySmall),
+                              Text(
+                                title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              if (hotValue != null) ...[
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  '热度：$hotValue',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
                             ],
                           ),
                         ),
-                        IconButton(
-                          tooltip: '打开链接',
-                          icon: const Icon(Icons.open_in_new),
-                          onPressed: () async {
-                            if (link == null || link.isEmpty) return;
-                            final uri = Uri.parse(link);
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          },
-                        ),
+                        if (link != null)
+                          IconButton(
+                            tooltip: '打开链接',
+                            icon: const Icon(Icons.open_in_new),
+                            onPressed: () => openFeedLink(context, link),
+                          ),
                       ],
                     ),
                   ),

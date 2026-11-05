@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/modals/snack_bar.dart';
+import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/image_preview.dart';
@@ -14,19 +15,22 @@ class BingWallpaperTab extends ConsumerWidget {
     final async = ref.watch(bingWallpaperProvider);
     return async.when(
       loading: () => const LoadingView(),
-      error: (e, _) => ErrorView('必应壁纸加载失败：$e'),
+      error: (e, _) => ErrorView(
+        '必应壁纸加载失败：$e',
+        onRetry: () => ref.invalidate(bingWallpaperProvider),
+      ),
       data: (data) {
-        final cover = data['cover'] as String?;
-        final cover4k = data['cover_4k'] as String?;
-        final title = data['title'] as String?;
-        final headline = data['headline'] as String?;
-        final desc = data['description'] as String?;
-        final mainText = data['main_text'] as String?;
+        final cover4k = feedUri(data['cover_4k'])?.toString();
+        final cover = feedUri(data['cover'])?.toString() ?? cover4k;
+        final title = feedText(data['title']);
+        final headline = feedText(data['headline']);
+        final desc = feedText(data['description']);
+        final mainText = feedText(data['main_text']);
         return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(bingWallpaperProvider);
-          },
+          onRefresh: () =>
+              waitForFeedRefresh(ref.refresh(bingWallpaperProvider.future)),
           child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             children: [
               if (title != null)
                 const SectionTitle(title: '必应每日壁纸', icon: Icons.image),
@@ -65,7 +69,12 @@ class BingWallpaperTab extends ConsumerWidget {
                       onTap: () => showImagePreview(context, cover),
                       child: AspectRatio(
                         aspectRatio: 16 / 9,
-                        child: Image.network(cover, fit: BoxFit.cover),
+                        child: Image.network(
+                          cover,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              const Center(child: Text('壁纸暂时无法加载')),
+                        ),
                       ),
                     ),
                   ),
@@ -186,6 +195,8 @@ Future<void> _downloadImageUsingClient(
       if (context.mounted) displaySnackBar(context, '保存失败，请检查存储权限');
     }
   } catch (e) {
-    if (context.mounted) displaySnackBar(context, '下载出错：$e');
+    if (context.mounted) {
+      displaySnackBar(context, '下载出错：${ApiClient.mapError(e)}');
+    }
   }
 }

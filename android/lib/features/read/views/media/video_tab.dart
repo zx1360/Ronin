@@ -62,6 +62,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
     return RefreshIndicator(
       onRefresh: _fetchVideo,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
           const SectionTitle(title: '随机视频', icon: Icons.videocam_outlined),
@@ -102,17 +103,19 @@ class _VideoTabState extends ConsumerState<VideoTab>
           child: Text(kVideoGroups[i].name, overflow: TextOverflow.ellipsis),
         );
       }),
-      onChanged: (v) {
-        if (v == null) return;
-        _disposePlayer();
-        setState(() {
-          _groupIndex = v;
-          _sourceIndex = 0;
-          _videoUrl = null;
-          _error = null;
-          _playerError = null;
-        });
-      },
+      onChanged: _loading
+          ? null
+          : (v) {
+              if (v == null) return;
+              _disposePlayer();
+              setState(() {
+                _groupIndex = v;
+                _sourceIndex = 0;
+                _videoUrl = null;
+                _error = null;
+                _playerError = null;
+              });
+            },
     );
   }
 
@@ -132,16 +135,18 @@ class _VideoTabState extends ConsumerState<VideoTab>
           child: Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
         );
       }),
-      onChanged: (v) {
-        if (v == null) return;
-        _disposePlayer();
-        setState(() {
-          _sourceIndex = v;
-          _videoUrl = null;
-          _error = null;
-          _playerError = null;
-        });
-      },
+      onChanged: _loading
+          ? null
+          : (v) {
+              if (v == null) return;
+              _disposePlayer();
+              setState(() {
+                _sourceIndex = v;
+                _videoUrl = null;
+                _error = null;
+                _playerError = null;
+              });
+            },
     );
   }
 
@@ -255,6 +260,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
   }
 
   Future<void> _fetchVideo() async {
+    if (_loading) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -281,10 +287,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
       final controller = VideoPlayerController.networkUrl(Uri.parse(url));
       _videoController = controller;
       await controller.initialize();
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
+      if (!mounted) return;
       _chewieController = ChewieController(
         videoPlayerController: controller,
         autoPlay: true,
@@ -292,8 +295,11 @@ class _VideoTabState extends ConsumerState<VideoTab>
         showOptions: false,
       );
       setState(() => _playerReady = true);
-    } catch (e) {
-      if (mounted) setState(() => _playerError = e.toString());
+    } catch (_) {
+      if (mounted) {
+        _disposePlayer();
+        setState(() => _playerError = '视频暂时无法播放，请尝试更换内容');
+      }
     }
   }
 

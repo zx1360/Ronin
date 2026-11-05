@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/read/providers/sixty_api_provider.dart';
 import 'package:torrid/features/read/widgets/common.dart';
@@ -13,26 +12,33 @@ class BaiduTiebaTab extends ConsumerWidget {
     final async = ref.watch(baiduTiebaProvider);
     return async.when(
       loading: () => const LoadingView(),
-      error: (e, _) => ErrorWithRetryView(
-        message: '百度贴吧榜加载失败：$e',
+      error: (e, _) => ErrorView(
+        '百度贴吧榜加载失败：$e',
         onRetry: () => ref.invalidate(baiduTiebaProvider),
       ),
-      data: (data) {
-        final list = (data is List)
-            ? data
-            : ((data['list'] as List<dynamic>?) ?? []);
+      data: (list) {
+        if (list.isEmpty) {
+          return ErrorView(
+            '暂无贴吧榜单',
+            onRetry: () => ref.invalidate(baiduTiebaProvider),
+          );
+        }
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(baiduTiebaProvider),
+          onRefresh: () =>
+              waitForFeedRefresh(ref.refresh(baiduTiebaProvider.future)),
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             itemCount: list.length,
             itemBuilder: (ctx, i) {
-              final m = list[i] as Map<String, dynamic>;
-              final title = (m['title'] ?? m['name'] ?? '') as String;
-              final desc = (m['desc'] ?? '') as String;
-              final abstractText = (m['abstract'] ?? '') as String;
-              final heatDesc = (m['score_desc'] ?? '') as String;
-              final url = (m['url'] ?? m['link']) as String?;
-              final avatar = (m['avatar'] ?? '') as String;
+              final m = list[i];
+              final title =
+                  feedText(m['title']) ?? feedText(m['name']) ?? '未命名话题';
+              final desc = feedText(m['desc']);
+              final abstractText = feedText(m['abstract']);
+              final heatDesc =
+                  feedText(m['score_desc']) ?? m['score']?.toString();
+              final url = feedUri(m['url']) ?? feedUri(m['link']);
+              final avatar = feedUri(m['avatar'])?.toString() ?? '';
               final rank = i + 1;
               return Padding(
                 padding: const EdgeInsets.symmetric(
@@ -49,17 +55,28 @@ class BaiduTiebaTab extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(title, style: Theme.of(context).textTheme.titleMedium),
-                              if (desc.isNotEmpty) ...[
+                              Text(
+                                title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              if (desc != null) ...[
                                 const SizedBox(height: AppSpacing.xs),
                                 Text(desc),
                               ],
-                              if (abstractText.isNotEmpty) ...[
+                              if (abstractText != null) ...[
                                 const SizedBox(height: AppSpacing.xs),
-                                Text(abstractText, style: Theme.of(context).textTheme.bodySmall),
+                                Text(
+                                  abstractText,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               ],
-                              const SizedBox(height: AppSpacing.xs),
-                              Text('热度：$heatDesc', style: Theme.of(context).textTheme.bodySmall),
+                              if (heatDesc != null) ...[
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  '热度：$heatDesc',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -73,16 +90,12 @@ class BaiduTiebaTab extends ConsumerWidget {
                               height: 56,
                               radius: 8,
                             ),
-                            const SizedBox(height: AppSpacing.xs),
-                            IconButton(
-                              tooltip: '打开链接',
-                              icon: const Icon(Icons.open_in_new),
-                              onPressed: () async {
-                                if (url == null || url.isEmpty) return;
-                                final uri = Uri.parse(url);
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              },
-                            ),
+                            if (url != null)
+                              IconButton(
+                                tooltip: '打开链接',
+                                icon: const Icon(Icons.open_in_new),
+                                onPressed: () => openFeedLink(context, url),
+                              ),
                           ],
                         ),
                       ],

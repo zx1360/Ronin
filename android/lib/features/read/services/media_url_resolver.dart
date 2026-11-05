@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/read/models/random_media_models.dart';
 
 // ────────────────────────────────────────────
@@ -24,7 +26,7 @@ class MediaUrlResolver {
     try {
       switch (source.responseType) {
         case ApiResponseType.redirect302:
-          return await _resolveRedirect(requestUrl);
+          return await _resolveRedirect(requestUrl, source.extraHeaders);
         case ApiResponseType.json:
           if (source.jsonUrlPath != null) {
             return await _fetchFromJsonPath(
@@ -41,16 +43,13 @@ class MediaUrlResolver {
           );
       }
     } on DioException catch (e) {
-      if (e.type == DioExceptionType.connectionTimeout) {
-        throw Exception('连接超时，请检查网络');
-      }
-      if (e.type == DioExceptionType.receiveTimeout) {
-        throw Exception('接收数据超时');
-      }
-      if (e.response?.statusCode != null) {
-        throw Exception('服务器错误 (${e.response!.statusCode})');
-      }
-      throw Exception('网络请求失败');
+      final status = e.response?.statusCode;
+      if (status != null) throw _httpError(status);
+      throw ApiClient.mapError(e);
+    } on SocketException catch (e) {
+      throw ApiException('无法连接媒体源，请检查网络', cause: e);
+    } on TimeoutException catch (e) {
+      throw ApiException('媒体源响应超时，请稍后重试', cause: e);
     }
   }
 
@@ -68,30 +67,65 @@ class MediaUrlResolver {
     return uri.replace(queryParameters: allParams).toString();
   }
 
-  /// 使用 dart:io HttpClient 解析 302 重定向
-  static Future<String> _resolveRedirect(String url) async {
+  static ApiException _httpError(int status) => ApiException(
+    status == 429 ? '媒体源请求过多，请稍后重试' : '媒体源返回 HTTP $status',
+    statusCode: status,
+  );
+
+  static Future<String> _resolveRedirect(
+    String url,
+    Map<String, String>? headers,
+  ) async {
     final client = HttpClient();
     client.connectionTimeout = const Duration(seconds: 10);
     try {
-      final request = await client.getUrl(Uri.parse(url));
+      final uri = Uri.parse(url);
+      final request = await client.getUrl(uri);
       request.followRedirects = false;
-      request.headers.set('User-Agent', kUserAgent);
-      final response = await request.close();
+      final requestHeaders = {'User-Agent': kUserAgent, ...?headers};
+      requestHeaders.forEach(request.headers.set);
+      final response = await request.close().timeout(
+        const Duration(seconds: 20),
+      );
+      if (response.statusCode >= 400) throw _httpError(response.statusCode);
       if (response.statusCode >= 300 && response.statusCode < 400) {
         final location = response.headers.value('location');
-        if (location != null && location.isNotEmpty) {
-          return location.startsWith('http')
-              ? location
-              : Uri.parse(url).resolve(location).toString();
+        final target = location == null ? null : Uri.tryParse(location.trim());
+        if (target != null && target.toString().isNotEmpty) {
+          final resolved = _mediaUrl(uri.resolveUri(target).toString());
+          if (resolved != null) return resolved;
         }
+        throw const ApiException('媒体源返回了无效的跳转地址');
       }
-      return url;
+      final type = response.headers.contentType;
+      if (response.statusCode == 200 &&
+          (type?.primaryType == 'image' ||
+              type?.primaryType == 'video' ||
+              type?.mimeType == 'application/octet-stream')) {
+        return url;
+      }
+      throw const ApiException('媒体源暂时无法提供内容，请更换来源或稍后重试');
     } finally {
       client.close(force: true);
     }
   }
 
-  /// 简单 JSON: response[key]
+  static String? _mediaUrl(Object? value) {
+    if (value is! String) return null;
+    final uri = Uri.tryParse(value.trim());
+    return uri != null &&
+            uri.host.isNotEmpty &&
+            (uri.scheme == 'https' || uri.scheme == 'http')
+        ? uri.toString()
+        : null;
+  }
+
+  static Object? _jsonData(Response response) {
+    final data = response.data;
+    if (data is Map || data is List) return data;
+    throw const ApiException('媒体源未返回资源数据，请更换来源或稍后重试');
+  }
+
   static Future<String> _fetchFromJson(
     String url,
     String key,
@@ -101,16 +135,15 @@ class MediaUrlResolver {
       url,
       options: Options(headers: {'User-Agent': kUserAgent, ...?headers}),
     );
-    if (response.data is Map) {
-      final map = response.data as Map;
-      final value = map[key];
-      if (value is String && value.startsWith('http')) return value;
+    final body = _jsonData(response);
+    if (body is Map) {
+      final value = _mediaUrl(body[key]);
+      if (value != null) return value;
 
-      // 兼容部分接口将链接放在 data.link 中（例如 tmini 视频接口）
-      final data = map['data'];
+      final data = body['data'];
       if (data is Map) {
-        final link = data['link'];
-        if (link is String && link.startsWith('http')) return link;
+        final link = _mediaUrl(data['link']);
+        if (link != null) return link;
       }
     }
     throw Exception('无法从响应中获取有效的资源地址');
@@ -127,7 +160,7 @@ class MediaUrlResolver {
       url,
       options: Options(headers: {'User-Agent': kUserAgent, ...?headers}),
     );
-    dynamic current = response.data;
+    var current = _jsonData(response);
     for (var key in path) {
       if (key.startsWith('{') && key.endsWith('}')) {
         key = params[key.substring(1, key.length - 1)] ?? key;
@@ -140,7 +173,7 @@ class MediaUrlResolver {
       } else if (current is List) {
         if (current.isEmpty) throw Exception('没有找到匹配的结果');
         final index = int.tryParse(key);
-        if (index != null && index < current.length) {
+        if (index != null && index >= 0 && index < current.length) {
           current = current[index];
         } else {
           throw Exception('结果索引无效');
@@ -149,7 +182,8 @@ class MediaUrlResolver {
         throw Exception('响应格式异常');
       }
     }
-    if (current is String && current.startsWith('http')) return current;
+    final mediaUrl = _mediaUrl(current);
+    if (mediaUrl != null) return mediaUrl;
     throw Exception('无法获取有效的图片地址');
   }
 
