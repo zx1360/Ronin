@@ -1,10 +1,11 @@
 package mdns
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
-	"strings"
+	"net/netip"
 
 	"github.com/hashicorp/mdns"
 )
@@ -19,16 +20,9 @@ type ServiceInfo struct {
 	HasAuth  bool   // 是否需要 API Key 鉴权
 }
 
-// buildTxtRecords 构建 TXT 记录，携带服务元信息
-func buildTxtRecords(info ServiceInfo) []string {
-	hostIP, err := getLocalIP()
-	ipStr := ""
-	if err == nil && hostIP != nil {
-		ipStr = hostIP.String()
-	}
-
+func buildTxtRecords(info ServiceInfo, ip netip.Addr) []string {
 	records := []string{
-		fmt.Sprintf("ip=%s", ipStr),
+		"ip=" + ip.String(),
 		fmt.Sprintf("port=%d", info.Port),
 	}
 
@@ -47,12 +41,11 @@ func buildTxtRecords(info ServiceInfo) []string {
 	return records
 }
 
-// Register 注册 mDNS 服务并返回运行中的 server（由调用方持有以维持广播）。
+// Register 在启动时选定局域网网卡，返回的服务由调用方关闭。
 func Register(info ServiceInfo) (*mdns.Server, error) {
-	// 获取本机 IP
-	hostIP, err := getLocalIP()
+	iface, ip, err := localLAN()
 	if err != nil {
-		return nil, fmt.Errorf("获取本机IP失败: %w", err)
+		return nil, err
 	}
 
 	service, err := mdns.NewMDNSService(
@@ -61,57 +54,44 @@ func Register(info ServiceInfo) (*mdns.Server, error) {
 		"",
 		"",
 		info.Port,
-		[]net.IP{hostIP},
-		buildTxtRecords(info),
+		[]net.IP{net.IP(ip.AsSlice())},
+		buildTxtRecords(info, ip),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("创建mDNS服务失败: %w", err)
 	}
 
-	server, err := mdns.NewServer(&mdns.Config{Zone: service})
+	server, err := mdns.NewServer(&mdns.Config{Zone: service, Iface: &iface})
 	if err != nil {
 		return nil, fmt.Errorf("启动mDNS服务失败: %w", err)
 	}
 
-	log.Printf("[mDNS] 服务已注册: %s (%s:%d) [%s]",
-		info.Instance, hostIP, info.Port,
-		strings.Join(buildTxtRecords(info), ", "))
+	log.Printf("[mDNS] 已在 %s 注册 %s (%s:%d)", iface.Name, info.Instance, ip, info.Port)
 	return server, nil
 }
 
-// getLocalIP 获取首选的本机 IPv4 地址
-func getLocalIP() (net.IP, error) {
-	addrs, err := net.InterfaceAddrs()
+func localLAN() (net.Interface, netip.Addr, error) {
+	ifaces, err := net.Interfaces()
 	if err != nil {
-		return nil, err
+		return net.Interface{}, netip.Addr{}, err
 	}
 
-	for _, addr := range addrs {
-		ipNet, ok := addr.(*net.IPNet)
-		if !ok {
+	const required = net.FlagUp | net.FlagBroadcast | net.FlagMulticast
+	for _, iface := range ifaces {
+		if iface.Flags&required != required || !isLANAdapter(iface) {
 			continue
 		}
-		ip4 := ipNet.IP.To4()
-		if ip4 == nil || ip4.IsLoopback() || ip4.IsLinkLocalUnicast() {
-			continue
-		}
-		// 优先选择私有地址 (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-		if ip4.IsPrivate() {
-			return ip4, nil
-		}
-	}
-
-	// 回退: 取第一个非环回的 IPv4
-	for _, addr := range addrs {
-		ipNet, ok := addr.(*net.IPNet)
-		if !ok {
-			continue
-		}
-		ip4 := ipNet.IP.To4()
-		if ip4 != nil && !ip4.IsLoopback() {
-			return ip4, nil
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			if ip, ok := netip.AddrFromSlice(ipNet.IP.To4()); ok && ip.IsGlobalUnicast() {
+				return iface, ip, nil
+			}
 		}
 	}
 
-	return nil, fmt.Errorf("未找到有效的本机IPv4地址")
+	return net.Interface{}, netip.Addr{}, errors.New("没有可用于 mDNS 的局域网 IPv4 地址")
 }
