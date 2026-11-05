@@ -1,148 +1,105 @@
-import 'dart:async';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/chat/chat_entry.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/immich/providers/immich_providers.dart';
+import 'package:torrid/features/others/immich/widgets/album_media_viewer.dart';
+import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
+import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
+import 'package:torrid/features/others/immich/widgets/immich_ops_sheet.dart';
 import 'package:torrid/features/others/smart_album/providers/smart_album_providers.dart';
-import 'package:torrid/features/others/widgets/media_viewer_page.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
-/// 智能相册页：文本搜图 / 以图搜图 / 人物分组 / AI 分析结果查看。
-///
-/// 与画廊页同为一级入口（见 `pages_data.dart`）。
-/// 只消费服务端 AI 能力：结果按需拉取，不写入本地缓存，也不改动画廊的下载与标注链路；
-/// 页面内不出现人工标签——人工标签归相册(immich)页。
-/// 本页只做渲染与导航，检索状态与编排在 `smart_album_providers.dart`。
-class SmartAlbumPage extends ConsumerStatefulWidget {
-  const SmartAlbumPage({super.key});
+class SmartAlbumSearch extends ConsumerStatefulWidget {
+  const SmartAlbumSearch({super.key});
 
   @override
-  ConsumerState<SmartAlbumPage> createState() => _SmartAlbumPageState();
+  ConsumerState<SmartAlbumSearch> createState() => _SmartAlbumSearchState();
 }
 
-class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
-    with SingleTickerProviderStateMixin {
-  final _controller = TextEditingController();
-  final _resultScroll = ScrollController(keepScrollOffset: false);
-
-  /// 检索 / 人物两个视图；由本 State 持有，避免在 State 里读
-  /// DefaultTabController.of(context)（那个 context 在控制器之上，会抛错）。
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
+    with AutomaticKeepAliveClientMixin {
+  final _text = TextEditingController();
+  final _selected = <String>{};
+  bool _selecting = false;
 
   @override
-  void initState() {
-    super.initState();
-    _resultScroll.addListener(_loadMoreNearEnd);
-    _tabs.addListener(() {
-      if (_tabs.indexIsChanging) return;
-      final state = ref.read(smartAlbumControllerProvider);
-      if (_tabs.index == 1 && state.persons == null && !state.personsLoading) {
-        ref.read(smartAlbumControllerProvider.notifier).loadPersons();
-      }
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _clearSelection() {
+    if (!_selecting) return;
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  void _toggle(MediaAsset asset) {
+    setState(() {
+      _selecting = true;
+      if (!_selected.remove(asset.id)) _selected.add(asset.id);
     });
   }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    _resultScroll.dispose();
-    _tabs.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    super.build(context);
     final state = ref.watch(smartAlbumControllerProvider);
     final controller = ref.read(smartAlbumControllerProvider.notifier);
-    if (state.hasMore && !state.loadingMore && state.error == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _loadMoreNearEnd();
-      });
-    }
-
-    // 控制器要求回填输入框时（以图搜图 / 点人物）同步一次
+    final busy = ref.watch(immichActionsProvider);
+    ref.listen(smartAlbumControllerProvider.select((value) => value.subject), (
+      _,
+      subject,
+    ) {
+      if (subject.isNotEmpty) _text.clear();
+    });
     ref.listen(
-      smartAlbumControllerProvider.select((value) => value.queryRevision),
-      (previous, next) {
-        if (previous == next) return;
-        _controller.text = ref.read(smartAlbumControllerProvider).queryText;
-      },
+      smartAlbumControllerProvider.select((value) => value.revision),
+      (_, __) => _clearSelection(),
     );
+    final result = state.result;
+    final assets = [for (final hit in result.hits) hit.asset];
+    final selected = assets
+        .where((asset) => _selected.contains(asset.id))
+        .toList();
+    final canRank = result.mode == 'semantic';
+    final theme = Theme.of(context);
+    final canSelect = !busy && assets.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: const Text('智能相册'),
-        bottom: TabBar(
-          controller: _tabs,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: '检索'),
-            Tab(text: '人物'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabs,
-        children: [
-          _buildSearchView(state, controller),
-          _buildPersonsView(state, controller),
-        ],
-      ),
-    );
-  }
-
-  // ---------- 检索 ----------
-
-  void _loadMoreNearEnd() {
-    if (!_resultScroll.hasClients || _resultScroll.position.extentAfter > 500) {
-      return;
-    }
-    final state = ref.read(smartAlbumControllerProvider);
-    if (state.hasMore && state.error == null) {
-      unawaited(ref.read(smartAlbumControllerProvider.notifier).loadMore());
-    }
-  }
-
-  Widget _buildSearchView(
-    SmartAlbumState state,
-    SmartAlbumController controller,
-  ) {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
           child: TextField(
-            controller: _controller,
-            style: const TextStyle(color: Colors.white),
+            controller: _text,
+            enabled: !busy,
             textInputAction: TextInputAction.search,
             onSubmitted: controller.search,
             decoration: InputDecoration(
-              hintText: state.mode == AiSearchMode.filename
-                  ? '文件名或扩展名，如：IMG_2024 / .mp4'
-                  : '描述想要的画面，如：可爱的猫娘 / 夜景街道',
-              hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
-              prefixIcon: const Icon(Icons.search, color: Colors.grey),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.close, color: Colors.grey, size: 18),
-                onPressed: () {
-                  _controller.clear();
-                  controller.clearResult();
-                },
-              ),
-              filled: true,
-              fillColor: const Color(0xFF1C1C1C),
+              hintText: switch (state.mode) {
+                AiSearchMode.filename => '文件名或扩展名',
+                AiSearchMode.keyword => '画面描述、识别文字或 AI 标签',
+                AiSearchMode.auto => '描述想找的画面',
+              },
+              border: const OutlineInputBorder(),
               isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
+              suffixIcon: IconButton(
+                tooltip: '检索',
+                icon: const Icon(Icons.search),
+                onPressed: busy
+                    ? null
+                    : () {
+                        FocusScope.of(context).unfocus();
+                        controller.search(_text.text);
+                      },
               ),
             ),
           ),
@@ -156,420 +113,328 @@ class _SmartAlbumPageState extends ConsumerState<SmartAlbumPage>
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (final mode in AiSearchMode.values) ...[
-                        ChoiceChip(
-                          label: Text(mode.label),
-                          selected: state.mode == mode,
-                          onSelected: (_) {
-                            controller.setMode(mode);
-                            // 切换检索方式后旧结果不再对应，有查询词就重搜一次
-                            if (_controller.text.trim().isNotEmpty) {
-                              controller.search(_controller.text);
-                            }
-                          },
-                          // 深色页面下必须显式给配色：主题是浅色，未选中 chip 的
-                          // 默认底色与白字撞在一起会看不见文字
-                          backgroundColor: const Color(0xFF1C1C1C),
-                          selectedColor: Colors.white,
-                          side: const BorderSide(color: Colors.white24),
-                          showCheckmark: false,
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          labelStyle: TextStyle(
-                            color: state.mode == mode
-                                ? Colors.black
-                                : Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
+                      DropdownButton<AiSearchMode>(
+                        value: state.mode,
+                        underline: const SizedBox.shrink(),
+                        onChanged: busy
+                            ? null
+                            : (mode) {
+                                if (mode != null && mode != state.mode) {
+                                  controller.search(_text.text, mode: mode);
+                                }
+                              },
+                        items: [
+                          for (final mode in AiSearchMode.values)
+                            DropdownMenuItem(
+                              value: mode,
+                              child: Text(mode.label),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('含待删除'),
+                        selected: state.includeDeleted,
+                        onSelected: busy ? null : controller.setIncludeDeleted,
+                      ),
+                      if (canRank) ...[
                         const SizedBox(width: 8),
+                        PopupMenuButton<bool>(
+                          enabled: !busy,
+                          tooltip: '结果排序',
+                          onSelected: controller.setTimeline,
+                          itemBuilder: (context) => [
+                            CheckedPopupMenuItem(
+                              value: true,
+                              checked: state.timeline,
+                              child: const Text('按拍摄日期'),
+                            ),
+                            CheckedPopupMenuItem(
+                              value: false,
+                              checked: !state.timeline,
+                              child: const Text('按相关度'),
+                            ),
+                          ],
+                          child: Text(state.timeline ? '按日期 ▾' : '相关度 ▾'),
+                        ),
                       ],
                     ],
                   ),
                 ),
               ),
-              TextButton.icon(
-                onPressed: state.loading
+              IconButton(
+                tooltip: _selecting ? '退出多选' : '多选',
+                onPressed: !canSelect
                     ? null
-                    : () => controller.search(_controller.text),
-                icon: const Icon(Icons.search, size: 16),
-                label: const Text('搜索'),
-                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                    : _selecting
+                    ? _clearSelection
+                    : () => setState(() => _selecting = true),
+                icon: Icon(_selecting ? Icons.close : Icons.checklist),
               ),
             ],
           ),
         ),
+        if (state.subject.isNotEmpty || result.mode.isNotEmpty)
+          ListTile(
+            dense: true,
+            title: Text(
+              state.subject.isEmpty ? '命中 ${result.total} 项' : state.subject,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: state.subject.isEmpty || result.mode.isEmpty
+                ? null
+                : Text('命中 ${result.total} 项'),
+            trailing: IconButton(
+              tooltip: '清空结果',
+              onPressed: busy
+                  ? null
+                  : () {
+                      _text.clear();
+                      controller.clearResult();
+                    },
+              icon: const Icon(Icons.clear),
+            ),
+          ),
         if (state.loading) const LinearProgressIndicator(minHeight: 2),
-        if (state.error != null)
+        if (state.error case final error?)
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              state.error!,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    error,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ),
+                TextButton(
+                  onPressed: assets.isEmpty
+                      ? controller.reload
+                      : controller.loadMore,
+                  child: const Text('重试'),
+                ),
+              ],
             ),
           ),
-        Expanded(child: _buildResultGrid(state, controller)),
-      ],
-    );
-  }
-
-  Widget _buildResultGrid(
-    SmartAlbumState state,
-    SmartAlbumController controller,
-  ) {
-    final result = state.result;
-    if (result.hits.isEmpty) {
-      return Center(
-        child: Text(
-          state.loading
-              ? '检索中…'
-              : result.mode.isEmpty
-              ? '输入关键词开始检索'
-              : '没有匹配的媒体',
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    }
-
-    final api = ref.watch(apiClientManagerProvider);
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '命中 ${result.total} 条 · 已加载 ${result.hits.length} 条 · ${_modeLabel(result.mode)}',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ),
-        ),
         Expanded(
-          child: GridView.builder(
-            controller: _resultScroll,
-            padding: const EdgeInsets.all(4),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 3,
-              crossAxisSpacing: 3,
-            ),
-            itemCount: result.hits.length + (state.hasMore ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index == result.hits.length) {
-                return Center(
-                  child: state.loadingMore
-                      ? const CircularProgressIndicator(color: Colors.white70)
-                      : TextButton(
-                          onPressed: controller.loadMore,
-                          child: Text(state.error == null ? '加载更多' : '加载失败，重试'),
-                        ),
-                );
-              }
-              final hit = result.hits[index];
-              return _HitTile(
-                hit: hit,
-                url: hit.thumbUrl(api.baseUrl),
-                headers: api.headers,
-                onTap: () => _openViewer(result, index, controller),
-              );
-            },
-          ),
+          child: assets.isEmpty
+              ? Center(
+                  child: Text(
+                    state.loading
+                        ? '检索中…'
+                        : state.error != null
+                        ? '暂时无法检索'
+                        : result.mode.isEmpty
+                        ? '输入关键词，或从照片发起以图搜图'
+                        : '没有匹配的媒体',
+                  ),
+                )
+              : AlbumMediaGrid(
+                  key: ValueKey(state.revision),
+                  assets: assets,
+                  timeline: state.timeline || !canRank,
+                  selectedIds: _selected,
+                  selectionMode: _selecting,
+                  loadingMore: state.loadingMore,
+                  autoLoadMore: !busy && state.error == null,
+                  onLoadMore: state.hasMore && !busy
+                      ? controller.loadMore
+                      : null,
+                  onRefresh: () async {
+                    if (!busy) await controller.reload();
+                  },
+                  onLongPress: (asset) {
+                    if (!busy) _toggle(asset);
+                  },
+                  onTap: (asset) {
+                    if (busy) return;
+                    if (_selecting) {
+                      _toggle(asset);
+                    } else {
+                      openAlbumMediaViewer(
+                        context,
+                        assets: assets,
+                        mediaId: asset.id,
+                        scores: {
+                          for (final hit in result.hits) hit.id: hit.score,
+                        },
+                        onSimilar: controller.searchSimilar,
+                      );
+                    }
+                  },
+                ),
         ),
+        if (selected.isNotEmpty)
+          ImmichSelectionBar(
+            count: selected.length,
+            busy: busy,
+            onClear: _clearSelection,
+            onAddTags: () =>
+                _addTags(selected.map((asset) => asset.id).toList()),
+            onDelete: selected.any((asset) => !asset.isDeleted)
+                ? () => _setDeleted(selected, true)
+                : null,
+            onRestore: selected.any((asset) => asset.isDeleted)
+                ? () => _setDeleted(selected, false)
+                : null,
+          ),
       ],
     );
   }
 
-  /// 打开全屏查看器：本页只注入"以图搜图"和"AI 分析"两个智能操作。
-  void _openViewer(
-    AiSearchResult result,
-    int index,
-    SmartAlbumController controller,
-  ) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MediaViewerPage(
-          assets: [for (final hit in result.hits) hit.toAsset()],
-          initialIndex: index,
-          subtitleBuilder: (asset) {
-            final hit = _hitById(result, asset.id);
-            if (hit == null || hit.score <= 0) return null;
-            return '相关度 ${hit.score.toStringAsFixed(3)}';
-          },
-          actions: (context, asset) => [
-            IconButton(
-              icon: const Icon(Icons.auto_awesome),
-              tooltip: '问问AI',
-              onPressed: () => askAiAboutMedia(
-                context,
-                mediaId: asset.id,
-                fileName: asset.filePath.split(RegExp(r'[/\\]')).last,
-              ),
+  Future<void> _addTags(List<String> ids) async {
+    final tags = await showImmichTagPicker(
+      context,
+      title: '添加人工标签 · ${ids.length} 项',
+    );
+    if (!mounted || tags == null || tags.isEmpty) return;
+    await _submit(
+      (actions) => actions.addTags(ids, tags.toList()),
+      '已为 ${ids.length} 项添加标签',
+    );
+  }
+
+  Future<void> _setDeleted(List<MediaAsset> selected, bool deleted) async {
+    final ids = [
+      for (final asset in selected)
+        if (asset.isDeleted != deleted) asset.id,
+    ];
+    if (deleted && !await confirmAlbumDeletion(context, ids.length)) return;
+    if (!mounted) return;
+    await _submit(
+      (actions) => actions.setDeleted(ids, deleted),
+      deleted ? '已标记待删除，可在「含待删除」中恢复' : '已恢复 ${ids.length} 项',
+    );
+  }
+
+  Future<void> _submit(
+    Future<void> Function(ImmichActions) action,
+    String success,
+  ) async {
+    var message = success;
+    try {
+      await action(ref.read(immichActionsProvider.notifier));
+      if (mounted) _clearSelection();
+    } catch (error) {
+      message = '操作失败：$error';
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..removeCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 72),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    }
+  }
+}
+
+class SmartAlbumPeople extends ConsumerWidget {
+  const SmartAlbumPeople({super.key, required this.onPerson});
+  final ValueChanged<AiPerson> onPerson;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final people = ref.watch(albumPeopleProvider);
+    final api = ref.watch(apiClientManagerProvider);
+    return people.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(aiFriendlyError(error), textAlign: TextAlign.center),
             ),
-            IconButton(
-              icon: const Icon(Icons.image_search),
-              tooltip: '以图搜图',
-              onPressed: () {
-                Navigator.of(context).pop();
-                unawaited(controller.searchSimilar(asset.id));
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.description_outlined),
-              tooltip: 'AI 分析',
-              onPressed: () => _showAiDetail(asset.id),
+            TextButton(
+              onPressed: () => ref.invalidate(albumPeopleProvider),
+              child: const Text('重试'),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  AiSearchHit? _hitById(AiSearchResult result, String id) {
-    for (final hit in result.hits) {
-      if (hit.id == id) return hit;
-    }
-    return null;
-  }
-
-  // ---------- 人物 ----------
-
-  Widget _buildPersonsView(
-    SmartAlbumState state,
-    SmartAlbumController controller,
-  ) {
-    final persons = state.persons;
-    if (persons == null) {
-      return Center(
-        child: state.personsLoading
-            ? const CircularProgressIndicator(color: Colors.white70)
-            : FilledButton(
-                onPressed: controller.loadPersons,
-                child: const Text('加载人物分组'),
-              ),
-      );
-    }
-    if (persons.isEmpty) {
-      return const Center(
-        child: Text('暂无人物分组', style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    final api = ref.watch(apiClientManagerProvider);
-
-    return Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '点击人物即在「检索」中查看其全部照片',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 0.78,
-            ),
-            itemCount: persons.length,
-            itemBuilder: (context, index) {
-              final person = persons[index];
-              return InkWell(
-                // 先切页再请求：用户点了就必须有反馈，不能只等结果
-                onTap: () {
-                  _tabs.animateTo(0);
-                  controller.searchByPerson(person);
-                },
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: person.coverMediaId == null
-                            ? const ColoredBox(
-                                color: Color(0xFF2B2B2B),
-                                child: Icon(Icons.person_outline,
-                                    color: Colors.grey),
-                              )
-                            : CachedNetworkImage(
-                                imageUrl:
-                                    '${api.baseUrl}/API/gallery/${person.coverMediaId}/thumb',
-                                httpHeaders: api.headers,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => const ColoredBox(
-                                  color: Color(0xFF2B2B2B),
-                                  child: Icon(Icons.broken_image_outlined,
-                                      color: Colors.grey),
-                                ),
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      person.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                    Text(
-                      '${person.faceCount} 张',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey, fontSize: 11),
-                    ),
-                  ],
+      data: (persons) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(albumPeopleProvider);
+          try {
+            await ref.read(albumPeopleProvider.future);
+          } catch (_) {}
+        },
+        child: persons.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('暂无人物分组')),
+                  ),
+                ],
+              )
+            : GridView.builder(
+                key: const PageStorageKey('album-people'),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(10),
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 140,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 0.78,
                 ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ---------- 动作 ----------
-
-  /// 只读展示该媒体的 AI 分析结果（描述 / 关键词 / OCR）。
-  Future<void> _showAiDetail(String mediaId) async {
-    AiMediaDetail? detail;
-    String? error;
-    try {
-      detail = await ref.read(aiApiProvider).fetchMediaDetail(mediaId);
-    } catch (e) {
-      error = e.toString();
-    }
-    if (!mounted) return;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF1C1C1C),
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.64,
-            minWidth: MediaQuery.sizeOf(sheetContext).width,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-            child: error != null
-                ? Text(
-                    '读取 AI 结果失败: $error',
-                    style: const TextStyle(
-                        color: Colors.redAccent, fontSize: 13),
-                  )
-                : _buildAiDetailBody(detail!),
-          ),
-        ),
+                itemCount: persons.length,
+                itemBuilder: (context, index) {
+                  final person = persons[index];
+                  return InkWell(
+                    onTap: () => onPerson(person),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: person.coverMediaId == null
+                                ? const _PersonPlaceholder()
+                                : CachedNetworkImage(
+                                    imageUrl:
+                                        '${api.baseUrl}/API/gallery/${person.coverMediaId}/thumb',
+                                    httpHeaders: api.headers,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (_, __, ___) =>
+                                        const _PersonPlaceholder(),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          person.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${person.faceCount} 个人脸',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
       ),
     );
-  }
-
-  Widget _buildAiDetailBody(AiMediaDetail detail) {
-    const titleStyle =
-        TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600);
-    const bodyStyle = TextStyle(color: Colors.white70, fontSize: 13);
-    const emptyStyle = TextStyle(color: Colors.grey, fontSize: 12);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('AI 分析', style: titleStyle),
-        const SizedBox(height: 12),
-        const Text('画面描述', style: titleStyle),
-        const SizedBox(height: 4),
-        Text(detail.caption ?? '暂无（尚未做 VLM 处理）',
-            style: detail.caption == null ? emptyStyle : bodyStyle),
-        const SizedBox(height: 14),
-        const Text('AI 关键词', style: titleStyle),
-        const SizedBox(height: 6),
-        if (detail.vlmTags.isEmpty)
-          const Text('暂无', style: emptyStyle)
-        else
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final tag in detail.vlmTags)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2B2B2B),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(tag,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 12)),
-                ),
-            ],
-          ),
-        const SizedBox(height: 14),
-        const Text('识别文字', style: titleStyle),
-        const SizedBox(height: 4),
-        Text(detail.ocrText ?? '暂无', style: detail.ocrText == null ? emptyStyle : bodyStyle),
-      ],
-    );
-  }
-
-  String _modeLabel(String mode) {
-    for (final item in AiSearchMode.values) {
-      if (item.value == mode) return '${item.label}检索';
-    }
-    return mode;
   }
 }
 
-/// 单个命中缩略图。
-class _HitTile extends StatelessWidget {
-  final AiSearchHit hit;
-  final String url;
-  final Map<String, String> headers;
-  final VoidCallback onTap;
-
-  const _HitTile({
-    required this.hit,
-    required this.url,
-    required this.headers,
-    required this.onTap,
-  });
+class _PersonPlaceholder extends StatelessWidget {
+  const _PersonPlaceholder();
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          CachedNetworkImage(
-            imageUrl: url,
-            httpHeaders: headers,
-            fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => const ColoredBox(
-              color: Color(0xFF2B2B2B),
-              child: Icon(Icons.broken_image_outlined, color: Colors.grey),
-            ),
-          ),
-          if (hit.isVideo)
-            const Positioned(
-              right: 4,
-              bottom: 4,
-              child: Icon(Icons.play_circle_fill,
-                  color: Colors.white70, size: 16),
-            ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ColoredBox(
+    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    child: const Icon(Icons.person_outline),
+  );
 }

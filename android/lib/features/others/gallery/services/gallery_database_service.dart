@@ -236,22 +236,6 @@ class GalleryDatabaseService {
     });
   }
 
-  /// 只更新本地已缓存媒体的某个字段（用于批量标注写入后的缓存同步）
-  Future<void> updateMediaAssetsField(
-    List<String> ids,
-    Map<String, Object?> values,
-  ) async {
-    if (ids.isEmpty || values.isEmpty) return;
-    final db = await database;
-    final placeholders = List.filled(ids.length, '?').join(',');
-    await db.update(
-      'media_assets',
-      values,
-      where: 'id IN ($placeholders)',
-      whereArgs: ids,
-    );
-  }
-
   Future<Map<String, int>> getGroupSizes() async {
     final db = await database;
     final rows = await db.rawQuery(

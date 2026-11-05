@@ -13,7 +13,6 @@ import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/services/essay_contract.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
-import 'package:torrid/providers/network_config/network_config_provider.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
 import 'preferences_transfer.dart';
@@ -105,6 +104,8 @@ class TransferController extends _$TransferController {
         '/API/user-data/sync/${target.name}',
         queryParams: {
           if (target != TransferTarget.preferences) 'sync_version': 2,
+          if (target == TransferTarget.essay)
+            'essay_schema_version': essaySchemaVersion,
           if (after > 0) 'after': after,
         },
       );
@@ -179,7 +180,6 @@ class TransferController extends _$TransferController {
         }
       });
       if (target == TransferTarget.preferences) {
-        await ref.read(networkConfigManagerProvider.notifier).refresh();
         ref.read(appSettingsProvider.notifier).refresh();
       }
       _completeTransfer(true, '${target.displayName}同步完成');
@@ -262,11 +262,8 @@ class TransferController extends _$TransferController {
           final service = ref.read(essayServiceProvider.notifier);
           data = await service.packUp();
         case TransferTarget.preferences:
-          final preferences = packPreferences(
-            ref.read(networkConfigManagerProvider),
-          );
           data = {
-            'jsonData': jsonEncode({'preferences': preferences}),
+            'jsonData': jsonEncode({'preferences': packPreferences()}),
           };
         case TransferTarget.all:
           throw StateError('请指定数据模块');
@@ -330,7 +327,10 @@ class TransferController extends _$TransferController {
       final filenames = allFiles.map((f) => p.basename(f.path)).toList();
       final resp = await client.postJson(
         "/API/user-data/check-images/$module",
-        data: {"filenames": filenames},
+        data: {
+          "filenames": filenames,
+          if (module == 'essay') 'essay_schema_version': essaySchemaVersion,
+        },
       );
 
       if (module == 'essay') requireEssaySchema(resp.data);

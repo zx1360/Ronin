@@ -1,8 +1,8 @@
-# 近期回顾接口冒烟：用生产库的**副本** + 临时 STATIC_DIR 起一个临时服务，
+# 近期回顾接口冒烟：用生产库的**副本** + 临时 DATA_DIR 起一个临时服务，
 # 只读业务数据、不动生产库；跑完删掉副本、临时目录与日志。
 # 服务是明文 HTTP 单端口，冒烟用的 `/API/ai/review` 需要 X-API-Key（从 .env 读）。
 #
-# 注意：本脚本用**临时** STATIC_DIR，因此 ai_config.json 是全新生成的、vlm_model 为空；
+# 注意：本脚本用**临时** DATA_DIR，因此 ai_config.json 是全新生成的、vlm_model 为空；
 # 而自动选定模型的时机是 AI worker 启动（`AI_ENABLED=false` 时不会发生）或网页端显式切换，
 # 所以最后一个用例通常走"尚未选定模型"的 400 分支——那也算链路通，用例据此判定。
 $ErrorActionPreference = 'Stop'
@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 $root = 'D:\products\Ronin\backend'
 $base = Join-Path ([System.IO.Path]::GetTempPath()) ('monarch-review-smoke-' + [guid]::NewGuid().ToString('N'))
 $staticDir = Join-Path $base 'static'
+$dataDir = Join-Path $base 'data'
 $galleryDir = Join-Path $base 'gallery'
 $dbFile = Join-Path $base 'monarch_copy.db'
 $log = Join-Path $base 'server.log'
@@ -75,6 +76,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $root 'data\monarch.db') -Destination $dbFile
 
     $env:STATIC_DIR = $staticDir
+    $env:DATA_DIR = $dataDir
     $env:GALLERY_DIR = $galleryDir
     $env:DB_FILE = $dbFile
     $env:DB_SCHEMA_FILE = (Join-Path $root 'references\db\sqlite.sql')
@@ -104,13 +106,13 @@ try {
     try { $enabled = (ConvertFrom-Json $status.Body).enabled } catch { }
     [void]$results.Add((New-Result 'AI 关闭时 status 仍可用' ($status.Status -eq 200 -and $enabled -eq $false) "HTTP $($status.Status), enabled=$enabled"))
 
-    # 2. 首次读取预设：应生成内置默认值，且落在临时 STATIC_DIR 下
+    # 2. 首次读取预设应在 DATA_DIR 生成内置默认值
     $first = Invoke-Api -Method GET -Path '/API/ai/review/presets'
     $parsed = ConvertFrom-Json $first.Body
     $presetCount = @($parsed.presets).Count
-    $seeded = Test-Path -LiteralPath (Join-Path $staticDir 'data\review_presets.json')
+    $seeded = Test-Path -LiteralPath (Join-Path $dataDir 'review_presets.json')
     [void]$results.Add((New-Result '首次读取预设播种内置默认值' `
-                ($first.Status -eq 200 -and $presetCount -ge 1 -and $seeded -and "$($parsed.path)".StartsWith($staticDir)) `
+                ($first.Status -eq 200 -and $presetCount -ge 1 -and $seeded -and "$($parsed.path)".StartsWith($dataDir)) `
                 "HTTP $($first.Status), 条数=$presetCount, 文件已生成=$seeded"))
 
     # 3. 整体替换预设（缺 id 由服务端补齐）

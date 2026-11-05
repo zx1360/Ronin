@@ -6,7 +6,7 @@ part of 'essay_notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$essayServiceHash() => r'b2e8f74c48a7e061704e34e264984a7b7fdb4a8e';
+String _$essayServiceHash() => r'26f93495953e9935898b18a8085beae09255f1ff';
 
 /// See also [EssayService].
 @ProviderFor(EssayService)

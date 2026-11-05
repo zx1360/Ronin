@@ -30,6 +30,9 @@ class PersonalizationService {
     }
   }
 
+  Future<void> restoreSettings(AppSettings settings) =>
+      _enqueue(() => _write(settings));
+
   Future<T> _enqueue<T>(Future<T> Function() action) {
     final result = _pending.then((_) => action());
     _pending = result.then<void>((_) {}, onError: (Object _) {});

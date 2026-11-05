@@ -46,17 +46,18 @@ func (y *FlexYear) UnmarshalJSON(data []byte) error {
 
 // EssayArticle 对应 essay_articles 表
 type EssayArticle struct {
-	ID        uuid.UUID       `json:"id"`
-	Date      FlexTime        `json:"date"`
-	WordCount int             `json:"word_count"`
-	Content   string          `json:"content"`
-	Title     string          `json:"title"`
-	Imgs      []string        `json:"imgs"`
-	Labels    []string        `json:"labels"`
-	Messages  json.RawMessage `json:"messages"` // JSON 文本
-	Mood      *string         `json:"mood"`
-	CreatedAt FlexTime        `json:"created_at"`
-	UpdatedAt FlexTime        `json:"updated_at"`
+	ID              uuid.UUID       `json:"id"`
+	Date            FlexTime        `json:"date"`
+	WordCount       int             `json:"word_count"`
+	Content         string          `json:"content"`
+	Title           string          `json:"title"`
+	Imgs            []string        `json:"imgs"`
+	Labels          []string        `json:"labels"`
+	Messages        json.RawMessage `json:"messages"` // JSON 文本
+	Mood            *string         `json:"mood"`
+	CreatedAt       FlexTime        `json:"created_at"`
+	UpdatedAt       FlexTime        `json:"updated_at"`
+	LabelsUpdatedAt *FlexTime       `json:"labels_updated_at,omitempty"`
 }
 
 // EssayLabel 对应 essay_labels 表

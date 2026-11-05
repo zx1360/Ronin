@@ -6,9 +6,9 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$labelsHash() => r'e835979ac8f061670ba042dbda006d3107740b49';
+String _$labelsHash() => r'c6a955d8d203ad05246d7ecf2591d16e9e6a7d76';
 
-/// 所有标签列表（按随笔数量降序排列）
+/// 所有标签列表（按可统计的随笔数量降序排列）
 ///
 /// Copied from [labels].
 @ProviderFor(labels)
@@ -40,7 +40,7 @@ final idMapProvider = AutoDisposeProvider<Map<String, String>>.internal(
 );
 
 typedef IdMapRef = AutoDisposeProviderRef<Map<String, String>>;
-String _$summariesHash() => r'c8c94888f864f9b5251359d1b37ecca403d8d65e';
+String _$summariesHash() => r'8ebdae823b4622c38515bddb70b3dfa171fdca24';
 
 /// 所有年度统计数据（按年份降序排列，每年内月份按升序排列）
 ///
@@ -56,7 +56,7 @@ final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
 );
 
 typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'3c233bcd6644491dee25ca4c00e243bddd6b8a13';
+String _$filteredEssaysHash() => r'a2ec0ad2691c7f6a76ef45f2a4d748ca82116016';
 
 /// 经过筛选和排序的随笔列表
 ///

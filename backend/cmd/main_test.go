@@ -16,13 +16,13 @@ func TestStartupFailureClosesDatabase(t *testing.T) {
 	root := t.TempDir()
 	t.Chdir(root)
 	for key, value := range map[string]string{
-		"STATIC_DIR": filepath.Join(root, "static"), "GALLERY_DIR": filepath.Join(root, "gallery"),
+		"STATIC_DIR": filepath.Join(root, "static"), "DATA_DIR": filepath.Join(root, "data"), "GALLERY_DIR": filepath.Join(root, "gallery"),
 		"DB_FILE": filepath.Join(root, "test.db"), "DB_SCHEMA_FILE": filepath.Join(backend, "references/db/sqlite.sql"),
 		"LOCAL_PORT": "0", "LOCAL_HTTP_PORT": "0", "AI_ENABLED": "false",
 	} {
 		t.Setenv(key, value)
 	}
-	data := filepath.Join(root, "static/data")
+	data := filepath.Join(root, "data")
 	if err := os.MkdirAll(data, 0755); err != nil {
 		t.Fatal(err)
 	}

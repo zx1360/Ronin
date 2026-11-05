@@ -97,11 +97,12 @@ class ChatApiService {
 
   final ApiClient _client;
 
-  Future<ChatServerInfo> info() async {
+  Future<ChatServerInfo> info({CancelToken? cancelToken}) async {
     try {
       final response = await _client.get(
         '/API/ai/chat/info',
         queryParams: {'refresh': 'true'},
+        cancelToken: cancelToken,
       );
       return ChatServerInfo.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {

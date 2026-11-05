@@ -146,7 +146,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
             ],
             const SizedBox(height: 4),
             const Text(
-              '候选实时来自本机 Ollama 的已安装模型（在后端 ollama pull / rm 后刷新即可）。'
+              '这里显示后端 Ollama 中支持对话的已安装模型。'
               '两端选用不同模型时，对话会抢占后台标注并释放显存（原任务会被中断，之后自动重排）。',
               style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
             ),

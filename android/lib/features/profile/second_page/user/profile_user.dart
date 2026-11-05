@@ -165,7 +165,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
   /// 默认头像
   Widget _defaultAvatar() {
     return Image.asset(
-      'assets/icons/six.png',
+      'assets/icons/six.ico',
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => Container(
         color: AppTheme.primaryContainer,

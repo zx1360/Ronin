@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/features/essay/models/essay.dart';
+import 'package:torrid/features/essay/models/label_tree.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/overview/label_distribution_chart.dart';
@@ -60,14 +61,15 @@ class YearOverviewPage extends ConsumerWidget {
   ) {
     final labels = ref.watch(labelsProvider);
     final idMap = ref.watch(idMapProvider);
+    essays = visibleEssays(essays, labels);
 
     // 计算统计数据
-    final stats = _calculateStats(essays, idMap);
+    final stats = _calculateStats(essays);
     final visibleSummary = isAllYears
         ? YearSummary(
             year: '-1',
             essayCount: essays.length,
-            wordCount: essays.fold(0, (sum, e) => sum + e.wordCount),
+            wordCount: essays.fold(0, (sum, e) => sum + e.totalWordCount),
             monthSummaries: [
               for (final year in essays.map((e) => e.year).toSet())
                 MonthSummary(month: year.toString()),
@@ -102,7 +104,7 @@ class YearOverviewPage extends ConsumerWidget {
           if (isAllYears) ...[
             _buildSectionTitle(context, '年度写作趋势'),
             const SizedBox(height: 12),
-            _buildYearlyTrendChart(context, ref),
+            _buildYearlyTrendChart(context, essays),
             const SizedBox(height: 20),
           ],
 
@@ -155,11 +157,11 @@ class YearOverviewPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildYearlyTrendChart(BuildContext context, WidgetRef ref) {
-    final summaries = ref.watch(summariesProvider);
-    // 过滤掉 "-1" 并按年份排序
-    final yearSummaries = summaries.where((s) => s.year != '-1').toList()
-      ..sort((a, b) => int.parse(a.year).compareTo(int.parse(b.year)));
+  Widget _buildYearlyTrendChart(BuildContext context, List<Essay> essays) {
+    final years = essays.map((e) => e.year).toSet().toList()..sort();
+    final yearSummaries = [
+      for (final year in years) YearSummary.fromEssays(year.toString(), essays),
+    ];
 
     if (yearSummaries.isEmpty) {
       return const Center(child: Text('暂无数据'));
@@ -323,10 +325,7 @@ class YearOverviewPage extends ConsumerWidget {
   }
 
   /// 计算各种统计数据
-  Map<String, dynamic> _calculateStats(
-    List<Essay> essays,
-    Map<String, String> idMap,
-  ) {
+  Map<String, dynamic> _calculateStats(List<Essay> essays) {
     if (essays.isEmpty) {
       return {
         'peakMonth': null,
@@ -360,11 +359,11 @@ class YearOverviewPage extends ConsumerWidget {
     // 字数统计
     final maxWords = essays.fold(
       0,
-      (max, e) => e.wordCount > max ? e.wordCount : max,
+      (max, e) => e.totalWordCount > max ? e.totalWordCount : max,
     );
     final minWords = essays.fold(
-      essays.first.wordCount,
-      (min, e) => e.wordCount < min ? e.wordCount : min,
+      essays.first.totalWordCount,
+      (min, e) => e.totalWordCount < min ? e.totalWordCount : min,
     );
 
     // 心情统计

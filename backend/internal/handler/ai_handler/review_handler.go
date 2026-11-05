@@ -39,7 +39,7 @@ var (
 
 func presets() (*config.ReviewPresetStore, error) {
 	reviewStoreOnce.Do(func() {
-		store := config.NewReviewPresetStore(filepath.Join(config.AppConf.StaticDir, "data", "review_presets.json"))
+		store := config.NewReviewPresetStore(filepath.Join(config.AppConf.DataDir, "review_presets.json"))
 		if err := store.Load(); err != nil {
 			reviewStoreErr = err
 			return

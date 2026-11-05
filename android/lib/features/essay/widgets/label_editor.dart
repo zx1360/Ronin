@@ -26,6 +26,7 @@ Future<void> showLabelEditor(
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextFormField(
                 initialValue: name,
@@ -39,16 +40,15 @@ Future<void> showLabelEditor(
                 decoration: const InputDecoration(labelText: '上级标签'),
                 items: [
                   const DropdownMenuItem(value: '', child: Text('根级')),
-                  for (final item in labels.where(
-                    (l) => !excluded.contains(l.id),
-                  ))
-                    DropdownMenuItem(
-                      value: item.id,
-                      child: Text(
-                        labelPath(item, labels),
-                        overflow: TextOverflow.ellipsis,
+                  for (final node in flattenLabels(labels))
+                    if (!excluded.contains(node.label.id))
+                      DropdownMenuItem(
+                        value: node.label.id,
+                        child: Text(
+                          labelPath(node.label, labels),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
                 ],
                 onChanged: busy
                     ? null

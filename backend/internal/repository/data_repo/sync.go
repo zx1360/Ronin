@@ -28,12 +28,13 @@ type Tombstone struct {
 }
 
 type SyncData struct {
-	SyncVersion int                   `json:"sync_version"`
-	Essays      []model.EssayArticle  `json:"essays,omitempty"`
-	Labels      []model.EssayLabel    `json:"labels,omitempty"`
-	Styles      []model.BookletStyle  `json:"styles,omitempty"`
-	Records     []model.BookletRecord `json:"records,omitempty"`
-	Tombstones  []Tombstone           `json:"tombstones,omitempty"`
+	SyncVersion        int                   `json:"sync_version"`
+	EssaySchemaVersion int                   `json:"essay_schema_version,omitempty"`
+	Essays             []model.EssayArticle  `json:"essays,omitempty"`
+	Labels             []model.EssayLabel    `json:"labels,omitempty"`
+	Styles             []model.BookletStyle  `json:"styles,omitempty"`
+	Records            []model.BookletRecord `json:"records,omitempty"`
+	Tombstones         []Tombstone           `json:"tombstones,omitempty"`
 }
 
 type collection struct {
@@ -44,7 +45,7 @@ type collection struct {
 var collections = map[string][]collection{
 	"essay": {
 		{"labels", "essay_labels", "id,name,essay_count,parent_id,created_at,updated_at", ""},
-		{"essays", "essay_articles", "id,date,word_count,content,title,imgs,labels,messages,mood,created_at,updated_at", ",imgs,labels,messages,"},
+		{"essays", "essay_articles", "id,date,word_count,content,title,imgs,labels,messages,mood,created_at,updated_at,labels_updated_at", ",imgs,labels,messages,"},
 	},
 	"booklet": {
 		{"styles", "booklet_styles", "id,start_date,valid_check_in,fully_done,longest_streak,longest_fully_streak,tasks,created_at,updated_at", ",tasks,"},
@@ -110,13 +111,16 @@ func ReadSync(module string, after int64) (map[string]any, error) {
 					switch {
 					case strings.Contains(spec.jsonColumns, ","+column+","):
 						value = json.RawMessage(raw)
-					case column == "created_at" || column == "updated_at" || (column == "date" && module == "essay"):
+					case column == "created_at" || column == "updated_at" || column == "labels_updated_at" || (column == "date" && module == "essay"):
 						value = model.FlexTime(dbutil.Time(raw))
 					case column == "start_date":
 						value = dbutil.Time(raw).UTC().Format("2006-01-02")
 					}
 				}
 				item[column] = value
+			}
+			if spec.name == "essays" && item["labels_updated_at"] == nil {
+				item["labels_updated_at"] = item["updated_at"]
 			}
 			items = append(items, item)
 		}
@@ -264,7 +268,7 @@ func MergeSync(module string, data SyncData) error {
 					return fmt.Errorf("数据 ID 重复: %s", key)
 				}
 				seen[key] = true
-				updated, err := mergeRow(ctx, tx, module, spec, row)
+				updated, err := mergeRow(ctx, tx, module, spec, row, data.EssaySchemaVersion >= model.EssaySchemaVersion)
 				if err != nil {
 					return err
 				}
@@ -380,7 +384,7 @@ func deleteRow(ctx context.Context, tx *sql.Tx, module string, spec collection, 
 	return true, trackChange(ctx, tx, module, spec, id, stamp, true)
 }
 
-func mergeRow(ctx context.Context, tx *sql.Tx, module string, spec collection, row map[string]any) (bool, error) {
+func mergeRow(ctx context.Context, tx *sql.Tx, module string, spec collection, row map[string]any, splitLabels bool) (bool, error) {
 	id, _ := row["id"].(string)
 	var updated model.FlexTime
 	raw, _ := json.Marshal(row["updated_at"])
@@ -391,9 +395,44 @@ func mergeRow(ctx context.Context, tx *sql.Tx, module string, spec collection, r
 		return false, err
 	}
 	stamp := dbutil.TS(updated.Time())
-	current, _, err := rowVersion(ctx, tx, module, spec, id)
-	if err != nil || current >= stamp {
+	current, deleted, err := rowVersion(ctx, tx, module, spec, id)
+	if err != nil {
 		return false, err
+	}
+	changeContent := stamp > current
+	var labelStamp string
+	changeLabels := false
+	if spec.name == "essays" && (changeContent || (splitLabels && !deleted && row["labels_updated_at"] != nil)) {
+		labelStamp = stamp
+		var observed string
+		if raw, ok := row["labels_updated_at"].(string); ok {
+			parsed, err := dbutil.ParseTS(raw)
+			if err != nil {
+				return false, err
+			}
+			if err := validVersion(id, model.FlexTime(parsed)); err != nil {
+				return false, err
+			}
+			observed = dbutil.TS(parsed)
+			if splitLabels {
+				labelStamp = observed
+			}
+		}
+		changeLabels = true
+		if current != "" && !deleted {
+			var previous, labels string
+			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(labels_updated_at, updated_at), json(labels) FROM essay_articles WHERE id=?`, id).Scan(&previous, &labels); err != nil {
+				return false, err
+			}
+			changeLabels = labelStamp > previous
+			if changeLabels && !splitLabels {
+				incoming, _ := json.Marshal(row["labels"])
+				changeLabels = (observed == "" || observed >= previous) && string(incoming) != labels
+			}
+		}
+	}
+	if !changeContent && !changeLabels {
+		return false, nil
 	}
 	if err := validateRow(spec.name, row); err != nil {
 		return false, err
@@ -457,6 +496,8 @@ func mergeRow(ctx context.Context, tx *sql.Tx, module string, spec collection, r
 			value = string(raw)
 		case column == "updated_at":
 			value = stamp
+		case column == "labels_updated_at":
+			value = labelStamp
 		case column == "created_at":
 			value = stamp
 			if text, ok := row[column].(string); ok {
@@ -476,7 +517,13 @@ func mergeRow(ctx context.Context, tx *sql.Tx, module string, spec collection, r
 			}
 		}
 		values = append(values, value)
-		if column != "id" && column != "created_at" {
+		if spec.name == "essays" && (column == "labels" || column == "labels_updated_at") {
+			if changeLabels {
+				assignments = append(assignments, column+"=excluded."+column)
+			} else if column == "labels_updated_at" {
+				assignments = append(assignments, "labels_updated_at=COALESCE(essay_articles.labels_updated_at,essay_articles.updated_at)")
+			}
+		} else if changeContent && column != "id" && column != "created_at" && !(spec.name == "essays" && column == "date") {
 			assignments = append(assignments, column+"=excluded."+column)
 		}
 	}
@@ -484,5 +531,5 @@ func mergeRow(ctx context.Context, tx *sql.Tx, module string, spec collection, r
 	if err != nil {
 		return false, err
 	}
-	return true, trackChange(ctx, tx, module, spec, id, stamp, false)
+	return true, trackChange(ctx, tx, module, spec, id, max(current, stamp), false)
 }

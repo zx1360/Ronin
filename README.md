@@ -27,7 +27,7 @@ Monarch、gizmos CLI 与 comix 爬虫三方共用同一文件(WAL + 单写者模
 
 备份：停止 Monarch 与所有 CLI 后，在仓库根运行 `python backend/tools/backup_local.py --output backend/backups/manual-001`。目标必须是新目录；脚本独占数据库，备份并校验数据库、个人附件和配置，失败清理未完成副本。依赖现有 `python-dotenv`。
 
-恢复时保持停服，先将当前数据库及其 `-wal`/`-shm` 一并移走保存，保留现有附件和配置，再将备份的数据库、`img_storage/`、`data/`、`preferences/` 还原至对应位置；勿混用旧 WAL。`cert/` 还原至 backend，`backend.env` 核对路径后使用。Gallery/Comic 原始文件及手机/浏览器本机数据需单独备份。检查 Python 内核版本：`python -c "import sqlite3; print(sqlite3.sqlite_version)"`。
+恢复时保持停服，先将当前数据库及其 `-wal`/`-shm` 一并移走保存，并保留现有附件和配置。将备份数据库还原至 `DB_FILE`，将 `img_storage/`、`preferences/` 及备份 `data/` 内的配置还原至 `DATA_DIR`（默认 `backend/data/`）。`cert/` 还原至 backend，`backend.env` 核对路径后使用。Gallery/Comic 原始文件及手机/浏览器本机数据需单独备份。检查 Python 内核版本可运行 `python -c "import sqlite3; print(sqlite3.sqlite_version)"`。
 
 ## 本机数据与运维端(Northstar)
 

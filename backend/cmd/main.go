@@ -45,7 +45,7 @@ func run(parent context.Context) error {
 	// 运行时可调的 AI 配置.
 	// .env 里的同名项只作为首次初始化的种子值。
 	store := config.NewConfigStore(
-		filepath.Join(config.AppConf.StaticDir, "data", "ai_config.json"), config.AiConf)
+		filepath.Join(config.AppConf.DataDir, "ai_config.json"), config.AiConf)
 	if err := store.Load(); err != nil {
 		return err
 	}
@@ -55,8 +55,7 @@ func run(parent context.Context) error {
 	}
 	defer db.Close()
 
-	// 网页运维端（ops）的界面偏好存 static/data/ops_web.json，由服务端读写
-	opsStore := config.NewOpsStore(filepath.Join(config.AppConf.StaticDir, "data", "ops_web.json"))
+	opsStore := config.NewOpsStore(filepath.Join(config.AppConf.DataDir, "ops_web.json"))
 	if err := opsStore.Load(); err != nil {
 		return err
 	}

@@ -143,7 +143,15 @@ func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage) (func(
 		}
 		return func() error { return data_repo.MergeSync(cfg.Name, data) }, refs, nil
 	case "preferences":
-		refs, err := preferenceImages(payload["preferences"])
+		prefs, err := readPreferences(payload["preferences"])
+		if err != nil {
+			return nil, nil, err
+		}
+		refs, err := preferenceImages(prefs)
+		if err != nil {
+			return nil, nil, err
+		}
+		payload["preferences"], err = json.Marshal(prefs)
 		if err != nil {
 			return nil, nil, err
 		}

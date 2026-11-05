@@ -25,7 +25,7 @@ final immichFilterNotifierProvider =
 );
 
 typedef _$ImmichFilterNotifier = AutoDisposeNotifier<ImmichFilter>;
-String _$immichMediaHash() => r'9c7e1589f1f228fab37f22612c24c0e1818ae105';
+String _$immichMediaHash() => r'97f4f9692fa7cd42ab5de20c715bbfb5019ece34';
 
 /// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
 ///
@@ -42,7 +42,7 @@ final immichMediaProvider =
 );
 
 typedef _$ImmichMedia = AutoDisposeAsyncNotifier<ImmichMediaPage>;
-String _$immichSelectionHash() => r'5f7caa2197779fa776b3d30b39ec9d51489246c9';
+String _$immichSelectionHash() => r'a0cb5bd73351e136a4e2dd2fc1a93db1f8a4a670';
 
 /// 选中集合
 ///
@@ -60,7 +60,7 @@ final immichSelectionProvider =
 );
 
 typedef _$ImmichSelection = AutoDisposeNotifier<Set<String>>;
-String _$immichActionsHash() => r'5140c85787a0b539875e76e5810c240e8630a03a';
+String _$immichActionsHash() => r'941f07b143b8097ce47715ebd98b3bb5defe9b3f';
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 ///

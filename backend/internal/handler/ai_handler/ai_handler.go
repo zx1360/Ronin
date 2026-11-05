@@ -406,7 +406,8 @@ func RebuildIndex(c *gin.Context) {
 // Search 处理 GET /API/ai/search
 //
 // 参数：q 文本查询；mode=auto|semantic|keyword|filename；tag_ids / include_descendants /
-// person_ids / vlm_tags / mime_type / from / to 结构化筛选；limit / offset 分页。
+// person_ids / vlm_tags / mime_type / from / to / include_deleted 结构化筛选；limit / offset 分页。
+// sort_by=captured_at 可在语义检索中按拍摄时间排序。
 func Search(c *gin.Context) {
 	e := engine(c)
 	if e == nil || !schemaGuard(c) {
@@ -904,7 +905,7 @@ func GetSettings(c *gin.Context) {
 
 // UpdateSettings 处理 PUT /API/ai/settings
 //
-// 字段全部可选：未传（null）表示不改动。写入 <STATIC_DIR>/data/ai_config.json 后
+// 字段全部可选：未传（null）表示不改动。写入 DATA_DIR/ai_config.json 后
 // 立即生效，不必重启进程。
 func UpdateSettings(c *gin.Context) {
 	e := engine(c)
@@ -1003,6 +1004,7 @@ func buildSearchRequest(c *gin.Context) (ai.SearchRequest, error) {
 		Mode:               strings.TrimSpace(c.Query("mode")),
 		MediaID:            strings.TrimSpace(c.Query("media_id")),
 		IncludeDescendants: c.Query("include_descendants") == "true",
+		IncludeDeleted:     c.Query("include_deleted") == "true",
 		MimeType:           strings.TrimSpace(c.Query("mime_type")),
 		SortBy:             strings.TrimSpace(c.Query("sort_by")),
 		SortOrder:          strings.TrimSpace(c.Query("sort_order")),

@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
 
+Future<bool> confirmAlbumDeletion(BuildContext context, int count) =>
+    showImmichConfirmDialog(
+      context,
+      title: '标记待删除',
+      message:
+          '将 $count 项标记为待删除，捆绑成员会随主文件一同标记。'
+          '在桌面端执行处理前，可开启「含待删除」恢复。',
+      confirmText: '标记待删除',
+      danger: true,
+    );
+
 /// 文本输入对话框; 返回 null 表示取消
 Future<String?> showImmichTextDialog(
   BuildContext context, {
@@ -76,8 +87,9 @@ class _ImmichTextDialog extends StatefulWidget {
 }
 
 class _ImmichTextDialogState extends State<_ImmichTextDialog> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.initial);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
 
   @override
   void dispose() {

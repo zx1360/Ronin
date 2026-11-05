@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// 回顾预设（角色 + 语气）存 <STATIC_DIR>/data/review_presets.json。
+// 回顾预设（角色 + 语气）存 DATA_DIR/review_presets.json。
 //
 // 服务端文件是唯一权威，端上只做本地镜像缓存；写入按"整体替换"语义，
 // 与用户数据同步一致，避免两端各自增删导致列表分叉。

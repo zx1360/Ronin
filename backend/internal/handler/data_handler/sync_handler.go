@@ -1,13 +1,13 @@
 package data_handler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 
+	"monarch/internal/model"
 	"monarch/internal/repository/data_repo"
 
 	"github.com/gin-gonic/gin"
@@ -55,6 +55,10 @@ func syncFromDB(c *gin.Context, moduleName string) {
 		}
 		return
 	}
+	if moduleName == "essay" {
+		version, _ := strconv.Atoi(c.Query("essay_schema_version"))
+		data["essay_schema_version"] = model.EssaySchemaFor(version)
+	}
 	c.JSON(http.StatusOK, data)
 }
 
@@ -70,15 +74,13 @@ func syncFromFiles(c *gin.Context, moduleConfig *ModuleConfig) {
 			return
 		}
 
-		var data interface{}
-		if err := json.Unmarshal(content, &data); err != nil {
+		data, err := readPreferences(content)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "解析文件 " + filepath.Base(filePath) + " 失败: " + err.Error()})
 			return
 		}
 
-		key := filepath.Base(filePath)
-		key = key[:len(key)-len(filepath.Ext(key))]
-		mergedData[key] = data
+		mergedData[fileKey(filePath)] = data
 	}
 
 	c.JSON(http.StatusOK, mergedData)
