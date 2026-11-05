@@ -8,11 +8,16 @@ import (
 	"strings"
 )
 
-func preferenceImages(raw json.RawMessage) (map[string]bool, error) {
+func readPreferences(raw json.RawMessage) (map[string]json.RawMessage, error) {
 	var prefs map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &prefs); err != nil || prefs == nil {
 		return nil, fmt.Errorf("缺少有效的 preferences 对象")
 	}
+	delete(prefs, "networkConfig")
+	return prefs, nil
+}
+
+func preferenceImages(prefs map[string]json.RawMessage) (map[string]bool, error) {
 	refs, paths := map[string]bool{}, map[string]string{}
 	add := func(image, dir string) error {
 		if image == "" {
@@ -62,29 +67,6 @@ func preferenceImages(raw json.RawMessage) (map[string]bool, error) {
 		if field == "avatarPath" {
 			if err := add(value, "avatar"); err != nil {
 				return nil, err
-			}
-		}
-	}
-	if raw, exists := prefs["networkConfig"]; exists {
-		var network struct {
-			APIKey      *string `json:"apiKey"`
-			HostList    *string `json:"hostList"`
-			ActiveIndex *int    `json:"activeIndex"`
-		}
-		if json.Unmarshal(raw, &network) != nil || network.APIKey == nil || network.HostList == nil || network.ActiveIndex == nil {
-			return nil, fmt.Errorf("偏好的网络配置无效")
-		}
-		hosts := []struct{ Host, Port *string }{}
-		if *network.HostList != "" && (json.Unmarshal([]byte(*network.HostList), &hosts) != nil || hosts == nil) {
-			return nil, fmt.Errorf("偏好的主机列表无效")
-		}
-		index := *network.ActiveIndex
-		if index < 0 || (len(hosts) == 0 && index != 0) || (len(hosts) > 0 && index >= len(hosts)) {
-			return nil, fmt.Errorf("偏好的激活下标无效")
-		}
-		for _, host := range hosts {
-			if host.Host == nil || host.Port == nil {
-				return nil, fmt.Errorf("偏好的主机配置无效")
 			}
 		}
 	}

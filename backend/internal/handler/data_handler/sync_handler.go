@@ -1,7 +1,6 @@
 package data_handler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -70,15 +69,13 @@ func syncFromFiles(c *gin.Context, moduleConfig *ModuleConfig) {
 			return
 		}
 
-		var data interface{}
-		if err := json.Unmarshal(content, &data); err != nil {
+		data, err := readPreferences(content)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "解析文件 " + filepath.Base(filePath) + " 失败: " + err.Error()})
 			return
 		}
 
-		key := filepath.Base(filePath)
-		key = key[:len(key)-len(filepath.Ext(key))]
-		mergedData[key] = data
+		mergedData[fileKey(filePath)] = data
 	}
 
 	c.JSON(http.StatusOK, mergedData)

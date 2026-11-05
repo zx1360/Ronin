@@ -5,7 +5,7 @@
 // 一页 60 条由服务端 limit/offset 分页，命中数可能远多于 60，故结果区自己滚动并支持续取。
 
 import { ref, computed, onMounted, onUnmounted } from '../../vue.js';
-import { api, assetUrl } from '../../api.js';
+import { api } from '../../api.js';
 import { toast } from '../../store.js';
 import { Card, Placeholder, Badge, MediaTile } from '../../ui.js';
 import { formatBytes, formatTime } from '../../utils.js';
@@ -202,14 +202,10 @@ export default {
       }
       const form = new FormData();
       form.append('image', file, file.name);
-      const url = assetUrl('/API/ai/search/image?' + buildQuery(false, offset));
-      return requestResults(async () => {
-        const response = await fetch(url, { method: 'POST', body: form, cache: 'no-store' });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) throw new Error('HTTP ' + response.status + (payload && payload.error ? ': ' + payload.error : ''));
-        if (!payload) throw new Error('检索响应为空或格式无效');
-        return payload;
-      }, 'image', offset, append);
+      return requestResults(
+        () => api.post('/API/ai/search/image?' + buildQuery(false, offset), form, { timeoutMs: 600000 }),
+        'image', offset, append,
+      );
     };
 
     const similarTo = async (id) => {

@@ -259,7 +259,7 @@ class NetworkConfigManager extends _$NetworkConfigManager {
       if (discovered.isEmpty) {
         state = state.copyWith(
           isDiscovering: false,
-          message: '未发现局域网内的 Monarch 服务',
+          message: '未发现局域网内的 Monarch 服务。使用 VPN 时可手动填写服务器地址。',
         );
         return discovered;
       }
@@ -308,20 +308,15 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 
 /// 单个服务器地址的连通性探测（"host:port" 为键）
 ///
-/// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+/// keepAlive 保证页面重建不会反复重测；
 /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
 @Riverpod(keepAlive: true)
 Future<bool> serverReachable(ServerReachableRef ref, String address) async {
-  final apiKey =
-      ref.watch(networkConfigManagerProvider.select((s) => s.apiKey));
-
   final dio = CertTrust.createDio(
     options: BaseOptions(
       baseUrl: 'https://$address',
       connectTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 8),
-      headers:
-          apiKey.isNotEmpty ? {'X-API-Key': apiKey} : const <String, String>{},
     ),
   );
 
@@ -330,5 +325,7 @@ Future<bool> serverReachable(ServerReachableRef ref, String address) async {
     return resp.statusCode == 200;
   } catch (_) {
     return false;
+  } finally {
+    dio.close();
   }
 }

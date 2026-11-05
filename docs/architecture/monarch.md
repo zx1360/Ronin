@@ -49,9 +49,8 @@ Gin middleware
 
 ### 鉴权模型
 
-- 通用接口需要 `X-API-Key`；图片等不能加 header 的资源允许 `api_key` 查询参数。
-- 漫画只读 GET、`/API/test` 和 Ops 本机接口由选择性鉴权规则放行；漫画修改仍需密钥。
-- Ops 本机接口由 `LocalOnly` 校验 TCP 回环、Host 与浏览器来源。
+- 业务 API 和媒体使用 `X-API-Key`。未配置密钥时只接受本机同源请求。
+- `/API/test` 免鉴权。Ops 页面和本机接口由 `LocalOnly` 校验 TCP 回环、Host 与浏览器来源，网页资源的 `api_key` 查询参数也受此限制。
 - 非回环错误 API key 按 IP 计数并持久化封禁；回环地址永不封禁，避免 bootstrap/密钥轮换把本机锁死。
 
 ## 4. SQLite 设计

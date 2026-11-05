@@ -1,6 +1,7 @@
 package util_handler
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 // APIKeyAuth 校验密钥，并按 TCP 对端地址记录鉴权失败。回环地址不封禁。
 func APIKeyAuth(banLogPath string) gin.HandlerFunc {
 	limiter := newIPRateLimiter(banLogPath)
+	localOnly := LocalOnly()
 	return func(c *gin.Context) {
 		peerIsLocal := isLoopbackAddr(c.Request.RemoteAddr)
 		clientIP, _, _ := net.SplitHostPort(c.Request.RemoteAddr)
@@ -26,17 +28,24 @@ func APIKeyAuth(banLogPath string) gin.HandlerFunc {
 
 		expectedKey := os.Getenv("API_KEY_SERVER")
 		if expectedKey == "" {
-			c.Next()
+			if peerIsLocal {
+				localOnly(c)
+				return
+			}
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "服务端未配置 API 密钥"})
 			return
 		}
 
 		apiKey := c.GetHeader("X-API-Key")
-		if apiKey == "" {
-			// 浏览器无法给 <img>/<a> 附加请求头，图片等直接嵌入的资源
-			// 只能用查询参数携带密钥（网页运维端与 Monarch 同机同源）。
+		useQuery := apiKey == "" && peerIsLocal && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead)
+		if useQuery {
 			apiKey = c.Query("api_key")
 		}
-		if apiKey == expectedKey {
+		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(expectedKey)) == 1 {
+			if useQuery {
+				localOnly(c)
+				return
+			}
 			c.Next()
 			return
 		}

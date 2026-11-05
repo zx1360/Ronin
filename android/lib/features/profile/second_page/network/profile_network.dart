@@ -149,7 +149,7 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
             child: TextField(
               controller: _apiKeyController,
               decoration: InputDecoration(
-                hintText: '请输入API Key（可选）',
+                hintText: '请输入服务端 API Key',
                 border: const OutlineInputBorder(),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,

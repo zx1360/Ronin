@@ -1,10 +1,12 @@
 package router
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,13 +22,20 @@ import (
 
 // SetupRouter 构建全部路由与中间件。
 func SetupRouter() *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.LoggerWithFormatter(func(p gin.LogFormatterParams) string {
+		return fmt.Sprintf("[HTTP] %s %d %s %s %q\n", p.TimeStamp.Format("2006-01-02 15:04:05"),
+			p.StatusCode, p.Latency, p.Method, p.Request.URL.EscapedPath())
+	}), gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, recovered any) {
+		log.Printf("[HTTP] 请求处理异常 (%T)\n%s", recovered, debug.Stack())
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 
-	// 漫画只读请求、测试接口及本机网页免密，其余需要 X-API-Key。
 	r.Use(selectiveAuth(filepath.Join(config.AppConf.StaticDir, "logs.txt")))
 
-	// 静态资源响应
-	r.Static("/static", config.AppConf.StaticDir)
+	for _, dir := range []string{"comics", "img_storage/booklet", "img_storage/essay", "img_storage/preferences"} {
+		r.Static("/static/"+dir, filepath.Join(config.AppConf.StaticDir, filepath.FromSlash(dir)))
+	}
 
 	// 网页运维端（ops）：由后端内置 HTTP 服务托管，仅本机可打开
 	setupOpsWeb(r)
@@ -50,7 +59,7 @@ func SetupRouter() *gin.Engine {
 			userDataGroup.POST("/check-images/:module", data_handler.CheckImagesHandler)
 		}
 
-		// 漫画读取免鉴权；修改需要 X-API-Key。
+		// 漫画读取与修改。
 		comicGroup := api.Group("/comic")
 		{
 			// 漫画列表 & 详情

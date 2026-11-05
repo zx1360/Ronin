@@ -7,7 +7,7 @@ part of 'transfer_controller.dart';
 // **************************************************************************
 
 String _$transferControllerHash() =>
-    r'3020f07936434d1d074c823d178735faa9efc5cd';
+    r'b4464b86d9b3dba9b254262e65330a1b476fc6ea';
 
 /// See also [TransferController].
 @ProviderFor(TransferController)
