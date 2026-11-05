@@ -88,6 +88,9 @@ func startMDNS(portStr string) func() {
 		log.Printf("[mDNS] 端口解析失败，跳过注册: %v", err)
 		return func() {}
 	}
+	if port == 0 {
+		return func() {}
+	}
 	hostname, _ := os.Hostname()
 	server, err := mdns.Register(mdns.ServiceInfo{
 		Instance: fmt.Sprintf("Monarch on %s", hostname), Port: port,
