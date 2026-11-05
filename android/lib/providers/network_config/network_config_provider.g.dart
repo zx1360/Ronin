@@ -6,7 +6,7 @@ part of 'network_config_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serverReachableHash() => r'b6e249130b05c3935cd8ded5daa3d1df753e3cc0';
+String _$serverReachableHash() => r'688b767fc3437af09e7187b4e722ecb29a01e6dc';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -31,7 +31,7 @@ class _SystemHash {
 
 /// 单个服务器地址的连通性探测（"host:port" 为键）
 ///
-/// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+/// keepAlive 保证页面重建不会反复重测；
 /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
 ///
 /// Copied from [serverReachable].
@@ -40,14 +40,14 @@ const serverReachableProvider = ServerReachableFamily();
 
 /// 单个服务器地址的连通性探测（"host:port" 为键）
 ///
-/// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+/// keepAlive 保证页面重建不会反复重测；
 /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
 ///
 /// Copied from [serverReachable].
 class ServerReachableFamily extends Family<AsyncValue<bool>> {
   /// 单个服务器地址的连通性探测（"host:port" 为键）
   ///
-  /// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+  /// keepAlive 保证页面重建不会反复重测；
   /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
   ///
   /// Copied from [serverReachable].
@@ -55,7 +55,7 @@ class ServerReachableFamily extends Family<AsyncValue<bool>> {
 
   /// 单个服务器地址的连通性探测（"host:port" 为键）
   ///
-  /// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+  /// keepAlive 保证页面重建不会反复重测；
   /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
   ///
   /// Copied from [serverReachable].
@@ -93,14 +93,14 @@ class ServerReachableFamily extends Family<AsyncValue<bool>> {
 
 /// 单个服务器地址的连通性探测（"host:port" 为键）
 ///
-/// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+/// keepAlive 保证页面重建不会反复重测；
 /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
 ///
 /// Copied from [serverReachable].
 class ServerReachableProvider extends FutureProvider<bool> {
   /// 单个服务器地址的连通性探测（"host:port" 为键）
   ///
-  /// keepAlive 保证页面重建不会反复重测；地址或 API Key 变化时自动重新探测，
+  /// keepAlive 保证页面重建不会反复重测；
   /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
   ///
   /// Copied from [serverReachable].
@@ -186,7 +186,7 @@ class _ServerReachableProviderElement extends FutureProviderElement<bool>
 }
 
 String _$networkConfigManagerHash() =>
-    r'a53702f0f0c9f6cbf9b1b44eaf6e84c095377942';
+    r'9d140f97a6275bef33184d6ba1efe9aee79faaef';
 
 /// 网络配置管理Provider
 ///

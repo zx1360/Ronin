@@ -13,7 +13,6 @@ import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/services/essay_contract.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
-import 'package:torrid/providers/network_config/network_config_provider.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
 import 'preferences_transfer.dart';
@@ -179,7 +178,6 @@ class TransferController extends _$TransferController {
         }
       });
       if (target == TransferTarget.preferences) {
-        await ref.read(networkConfigManagerProvider.notifier).refresh();
         ref.read(appSettingsProvider.notifier).refresh();
       }
       _completeTransfer(true, '${target.displayName}同步完成');
@@ -262,11 +260,8 @@ class TransferController extends _$TransferController {
           final service = ref.read(essayServiceProvider.notifier);
           data = await service.packUp();
         case TransferTarget.preferences:
-          final preferences = packPreferences(
-            ref.read(networkConfigManagerProvider),
-          );
           data = {
-            'jsonData': jsonEncode({'preferences': preferences}),
+            'jsonData': jsonEncode({'preferences': packPreferences()}),
           };
         case TransferTarget.all:
           throw StateError('请指定数据模块');
