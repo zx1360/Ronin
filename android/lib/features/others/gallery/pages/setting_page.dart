@@ -179,7 +179,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                           data: (stats) {
                             return Text(
                               "待标记: ${stats.mediaCount} 条 (含已删除 ${stats.deletedCount} 条)\n"
-                              "标记队列前段为已处理并从本地移除(数据已实时同步)",
+                              "回传成功后移除这批媒体的本地缓存",
                               style: const TextStyle(fontSize: 12),
                             );
                           },

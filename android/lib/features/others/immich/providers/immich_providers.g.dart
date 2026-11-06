@@ -60,7 +60,7 @@ final immichSelectionProvider =
 );
 
 typedef _$ImmichSelection = AutoDisposeNotifier<Set<String>>;
-String _$immichActionsHash() => r'9fa0991a43acf928d8709b84f7ffb7734779bcd6';
+String _$immichActionsHash() => r'acca71bef0ea58e6c3fa8931a367f1676692bb29';
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 ///

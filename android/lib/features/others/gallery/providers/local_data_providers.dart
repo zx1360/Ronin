@@ -46,7 +46,7 @@ class GalleryLocalDataController extends _$GalleryLocalDataController {
     var confirmedWrites = false;
     try {
       if (!preservesEdits) {
-        await buffer.confirmAndLock();
+        await buffer.confirmAndLock(requireConnection: false);
         confirmedWrites = true;
         if ((await ref.read(galleryDatabaseProvider).operations()).any(
           (op) => op.kind == 'processed',

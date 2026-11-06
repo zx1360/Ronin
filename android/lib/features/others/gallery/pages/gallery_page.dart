@@ -77,6 +77,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   @override
   void initState() {
     super.initState();
+    ref.read(galleryWriteBufferProvider).retry();
     _initStorage();
   }
 

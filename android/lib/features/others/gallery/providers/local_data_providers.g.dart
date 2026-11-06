@@ -7,7 +7,7 @@ part of 'local_data_providers.dart';
 // **************************************************************************
 
 String _$galleryLocalDataControllerHash() =>
-    r'78b49df9077266a5200e517227e4ea5503086468';
+    r'f420b146692c0eba1b22335197cac84de1dd15b0';
 
 /// 本地缓存的清空动作。
 ///

@@ -300,7 +300,9 @@ class ImmichActions extends _$ImmichActions {
   @override
   bool build() => false;
 
-  Future<void> _run(Future<List<MediaAsset>?> Function() action) async {
+  Future<void> _run(
+    Future<List<MediaAsset>?> Function(GalleryApiService) action,
+  ) async {
     if (state) throw StateError('正在提交另一项操作');
     final keepAlive = ref.keepAlive();
     state = true;
@@ -341,9 +343,8 @@ class ImmichActions extends _$ImmichActions {
     List<String> remove = const [],
   }) async {
     if (mediaIds.isEmpty || (add.isEmpty && remove.isEmpty)) return;
-    final api = ref.read(galleryApiProvider);
     final db = ref.read(galleryDatabaseProvider);
-    await _run(() async {
+    await _run((api) async {
       await retryServerWrite(
         () => api.batchMediaTags(
           mediaIds: mediaIds,
@@ -380,9 +381,8 @@ class ImmichActions extends _$ImmichActions {
     MediaPatchIntent intent,
   ) async {
     if (mediaIds.isEmpty) return;
-    final api = ref.read(galleryApiProvider);
     final db = ref.read(galleryDatabaseProvider);
-    await _run(() async {
+    await _run((api) async {
       final updated = await retryServerWrite(
         () => api.patchMedia(mediaIds: mediaIds, intent: intent),
       );

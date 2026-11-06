@@ -12,7 +12,6 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
-import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'gallery_sync_service.g.dart';
 
@@ -99,7 +98,6 @@ class GallerySyncService extends _$GallerySyncService {
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
-    final apiClient = ref.read(apiClientManagerProvider);
     final buffer = ref.read(galleryWriteBufferProvider);
     var confirmedWrites = false;
 
@@ -111,7 +109,7 @@ class GallerySyncService extends _$GallerySyncService {
         total: 0,
       );
 
-      await buffer.confirmAndLock();
+      final apiClient = await buffer.confirmAndLock();
       confirmedWrites = true;
       if ((await db.operations()).any((op) => op.kind == 'processed')) {
         throw StateError('请先重试完成上次的标记已处理');
@@ -314,7 +312,6 @@ class GallerySyncService extends _$GallerySyncService {
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
-    final api = ref.read(galleryApiProvider);
     final buffer = ref.read(galleryWriteBufferProvider);
     var confirmedWrites = false;
 
@@ -325,8 +322,9 @@ class GallerySyncService extends _$GallerySyncService {
       );
 
       state = state.copyWith(message: '正在回传并校验操作...');
-      await buffer.confirmAndLock();
+      final client = await buffer.confirmAndLock();
       confirmedWrites = true;
+      final api = GalleryApiService(client);
 
       final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
       final upperIndex = processedUpperIndex(
@@ -367,15 +365,11 @@ class GallerySyncService extends _$GallerySyncService {
       final mediaIds = processedAssets.map((a) => a.id).toList();
 
       if (saved == null) {
-        await db.recordOperation(
-          ref.read(apiClientManagerProvider).baseUrl,
-          'processed',
-          {
-            'media_ids': mediaIds,
-            'mark_processed': true,
-            'request_id': const Uuid().v4(),
-          },
-        );
+        await db.recordOperation('processed', {
+          'media_ids': mediaIds,
+          'mark_processed': true,
+          'request_id': const Uuid().v4(),
+        });
       }
       final completion = saved ?? (await db.operations()).last;
       await api.sendOperation(completion);

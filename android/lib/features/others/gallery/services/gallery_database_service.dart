@@ -17,7 +17,7 @@ class GalleryDatabaseService {
 
   static Database? _database;
   static const String _dbName = 'gallery.db';
-  static const int _dbVersion = 5;
+  static const int _dbVersion = 6;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -74,7 +74,19 @@ class GalleryDatabaseService {
         'ALTER TABLE tags ADD COLUMN media_count INTEGER NOT NULL DEFAULT 0',
       );
     }
-    if (oldVersion < 5) await _createOperations(db);
+    if (oldVersion < 5) {
+      await _createOperations(db);
+    } else if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE gallery_operations RENAME TO gallery_operations_v5',
+      );
+      await _createOperations(db);
+      await db.execute('''
+        INSERT INTO gallery_operations (seq, kind, body, synced)
+        SELECT seq, kind, body, synced FROM gallery_operations_v5
+      ''');
+      await db.execute('DROP TABLE gallery_operations_v5');
+    }
   }
 
   /// 创建表结构 - 与服务端字段保持一致（仅本地缓存，权威在服务端）
