@@ -41,12 +41,13 @@ class SiglipEmbedder:
 
     # ---------- 加载 ----------
 
-    def ensure_loaded(self, params: Dict[str, Any] | None = None) -> None:
+    def ensure_loaded(self, params: Dict[str, Any] | None = None, *, text: bool = False) -> None:
         self._device = str((params or {}).get("device", "auto"))
-        if self._vision is None:
+        if text:
+            if self._text is None:
+                self._load_text()
+        elif self._vision is None:
             self._load_vision()
-        if self._text is None:
-            self._load_text()
 
     def loaded_models(self) -> List[str]:
         names = []
@@ -77,8 +78,8 @@ class SiglipEmbedder:
         path = directory / VISION_FILE
         if not path.is_file():
             raise FileNotFoundError(f"缺少模型文件 {path}（运行 tools/ai/install.ps1）")
-        self._vision = self._session(path)
         self._read_preprocessor(directory)
+        self._vision = self._session(path)
 
     def _load_text(self) -> None:
         from tokenizers import Tokenizer
@@ -91,11 +92,11 @@ class SiglipEmbedder:
         if not tokenizer_path.is_file():
             raise FileNotFoundError(f"缺少分词器 {tokenizer_path}（运行 tools/ai/install.ps1）")
 
-        self._text = self._session(model_path)
+        self._read_preprocessor(directory)
         tokenizer = Tokenizer.from_file(str(tokenizer_path))
         tokenizer.enable_truncation(max_length=self._max_length)
         tokenizer.enable_padding(length=self._max_length)
-        self._tokenizer = tokenizer
+        self._text, self._tokenizer = self._session(model_path), tokenizer
         log("分词器已就绪")
 
     def _read_preprocessor(self, directory: Path) -> None:

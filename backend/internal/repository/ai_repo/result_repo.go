@@ -243,8 +243,8 @@ func LoadEmbeddings(ctx context.Context, kind, modelName string) ([]EmbeddingRow
 }
 
 // EmbeddingCount 统计向量条数（用于判断内存索引是否需要重建）。
-func EmbeddingCount(kind, modelName string) (int, error) {
-	ctx, cancel := db.GetDefaultCtx()
+func EmbeddingCount(ctx context.Context, kind, modelName string) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	var n int
 	err := db.Read().QueryRowContext(ctx,
@@ -770,7 +770,7 @@ func searchOrder(f SearchFilters) (field, direction string) {
 	return field, direction
 }
 
-// SearchMediaIDs 返回满足条件的媒体 ID 及总数。
+// SearchMediaIDs 返回满足条件的媒体 ID 及总数。不分页且未指定排序时返回无序 ID。
 func SearchMediaIDs(ctx context.Context, f SearchFilters) ([]uuid.UUID, int, error) {
 	where, args, err := searchWhere(f)
 	if err != nil {
@@ -786,10 +786,14 @@ func SearchMediaIDs(ctx context.Context, f SearchFilters) ([]uuid.UUID, int, err
 		}
 	}
 
-	field, direction := searchOrder(f)
+	order := ""
+	if !unpaged || f.SortBy != "" {
+		field, direction := searchOrder(f)
+		order = fmt.Sprintf("ORDER BY %s %s, m.id ASC", field, direction)
+	}
 	query := fmt.Sprintf(`
 		SELECT m.id FROM media_assets m
-		WHERE %s ORDER BY %s %s, m.id ASC LIMIT ? OFFSET ?`, where, field, direction)
+		WHERE %s %s LIMIT ? OFFSET ?`, where, order)
 
 	rows, err := db.Read().QueryContext(ctx, query, append(args, f.Limit, f.Offset)...)
 	if err != nil {

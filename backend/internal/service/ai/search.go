@@ -25,7 +25,10 @@ const (
 	ModeFilename = "filename"
 )
 
-const keywordBoost = 0.25
+const (
+	keywordBoost       = 0.25
+	smartSearchTimeout = 8 * time.Second
+)
 
 // SearchRequest 组合搜索请求。
 type SearchRequest struct {
@@ -103,23 +106,29 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 		return e.plainSearch(ctx, filters, query, mode, limit, req.Offset)
 	}
 
-	vector, err := e.queryVector(ctx, query, req.MediaID, req.ImagePath)
-	if err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if req.MediaID != "" || req.ImagePath != "" {
-			return nil, err
-		}
-		// 语义链路不可用时退化为关键词检索，保证搜索框始终有结果
-		fallback, fallbackErr := e.plainSearch(ctx, filters, query, ModeKeyword, limit, req.Offset)
-		if fallbackErr != nil {
-			return nil, fallbackErr
-		}
-		return fallback, nil
+	textOnly := req.MediaID == "" && req.ImagePath == ""
+	smartText := mode == ModeAuto && textOnly
+	semanticCtx := ctx
+	if smartText {
+		var cancel context.CancelFunc
+		semanticCtx, cancel = context.WithTimeout(ctx, smartSearchTimeout)
+		defer cancel()
 	}
 
-	return e.semanticSearch(ctx, filters, query, req.MediaID, vector, limit, req.Offset, req.MinScore, req.SemanticLimit)
+	vector, err := e.queryVector(semanticCtx, query, req.MediaID, req.ImagePath)
+	if err == nil {
+		result, searchErr := e.semanticSearch(semanticCtx, filters, query, req.MediaID, vector, limit, req.Offset, req.MinScore, req.SemanticLimit)
+		if searchErr == nil || !smartText || semanticCtx.Err() == nil {
+			return result, searchErr
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !textOnly {
+		return nil, err
+	}
+	return e.plainSearch(ctx, filters, query, ModeKeyword, limit, req.Offset)
 }
 
 // queryVector 生成查询向量：优先复用库内媒体的向量，其次对图片/文本实时编码。
@@ -224,7 +233,7 @@ func (e *Engine) plainSearch(ctx context.Context, filters ai_repo.SearchFilters,
 	if err != nil {
 		return nil, err
 	}
-	hits, err := buildHits(ids, nil, []string{source})
+	hits, err := buildHits(ctx, ids, nil, []string{source})
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +266,9 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 	candidateFilters := filters
 	candidateFilters.Limit = -1
 	candidateFilters.Offset = 0
+	if filters.SortBy != "captured_at" {
+		candidateFilters.SortBy = ""
+	}
 	candidateIDs, _, err := ai_repo.SearchMediaIDs(ctx, candidateFilters)
 	if err != nil {
 		return nil, err
@@ -300,6 +312,7 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 		keywordFilters.Keyword = query
 		keywordFilters.Limit = -1
 		keywordFilters.Offset = 0
+		keywordFilters.SortBy = ""
 		if keywordIDs, _, err := ai_repo.SearchMediaIDs(ctx, keywordFilters); err == nil {
 			for _, id := range keywordIDs {
 				if excludeErr == nil && id == excluded {
@@ -342,7 +355,7 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 	for i, id := range page {
 		pageScores[i] = scores[id]
 	}
-	hitList, err := buildHits(page, pageScores, nil)
+	hitList, err := buildHits(ctx, page, pageScores, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -368,11 +381,11 @@ func paginate(ids []uuid.UUID, offset, limit int) []uuid.UUID {
 }
 
 // buildHits 按给定顺序取回媒体资产并组装命中列表。
-func buildHits(ids []uuid.UUID, scores []float32, sources []string) ([]model.AiSearchHit, error) {
+func buildHits(ctx context.Context, ids []uuid.UUID, scores []float32, sources []string) ([]model.AiSearchHit, error) {
 	if len(ids) == 0 {
 		return []model.AiSearchHit{}, nil
 	}
-	assets, err := gallery_repo.FetchMediaAssetsByIDs(ids)
+	assets, err := gallery_repo.FetchMediaAssetsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +428,7 @@ func (e *Engine) SimilarMedia(ctx context.Context, mediaID uuid.UUID, limit int)
 		ids = append(ids, hit.MediaID)
 		scores = append(scores, hit.Score)
 	}
-	list, err := buildHits(ids, scores, []string{"semantic"})
+	list, err := buildHits(ctx, ids, scores, []string{"semantic"})
 	if err != nil {
 		return nil, err
 	}

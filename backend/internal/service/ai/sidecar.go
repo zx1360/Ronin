@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	"monarch/internal/config"
 )
 
@@ -83,7 +85,7 @@ type Sidecar struct {
 	cfg        config.AiConfig
 	getCfg     func() config.AiConfig
 
-	mu     sync.Mutex
+	mu     *semaphore.Weighted
 	proc   *exec.Cmd
 	stdin  io.WriteCloser
 	stdout *bufio.Reader
@@ -100,7 +102,7 @@ type Sidecar struct {
 
 // NewSidecar 创建侧车管理器（不启动进程）。
 func NewSidecar(capability string, cfg config.AiConfig, getCfg func() config.AiConfig) *Sidecar {
-	return &Sidecar{capability: capability, cfg: cfg, getCfg: getCfg}
+	return &Sidecar{capability: capability, cfg: cfg, getCfg: getCfg, mu: semaphore.NewWeighted(1)}
 }
 
 // currentConfig 返回当前配置快照（无提供者时退回启动期配置）。
@@ -263,8 +265,10 @@ func drainStderr(capability string, reader io.Reader) {
 // 返回的 results 可能少于 items（进程中途异常），调用方按 ID 匹配，
 // 未匹配到的任务计为失败并进入重试。
 func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []SidecarItem) ([]BatchResult, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if err := s.mu.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	defer s.mu.Release(1)
 
 	s.stateMu.RLock()
 	closed := s.closed
@@ -281,25 +285,23 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 		expected = 1 // ping 握手
 	}
 
-	if err := s.writeRequest(params, items); err != nil {
-		s.killLocked()
-		return nil, err
-	}
-
 	results := make([]BatchResult, 0, expected)
-	var readErr error
+	var batchErr error
 	done := make(chan struct{})
 
-	// 读取协程只能持有管道本身：中断路径会在它还在读的时候把 s.stdout 置空
-	// （killLocked/stopLocked），再去读字段就会踩空指针把整个服务打崩。
-	reader := s.stdout
+	// 中断会清空字段，协程只使用当前批次的管道。
+	stdin, reader := s.stdin, s.stdout
 
 	go func() {
 		defer close(done)
+		if err := s.writeRequest(stdin, params, items); err != nil {
+			batchErr = err
+			return
+		}
 		for len(results) < expected {
 			line, err := reader.ReadBytes('\n')
 			if err != nil {
-				readErr = err
+				batchErr = fmt.Errorf("%s 侧车读取失败: %w", s.capability, err)
 				return
 			}
 			trimmed := strings.TrimSpace(string(line))
@@ -308,7 +310,7 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 			}
 			var resp sidecarResponse
 			if err := json.Unmarshal([]byte(trimmed), &resp); err != nil {
-				readErr = fmt.Errorf("解析侧车响应失败: %w (原文: %.200s)", err, trimmed)
+				batchErr = fmt.Errorf("%s 侧车响应格式错误: %w (原文: %.200s)", s.capability, err, trimmed)
 				return
 			}
 			results = append(results, BatchResult{
@@ -325,11 +327,11 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 
 	select {
 	case <-done:
-		s.touch()
-		if readErr != nil {
+		if batchErr != nil {
 			s.killLocked()
-			return results, fmt.Errorf("%s 侧车读取失败: %w", s.capability, readErr)
+			return results, batchErr
 		}
+		s.touch()
 		return results, nil
 	case <-ctx.Done():
 		s.killLocked()
@@ -345,8 +347,8 @@ func (s *Sidecar) touch() {
 	s.stateMu.Unlock()
 }
 
-func (s *Sidecar) writeRequest(params map[string]any, items []SidecarItem) error {
-	writer := bufio.NewWriter(s.stdin)
+func (s *Sidecar) writeRequest(stdin io.Writer, params map[string]any, items []SidecarItem) error {
+	writer := bufio.NewWriter(stdin)
 	encoder := json.NewEncoder(writer)
 	encoder.SetEscapeHTML(false)
 
@@ -397,10 +399,10 @@ func (s *Sidecar) supervise(ctx context.Context) {
 
 func (s *Sidecar) reapIdle() {
 	// 批次持有会话锁；执行中的模型不属于空闲进程。
-	if !s.mu.TryLock() {
+	if !s.mu.TryAcquire(1) {
 		return
 	}
-	defer s.mu.Unlock()
+	defer s.mu.Release(1)
 	idle := s.currentConfig().IdleTimeout
 	if idle <= 0 {
 		idle = 120 * time.Second
@@ -423,13 +425,13 @@ func (s *Sidecar) Stop() {
 	s.stateMu.RUnlock()
 	if proc != nil {
 		killProcessTree(proc)
-		s.mu.Lock()
+		_ = s.mu.Acquire(context.Background(), 1)
 		if s.proc == proc {
 			s.proc, s.stdin, s.stdout = nil, nil, nil
 			s.clearProcRef(proc)
 			_ = proc.Wait()
 		}
-		s.mu.Unlock()
+		s.mu.Release(1)
 	}
 }
 
@@ -439,9 +441,9 @@ func (s *Sidecar) Shutdown() {
 	s.closed = true
 	s.stateMu.Unlock()
 
-	s.mu.Lock()
+	_ = s.mu.Acquire(context.Background(), 1)
 	s.stopLocked()
-	s.mu.Unlock()
+	s.mu.Release(1)
 }
 
 // stopLocked 关闭 stdin 让侧车自然退出，超时未退则强杀。

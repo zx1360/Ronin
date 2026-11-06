@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/semaphore"
 
 	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
@@ -28,7 +29,7 @@ const vectorStaleCheck = 30 * time.Second
 // 足够快，且索引可随时丢弃重建，不引入任何外部扩展。
 type Index struct {
 	model  string
-	loadMu sync.Mutex
+	loadMu *semaphore.Weighted
 
 	mu         sync.RWMutex
 	ids        []uuid.UUID
@@ -49,6 +50,7 @@ type Index struct {
 func NewIndex(model string) *Index {
 	return &Index{
 		model:   model,
+		loadMu:  semaphore.NewWeighted(1),
 		phashes: map[uuid.UUID]int64{},
 		ignores: map[uuid.UUID]struct{}{},
 	}
@@ -107,11 +109,10 @@ func (ix *Index) InvalidateIgnores() {
 // EnsureLoaded 确保向量索引可用；每隔 vectorStaleCheck 抽查一次数据库条数，
 // 发现变化（例如批量处理完成后）则整体重建。
 func (ix *Index) EnsureLoaded(ctx context.Context) error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
-	if err := ctx.Err(); err != nil {
+	if err := ix.loadMu.Acquire(ctx, 1); err != nil {
 		return err
 	}
+	defer ix.loadMu.Release(1)
 	ix.mu.Lock()
 	ix.lastUsed = time.Now()
 	loaded := ix.loaded
@@ -122,7 +123,7 @@ func (ix *Index) EnsureLoaded(ctx context.Context) error {
 	}
 
 	if loaded {
-		count, err := ai_repo.EmbeddingCount("image", ix.model)
+		count, err := ai_repo.EmbeddingCount(ctx, "image", ix.model)
 		if err != nil {
 			return err
 		}
@@ -139,8 +140,10 @@ func (ix *Index) EnsureLoaded(ctx context.Context) error {
 
 // Reload 从数据库整体重建向量索引。
 func (ix *Index) Reload(ctx context.Context) error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
+	if err := ix.loadMu.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer ix.loadMu.Release(1)
 	return ix.reload(ctx)
 }
 
@@ -156,6 +159,9 @@ func (ix *Index) reload(ctx context.Context) error {
 	dim := 0
 
 	for _, row := range rows {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if row.Dim <= 0 || len(row.Vec) != row.Dim {
 			continue
 		}
@@ -298,8 +304,8 @@ func (ix *Index) dimOf() int {
 
 // EnsurePHashes 载入全部感知哈希。
 func (ix *Index) EnsurePHashes() error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
+	_ = ix.loadMu.Acquire(context.Background(), 1)
+	defer ix.loadMu.Release(1)
 	ix.mu.Lock()
 	ix.lastUsed = time.Now()
 	ready := ix.phashReady
@@ -322,8 +328,8 @@ func (ix *Index) EnsurePHashes() error {
 
 // EnsureIgnores 载入"非重复"标记集合。
 func (ix *Index) EnsureIgnores() error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
+	_ = ix.loadMu.Acquire(context.Background(), 1)
+	defer ix.loadMu.Release(1)
 	ix.mu.Lock()
 	ix.lastUsed = time.Now()
 	ready := ix.ignoresReady

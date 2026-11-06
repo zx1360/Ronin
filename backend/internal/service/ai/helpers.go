@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -28,5 +29,5 @@ func fetchAssets(ids []uuid.UUID) ([]model.MediaAsset, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	return gallery_repo.FetchMediaAssetsByIDs(ids)
+	return gallery_repo.FetchMediaAssetsByIDs(context.Background(), ids)
 }
