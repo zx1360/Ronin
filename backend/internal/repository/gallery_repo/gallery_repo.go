@@ -285,7 +285,7 @@ func FetchGalleryOverview() (*model.GalleryOverview, error) {
 
 // FetchMediaAssetByID 根据 ID 获取单个媒体资产（不存在时返回 nil, nil）
 func FetchMediaAssetByID(id uuid.UUID) (*model.MediaAsset, error) {
-	assets, err := FetchMediaAssetsByIDs([]uuid.UUID{id})
+	assets, err := FetchMediaAssetsByIDs(context.Background(), []uuid.UUID{id})
 	if err != nil || len(assets) == 0 {
 		return nil, err
 	}
@@ -293,11 +293,11 @@ func FetchMediaAssetByID(id uuid.UUID) (*model.MediaAsset, error) {
 }
 
 // FetchMediaAssetsByIDs 按 ID 批量获取媒体（保持 captured_at 升序）
-func FetchMediaAssetsByIDs(ids []uuid.UUID) ([]model.MediaAsset, error) {
+func FetchMediaAssetsByIDs(ctx context.Context, ids []uuid.UUID) ([]model.MediaAsset, error) {
 	if len(ids) == 0 {
 		return []model.MediaAsset{}, nil
 	}
-	ctx, cancel := db.GetDefaultCtx()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	clause, args := inClause(ids)

@@ -171,7 +171,7 @@ func TestAiWrites(t *testing.T) {
 	if row.Dim != 8 || len(row.Vec) != 8 || row.Vec[0] != 1 {
 		t.Fatalf("向量内容不符: %+v", row)
 	}
-	if n, err := ai_repo.EmbeddingCount("image", "test-model"); err != nil || n != 1 {
+	if n, err := ai_repo.EmbeddingCount(t.Context(), "image", "test-model"); err != nil || n != 1 {
 		t.Fatalf("向量计数不符: n=%d err=%v", n, err)
 	}
 
