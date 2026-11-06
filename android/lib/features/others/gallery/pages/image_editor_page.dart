@@ -196,6 +196,7 @@ class _ImageEditorPageState extends ConsumerState<ImageEditorPage> {
                     style: TextStyle(color: Colors.white70),
                   ),
                   TextButton(
+                    style: TextButton.styleFrom(foregroundColor: Colors.white),
                     onPressed: () {
                       setState(() => _imageFailed = false);
                       _resolveImage();

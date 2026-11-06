@@ -268,9 +268,10 @@ class ImmichSelection extends _$ImmichSelection {
   void clear() => state = {};
 }
 
-final immichDeletionRevisionProvider = StateProvider.autoDispose<int>(
-  (ref) => 0,
-);
+final immichMediaUpdateProvider =
+    StateProvider.autoDispose<
+      ({List<MediaAsset> assets, bool changesVisibility})?
+    >((ref) => null);
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 @riverpod
@@ -328,68 +329,37 @@ class ImmichActions extends _$ImmichActions {
     });
   }
 
-  /// 软删除/恢复
-  Future<void> setDeleted(List<String> mediaIds, bool deleted) async {
-    if (mediaIds.isEmpty) return;
-    final api = ref.read(galleryApiProvider);
-    final db = ref.read(galleryDatabaseProvider);
-    await _run(() async {
-      final updated = await retryServerWrite(
-        () => api.patchMedia(
-          mediaIds: mediaIds,
-          intent: MediaPatchIntent(isDeleted: deleted),
-        ),
-      );
-      await db.updateMediaAssetsLocal(updated);
-      ref.read(immichDeletionRevisionProvider.notifier).state++;
-    });
-  }
+  Future<void> setDeleted(List<String> mediaIds, bool deleted) =>
+      _patchMedia(mediaIds, MediaPatchIntent(isDeleted: deleted));
 
   /// 设置备注（空串清空）
-  Future<void> setMessage(List<String> mediaIds, String message) async {
+  Future<void> setMessage(List<String> mediaIds, String message) =>
+      _patchMedia(mediaIds, MediaPatchIntent(message: message));
+
+  /// 捆绑到主文件
+  Future<void> bundle(String leadId, List<String> memberIds) =>
+      _patchMedia(memberIds, MediaPatchIntent(groupId: leadId));
+
+  /// 解绑
+  Future<void> unbundle(List<String> memberIds) =>
+      _patchMedia(memberIds, const MediaPatchIntent(clearGroup: true));
+
+  Future<void> _patchMedia(
+    List<String> mediaIds,
+    MediaPatchIntent intent,
+  ) async {
     if (mediaIds.isEmpty) return;
     final api = ref.read(galleryApiProvider);
     final db = ref.read(galleryDatabaseProvider);
     await _run(() async {
       final updated = await retryServerWrite(
-        () => api.patchMedia(
-          mediaIds: mediaIds,
-          intent: MediaPatchIntent(message: message),
-        ),
+        () => api.patchMedia(mediaIds: mediaIds, intent: intent),
       );
       await db.updateMediaAssetsLocal(updated);
-    });
-  }
-
-  /// 捆绑到主文件
-  Future<void> bundle(String leadId, List<String> memberIds) async {
-    if (memberIds.isEmpty) return;
-    final api = ref.read(galleryApiProvider);
-    final db = ref.read(galleryDatabaseProvider);
-    await _run(() async {
-      final updated = await retryServerWrite(
-        () => api.patchMedia(
-          mediaIds: memberIds,
-          intent: MediaPatchIntent(groupId: leadId),
-        ),
+      ref.read(immichMediaUpdateProvider.notifier).state = (
+        assets: updated,
+        changesVisibility: intent.isDeleted != null,
       );
-      await db.updateMediaAssetsLocal(updated);
-    });
-  }
-
-  /// 解绑
-  Future<void> unbundle(List<String> memberIds) async {
-    if (memberIds.isEmpty) return;
-    final api = ref.read(galleryApiProvider);
-    final db = ref.read(galleryDatabaseProvider);
-    await _run(() async {
-      final updated = await retryServerWrite(
-        () => api.patchMedia(
-          mediaIds: memberIds,
-          intent: const MediaPatchIntent(clearGroup: true),
-        ),
-      );
-      await db.updateMediaAssetsLocal(updated);
     });
   }
 }

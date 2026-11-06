@@ -272,6 +272,10 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
             onClear: _clearSelection,
             onAddTags: () =>
                 _addTags(selected.map((asset) => asset.id).toList()),
+            onBundle: selected.length >= 2 ? () => _bundle(selected) : null,
+            onUnbundle: selected.any((asset) => asset.isGroupMember)
+                ? () => _unbundle(selected)
+                : null,
             onDelete: selected.any((asset) => !asset.isDeleted)
                 ? () => _setDeleted(selected, true)
                 : null,
@@ -307,6 +311,23 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
       deleted ? '已标记待删除，可在「含待删除」中恢复' : '已恢复 ${ids.length} 项',
     );
   }
+
+  Future<void> _bundle(List<MediaAsset> selected) async {
+    final bundle = await showImmichBundleDialog(context, selected);
+    if (!mounted || bundle == null) return;
+    await _submit(
+      (actions) => actions.bundle(bundle.leadId, bundle.memberIds),
+      '已捆绑所选媒体',
+    );
+  }
+
+  Future<void> _unbundle(List<MediaAsset> selected) => _submit(
+    (actions) => actions.unbundle([
+      for (final asset in selected)
+        if (asset.isGroupMember) asset.id,
+    ]),
+    '已解绑所选成员',
+  );
 
   Future<void> _submit(
     Future<void> Function(ImmichActions) action,

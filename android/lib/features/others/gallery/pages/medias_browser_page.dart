@@ -277,7 +277,6 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           PopupMenuButton<GalleryGridPreviewMode>(
             icon: const Icon(Icons.grid_view, size: 20),
             tooltip: '预览模式',
-            color: Colors.grey[900],
             onSelected: (mode) {
               ref
                   .read(galleryGridPreviewModeNotifierProvider.notifier)

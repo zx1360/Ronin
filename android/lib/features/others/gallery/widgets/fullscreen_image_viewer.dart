@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 
 /// 全屏图片查看器 (支持缩放和双击放大)
@@ -49,7 +50,7 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.mediaOverlay,
         foregroundColor: Colors.white,
         elevation: 0,
         title: Text(

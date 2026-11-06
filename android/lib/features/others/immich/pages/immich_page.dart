@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
@@ -69,7 +70,8 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
       appBar: AppBar(
         leading: const BackButton(),
         title: const Text('相册'),
-        bottom: TabBar(
+        bottom: AppTheme.appBarTabs(
+          Theme.of(context).colorScheme,
           controller: _tabs,
           tabs: const [
             Tab(text: '照片'),
@@ -143,8 +145,12 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
                   ? () => _setDeleted(selected, false)
                   : null,
               onMessage: _editSelectionMessage,
-              onBundle: selected.length >= 2 ? _bundleSelection : null,
-              onUnbundle: _unbundleSelection,
+              onBundle: selected.length >= 2
+                  ? () => _bundleSelection(selected)
+                  : null,
+              onUnbundle: selected.any((asset) => asset.isGroupMember)
+                  ? () => _unbundleSelection(selected)
+                  : null,
               onClear: _clearSelection,
               onShare: () {
                 showMediaShareDialog(
@@ -612,32 +618,22 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
     );
   }
 
-  Future<void> _bundleSelection() async {
-    final ids = _selectedIdsOrdered;
-    if (ids.length < 2) {
-      _snack('请至少选择两个媒体');
-      return;
-    }
-    final assets = _assetsByIds(ids, ref.read(immichMediaProvider).valueOrNull);
-    if (assets.length < 2) {
-      _snack('请至少选择两个媒体');
-      return;
-    }
-    final leadId = await showImmichLeadPicker(context, assets);
-    if (!mounted || leadId == null) return;
-    final members = [
-      for (final id in ids)
-        if (id != leadId) id,
-    ];
+  Future<void> _bundleSelection(List<MediaAsset> selected) async {
+    final bundle = await showImmichBundleDialog(context, selected);
+    if (!mounted || bundle == null) return;
     await _run(
-      () => ref.read(immichActionsProvider.notifier).bundle(leadId, members),
-      ok: '已捆绑 ${members.length} 项',
+      () => ref
+          .read(immichActionsProvider.notifier)
+          .bundle(bundle.leadId, bundle.memberIds),
+      ok: '已捆绑所选媒体',
     );
   }
 
-  Future<void> _unbundleSelection() async {
-    final ids = _selectedIdsOrdered;
-    if (ids.isEmpty) return;
+  Future<void> _unbundleSelection(List<MediaAsset> selected) async {
+    final ids = [
+      for (final asset in selected)
+        if (asset.isGroupMember) asset.id,
+    ];
     await _run(
       () => ref.read(immichActionsProvider.notifier).unbundle(ids),
       ok: '已解绑 ${ids.length} 项',
