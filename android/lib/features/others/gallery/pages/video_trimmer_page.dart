@@ -232,6 +232,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
                         ),
                       ),
                       TextButton(
+                        style: TextButton.styleFrom(foregroundColor: Colors.white),
                         onPressed: () {
                           setState(() => _initError = null);
                           _load();

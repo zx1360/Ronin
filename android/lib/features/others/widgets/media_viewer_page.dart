@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/video_player_widget.dart';
 import 'package:torrid/features/others/services/media_share_service.dart';
@@ -84,7 +85,7 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
       extendBodyBehindAppBar: true,
       appBar: _chromeVisible
           ? AppBar(
-              backgroundColor: Colors.black54,
+              backgroundColor: AppTheme.mediaOverlay,
               foregroundColor: Colors.white,
               elevation: 0,
               title: Column(

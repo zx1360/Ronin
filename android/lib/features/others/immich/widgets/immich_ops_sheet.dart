@@ -9,6 +9,7 @@ import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
+import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 
 class ImmichSelectionBar extends StatelessWidget {
   final int count;
@@ -40,15 +41,16 @@ class ImmichSelectionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final actions = [
       (Icons.label_outline, '加标签', onAddTags),
+      (Icons.link, '捆绑', onBundle),
       (Icons.delete_outline, '标记待删除', onDelete),
       (Icons.restore, '恢复', onRestore),
+      (Icons.link_off, '解绑', onUnbundle),
       (Icons.share, '分享', onShare),
       (Icons.label_off_outlined, '移除标签', onRemoveTags),
-      (Icons.link, '捆绑', onBundle),
-      (Icons.link_off, '解绑', onUnbundle),
       (Icons.edit_note, '备注', onMessage),
     ];
     return Material(
@@ -75,7 +77,8 @@ class ImmichSelectionBar extends StatelessWidget {
                       if (action != null)
                         InkWell(
                           onTap: busy ? null : action,
-                          child: Padding(
+                          child: Container(
+                            constraints: const BoxConstraints(minWidth: 48),
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -86,10 +89,7 @@ class ImmichSelectionBar extends StatelessWidget {
                                   color: busy ? scheme.outline : null,
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
-                                  label,
-                                  style: Theme.of(context).textTheme.labelSmall,
-                                ),
+                                Text(label, style: theme.textTheme.labelMedium),
                               ],
                             ),
                           ),
@@ -351,14 +351,21 @@ class _TagPickerSheetState extends ConsumerState<_TagPickerSheet> {
 
 // 捆绑主文件选择
 
-/// 选择捆绑主文件; 返回选中的媒体 id, null 表示取消
-Future<String?> showImmichLeadPicker(
+Future<({String leadId, List<String> memberIds})?> showImmichBundleDialog(
   BuildContext context,
   List<MediaAsset> assets,
-) {
-  return showDialog<String>(
+) async {
+  final leadId = await showDialog<String>(
     context: context,
     builder: (_) => _LeadPickerDialog(assets: assets),
+  );
+  if (leadId == null) return null;
+  return (
+    leadId: leadId,
+    memberIds: [
+      for (final asset in assets)
+        if (asset.id != leadId) asset.id,
+    ],
   );
 }
 
@@ -372,10 +379,13 @@ class _LeadPickerDialog extends StatefulWidget {
 }
 
 class _LeadPickerDialogState extends State<_LeadPickerDialog> {
-  late String _leadId = widget.assets.first.id;
+  bool _canLead(MediaAsset asset) => !asset.isDeleted && asset.isGroupLead;
+
+  late String? _leadId = widget.assets.where(_canLead).firstOrNull?.id;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AlertDialog(
       title: const Text('选择主文件'),
       content: SizedBox(
@@ -384,9 +394,11 @@ class _LeadPickerDialogState extends State<_LeadPickerDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '其余文件将捆绑到主文件, 不再单独显示。',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              _leadId == null
+                  ? '所选媒体中没有可作为主文件的项。'
+                  : '其余所选文件会加入主文件。若其中已有捆绑组，组内成员会一并移入。',
+              style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             ConstrainedBox(
@@ -397,24 +409,36 @@ class _LeadPickerDialogState extends State<_LeadPickerDialog> {
                 itemBuilder: (context, index) {
                   final asset = widget.assets[index];
                   final selected = asset.id == _leadId;
+                  final canLead = _canLead(asset);
                   return ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(
+                    enabled: canLead,
+                    selected: selected,
+                    leading: SizedBox.square(
+                      dimension: 40,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: ImmichThumb(asset: asset),
+                      ),
+                    ),
+                    trailing: Icon(
                       selected
                           ? Icons.radio_button_checked
                           : Icons.radio_button_unchecked,
                       size: 20,
-                      color: selected
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.grey,
                     ),
                     title: Text(
                       _fileName(asset.filePath),
                       style: const TextStyle(fontSize: 13),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    onTap: () => setState(() => _leadId = asset.id),
+                    subtitle: canLead
+                        ? null
+                        : Text(asset.isDeleted ? '待删除' : '已是其他主文件的成员'),
+                    onTap: canLead
+                        ? () => setState(() => _leadId = asset.id)
+                        : null,
                   );
                 },
               ),
@@ -428,7 +452,9 @@ class _LeadPickerDialogState extends State<_LeadPickerDialog> {
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, _leadId),
+          onPressed: _leadId == null
+              ? null
+              : () => Navigator.pop(context, _leadId),
           child: const Text('捆绑'),
         ),
       ],

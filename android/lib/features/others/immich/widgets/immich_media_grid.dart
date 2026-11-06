@@ -1,8 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:intl/intl.dart';
+import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 服务端缩略图 (始终在线, 直连局域网后端并附带 API Key)
@@ -255,14 +256,32 @@ class _MediaTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (asset.isVideo)
-                  const Icon(
-                    Icons.play_circle_fill,
-                    size: 16,
-                    color: Colors.white70,
+                if (asset.isVideo || asset.isGroupMember)
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.mediaOverlay,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (asset.isVideo)
+                          const Icon(
+                            Icons.play_circle_fill,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        if (asset.isGroupMember)
+                          const Icon(
+                            Icons.link,
+                            size: 14,
+                            color: Colors.white,
+                            semanticLabel: '捆绑成员',
+                          ),
+                      ],
+                    ),
                   ),
-                if (asset.isGroupMember)
-                  const Icon(Icons.link, size: 14, color: Colors.white70),
                 if (asset.isDeleted)
                   Container(
                     margin: const EdgeInsets.only(top: 2),
@@ -271,12 +290,15 @@ class _MediaTile extends StatelessWidget {
                       vertical: 1,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.85),
+                      color: scheme.errorContainer,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text(
+                    child: Text(
                       '待删除',
-                      style: TextStyle(fontSize: 9, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: scheme.onErrorContainer,
+                      ),
                     ),
                   ),
               ],

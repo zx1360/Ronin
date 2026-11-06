@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/modals/confirm_modal.dart';
 import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/core/utils/util.dart';
@@ -269,13 +270,15 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
       child: Scaffold(
         appBar: AppBar(
           title: Text(_draft.original == null ? '写随笔' : '编辑随笔'),
+          actionsPadding: const EdgeInsetsDirectional.only(end: 12),
           actions: [
             IconButton(
               tooltip: '丢弃草稿',
               onPressed: _busy ? null : _discard,
               icon: const Icon(Icons.delete_outline),
             ),
-            TextButton(
+            FilledButton(
+              style: AppTheme.appBarActionStyle(Theme.of(context).colorScheme),
               onPressed: _busy ? null : _saveEssay,
               child: const Text('保存随笔'),
             ),

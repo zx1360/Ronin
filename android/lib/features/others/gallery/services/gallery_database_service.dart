@@ -223,11 +223,19 @@ class GalleryDatabaseService {
     final db = await database;
     await db.transaction((txn) async {
       if (preserveOperations && await _hasOperations(txn)) return;
+      final groupIds = {
+        for (final asset in assets)
+          if (asset.groupId case final id?) id,
+      };
+      final cachedGroups = (await _getCachedMediaIds(txn, groupIds)).toSet();
       final batch = txn.batch();
       for (final asset in assets) {
+        final values = asset.toDbMap();
+        // 主文件未下载时，缓存成员仍可单独浏览。
+        if (!cachedGroups.contains(asset.groupId)) values['group_id'] = null;
         batch.update(
           'media_assets',
-          asset.toDbMap(),
+          values,
           where: 'id = ?',
           whereArgs: [asset.id],
         );
@@ -520,14 +528,22 @@ class GalleryDatabaseService {
   /// 过滤出本地已缓存的媒体 ID（避免写关联时触发外键约束）
   Future<List<String>> getCachedMediaIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
-    final db = await database;
-    final placeholders = List.filled(ids.length, '?').join(',');
-    final maps = await db.rawQuery(
-      'SELECT id FROM media_assets WHERE id IN ($placeholders)',
-      ids,
-    );
-    return [for (final m in maps) m['id'] as String];
+    return _getCachedMediaIds(await database, ids);
   }
+
+  Future<List<String>> _getCachedMediaIds(
+    DatabaseExecutor db,
+    Iterable<String> ids,
+  ) async => [
+    for (final chunk in _mediaChunks(ids))
+      for (final row in await db.query(
+        'media_assets',
+        columns: ['id'],
+        where: 'id IN (${List.filled(chunk.length, '?').join(',')})',
+        whereArgs: chunk,
+      ))
+        row['id'] as String,
+  ];
 
   /// 获取关联记录总数
   Future<int> getMediaTagLinkCount() async {

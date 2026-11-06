@@ -116,7 +116,7 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
                         '${index + 1} / $total',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.outline,
+                          color: AppTheme.onSurfaceVariant,
                         ),
                       ),
                     ],

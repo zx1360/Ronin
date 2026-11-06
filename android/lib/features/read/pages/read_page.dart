@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/read/views/periodic_view.dart';
 import 'package:torrid/features/read/views/media_view.dart';
 import 'package:torrid/features/read/views/hotlists_view.dart';
@@ -16,11 +17,8 @@ class ReadPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('阅读页'),
-          bottom: TabBar(
-            labelColor: colorScheme.onPrimary,
-            unselectedLabelColor: colorScheme.onPrimary.withAlpha(179),
-            indicatorColor: colorScheme.onPrimary,
-            indicatorWeight: 3,
+          bottom: AppTheme.appBarTabs(
+            colorScheme,
             tabs: const [
               Tab(text: '周期资讯'),
               Tab(text: '图片视频'),
