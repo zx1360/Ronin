@@ -7,7 +7,7 @@ part of 'immich_providers.dart';
 // **************************************************************************
 
 String _$immichFilterNotifierHash() =>
-    r'954be08e16d85d8394a6ec841341c694bf73fd1c';
+    r'1a9257ee9a67ab9c8a02d8206638c4abced59ca8';
 
 /// 筛选条件 Provider
 ///
@@ -25,7 +25,7 @@ final immichFilterNotifierProvider =
 );
 
 typedef _$ImmichFilterNotifier = AutoDisposeNotifier<ImmichFilter>;
-String _$immichMediaHash() => r'40b2221791968b22adefc3c5612ad9d2c4e73dbf';
+String _$immichMediaHash() => r'5e563d24771d06ced37ef24c20898dace7c23d23';
 
 /// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
 ///
@@ -60,7 +60,7 @@ final immichSelectionProvider =
 );
 
 typedef _$ImmichSelection = AutoDisposeNotifier<Set<String>>;
-String _$immichActionsHash() => r'acca71bef0ea58e6c3fa8931a367f1676692bb29';
+String _$immichActionsHash() => r'1d76ba369c56a5a128c444f5cad34a0455b16256';
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 ///

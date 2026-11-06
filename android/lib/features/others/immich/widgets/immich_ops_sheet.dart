@@ -5,20 +5,19 @@ import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
-import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
+import 'package:torrid/features/others/immich/widgets/immich_tag_picker.dart';
 
 class ImmichSelectionBar extends StatelessWidget {
   final int count;
   final bool busy;
   final VoidCallback onClear;
-  final VoidCallback? onAddTags;
+  final ValueChanged<bool> onEditTags;
   final VoidCallback? onDelete;
   final VoidCallback? onRestore;
-  final VoidCallback? onRemoveTags;
   final VoidCallback? onMessage;
   final VoidCallback? onBundle;
   final VoidCallback? onUnbundle;
@@ -29,10 +28,9 @@ class ImmichSelectionBar extends StatelessWidget {
     required this.count,
     required this.busy,
     required this.onClear,
-    this.onAddTags,
+    required this.onEditTags,
     this.onDelete,
     this.onRestore,
-    this.onRemoveTags,
     this.onMessage,
     this.onBundle,
     this.onUnbundle,
@@ -44,13 +42,13 @@ class ImmichSelectionBar extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final actions = [
-      (Icons.label_outline, '加标签', onAddTags),
+      (Icons.label_outline, '加标签', () => onEditTags(false)),
+      (Icons.label_off_outlined, '移除标签', () => onEditTags(true)),
       (Icons.link, '捆绑', onBundle),
       (Icons.delete_outline, '标记待删除', onDelete),
       (Icons.restore, '恢复', onRestore),
       (Icons.link_off, '解绑', onUnbundle),
       (Icons.share, '分享', onShare),
-      (Icons.label_off_outlined, '移除标签', onRemoveTags),
       (Icons.edit_note, '备注', onMessage),
     ];
     return Material(
@@ -116,236 +114,6 @@ class ImmichSelectionBar extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// 标签选择弹窗
-
-/// 标签选择弹窗 (树状, 支持搜索); 返回勾选的标签 id 集合, null 表示取消
-///
-/// [restrictTo] 非空时改为平铺列出指定标签 (用于"移除标签")
-Future<Set<String>?> showImmichTagPicker(
-  BuildContext context, {
-  String title = '选择标签',
-  Set<String> initialChecked = const {},
-  Set<String>? restrictTo,
-}) {
-  return showModalBottomSheet<Set<String>>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => _TagPickerSheet(
-      title: title,
-      initialChecked: initialChecked,
-      restrictTo: restrictTo,
-    ),
-  );
-}
-
-class _TagPickerSheet extends ConsumerStatefulWidget {
-  final String title;
-  final Set<String> initialChecked;
-  final Set<String>? restrictTo;
-
-  const _TagPickerSheet({
-    required this.title,
-    required this.initialChecked,
-    this.restrictTo,
-  });
-
-  @override
-  ConsumerState<_TagPickerSheet> createState() => _TagPickerSheetState();
-}
-
-class _TagPickerSheetState extends ConsumerState<_TagPickerSheet> {
-  late final Set<String> _checked = {...widget.initialChecked};
-  final Set<String> _expanded = {};
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
-  bool _expandInitialized = false;
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tagsAsync = ref.watch(tagTreeProvider);
-    return SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.75,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                TextButton(
-                  onPressed: _checked.isEmpty
-                      ? null
-                      : () => setState(() => _checked.clear()),
-                  child: const Text('清空'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, _checked),
-                  child: Text(
-                    _checked.isEmpty ? '确定' : '确定 (${_checked.length})',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: '搜索标签名或路径',
-                prefixIcon: const Icon(Icons.search, size: 18),
-                isDense: true,
-                border: const OutlineInputBorder(),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-              onChanged: (value) =>
-                  setState(() => _query = value.trim().toLowerCase()),
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: tagsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Text('标签加载失败: $error',
-                    style: const TextStyle(fontSize: 12)),
-              ),
-              data: (tags) {
-                if (tags.isEmpty) {
-                  return const Center(
-                    child: Text('暂无标签',
-                        style: TextStyle(color: Colors.grey, fontSize: 13)),
-                  );
-                }
-                return widget.restrictTo != null
-                    ? _buildFlatList(tags)
-                    : _buildTreeList(tags);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 平铺模式 (仅列出指定标签)
-  Widget _buildFlatList(List<Tag> tags) {
-    final restrict = widget.restrictTo!;
-    final matched = [
-      for (final tag in tags)
-        if (restrict.contains(tag.id))
-          if (_query.isEmpty ||
-              tag.name.toLowerCase().contains(_query) ||
-              (tag.fullPath ?? '').toLowerCase().contains(_query))
-            tag,
-    ]..sort(
-        (a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name),
-      );
-    if (matched.isEmpty) return _buildNoMatch();
-    return ListView.builder(
-      itemCount: matched.length,
-      itemBuilder: (context, index) => _buildTile(
-        tag: matched[index],
-        depth: 0,
-        hasChildren: false,
-        expanded: false,
-        showPath: true,
-      ),
-    );
-  }
-
-  /// 树状模式
-  Widget _buildTreeList(List<Tag> tags) {
-    _initExpanded(tags);
-    final childrenMap = groupTagsByParent(tags);
-    final searching = _query.isNotEmpty;
-    final visible = searching ? matchedTagIds(tags, _query) : null;
-    if (searching && visible!.isEmpty) return _buildNoMatch();
-    final nodes = flattenTagTree(
-      childrenMap,
-      visible: visible,
-      expanded: _expanded,
-    );
-    return ListView.builder(
-      itemCount: nodes.length,
-      itemBuilder: (context, index) {
-        final node = nodes[index];
-        return _buildTile(
-          tag: node.tag,
-          depth: node.depth,
-          hasChildren: node.hasChildren,
-          expanded: _expanded.contains(node.tag.id),
-          showPath: false,
-        );
-      },
-    );
-  }
-
-  Widget _buildNoMatch() => const Center(
-        child: Text('未找到匹配的标签',
-            style: TextStyle(color: Colors.grey, fontSize: 13)),
-      );
-
-  Widget _buildTile({
-    required Tag tag,
-    required int depth,
-    required bool hasChildren,
-    required bool expanded,
-    required bool showPath,
-  }) {
-    return CheckboxListTile(
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      controlAffinity: ListTileControlAffinity.leading,
-      contentPadding: EdgeInsets.only(left: 8 + depth * 16.0, right: 4),
-      value: _checked.contains(tag.id),
-      onChanged: (_) => setState(() {
-        if (!_checked.remove(tag.id)) _checked.add(tag.id);
-      }),
-      title: Text(tag.name, style: const TextStyle(fontSize: 14)),
-      subtitle: showPath && tag.fullPath != null && tag.fullPath != tag.name
-          ? Text(tag.fullPath!,
-              style: const TextStyle(fontSize: 11),
-              overflow: TextOverflow.ellipsis)
-          : null,
-      secondary: hasChildren
-          ? IconButton(
-              icon: Icon(
-                expanded ? Icons.expand_less : Icons.expand_more,
-                size: 18,
-              ),
-              onPressed: () => setState(() {
-                if (!_expanded.remove(tag.id)) _expanded.add(tag.id);
-              }),
-            )
-          : null,
-    );
-  }
-
-  void _initExpanded(List<Tag> tags) {
-    if (_expandInitialized) return;
-    _expandInitialized = true;
-    final childrenMap = groupTagsByParent(tags);
-    for (final entry in childrenMap.entries) {
-      if (entry.key.isEmpty) continue;
-      _expanded.add(entry.key);
-    }
   }
 }
 

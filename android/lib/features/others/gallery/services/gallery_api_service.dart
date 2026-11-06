@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/network/api_client.dart';
+import 'package:torrid/core/utils/serialization.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
@@ -179,6 +180,7 @@ class GalleryApiService {
     List<String> vlmTags = const [],
     List<String> ids = const [],
     String? mimeType,
+    DateTime? capturedBefore,
     int limit = 60,
     int offset = 0,
     String? sortBy,
@@ -196,6 +198,8 @@ class GalleryApiService {
         if (vlmTags.isNotEmpty) 'vlm_tags': vlmTags.join(','),
         if (ids.isNotEmpty) 'ids': ids.join(','),
         if (mimeType != null && mimeType.isNotEmpty) 'mime_type': mimeType,
+        if (capturedBefore != null)
+          'captured_before': dateToJson(capturedBefore),
         if (sortBy != null && sortBy.isNotEmpty) 'sort_by': sortBy,
         if (sortOrder != null && sortOrder.isNotEmpty) 'sort_order': sortOrder,
       };
@@ -214,6 +218,25 @@ class GalleryApiService {
         total: (data['total'] as num?)?.toInt() ?? 0,
       );
     });
+  }
+
+  Future<Set<String>> fetchAssignedTagIds(
+    List<String> mediaIds, {
+    CancelToken? cancelToken,
+  }) async {
+    final tags = <String>{};
+    const batchSize = 100;
+    for (var start = 0; start < mediaIds.length; start += batchSize) {
+      final end = (start + batchSize).clamp(start, mediaIds.length);
+      final page = await queryMedia(
+        ids: mediaIds.sublist(start, end),
+        includeDeleted: true,
+        limit: end - start,
+        cancelToken: cancelToken,
+      );
+      tags.addAll(page.mediaTagLinks.map((link) => link.tagId));
+    }
+    return tags;
   }
 
   /// 全量替换单个媒体的标签集合（幂等, 返回服务端确认的标签集合）

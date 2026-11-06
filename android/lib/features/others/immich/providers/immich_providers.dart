@@ -25,6 +25,7 @@ class ImmichFilter {
   final bool untagged;
   final bool includeDeleted;
   final List<String> vlmTags;
+  final DateTime? jumpMonth;
 
   const ImmichFilter({
     this.tagIds = const [],
@@ -32,6 +33,7 @@ class ImmichFilter {
     this.untagged = false,
     this.includeDeleted = false,
     this.vlmTags = const [],
+    this.jumpMonth,
   });
 
   ImmichFilter copyWith({
@@ -40,6 +42,8 @@ class ImmichFilter {
     bool? untagged,
     bool? includeDeleted,
     List<String>? vlmTags,
+    DateTime? jumpMonth,
+    bool clearMonth = false,
   }) {
     return ImmichFilter(
       tagIds: tagIds ?? this.tagIds,
@@ -47,6 +51,7 @@ class ImmichFilter {
       untagged: untagged ?? this.untagged,
       includeDeleted: includeDeleted ?? this.includeDeleted,
       vlmTags: vlmTags ?? this.vlmTags,
+      jumpMonth: clearMonth ? null : jumpMonth ?? this.jumpMonth,
     );
   }
 
@@ -56,6 +61,7 @@ class ImmichFilter {
       other.untagged == untagged &&
       other.includeDeleted == includeDeleted &&
       other.includeDescendants == includeDescendants &&
+      other.jumpMonth == jumpMonth &&
       other.tagIds.length == tagIds.length &&
       other.tagIds.every(tagIds.contains) &&
       other.vlmTags.length == vlmTags.length &&
@@ -63,11 +69,12 @@ class ImmichFilter {
 
   @override
   int get hashCode => Object.hash(
-    Object.hashAll(tagIds),
+    Object.hashAllUnordered(tagIds),
     includeDescendants,
     untagged,
     includeDeleted,
-    Object.hashAll(vlmTags),
+    Object.hashAllUnordered(vlmTags),
+    jumpMonth,
   );
 }
 
@@ -103,6 +110,9 @@ class ImmichFilterNotifier extends _$ImmichFilterNotifier {
   }
 
   void clearVlmTags() => state = state.copyWith(vlmTags: const []);
+
+  void setJumpMonth(DateTime? month) =>
+      state = state.copyWith(jumpMonth: month, clearMonth: month == null);
 
   void reset() => state = const ImmichFilter();
 }
@@ -234,6 +244,7 @@ class ImmichMedia extends _$ImmichMedia {
   }) async {
     final api = ref.read(galleryApiProvider);
     final db = ref.read(galleryDatabaseProvider);
+    final month = filter.jumpMonth;
 
     final result = await api.queryMedia(
       tagIds: filter.tagIds,
@@ -241,6 +252,9 @@ class ImmichMedia extends _$ImmichMedia {
       untagged: filter.untagged,
       includeDeleted: filter.includeDeleted,
       vlmTags: filter.vlmTags,
+      capturedBefore: month == null
+          ? null
+          : DateTime(month.year, month.month + 1),
       limit: limit,
       offset: offset,
       cancelToken: token,
@@ -293,6 +307,8 @@ final immichMediaUpdateProvider =
     StateProvider.autoDispose<
       ({List<MediaAsset> assets, bool changesVisibility})?
     >((ref) => null);
+
+final immichTagRevisionProvider = StateProvider.autoDispose<int>((ref) => 0);
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 @riverpod
@@ -357,6 +373,7 @@ class ImmichActions extends _$ImmichActions {
         addTagIds: add,
         removeTagIds: remove,
       );
+      ref.read(immichTagRevisionProvider.notifier).state++;
       return null;
     });
   }

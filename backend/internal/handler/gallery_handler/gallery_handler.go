@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -301,6 +302,12 @@ func QueryMedia(c *gin.Context) {
 	if err := validateUUIDList(params.IDs, "ids"); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	if params.CapturedBefore != "" {
+		if _, err := time.Parse(time.DateOnly, params.CapturedBefore); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "captured_before 需要有效的 YYYY-MM-DD 日期"})
+			return
+		}
 	}
 	if params.SortBy != "" && !gallery_repo.IsValidSortField(params.SortBy) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的 sort_by: " + params.SortBy})
