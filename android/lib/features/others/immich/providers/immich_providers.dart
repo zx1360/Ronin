@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
@@ -163,6 +164,7 @@ class ImmichMedia extends _$ImmichMedia {
     final requestId = ++_requestId;
     ref.onDispose(() => _requestId++);
     final filter = ref.watch(immichFilterNotifierProvider);
+    ref.watch(galleryApiProvider);
     final limit = _reloadLimit ?? _kPageSize;
     _reloadLimit = null;
     return _fetch(filter, 0, requestId: requestId, limit: limit);
@@ -250,7 +252,10 @@ class ImmichMedia extends _$ImmichMedia {
 @riverpod
 class ImmichSelection extends _$ImmichSelection {
   @override
-  Set<String> build() => {};
+  Set<String> build() {
+    ref.watch(galleryApiProvider);
+    return {};
+  }
 
   void toggle(String mediaId) {
     final next = {...state};
@@ -263,56 +268,63 @@ class ImmichSelection extends _$ImmichSelection {
   void clear() => state = {};
 }
 
+final immichDeletionRevisionProvider = StateProvider.autoDispose<int>(
+  (ref) => 0,
+);
+
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 @riverpod
 class ImmichActions extends _$ImmichActions {
   @override
   bool build() => false;
 
-  Future<T> _run<T>(Future<T> Function() action) async {
+  Future<void> _run(Future<void> Function() action) async {
+    if (state) throw StateError('正在提交另一项操作');
+    final keepAlive = ref.keepAlive();
     state = true;
     try {
-      final result = await ref
-          .read(galleryWriteBufferProvider)
-          .writeOnline(action);
+      await ref.read(galleryWriteBufferProvider).writeOnline(action);
       ref.invalidate(mediaAssetListProvider);
-      // 保持已加载条数, 避免操作后跳回第一页
-      await ref.read(immichMediaProvider.notifier).reloadKeepingLength();
-      ref.read(immichSelectionProvider.notifier).clear();
       ref.invalidate(mediaIdsWithTagsProvider);
-      // 标签计数需要服务端重算（失败不影响已完成的写操作）
+      try {
+        await ref.read(immichMediaProvider.notifier).reloadKeepingLength();
+      } catch (_) {}
       try {
         await ref.read(tagTreeProvider.notifier).syncFromServer();
       } catch (_) {}
-      return result;
     } finally {
       state = false;
+      keepAlive.close();
     }
   }
 
-  /// 批量加标签
-  Future<void> addTags(List<String> mediaIds, List<String> tagIds) async {
-    if (mediaIds.isEmpty || tagIds.isEmpty) return;
-    final api = ref.read(galleryApiProvider);
-    final db = ref.read(galleryDatabaseProvider);
-    await _run(() async {
-      await retryServerWrite(
-        () => api.batchMediaTags(mediaIds: mediaIds, addTagIds: tagIds),
-      );
-      await db.addRemoveMediaTagLinks(mediaIds, addTagIds: tagIds);
-    });
-  }
+  Future<void> addTags(List<String> mediaIds, List<String> tagIds) =>
+      editTags(mediaIds, add: tagIds);
 
-  /// 批量移除标签
-  Future<void> removeTags(List<String> mediaIds, List<String> tagIds) async {
-    if (mediaIds.isEmpty || tagIds.isEmpty) return;
+  Future<void> removeTags(List<String> mediaIds, List<String> tagIds) =>
+      editTags(mediaIds, remove: tagIds);
+
+  Future<void> editTags(
+    List<String> mediaIds, {
+    List<String> add = const [],
+    List<String> remove = const [],
+  }) async {
+    if (mediaIds.isEmpty || (add.isEmpty && remove.isEmpty)) return;
     final api = ref.read(galleryApiProvider);
     final db = ref.read(galleryDatabaseProvider);
     await _run(() async {
       await retryServerWrite(
-        () => api.batchMediaTags(mediaIds: mediaIds, removeTagIds: tagIds),
+        () => api.batchMediaTags(
+          mediaIds: mediaIds,
+          addTagIds: add,
+          removeTagIds: remove,
+        ),
       );
-      await db.addRemoveMediaTagLinks(mediaIds, removeTagIds: tagIds);
+      await db.addRemoveMediaTagLinks(
+        mediaIds,
+        addTagIds: add,
+        removeTagIds: remove,
+      );
     });
   }
 
@@ -329,9 +341,7 @@ class ImmichActions extends _$ImmichActions {
         ),
       );
       await db.updateMediaAssetsLocal(updated);
-      await db.updateMediaAssetsField(mediaIds, {
-        'is_deleted': deleted ? 1 : 0,
-      });
+      ref.read(immichDeletionRevisionProvider.notifier).state++;
     });
   }
 

@@ -43,7 +43,7 @@ class EssayLabelsPage extends ConsumerWidget {
             subtitle: Text(
               label.isHiddenRoot
                   ? '系统根标签 · 不可修改或删除'
-                  : '${label.essayCount} 篇随笔',
+                  : '${label.essayCount} 篇随笔${node.depth == 0 ? ' · 含下级' : ''}',
             ),
             onTap: label.isHiddenRoot
                 ? null

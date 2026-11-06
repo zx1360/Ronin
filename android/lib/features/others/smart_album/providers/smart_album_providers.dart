@@ -1,43 +1,40 @@
+import 'dart:async';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 
 part 'smart_album_providers.g.dart';
 
-/// 智能相册的检索状态。
-///
-/// 页面只负责渲染与导航；检索方式、在途请求、错误与结果都在这里，
-/// 避免把请求编排塞进 `State`（同一套写法见 immich 的 providers）。
+final albumPeopleProvider = FutureProvider.autoDispose<List<AiPerson>>(
+  (ref) => ref.watch(aiApiProvider).fetchPersons(),
+);
+
 class SmartAlbumState {
   final AiSearchMode mode;
   final bool loading;
   final bool loadingMore;
   final bool hasMore;
-  final bool personsLoading;
+  final bool timeline;
+  final bool includeDeleted;
   final String? error;
   final AiSearchResult result;
-
-  /// 人物分组；null 表示尚未加载过（首次切到"人物"页才请求）。
-  final List<AiPerson>? persons;
-
-  /// 需要回填到输入框的文本（以图搜图、点人物进入检索时）。
-  final String queryText;
-
-  /// 自增版本号：只要它变了，页面就把 [queryText] 写回输入框一次。
-  /// 仅比较文本会漏掉"文本相同但要重新回填"的情况（例如连着两次以图搜图）。
-  final int queryRevision;
+  final String subject;
+  final int revision;
 
   const SmartAlbumState({
     this.mode = AiSearchMode.auto,
     this.loading = false,
     this.loadingMore = false,
     this.hasMore = false,
-    this.personsLoading = false,
+    this.timeline = true,
+    this.includeDeleted = false,
     this.error,
     this.result = AiSearchResult.empty,
-    this.persons,
-    this.queryText = '',
-    this.queryRevision = 0,
+    this.subject = '',
+    this.revision = 0,
   });
 
   SmartAlbumState copyWith({
@@ -45,119 +42,114 @@ class SmartAlbumState {
     bool? loading,
     bool? loadingMore,
     bool? hasMore,
-    bool? personsLoading,
+    bool? timeline,
+    bool? includeDeleted,
     String? error,
-    AiSearchResult? result,
-    List<AiPerson>? persons,
-    String? queryText,
-    int? queryRevision,
     bool clearError = false,
-  }) {
-    return SmartAlbumState(
-      mode: mode ?? this.mode,
-      loading: loading ?? this.loading,
-      loadingMore: loadingMore ?? this.loadingMore,
-      hasMore: hasMore ?? this.hasMore,
-      personsLoading: personsLoading ?? this.personsLoading,
-      error: clearError ? null : (error ?? this.error),
-      result: result ?? this.result,
-      persons: persons ?? this.persons,
-      queryText: queryText ?? this.queryText,
-      queryRevision: queryRevision ?? this.queryRevision,
-    );
-  }
+    AiSearchResult? result,
+    String? subject,
+    int? revision,
+  }) => SmartAlbumState(
+    mode: mode ?? this.mode,
+    loading: loading ?? this.loading,
+    loadingMore: loadingMore ?? this.loadingMore,
+    hasMore: hasMore ?? this.hasMore,
+    timeline: timeline ?? this.timeline,
+    includeDeleted: includeDeleted ?? this.includeDeleted,
+    error: clearError ? null : error ?? this.error,
+    result: result ?? this.result,
+    subject: subject ?? this.subject,
+    revision: revision ?? this.revision,
+  );
 }
+
+typedef _AlbumQuery = ({
+  String text,
+  String subject,
+  String? mediaId,
+  String? personId,
+});
 
 @riverpod
 class SmartAlbumController extends _$SmartAlbumController {
   int _requestId = 0;
-  int _personsRequestId = 0;
   int _nextOffset = 0;
-  Future<AiSearchResult> Function(int offset)? _loadPage;
+  _AlbumQuery? _query;
 
   @override
   SmartAlbumState build() {
+    ref.watch(aiApiProvider);
+    ref.listen(immichDeletionRevisionProvider, (_, __) {
+      if (_query != null) unawaited(reload());
+    });
     ref.onDispose(() {
       _requestId++;
-      _personsRequestId++;
+      _query = null;
     });
     return const SmartAlbumState();
   }
 
-  /// 切换检索方式；旧结果不再对应，直接清掉避免误读。
-  void setMode(AiSearchMode mode) {
-    if (mode == state.mode) return;
-    clearResult();
-    state = state.copyWith(mode: mode);
-  }
-
-  /// 文本检索。文件名模式没有查询词时不做请求（纯条件检索无从匹配）。
-  Future<void> search(String query) {
-    final text = query.trim();
-    if (text.isEmpty && state.mode == AiSearchMode.filename) {
-      return Future.value();
+  Future<void> search(String text, {AiSearchMode? mode}) {
+    final query = text.trim();
+    if (query.isEmpty &&
+        (mode != null || state.mode == AiSearchMode.filename)) {
+      _query = null;
+    } else {
+      _query = (text: query, subject: '', mediaId: null, personId: null);
     }
-    final api = ref.read(aiApiProvider);
-    final mode = state.mode;
-    return _run((offset) => api.search(text, mode: mode, offset: offset));
+    return _restart(mode: mode);
   }
 
-  /// 以图搜图。
-  Future<void> searchSimilar(String mediaId) {
-    final api = ref.read(aiApiProvider);
-    return _run(
-      (offset) => api.similar(mediaId, offset: offset),
-      queryText: '与所选图片相似',
+  Future<void> searchSimilar(MediaAsset asset) {
+    final name = asset.filePath.split(RegExp(r'[/\\]')).last;
+    _query = (
+      text: '',
+      subject: '相似图 · $name',
+      mediaId: asset.id,
+      personId: null,
     );
+    return reload();
   }
 
-  /// 按人物筛选其全部媒体。
   Future<void> searchByPerson(AiPerson person) {
-    final api = ref.read(aiApiProvider);
-    return _run(
-      (offset) => api.searchByPerson(person.id, offset: offset),
-      queryText: person.displayName,
+    _query = (
+      text: '',
+      subject: '人物 · ${person.displayName}',
+      mediaId: null,
+      personId: person.id,
     );
+    return reload();
   }
 
-  /// 加载人物分组（首次切到"人物"页时调用）。
-  Future<void> loadPersons() async {
-    if (state.personsLoading) return;
-    final requestId = ++_personsRequestId;
-    state = state.copyWith(personsLoading: true, clearError: true);
-    try {
-      final persons = await ref.read(aiApiProvider).fetchPersons();
-      if (requestId != _personsRequestId) return;
-      state = state.copyWith(persons: persons, personsLoading: false);
-    } catch (e) {
-      if (requestId != _personsRequestId) return;
-      state = state.copyWith(personsLoading: false, error: aiFriendlyError(e));
-    }
-  }
-
-  /// 清空当前结果（清空输入框时）。
   void clearResult() {
+    _query = null;
+    unawaited(reload());
+  }
+
+  Future<void> setTimeline(bool value) => _restart(timeline: value);
+
+  Future<void> setIncludeDeleted(bool value) => _restart(includeDeleted: value);
+
+  Future<void> reload() => _restart();
+
+  Future<void> _restart({
+    AiSearchMode? mode,
+    bool? timeline,
+    bool? includeDeleted,
+  }) async {
     _requestId++;
-    _loadPage = null;
     _nextOffset = 0;
     state = state.copyWith(
+      mode: mode,
+      timeline: timeline,
+      includeDeleted: includeDeleted,
+      subject: _query?.subject ?? '',
       result: AiSearchResult.empty,
-      loading: false,
+      revision: state.revision + 1,
+      loading: _query != null,
       loadingMore: false,
       hasMore: false,
       clearError: true,
-    );
-  }
-
-  Future<void> _run(
-    Future<AiSearchResult> Function(int offset) action, {
-    String? queryText,
-  }) async {
-    clearResult();
-    _loadPage = action;
-    state = state.copyWith(
-      queryText: queryText,
-      queryRevision: queryText == null ? null : state.queryRevision + 1,
     );
     await _fetchPage(append: false);
   }
@@ -168,16 +160,22 @@ class SmartAlbumController extends _$SmartAlbumController {
   }
 
   Future<void> _fetchPage({required bool append}) async {
-    final action = _loadPage;
-    if (action == null) return;
+    final query = _query;
+    if (query == null) return;
     final requestId = _requestId;
-    state = state.copyWith(
-      loading: !append,
-      loadingMore: append,
-      clearError: true,
-    );
+    state = state.copyWith(loadingMore: append, clearError: true);
     try {
-      final page = await action(_nextOffset);
+      final page = await ref
+          .read(aiApiProvider)
+          .search(
+            query.text,
+            mode: query.personId == null ? state.mode : AiSearchMode.keyword,
+            mediaId: query.mediaId,
+            personId: query.personId,
+            timeline: state.timeline,
+            includeDeleted: state.includeDeleted,
+            offset: _nextOffset,
+          );
       if (requestId != _requestId) return;
       _nextOffset += page.hits.length;
       final byId = {
@@ -195,12 +193,12 @@ class SmartAlbumController extends _$SmartAlbumController {
         loadingMore: false,
         hasMore: page.hits.isNotEmpty && _nextOffset < page.total,
       );
-    } catch (e) {
+    } catch (error) {
       if (requestId != _requestId) return;
       state = state.copyWith(
         loading: false,
         loadingMore: false,
-        error: aiFriendlyError(e),
+        error: aiFriendlyError(error),
       );
     }
   }

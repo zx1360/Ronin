@@ -10,9 +10,6 @@ import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 全屏媒体查看页：图片可缩放平移、视频可直接播放，左右滑动切换上一个/下一个。
 ///
-/// 相册(immich)与智能相册共用同一套"看单个媒体"的体验。两页的数据来源与可执行
-/// 操作不同，各自通过 [actions] 注入入口（人工标签管理 / 以图搜图），本页只负责呈现。
-///
 /// [assets] 是调用方列表的一份快照：翻页不会触发新的服务端请求，也就不会因为
 /// 列表在背后刷新而让当前查看的媒体跳位。
 class MediaViewerPage extends ConsumerStatefulWidget {

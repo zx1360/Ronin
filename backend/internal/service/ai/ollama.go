@@ -76,14 +76,14 @@ func (o *Ollama) currentConfig() config.AiConfig {
 // 服务未运行时，只要能找到 ollama 可执行文件就算就绪——真正执行时
 // Generate 会经 EnsureReady 按需拉起；连可执行文件都没有才算不可用。
 func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
-	tags, err := o.ListModels(ctx)
+	models, err := o.ListModelInfo(ctx)
 	if err != nil {
 		if o.resolveExe() != "" {
 			return true, ""
 		}
 		return false, err.Error()
 	}
-	if err := o.checkModel(tags, model); err != nil {
+	if err := o.checkModel(models, model); err != nil {
 		return false, err.Error()
 	}
 	return true, ""
@@ -91,7 +91,8 @@ func (o *Ollama) Ready(ctx context.Context, model string) (bool, string) {
 
 // ModelInfo 本机 Ollama 里的一个已安装模型。
 type ModelInfo struct {
-	Name string
+	Name       string
+	Completion bool
 	// Vision 该模型是否带视觉能力：文本模型同样能承接对话，但拿去跑 VLM 标注会整批失败。
 	Vision bool
 	// Thinking 该模型是否支持思考链（决定客户端是否展示"深度思考"开关）。
@@ -167,10 +168,15 @@ func (o *Ollama) loadModelInfo(ctx context.Context) ([]ModelInfo, error) {
 	}
 	models := make([]ModelInfo, 0, len(parsed.Models))
 	for _, m := range parsed.Models {
-		info := ModelInfo{Name: m.Name}
-		if len(m.Capabilities) > 0 {
-			info.Vision = hasCapability(m.Capabilities, "vision")
-			info.Thinking = hasCapability(m.Capabilities, "thinking")
+		capabilities := m.Capabilities
+		if len(capabilities) == 0 {
+			capabilities = o.showCapabilities(reqCtx, m.Name)
+		}
+		info := ModelInfo{Name: m.Name, Completion: true}
+		if len(capabilities) > 0 {
+			info.Completion = hasCapability(capabilities, "completion")
+			info.Vision = hasCapability(capabilities, "vision")
+			info.Thinking = hasCapability(capabilities, "thinking")
 		} else {
 			// 老版本 Ollama 不上报 capabilities：退回模型族与名称的启发式判断
 			families := append([]string{m.Details.Family}, m.Details.Families...)
@@ -185,6 +191,36 @@ func (o *Ollama) loadModelInfo(ctx context.Context) ([]ModelInfo, error) {
 		models = append(models, info)
 	}
 	return models, nil
+}
+
+// 部分 Ollama 版本只在 /api/show 返回能力。
+func (o *Ollama) showCapabilities(ctx context.Context, name string) []string {
+	body, _ := json.Marshal(map[string]string{"model": name})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.currentConfig().OllamaURL+"/api/show", bytes.NewReader(body))
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	var parsed struct {
+		Capabilities []string                   `json:"capabilities"`
+		ModelInfo    map[string]json.RawMessage `json:"model_info"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&parsed) != nil {
+		return nil
+	}
+	if len(parsed.Capabilities) == 0 {
+		for key := range parsed.ModelInfo {
+			if strings.HasSuffix(key, ".pooling_type") {
+				return []string{"embedding"}
+			}
+		}
+	}
+	return parsed.Capabilities
 }
 
 // hasCapability 判断 Ollama 上报的 capabilities 里是否含某项（大小写不敏感）。
@@ -222,8 +258,8 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 	}
 	// 模型目录缓存不代表服务仍在线，执行前重新确认。
 	o.RefreshModels()
-	if tags, err := o.ListModels(ctx); err == nil {
-		return o.checkModel(tags, model)
+	if models, err := o.ListModelInfo(ctx); err == nil {
+		return o.checkModel(models, model)
 	}
 
 	exe := o.resolveExe()
@@ -263,9 +299,9 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 	deadline := time.Now().Add(30 * time.Second)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		tags, err := o.ListModels(ctx)
+		models, err := o.ListModelInfo(ctx)
 		if err == nil {
-			return o.checkModel(tags, model)
+			return o.checkModel(models, model)
 		}
 		lastErr = err
 		select {
@@ -277,9 +313,17 @@ func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
 	return fmt.Errorf("ollama serve 启动后仍未就绪: %v", lastErr)
 }
 
-func (o *Ollama) checkModel(tags []string, model string) error {
-	if model == "" || o.modelInList(tags, model) {
+func (o *Ollama) checkModel(models []ModelInfo, model string) error {
+	if model == "" {
 		return nil
+	}
+	for _, info := range models {
+		if strings.EqualFold(info.Name, model) || strings.EqualFold(info.Name, model+":latest") {
+			if !info.Completion {
+				return fmt.Errorf("模型 %s 不支持对话生成", info.Name)
+			}
+			return nil
+		}
 	}
 	return fmt.Errorf("模型 %s 未安装，请检查 Ollama 模型库（后端自启时使用 %q）", model, o.modelRoot())
 }
@@ -326,16 +370,6 @@ func (o *Ollama) modelRoot() string {
 		return "(默认目录)"
 	}
 	return filepath.Join(home, ".ollama", "models")
-}
-
-// modelInList 判断目标模型是否在已安装列表中（容忍 tag 差异）。
-func (o *Ollama) modelInList(tags []string, model string) bool {
-	for _, name := range tags {
-		if strings.EqualFold(name, model) || strings.EqualFold(name, model+":latest") {
-			return true
-		}
-	}
-	return false
 }
 
 // SupportsThinking 粗略判断模型是否支持思考链，决定客户端是否展示"深度思考"开关。
@@ -756,9 +790,12 @@ func (o *Ollama) State(ctx context.Context, model string) OllamaState {
 		names = append(names, info.Name)
 	}
 	state.Models = names
-	state.ModelReady = o.modelInList(names, model)
-	if !state.ModelReady {
-		state.Error = fmt.Sprintf("模型 %s 未安装", model)
+	if model != "" {
+		if err := o.checkModel(models, model); err != nil {
+			state.Error = err.Error()
+		} else {
+			state.ModelReady = true
+		}
 	}
 	// 思考能力以 Ollama 上报为准（拿不到该模型时保留按名称判断的结果）
 	for _, info := range models {

@@ -18,7 +18,7 @@ func TestProgressDoesNotProbe(t *testing.T) {
 	var requests atomic.Int32
 	ollama := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
-		_, _ = w.Write([]byte(`{"models":[{"name":"example:latest","capabilities":["vision"]}]}`))
+		_, _ = w.Write([]byte(`{"models":[{"name":"example:latest","capabilities":["completion","vision"]}]}`))
 	}))
 	defer ollama.Close()
 	e := New(nil, config.AiConfig{Enabled: true, OllamaURL: ollama.URL, OllamaVLMCTX: 65536, OllamaKeepAlive: 300 * time.Second})

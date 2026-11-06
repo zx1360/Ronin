@@ -56,14 +56,33 @@ List<Essay> visibleEssays(Iterable<Essay> essays, Iterable<Label> labels) {
 }
 
 List<Label> countEssayLabels(Iterable<Essay> essays, Iterable<Label> labels) {
+  final byId = {for (final label in labels) label.id: label};
+  final roots = <String, String>{};
+  for (final label in byId.values) {
+    final seen = <String>{};
+    Label? ancestor = label;
+    while (ancestor != null && seen.add(ancestor.id)) {
+      final parentId = ancestor.parentId;
+      if (parentId == null) {
+        roots[label.id] = ancestor.id;
+        break;
+      }
+      ancestor = byId[parentId];
+    }
+  }
   final counts = <String, int>{};
   for (final essay in essays) {
-    for (final id in essay.labels.toSet()) {
+    final linked = {
+      ...essay.labels,
+      for (final id in essay.labels)
+        if (roots[id] case final root?) root,
+    };
+    for (final id in linked) {
       counts[id] = (counts[id] ?? 0) + 1;
     }
   }
   return [
-    for (final label in labels)
+    for (final label in byId.values)
       label.copyWith(essayCount: counts[label.id] ?? 0),
   ];
 }

@@ -2,8 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/models/tag.dart';
-import 'package:torrid/features/others/immich/providers/immich_providers.dart';
+import 'package:intl/intl.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 服务端缩略图 (始终在线, 直连局域网后端并附带 API Key)
@@ -17,7 +16,10 @@ class ImmichThumb extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final api = ref.watch(apiClientManagerProvider);
     if (api.baseUrl.isEmpty) {
-      return const _ThumbPlaceholder(icon: Icons.cloud_off_outlined, text: '未连接');
+      return const _ThumbPlaceholder(
+        icon: Icons.cloud_off_outlined,
+        text: '未连接',
+      );
     }
     return CachedNetworkImage(
       imageUrl: '${api.baseUrl}/API/gallery/${asset.id}/thumb',
@@ -60,101 +62,159 @@ class _ThumbPlaceholder extends StatelessWidget {
   }
 }
 
-/// 媒体缩略图网格 (分页"加载更多")
-class ImmichMediaGrid extends StatelessWidget {
-  final ImmichMediaPage page;
-  final Map<String, Tag> tagById;
+class AlbumMediaGrid extends StatefulWidget {
+  final List<MediaAsset> assets;
+  final List<String> Function(MediaAsset)? tagsFor;
+  final bool timeline;
   final bool selectionMode;
   final Set<String> selectedIds;
-
-  /// 选中顺序 (用于展示序号, 首位为捆绑主文件)
-  final List<String> selectionOrder;
-  final VoidCallback onLoadMore;
+  final bool loadingMore;
+  final bool autoLoadMore;
+  final VoidCallback? onLoadMore;
   final Future<void> Function() onRefresh;
-  final void Function(MediaAsset asset) onTap;
-  final void Function(MediaAsset asset) onLongPress;
+  final ValueChanged<MediaAsset> onTap;
+  final ValueChanged<MediaAsset> onLongPress;
 
-  const ImmichMediaGrid({
+  const AlbumMediaGrid({
     super.key,
-    required this.page,
-    required this.tagById,
+    required this.assets,
+    this.tagsFor,
+    this.timeline = true,
     required this.selectionMode,
     required this.selectedIds,
-    required this.selectionOrder,
-    required this.onLoadMore,
+    this.loadingMore = false,
+    this.autoLoadMore = true,
+    this.onLoadMore,
     required this.onRefresh,
     required this.onTap,
     required this.onLongPress,
   });
 
   @override
+  State<AlbumMediaGrid> createState() => _AlbumMediaGridState();
+}
+
+class _AlbumMediaGridState extends State<AlbumMediaGrid> {
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      if (widget.autoLoadMore &&
+          !widget.loadingMore &&
+          _scroll.position.extentAfter < 400) {
+        widget.onLoadMore?.call();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final showMoreTile = page.hasMore;
-
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (page.hasMore &&
-              !page.loadingMore &&
-              notification.metrics.extentAfter < 400) {
-            onLoadMore();
-          }
-          return false;
-        },
-        child: GridView.builder(
-          padding: const EdgeInsets.all(2),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 120,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
-          ),
-          itemCount: page.assets.length + (showMoreTile ? 1 : 0),
-          itemBuilder: (context, index) {
-            if (index >= page.assets.length) {
-              return _buildLoadMoreTile(context);
+    final assets = widget.assets;
+    final order = {
+      for (final (index, id) in widget.selectedIds.indexed) id: index + 1,
+    };
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = (constraints.maxWidth / 120).ceil().clamp(2, 6);
+        final rows = <({DateTime? day, int start, int end})>[];
+        var start = 0;
+        while (start < assets.length) {
+          final day = DateUtils.dateOnly(assets[start].capturedAt.toLocal());
+          var end = assets.length;
+          if (widget.timeline) {
+            rows.add((day: day, start: start, end: start));
+            end = start + 1;
+            while (end < assets.length &&
+                DateUtils.isSameDay(day, assets[end].capturedAt.toLocal())) {
+              end++;
             }
-            final asset = page.assets[index];
-            final tagNames = [
-              for (final id in page.tagIdsByMedia[asset.id] ?? const <String>[])
-                if (tagById[id] != null) tagById[id]!.name,
-            ];
-            final orderIndex = selectionOrder.indexOf(asset.id);
-            return _MediaTile(
-              asset: asset,
-              tagNames: tagNames,
-              selectionMode: selectionMode,
-              selected: selectedIds.contains(asset.id),
-              selectionIndex: orderIndex >= 0 ? orderIndex + 1 : null,
-              onTap: () => onTap(asset),
-              onLongPress: () => onLongPress(asset),
-            );
-          },
-        ),
-      ),
+          }
+          while (start < end) {
+            final next = (start + columns).clamp(start, end);
+            rows.add((day: null, start: start, end: next));
+            start = next;
+          }
+        }
+        final hasFooter = widget.onLoadMore != null || widget.loadingMore;
+        return RefreshIndicator(
+          onRefresh: widget.onRefresh,
+          child: Scrollbar(
+            controller: _scroll,
+            interactive: true,
+            child: ListView.builder(
+              controller: _scroll,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
+              itemCount: rows.length + (hasFooter ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == rows.length) {
+                  return Center(
+                    child: widget.loadingMore
+                        ? const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: CircularProgressIndicator(),
+                          )
+                        : TextButton(
+                            onPressed: widget.onLoadMore,
+                            child: const Text('加载更多'),
+                          ),
+                  );
+                }
+                final row = rows[index];
+                if (row.day case final day?) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 16, 10, 7),
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        DateFormat('yyyy年M月d日').format(day),
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                  );
+                }
+                return Row(
+                  children: [
+                    for (var i = row.start; i < row.start + columns; i++)
+                      Expanded(
+                        child: i < row.end
+                            ? Padding(
+                                padding: const EdgeInsets.all(1),
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: _tile(assets[i], order),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildLoadMoreTile(BuildContext context) {
-    if (page.loadingMore) {
-      return const Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
-    return InkWell(
-      onTap: onLoadMore,
-      child: Center(
-        child: Text(
-          '加载更多',
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
-      ),
-    );
-  }
+  Widget _tile(MediaAsset asset, Map<String, int> order) => _MediaTile(
+    asset: asset,
+    tagNames: widget.tagsFor?.call(asset) ?? const [],
+    selectionMode: widget.selectionMode,
+    selected: order.containsKey(asset.id),
+    selectionIndex: order[asset.id],
+    onTap: () => widget.onTap(asset),
+    onLongPress: () => widget.onLongPress(asset),
+  );
 }
 
 class _MediaTile extends StatelessWidget {
@@ -196,21 +256,26 @@ class _MediaTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 if (asset.isVideo)
-                  const Icon(Icons.play_circle_fill,
-                      size: 16, color: Colors.white70),
+                  const Icon(
+                    Icons.play_circle_fill,
+                    size: 16,
+                    color: Colors.white70,
+                  ),
                 if (asset.isGroupMember)
                   const Icon(Icons.link, size: 14, color: Colors.white70),
                 if (asset.isDeleted)
                   Container(
                     margin: const EdgeInsets.only(top: 2),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
-                      '已删除',
+                      '待删除',
                       style: TextStyle(fontSize: 9, color: Colors.white),
                     ),
                   ),

@@ -37,6 +37,7 @@ type SearchRequest struct {
 	IncludeDescendants bool
 	PersonIDs          []string
 	VLMTags            []string // 按 AI 标签筛选（与人工标签独立）
+	IncludeDeleted     bool
 	MimeType           string
 	From, To           *time.Time
 	SortBy             string
@@ -66,15 +67,16 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 	}
 
 	filters := ai_repo.SearchFilters{
-		TagIDs:      tagIDs,
-		Descendants: req.IncludeDescendants,
-		PersonIDs:   personIDs,
-		VLMTags:     normalizeTags(req.VLMTags),
-		MimeType:    req.MimeType,
-		From:        req.From,
-		To:          req.To,
-		SortBy:      req.SortBy,
-		SortOrder:   req.SortOrder,
+		TagIDs:         tagIDs,
+		Descendants:    req.IncludeDescendants,
+		PersonIDs:      personIDs,
+		VLMTags:        normalizeTags(req.VLMTags),
+		IncludeDeleted: req.IncludeDeleted,
+		MimeType:       req.MimeType,
+		From:           req.From,
+		To:             req.To,
+		SortBy:         req.SortBy,
+		SortOrder:      req.SortOrder,
 	}
 
 	query := strings.TrimSpace(req.Query)
@@ -290,12 +292,21 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 		}
 	}
 
-	sort.Slice(ordered, func(i, j int) bool {
-		if scores[ordered[i]] == scores[ordered[j]] {
-			return bytes.Compare(ordered[i][:], ordered[j][:]) < 0
+	if filters.SortBy == "captured_at" {
+		ordered = ordered[:0]
+		for _, id := range candidateIDs {
+			if _, matched := scores[id]; matched {
+				ordered = append(ordered, id)
+			}
 		}
-		return scores[ordered[i]] > scores[ordered[j]]
-	})
+	} else {
+		sort.Slice(ordered, func(i, j int) bool {
+			if scores[ordered[i]] == scores[ordered[j]] {
+				return bytes.Compare(ordered[i][:], ordered[j][:]) < 0
+			}
+			return scores[ordered[i]] > scores[ordered[j]]
+		})
+	}
 
 	total := len(ordered)
 	page := paginate(ordered, offset, limit)
@@ -309,7 +320,7 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 		return nil, err
 	}
 	for i := range hitList {
-		if extra, ok := sources[page[i]]; ok {
+		if extra, ok := sources[hitList[i].ID]; ok {
 			hitList[i].Source = append(hitList[i].Source, extra...)
 		}
 		hitList[i].Source = append([]string{"semantic"}, hitList[i].Source...)

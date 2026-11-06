@@ -55,6 +55,10 @@ class AiApiService {
   Future<AiSearchResult> search(
     String query, {
     AiSearchMode mode = AiSearchMode.auto,
+    String? mediaId,
+    String? personId,
+    bool timeline = false,
+    bool includeDeleted = false,
     List<String> vlmTags = const [],
     String? mimeType,
     int limit = 60,
@@ -65,29 +69,13 @@ class AiApiService {
         '/API/ai/search',
         queryParams: {
           if (query.trim().isNotEmpty) 'q': query.trim(),
-          'mode': mode.value,
+          'mode': mediaId == null ? mode.value : 'semantic',
+          if (mediaId != null) 'media_id': mediaId,
+          if (personId != null) 'person_ids': personId,
+          if (timeline) 'sort_by': 'captured_at',
+          if (includeDeleted) 'include_deleted': true,
           if (vlmTags.isNotEmpty) 'vlm_tags': vlmTags.join(','),
           if (mimeType != null && mimeType.isNotEmpty) 'mime_type': mimeType,
-          'limit': limit,
-          'offset': offset,
-        },
-      );
-      return AiSearchResult.fromJson(resp.data as Map<String, dynamic>);
-    });
-  }
-
-  /// 以图搜图：以库内某张图为查询，返回相似媒体。
-  Future<AiSearchResult> similar(
-    String mediaId, {
-    int limit = 60,
-    int offset = 0,
-  }) {
-    return _guard(() async {
-      final resp = await _client.get(
-        '/API/ai/search',
-        queryParams: {
-          'media_id': mediaId,
-          'mode': 'semantic',
           'limit': limit,
           'offset': offset,
         },
@@ -105,26 +93,6 @@ class AiApiService {
         for (final item in (data['persons'] as List? ?? const []))
           if (item is Map<String, dynamic>) AiPerson.fromJson(item),
       ];
-    });
-  }
-
-  /// 按人物筛选其全部媒体。
-  Future<AiSearchResult> searchByPerson(
-    String personId, {
-    int limit = 60,
-    int offset = 0,
-  }) {
-    return _guard(() async {
-      final resp = await _client.get(
-        '/API/ai/search',
-        queryParams: {
-          'mode': 'keyword',
-          'person_ids': personId,
-          'limit': limit,
-          'offset': offset,
-        },
-      );
-      return AiSearchResult.fromJson(resp.data as Map<String, dynamic>);
     });
   }
 
