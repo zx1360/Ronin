@@ -643,6 +643,7 @@ func ResetAllFaceAssignments() error {
 type SearchFilters struct {
 	Keyword        string      // 命中 OCR 文本 / VLM 描述 / AI 关键词
 	Filename       string      // 命中文件路径（文件名或扩展名，忽略大小写）
+	FilenameOnly   bool        // 限定为末段文件名
 	VLMTags        []string    // AI 标签（任一命中；只读，与人工标签分开）
 	TagIDs         []uuid.UUID // 人工标签（任一命中）
 	Descendants    bool        // 标签是否含子孙（由 [SearchMediaIDs] 预先展开）
@@ -654,6 +655,12 @@ type SearchFilters struct {
 	SortOrder      string
 	Limit          int
 	Offset         int
+}
+
+var likeEscaper = strings.NewReplacer("!", "!!", "%", "!%", "_", "!_")
+
+func containsPattern(text string) string {
+	return "%" + likeEscaper.Replace(text) + "%"
 }
 
 // BuildSearchWhere 生成 WHERE 片段与参数（供候选集查询与计数复用）。
@@ -669,15 +676,15 @@ func BuildSearchWhere(f SearchFilters) (string, []any) {
 	if !f.IncludeDeleted {
 		conditions = append(conditions, "m.is_deleted = 0")
 	}
-	if strings.TrimSpace(f.Keyword) != "" {
+	if keyword := strings.TrimSpace(f.Keyword); keyword != "" {
 		// SQLite 的 LIKE 对 ASCII 大小写不敏感，正好覆盖关键词检索；
 		// 无 trigram 索引，这里对 media_ai 做一次全表扫描（见 AGENTS_DB.md 的性能说明）。
-		pattern := "%" + strings.TrimSpace(f.Keyword) + "%"
+		pattern := containsPattern(keyword)
 		args = append(args, pattern, pattern, pattern)
 		conditions = append(conditions, `m.id IN (
-			SELECT a.media_id FROM media_ai a WHERE a.ocr_text LIKE ? OR a.caption LIKE ?
+			SELECT a.media_id FROM media_ai a WHERE a.ocr_text LIKE ? ESCAPE '!' OR a.caption LIKE ? ESCAPE '!'
 			UNION
-			SELECT t.media_id FROM media_ai_tags t WHERE t.tag LIKE ?
+			SELECT t.media_id FROM media_ai_tags t WHERE t.tag LIKE ? ESCAPE '!'
 		)`)
 	}
 	if len(f.VLMTags) > 0 {
@@ -688,9 +695,14 @@ func BuildSearchWhere(f SearchFilters) (string, []any) {
 			args = append(args, tag)
 		}
 	}
-	if strings.TrimSpace(f.Filename) != "" {
-		args = append(args, "%"+strings.TrimSpace(f.Filename)+"%")
-		conditions = append(conditions, "m.file_path LIKE ?")
+	if filename := strings.TrimSpace(f.Filename); filename != "" {
+		pattern := containsPattern(filename)
+		conditions = append(conditions, "m.file_path LIKE ? ESCAPE '!'")
+		args = append(args, pattern)
+		if f.FilenameOnly {
+			conditions = append(conditions, "media_basename(m.file_path) LIKE ? ESCAPE '!'")
+			args = append(args, pattern)
+		}
 	}
 	if len(f.TagIDs) > 0 {
 		conditions = append(conditions, fmt.Sprintf(
@@ -787,6 +799,44 @@ func SearchMediaIDs(f SearchFilters) ([]uuid.UUID, int, error) {
 		ids = append(ids, id)
 	}
 	return ids, total, rows.Err()
+}
+
+func KeywordSources(ids []uuid.UUID, keyword string) (map[uuid.UUID][]string, error) {
+	pattern := containsPattern(keyword)
+	args := []any{pattern, pattern, pattern}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	rows, err := db.Read().QueryContext(ctx, fmt.Sprintf(`
+		SELECT m.id, coalesce(a.ocr_text LIKE ? ESCAPE '!', 0), coalesce(a.caption LIKE ? ESCAPE '!', 0),
+		       EXISTS(SELECT 1 FROM media_ai_tags t WHERE t.media_id = m.id AND t.tag LIKE ? ESCAPE '!')
+		FROM media_assets m LEFT JOIN media_ai a ON a.media_id = m.id
+		WHERE m.id IN (%s)`, placeholders(len(ids))), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	sources := make(map[uuid.UUID][]string, len(ids))
+	for rows.Next() {
+		var id uuid.UUID
+		var ocr, caption, tag bool
+		if err := rows.Scan(&id, &ocr, &caption, &tag); err != nil {
+			return nil, err
+		}
+		if ocr {
+			sources[id] = append(sources[id], "ocr")
+		}
+		if caption {
+			sources[id] = append(sources[id], "caption")
+		}
+		if tag {
+			sources[id] = append(sources[id], "vlm_tag")
+		}
+	}
+	return sources, rows.Err()
 }
 
 // VLMTagCount AI 标签及其出现次数（供客户端展示只读的 AI 标签筛选）。

@@ -65,7 +65,7 @@ class _ThumbPlaceholder extends StatelessWidget {
 
 class AlbumMediaGrid extends StatefulWidget {
   final List<MediaAsset> assets;
-  final List<String> Function(MediaAsset)? tagsFor;
+  final List<String> Function(MediaAsset)? labelsFor;
   final bool timeline;
   final bool selectionMode;
   final Set<String> selectedIds;
@@ -79,7 +79,7 @@ class AlbumMediaGrid extends StatefulWidget {
   const AlbumMediaGrid({
     super.key,
     required this.assets,
-    this.tagsFor,
+    this.labelsFor,
     this.timeline = true,
     required this.selectionMode,
     required this.selectedIds,
@@ -209,7 +209,7 @@ class _AlbumMediaGridState extends State<AlbumMediaGrid> {
 
   Widget _tile(MediaAsset asset, Map<String, int> order) => _MediaTile(
     asset: asset,
-    tagNames: widget.tagsFor?.call(asset) ?? const [],
+    labels: widget.labelsFor?.call(asset) ?? const [],
     selectionMode: widget.selectionMode,
     selected: order.containsKey(asset.id),
     selectionIndex: order[asset.id],
@@ -220,7 +220,7 @@ class _AlbumMediaGridState extends State<AlbumMediaGrid> {
 
 class _MediaTile extends StatelessWidget {
   final MediaAsset asset;
-  final List<String> tagNames;
+  final List<String> labels;
   final bool selectionMode;
   final bool selected;
   final int? selectionIndex;
@@ -229,7 +229,7 @@ class _MediaTile extends StatelessWidget {
 
   const _MediaTile({
     required this.asset,
-    required this.tagNames,
+    required this.labels,
     required this.selectionMode,
     required this.selected,
     required this.selectionIndex,
@@ -330,8 +330,7 @@ class _MediaTile extends StatelessWidget {
                     : null,
               ),
             ),
-          // 底部标签名 (最多 2 个)
-          if (tagNames.isNotEmpty)
+          if (labels.isNotEmpty)
             Positioned(
               left: 0,
               right: 0,
@@ -349,7 +348,7 @@ class _MediaTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final name in tagNames.take(2))
+                    for (final name in labels.take(2))
                       Text(
                         name,
                         maxLines: 1,
@@ -360,9 +359,9 @@ class _MediaTile extends StatelessWidget {
                           height: 1.2,
                         ),
                       ),
-                    if (tagNames.length > 2)
+                    if (labels.length > 2)
                       Text(
-                        '+${tagNames.length - 2}',
+                        '+${labels.length - 2}',
                         style: const TextStyle(
                           fontSize: 9,
                           color: Colors.white70,

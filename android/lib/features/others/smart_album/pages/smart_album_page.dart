@@ -21,6 +21,12 @@ class SmartAlbumSearch extends ConsumerStatefulWidget {
 
 class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
     with AutomaticKeepAliveClientMixin {
+  static const _sourceLabels = {
+    'ocr': '识别文字',
+    'caption': 'AI 描述',
+    'vlm_tag': 'AI 标签',
+  };
+
   final _text = TextEditingController();
   final _selected = <String>{};
   bool _selecting = false;
@@ -73,6 +79,29 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
     final canRank = result.mode == 'semantic';
     final theme = Theme.of(context);
     final canSelect = !busy && assets.isNotEmpty;
+    final matchKind = state.subject.isNotEmpty
+        ? ''
+        : switch (result.mode) {
+            'semantic' => '智能匹配',
+            'keyword' when state.mode == AiSearchMode.auto => '语义暂不可用，已按文字匹配',
+            'keyword' => '文字匹配',
+            'filename' => '文件名匹配',
+            _ => '',
+          };
+    final labelsById = switch (result.mode) {
+      'filename' => {
+        for (final asset in assets)
+          asset.id: [asset.filePath.split(RegExp(r'[/\\]')).last],
+      },
+      'keyword' => {
+        for (final hit in result.hits)
+          hit.id: hit.sources
+              .map((source) => _sourceLabels[source])
+              .whereType<String>()
+              .toList(),
+      },
+      _ => const <String, List<String>>{},
+    };
 
     return Column(
       children: [
@@ -82,6 +111,11 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
             controller: _text,
             enabled: !busy,
             textInputAction: TextInputAction.search,
+            onChanged: (text) {
+              if (text.trim().isEmpty && state.queryText.isNotEmpty) {
+                controller.clearResult();
+              }
+            },
             onSubmitted: controller.search,
             decoration: InputDecoration(
               hintText: switch (state.mode) {
@@ -174,17 +208,22 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
             ],
           ),
         ),
-        if (state.subject.isNotEmpty || result.mode.isNotEmpty)
+        if (state.subject.isNotEmpty || state.queryText.isNotEmpty)
           ListTile(
             dense: true,
             title: Text(
-              state.subject.isEmpty ? '命中 ${result.total} 项' : state.subject,
+              state.subject.isEmpty ? '“${state.queryText}”' : state.subject,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: state.subject.isEmpty || result.mode.isEmpty
+            subtitle: result.mode.isEmpty
                 ? null
-                : Text('命中 ${result.total} 项'),
+                : Text(
+                    [
+                      if (matchKind.isNotEmpty) matchKind,
+                      '命中 ${result.total} 项',
+                    ].join(' · '),
+                  ),
             trailing: IconButton(
               tooltip: '清空结果',
               onPressed: busy
@@ -233,6 +272,7 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
               : AlbumMediaGrid(
                   key: ValueKey(state.revision),
                   assets: assets,
+                  labelsFor: (asset) => labelsById[asset.id] ?? const [],
                   timeline: state.timeline || !canRank,
                   selectedIds: _selected,
                   selectionMode: _selecting,

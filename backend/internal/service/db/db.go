@@ -9,13 +9,15 @@ package db
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	_ "modernc.org/sqlite" // 纯 Go 驱动，无需 cgo
+	"modernc.org/sqlite"
 
 	"monarch/internal/config"
 	"monarch/internal/dbutil"
@@ -35,6 +37,13 @@ var (
 	writePool *sql.DB
 	dbFile    string
 )
+
+func init() {
+	sqlite.MustRegisterDeterministicScalarFunction("media_basename", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		path, _ := args[0].(string)
+		return path[strings.LastIndexAny(path, `/\`)+1:], nil
+	})
+}
 
 // File 返回当前数据库文件的绝对路径（空表示尚未初始化）。
 func File() string {

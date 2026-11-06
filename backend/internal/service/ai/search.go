@@ -31,6 +31,7 @@ const keywordBoost = 0.25
 type SearchRequest struct {
 	Query              string
 	Mode               string
+	FilenameOnly       bool
 	MediaID            string // 以库内媒体搜图
 	ImagePath          string // 以外部图片搜图（服务端临时文件路径）
 	TagIDs             []string
@@ -45,6 +46,7 @@ type SearchRequest struct {
 	Limit              int
 	Offset             int
 	MinScore           float32
+	SemanticLimit      int
 }
 
 // Search 执行组合搜索：语义（文搜图 / 以图搜图）与结构化条件（标签/人物/关键词）可任意组合。
@@ -67,6 +69,7 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 	}
 
 	filters := ai_repo.SearchFilters{
+		FilenameOnly:   req.FilenameOnly,
 		TagIDs:         tagIDs,
 		Descendants:    req.IncludeDescendants,
 		PersonIDs:      personIDs,
@@ -113,7 +116,7 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 		return fallback, nil
 	}
 
-	return e.semanticSearch(ctx, filters, query, req.MediaID, vector, limit, req.Offset, req.MinScore)
+	return e.semanticSearch(ctx, filters, query, req.MediaID, vector, limit, req.Offset, req.MinScore, req.SemanticLimit)
 }
 
 // queryVector 生成查询向量：优先复用库内媒体的向量，其次对图片/文本实时编码。
@@ -212,6 +215,15 @@ func (e *Engine) plainSearch(filters ai_repo.SearchFilters, query, mode string, 
 	if err != nil {
 		return nil, err
 	}
+	if mode == ModeKeyword && query != "" && len(hits) > 0 {
+		sources, err := ai_repo.KeywordSources(ids, query)
+		if err != nil {
+			return nil, err
+		}
+		for i := range hits {
+			hits[i].Source = append(hits[i].Source, sources[hits[i].ID]...)
+		}
+	}
 	return &model.AiSearchResponse{Hits: hits, Total: total, Mode: mode}, nil
 }
 
@@ -232,7 +244,7 @@ func normalizeTags(tags []string) []string {
 
 // semanticSearch 语义检索：结构化筛选出候选集，再用查询向量打分排序。
 func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilters, query, mediaID string,
-	vector []float32, limit, offset int, minScore float32) (*model.AiSearchResponse, error) {
+	vector []float32, limit, offset int, minScore float32, semanticLimit int) (*model.AiSearchResponse, error) {
 
 	// 1) 结构化候选集（不含关键词）
 	candidateFilters := filters
@@ -254,7 +266,11 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 	}
 
 	// 2) 向量精确扫描（仅统计候选集内的媒体）
-	hits, err := e.index.SearchVector(vector, len(candidateIDs), func(id uuid.UUID) bool { return allowed[id] })
+	topK := len(candidateIDs)
+	if semanticLimit > 0 {
+		topK = min(topK, semanticLimit)
+	}
+	hits, err := e.index.SearchVector(vector, topK, func(id uuid.UUID) bool { return allowed[id] })
 	if err != nil {
 		return nil, err
 	}

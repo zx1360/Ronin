@@ -21,6 +21,7 @@ class SmartAlbumState {
   final bool includeDeleted;
   final String? error;
   final AiSearchResult result;
+  final String queryText;
   final String subject;
   final int revision;
 
@@ -29,10 +30,11 @@ class SmartAlbumState {
     this.loading = false,
     this.loadingMore = false,
     this.hasMore = false,
-    this.timeline = true,
+    this.timeline = false,
     this.includeDeleted = false,
     this.error,
     this.result = AiSearchResult.empty,
+    this.queryText = '',
     this.subject = '',
     this.revision = 0,
   });
@@ -47,6 +49,7 @@ class SmartAlbumState {
     String? error,
     bool clearError = false,
     AiSearchResult? result,
+    String? queryText,
     String? subject,
     int? revision,
   }) => SmartAlbumState(
@@ -58,6 +61,7 @@ class SmartAlbumState {
     includeDeleted: includeDeleted ?? this.includeDeleted,
     error: clearError ? null : error ?? this.error,
     result: result ?? this.result,
+    queryText: queryText ?? this.queryText,
     subject: subject ?? this.subject,
     revision: revision ?? this.revision,
   );
@@ -104,7 +108,7 @@ class SmartAlbumController extends _$SmartAlbumController {
         hits: [
           for (final hit in result.hits)
             if (byId[hit.id] case final asset?)
-              AiSearchHit(asset: asset, score: hit.score)
+              AiSearchHit(asset: asset, score: hit.score, sources: hit.sources)
             else
               hit,
         ],
@@ -114,12 +118,9 @@ class SmartAlbumController extends _$SmartAlbumController {
 
   Future<void> search(String text, {AiSearchMode? mode}) {
     final query = text.trim();
-    if (query.isEmpty &&
-        (mode != null || state.mode == AiSearchMode.filename)) {
-      _query = null;
-    } else {
-      _query = (text: query, subject: '', mediaId: null, personId: null);
-    }
+    _query = query.isEmpty
+        ? null
+        : (text: query, subject: '', mediaId: null, personId: null);
     return _restart(mode: mode);
   }
 
@@ -166,6 +167,7 @@ class SmartAlbumController extends _$SmartAlbumController {
       mode: mode,
       timeline: timeline,
       includeDeleted: includeDeleted,
+      queryText: _query?.text ?? '',
       subject: _query?.subject ?? '',
       result: AiSearchResult.empty,
       revision: state.revision + 1,
@@ -186,13 +188,20 @@ class SmartAlbumController extends _$SmartAlbumController {
     final query = _query;
     if (query == null) return;
     final requestId = _requestId;
+    final mode =
+        query.personId != null ||
+            (append &&
+                state.mode == AiSearchMode.auto &&
+                state.result.mode == 'keyword')
+        ? AiSearchMode.keyword
+        : state.mode;
     state = state.copyWith(loadingMore: append, clearError: true);
     try {
       final page = await ref
           .read(aiApiProvider)
           .search(
             query.text,
-            mode: query.personId == null ? state.mode : AiSearchMode.keyword,
+            mode: mode,
             mediaId: query.mediaId,
             personId: query.personId,
             timeline: state.timeline,
@@ -200,6 +209,10 @@ class SmartAlbumController extends _$SmartAlbumController {
             offset: _nextOffset,
           );
       if (requestId != _requestId) return;
+      if (append && page.mode != state.result.mode) {
+        await reload();
+        return;
+      }
       _nextOffset += page.hits.length;
       final byId = {
         if (append)
