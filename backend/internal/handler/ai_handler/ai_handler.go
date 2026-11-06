@@ -407,7 +407,7 @@ func RebuildIndex(c *gin.Context) {
 //
 // 参数：q 文本查询；mode=auto|semantic|keyword|filename；tag_ids / include_descendants /
 // person_ids / vlm_tags / mime_type / from / to / include_deleted 结构化筛选；limit / offset 分页。
-// sort_by=captured_at 可在语义检索中按拍摄时间排序。
+// filename_only=true 限定文件名。semantic_limit 限定向量候选数，先取相关候选再按 sort_by 排序。
 func Search(c *gin.Context) {
 	e := engine(c)
 	if e == nil || !schemaGuard(c) {
@@ -1002,6 +1002,7 @@ func buildSearchRequest(c *gin.Context) (ai.SearchRequest, error) {
 	req := ai.SearchRequest{
 		Query:              strings.TrimSpace(c.Query("q")),
 		Mode:               strings.TrimSpace(c.Query("mode")),
+		FilenameOnly:       c.Query("filename_only") == "true",
 		MediaID:            strings.TrimSpace(c.Query("media_id")),
 		IncludeDescendants: c.Query("include_descendants") == "true",
 		IncludeDeleted:     c.Query("include_deleted") == "true",
@@ -1010,6 +1011,7 @@ func buildSearchRequest(c *gin.Context) (ai.SearchRequest, error) {
 		SortOrder:          strings.TrimSpace(c.Query("sort_order")),
 		Limit:              queryInt(c, "limit", 60, 1, 200),
 		Offset:             queryInt(c, "offset", 0, 0, 1<<30),
+		SemanticLimit:      queryInt(c, "semantic_limit", 0, 0, 2000),
 	}
 	if raw := strings.TrimSpace(c.Query("min_score")); raw != "" {
 		value, err := strconv.ParseFloat(raw, 32)

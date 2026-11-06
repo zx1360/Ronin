@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bytes"
 	"log"
 	"math"
 	"runtime"
@@ -226,8 +227,8 @@ func (ix *Index) SearchVector(query []float32, topK int, allow func(uuid.UUID) b
 	}
 
 	ix.mu.RLock()
+	defer ix.mu.RUnlock()
 	ids, vecs, scales, dim := ix.ids, ix.vecs, ix.scales, ix.dim
-	ix.mu.RUnlock()
 
 	if dim == 0 || len(query) != dim || len(ids) == 0 {
 		return nil, nil
@@ -251,7 +252,13 @@ func (ix *Index) SearchVector(query []float32, topK int, allow func(uuid.UUID) b
 			order = append(order, i)
 		}
 	}
-	sort.Slice(order, func(a, b int) bool { return scores[order[a]] > scores[order[b]] })
+	sort.Slice(order, func(a, b int) bool {
+		i, j := order[a], order[b]
+		if scores[i] == scores[j] {
+			return bytes.Compare(ids[i][:], ids[j][:]) < 0
+		}
+		return scores[i] > scores[j]
+	})
 
 	if topK > len(order) {
 		topK = len(order)

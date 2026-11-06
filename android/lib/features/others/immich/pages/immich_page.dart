@@ -427,7 +427,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
         AlbumMediaGrid(
           key: const PageStorageKey('album-photos'),
           assets: page.assets,
-          tagsFor: (asset) => [
+          labelsFor: (asset) => [
             for (final id in page.tagIdsByMedia[asset.id] ?? const <String>[])
               if (tagById[id] case final tag?) tag.name,
           ],
