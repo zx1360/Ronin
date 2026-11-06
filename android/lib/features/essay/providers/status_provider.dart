@@ -15,7 +15,7 @@ import 'package:torrid/features/essay/providers/setting_provider.dart';
 
 part 'status_provider.g.dart';
 
-/// 所有标签列表（按随笔数量降序排列）
+/// 所有标签列表（按可统计的随笔数量降序排列）
 @riverpod
 List<Label> labels(LabelsRef ref) {
   final asyncVal = ref.watch(labelStreamProvider);
@@ -24,7 +24,10 @@ List<Label> labels(LabelsRef ref) {
   }
   final source =
       asyncVal.asData?.value ?? ref.read(labelBoxProvider).values.toList();
-  return List<Label>.of(source)
+  final essays =
+      ref.watch(essayStreamProvider).asData?.value ??
+      ref.read(essayBoxProvider).values;
+  return countEssayLabels(visibleEssays(essays, source), source)
     ..sort((a, b) => b.essayCount.compareTo(a.essayCount));
 }
 
@@ -44,10 +47,9 @@ List<YearSummary> summaries(SummariesRef ref) {
   if (asyncVal.hasError) {
     throw asyncVal.error!;
   }
-  final source = asyncVal.asData?.value ?? const <Essay>[];
+  final source = asyncVal.asData?.value ?? ref.read(essayBoxProvider).values;
   final labels = ref.watch(labelsProvider);
-  final settings = ref.watch(browseManagerProvider);
-  final visible = settings.showHidden ? source : visibleEssays(source, labels);
+  final visible = visibleEssays(source, labels);
   final sorted = visible
       .map((e) => e.year.toString())
       .toSet()
@@ -67,18 +69,29 @@ Future<List<Essay>> filteredEssays(FilteredEssaysRef ref) async {
   final labels = ref.watch(labelsProvider);
   final essays = await ref.watch(essayStreamProvider.future);
 
-  // 始终从副本出发排序/洗牌，避免改动 Box 流中的共享列表
-  var filtered = settings.showHidden
-      ? List<Essay>.of(essays)
-      : visibleEssays(essays, labels);
+  final hidden = settings.showHidden
+      ? const <String>{}
+      : hiddenLabelIds(labels);
+  final filtered = essays.where((e) => !e.labels.any(hidden.contains)).toList();
 
   if (settings.selectedLabels.isNotEmpty) {
-    final selected = labelSubtree(labels, settings.selectedLabels);
-    filtered = filtered
-        .where(
-          (essay) => selected.any((labelId) => essay.labels.contains(labelId)),
-        )
-        .toList();
+    final selected = <String>{};
+    final subtrees = <String>[];
+    for (final label in labels) {
+      if (hidden.contains(label.id)) continue;
+      switch (settings.selectedLabels[label.id]) {
+        case LabelFilterMode.subtree:
+          subtrees.add(label.id);
+        case LabelFilterMode.direct:
+          selected.add(label.id);
+        case null:
+          break;
+      }
+    }
+    if (subtrees.isNotEmpty) selected.addAll(labelSubtree(labels, subtrees));
+    if (selected.isNotEmpty) {
+      filtered.retainWhere((essay) => essay.labels.any(selected.contains));
+    }
   }
 
   switch (settings.sortType) {

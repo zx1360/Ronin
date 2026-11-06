@@ -18,6 +18,8 @@ class EssayAdapter extends TypeAdapter<Essay> {
     };
     return Essay(
       updatedAt: fields[9] as DateTime?,
+      createdAt: fields[10] as DateTime?,
+      labelsUpdatedAt: fields[11] as DateTime?,
       id: fields[0] as String,
       date: fields[1] as DateTime,
       wordCount: fields[2] as int,
@@ -33,7 +35,7 @@ class EssayAdapter extends TypeAdapter<Essay> {
   @override
   void write(BinaryWriter writer, Essay obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -53,7 +55,11 @@ class EssayAdapter extends TypeAdapter<Essay> {
       ..writeByte(8)
       ..write(obj.title)
       ..writeByte(9)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(10)
+      ..write(obj.createdAt)
+      ..writeByte(11)
+      ..write(obj.labelsUpdatedAt);
   }
 
   @override
@@ -75,6 +81,12 @@ Essay _$EssayFromJson(Map<String, dynamic> json) => Essay(
       updatedAt: json['updated_at'] == null
           ? null
           : DateTime.parse(json['updated_at'] as String),
+      createdAt: json['created_at'] == null
+          ? null
+          : DateTime.parse(json['created_at'] as String),
+      labelsUpdatedAt: json['labels_updated_at'] == null
+          ? null
+          : DateTime.parse(json['labels_updated_at'] as String),
       id: json['id'] as String,
       date: dateTimeFromJson(json['date'] as String),
       wordCount: (json['word_count'] as num).toInt(),
@@ -101,4 +113,6 @@ Map<String, dynamic> _$EssayToJson(Essay instance) => <String, dynamic>{
       'mood': const MoodTypeConverter().toJson(instance.mood),
       'title': instance.title,
       'updated_at': instance.updatedAt?.toIso8601String(),
+      'created_at': instance.createdAt?.toIso8601String(),
+      'labels_updated_at': instance.labelsUpdatedAt?.toIso8601String(),
     };

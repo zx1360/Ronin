@@ -104,6 +104,8 @@ class TransferController extends _$TransferController {
         '/API/user-data/sync/${target.name}',
         queryParams: {
           if (target != TransferTarget.preferences) 'sync_version': 2,
+          if (target == TransferTarget.essay)
+            'essay_schema_version': essaySchemaVersion,
           if (after > 0) 'after': after,
         },
       );
@@ -325,7 +327,10 @@ class TransferController extends _$TransferController {
       final filenames = allFiles.map((f) => p.basename(f.path)).toList();
       final resp = await client.postJson(
         "/API/user-data/check-images/$module",
-        data: {"filenames": filenames},
+        data: {
+          "filenames": filenames,
+          if (module == 'essay') 'essay_schema_version': essaySchemaVersion,
+        },
       );
 
       if (module == 'essay') requireEssaySchema(resp.data);

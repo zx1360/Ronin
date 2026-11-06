@@ -31,10 +31,11 @@ func SetupRouter() *gin.Engine {
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
 
-	r.Use(selectiveAuth(filepath.Join(config.AppConf.StaticDir, "logs.txt")))
+	r.Use(selectiveAuth(filepath.Join(config.AppConf.DataDir, "logs.txt")))
 
-	for _, dir := range []string{"comics", "img_storage/booklet", "img_storage/essay", "img_storage/preferences"} {
-		r.Static("/static/"+dir, filepath.Join(config.AppConf.StaticDir, filepath.FromSlash(dir)))
+	r.Static("/static/comics", filepath.Join(config.AppConf.StaticDir, "comics"))
+	for _, module := range []string{"booklet", "essay", "preferences"} {
+		r.Static("/static/img_storage/"+module, filepath.Join(config.AppConf.DataDir, "img_storage", module))
 	}
 
 	// 网页运维端（ops）：由后端内置 HTTP 服务托管，仅本机可打开

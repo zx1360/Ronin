@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
-import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
 import 'package:torrid/core/modals/confirm_modal.dart';
@@ -15,21 +15,76 @@ import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 
 class EssayContentWidget extends ConsumerWidget {
-  const EssayContentWidget({super.key});
+  final Essay essay;
+  const EssayContentWidget({super.key, required this.essay});
+
+  Future<void> _editMessage(BuildContext context, WidgetRef ref, int index) {
+    final message = essay.messages[index];
+    var text = message.content;
+    var saving = false;
+    String? error;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => PopScope(
+          canPop: !saving,
+          child: AlertDialog(
+            title: const Text('编辑留言'),
+            scrollable: true,
+            content: TextFormField(
+              initialValue: message.content,
+              minLines: 2,
+              maxLines: 6,
+              readOnly: saving,
+              onChanged: (value) => text = value,
+              decoration: InputDecoration(errorText: error, errorMaxLines: 3),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        setState(() {
+                          saving = true;
+                          error = null;
+                        });
+                        try {
+                          await ref
+                              .read(essayServiceProvider.notifier)
+                              .editMessage(essay.id, index, message, text);
+                          if (context.mounted) Navigator.pop(context);
+                        } catch (e) {
+                          if (context.mounted) {
+                            setState(() {
+                              error = '$e';
+                              saving = false;
+                            });
+                          }
+                        }
+                      },
+                child: const Text('保存'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final dateFormat = DateFormat('yyyy年MM月dd日 HH:mm');
 
-    // 内容数据（随笔未选中时不渲染正文）
-    final essay = ref.watch(contentServerProvider);
-    if (essay == null) return const SizedBox.shrink();
     final idMap = ref.watch(idMapProvider);
     // 标签可能已被删除：查不到名称时保留 id，避免整页崩溃
     final labelNames = essay.labels.map((l) => idMap[l] ?? l);
 
-    // 对于当天的随笔提供删除/重写功能.
     final isToday = isSameDay(essay.date, DateTime.now());
 
     return Column(
@@ -63,7 +118,7 @@ class EssayContentWidget extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${essay.wordCount} 字',
+                  essay.wordCountText,
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
@@ -144,22 +199,21 @@ class EssayContentWidget extends ConsumerWidget {
                 splashRadius: 16,
                 tooltip: "删除随笔(当天可用)",
               ),
-            if (isToday)
-              IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EssayWritePage(original: essay),
-                  ),
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EssayWritePage(original: essay),
                 ),
-                icon: Icon(
-                  const IconData(0xe60c, fontFamily: "iconfont"),
-                  color: AppTheme.outline,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 16,
-                tooltip: "编辑随笔(当天可用，原文保留至保存)",
               ),
+              icon: Icon(
+                const IconData(0xe60c, fontFamily: "iconfont"),
+                color: AppTheme.outline,
+              ),
+              padding: EdgeInsets.zero,
+              splashRadius: 16,
+              tooltip: '编辑随笔',
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -240,13 +294,22 @@ class EssayContentWidget extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      DateFormat(
-                        'yyyy年-MM月dd日 HH:mm',
-                      ).format(message.timestamp),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            dateFormat.format(message.timestamp),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '编辑留言',
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          onPressed: () => _editMessage(context, ref, index),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Container(

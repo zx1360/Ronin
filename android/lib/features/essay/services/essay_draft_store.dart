@@ -65,7 +65,7 @@ class EssayDraftStore {
 
   Future<Essay> publish(
     Essay essay,
-    Future<void> Function(Essay) writeEssay,
+    Future<Essay> Function(Essay) writeEssay,
   ) async {
     final images = <String>[];
     final imported = <String>[];
@@ -85,9 +85,7 @@ class EssayDraftStore {
           images.add(image);
         }
       }
-      final published = essay.copyWith(imgs: images);
-      await writeEssay(published);
-      return published;
+      return await writeEssay(essay.copyWith(imgs: images));
     } catch (_) {
       for (final key in imported) {
         try {

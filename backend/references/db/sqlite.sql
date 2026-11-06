@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS essay_articles (
     labels     TEXT NOT NULL DEFAULT '[]',
     messages   TEXT NOT NULL DEFAULT '[]',
     mood       TEXT,
+    labels_updated_at TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'))
 );

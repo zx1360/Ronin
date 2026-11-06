@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/core/models/message.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
-import 'package:torrid/features/essay/providers/setting_provider.dart';
 
-/// 留言输入组件
-/// 用于在随笔详情页添加留言
 class MessageInputWidget extends ConsumerStatefulWidget {
-  const MessageInputWidget({super.key});
+  final String essayId;
+  const MessageInputWidget({super.key, required this.essayId});
 
   @override
   ConsumerState<MessageInputWidget> createState() => _MessageInputWidgetState();
@@ -16,6 +13,7 @@ class MessageInputWidget extends ConsumerStatefulWidget {
 class _MessageInputWidgetState extends ConsumerState<MessageInputWidget> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -24,22 +22,26 @@ class _MessageInputWidgetState extends ConsumerState<MessageInputWidget> {
     super.dispose();
   }
 
-  /// 添加留言
-  void _addMessage() {
+  Future<void> _addMessage() async {
     final content = _messageController.text.trim();
-    _messageController.clear();
-    _focusNode.unfocus();
-    if (content.isEmpty) return;
-
-    final essayId = ref.read(contentServerProvider)?.id;
-    if (essayId == null) return;
-
-    ref
-        .read(essayServiceProvider.notifier)
-        .appendMessage(
-          essayId,
-          Message(timestamp: DateTime.now(), content: content),
-        );
+    if (_saving || content.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(essayServiceProvider.notifier)
+          .appendMessage(widget.essayId, content);
+      if (!mounted) return;
+      _messageController.clear();
+      _focusNode.unfocus();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存留言失败：$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -49,6 +51,7 @@ class _MessageInputWidgetState extends ConsumerState<MessageInputWidget> {
         TextField(
           controller: _messageController,
           focusNode: _focusNode,
+          readOnly: _saving,
           minLines: 2,
           maxLines: null,
           decoration: InputDecoration(
@@ -72,7 +75,7 @@ class _MessageInputWidgetState extends ConsumerState<MessageInputWidget> {
         Align(
           alignment: Alignment.centerRight,
           child: IconButton(
-            onPressed: _addMessage,
+            onPressed: _saving ? null : _addMessage,
             icon: Icon(Icons.send, color: Theme.of(context).primaryColor),
           ),
         ),

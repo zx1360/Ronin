@@ -8,7 +8,7 @@
 - Riverpod + generator；DTO/Hive adapter 使用 build_runner 生成，不手改 `*.g.dart`。改生成源后运行 `dart run build_runner build --delete-conflicting-outputs`。
 - 验收：`flutter analyze` 零告警、`flutter test`。
 - 新增 Hive 类型前查 `../开发备忘.md` 的 typeId 占用表；发布后的 typeId/字段编号不得复用。
-- 随笔/打卡先上传再拉取增量，按 updated_at 合并；删除标记存 userDataSync，游标按主机隔离且最后落库。多 Box 写入经 `replaceBoxes`，启动时恢复未完成事务；统计重算，派生 provider 不得原地修改共享对象。
+- 随笔/打卡先上传再拉取增量，按 `updated_at` 合并；随笔关联标签单独用 `labels_updated_at`。删除标记存 userDataSync，游标按主机隔离且最后落库。多 Box 写入经 `replaceBoxes`，启动时恢复未完成事务；统计重算，派生 provider 不得原地修改共享对象。
 - 随笔草稿与图片仅存本机独立空间；编辑正式随笔时保留原文至保存成功。“隐藏”标签子树默认不展示，AI 回顾始终排除。
 
 ## 网络与媒体

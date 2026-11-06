@@ -25,6 +25,13 @@ Box<Essay> essayBox(EssayBoxRef ref) {
   return Hive.box<Essay>(HiveService.essayBoxName);
 }
 
+@riverpod
+Stream<Essay?> essayById(EssayByIdRef ref, String id) async* {
+  final box = ref.watch(essayBoxProvider);
+  yield box.get(id);
+  yield* box.watch(key: id).map((_) => box.get(id));
+}
+
 /// 随笔数据的响应式流
 @riverpod
 Stream<List<Essay>> essayStream(EssayStreamRef ref) async* {

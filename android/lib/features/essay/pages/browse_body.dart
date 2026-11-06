@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/pages/browse_all_years.dart';
 import 'package:torrid/features/essay/pages/browse_part.dart';
+import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 
 class BrowseBody extends ConsumerStatefulWidget {
@@ -15,7 +18,7 @@ class BrowseBodyState extends ConsumerState<BrowseBody> {
   late PageController _controller;
   int _currentPage = 1;
   bool _hasData = false;
-  
+
   // 用于各页面滚动到顶部的 GlobalKey
   final GlobalKey<BrowseAllYearsState> _allYearsKey = GlobalKey();
   final Map<int, GlobalKey<BrowsePartState>> _partKeys = {};
@@ -63,9 +66,21 @@ class BrowseBodyState extends ConsumerState<BrowseBody> {
   @override
   Widget build(BuildContext context) {
     final yearSummaries = ref.watch(summariesProvider);
-    
+    final byYear = {for (final summary in yearSummaries) summary.year: summary};
+    if (ref.watch(browseManagerProvider).showHidden) {
+      final essays =
+          ref.watch(essayStreamProvider).valueOrNull ??
+          ref.read(essayBoxProvider).values;
+      for (final essay in essays) {
+        final year = essay.year.toString();
+        byYear.putIfAbsent(year, () => YearSummary(year: year));
+      }
+    }
+    final pages = byYear.values.toList()
+      ..sort((a, b) => b.year.compareTo(a.year));
+
     // 当数据首次变为非空时，跳转到第一个年份页（index=1）
-    if (!_hasData && yearSummaries.isNotEmpty) {
+    if (!_hasData && pages.isNotEmpty) {
       _hasData = true;
       // 使用 addPostFrameCallback 确保 PageView 已经构建完成
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -77,17 +92,14 @@ class BrowseBodyState extends ConsumerState<BrowseBody> {
         }
       });
     }
-    
+
     return PageView(
       controller: _controller,
       children: [
         // "-1页"：全部年份汇总
-        BrowseAllYears(
-          key: _allYearsKey,
-          yearSummaries: yearSummaries,
-        ),
+        BrowseAllYears(key: _allYearsKey, yearSummaries: yearSummaries),
         // 各年份页面
-        ...yearSummaries.asMap().entries.map(
+        ...pages.asMap().entries.map(
           (entry) => BrowsePart(
             key: _getPartKey(entry.key + 1),
             yearSummary: entry.value,

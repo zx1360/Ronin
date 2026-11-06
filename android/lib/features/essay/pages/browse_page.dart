@@ -6,7 +6,6 @@ import 'package:torrid/features/essay/models/essay_reread.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
 import 'package:torrid/features/essay/pages/search_page.dart';
 import 'package:torrid/features/essay/providers/box_provider.dart';
-import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/pages/browse_body.dart';
@@ -43,10 +42,9 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
         ).showSnackBar(const SnackBar(content: Text('当前筛选范围内还没有可重读的往日随笔')));
         return;
       }
-      ref.read(contentServerProvider.notifier).switchEssay(essay);
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const EssayDetailPage()),
+        MaterialPageRoute(builder: (_) => EssayDetailPage(essayId: essay.id)),
       );
     } catch (e) {
       if (mounted) {
@@ -61,7 +59,6 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(contentServerProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('随笔'),

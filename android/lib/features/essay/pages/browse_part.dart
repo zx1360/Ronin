@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
 import 'package:torrid/features/essay/pages/year_overview_page.dart';
-import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
 import 'package:torrid/features/essay/widgets/browse/year_summary_card.dart';
@@ -41,7 +40,6 @@ class BrowsePartState extends ConsumerState<BrowsePart> {
     final essaysAsync = ref.watch(
       yearEssaysProvider(year: widget.yearSummary.year),
     );
-    ref.watch(contentServerProvider); //防止contentServerProvider被销毁.
 
     return essaysAsync.when(
       error: (error, stack) => Center(child: Text('加载失败：$error')),
@@ -84,10 +82,11 @@ class BrowsePartState extends ConsumerState<BrowsePart> {
             child: EssayCard(
               essay: essay,
               onTap: () {
-                ref.read(contentServerProvider.notifier).switchEssay(essay);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => EssayDetailPage()),
+                  MaterialPageRoute(
+                    builder: (_) => EssayDetailPage(essayId: essay.id),
+                  ),
                 );
               },
             ),

@@ -55,6 +55,19 @@ List<Essay> visibleEssays(Iterable<Essay> essays, Iterable<Label> labels) {
   return essays.where((essay) => !essay.labels.any(hidden.contains)).toList();
 }
 
+List<Label> countEssayLabels(Iterable<Essay> essays, Iterable<Label> labels) {
+  final counts = <String, int>{};
+  for (final essay in essays) {
+    for (final id in essay.labels.toSet()) {
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+  }
+  return [
+    for (final label in labels)
+      label.copyWith(essayCount: counts[label.id] ?? 0),
+  ];
+}
+
 String labelPath(Label label, Iterable<Label> labels) {
   final byId = {for (final item in labels) item.id: item};
   final parts = <String>[];

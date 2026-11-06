@@ -57,7 +57,7 @@ class YearSummary {
     return YearSummary(
       year: year,
       essayCount: essaysInYear.length,
-      wordCount: essaysInYear.fold(0, (sum, e) => sum + e.wordCount),
+      wordCount: monthSummaries.fold(0, (sum, m) => sum + m.wordCount),
       monthSummaries: monthSummaries,
     );
   }
@@ -81,7 +81,7 @@ class YearSummary {
     return YearSummary(
       year: year,
       essayCount: essayCount + 1 * flag,
-      wordCount: wordCount + essay.wordCount * flag,
+      wordCount: wordCount + essay.totalWordCount * flag,
       monthSummaries: monthSummaries
         ..add(monthSummary.edit(essay: essay, isAppend: isAppend)),
     );
@@ -123,7 +123,7 @@ class MonthSummary {
     return MonthSummary(
       month: month,
       essayCount: essayCount + flag,
-      wordCount: wordCount + essay.wordCount * flag,
+      wordCount: wordCount + essay.totalWordCount * flag,
     );
   }
 
@@ -133,7 +133,7 @@ class MonthSummary {
     return MonthSummary(
       month: month.toString(),
       essayCount: essaysInMonth.length,
-      wordCount: essaysInMonth.fold(0, (sum, e) => sum + e.wordCount),
+      wordCount: essaysInMonth.fold(0, (sum, e) => sum + e.totalWordCount),
     );
   }
 

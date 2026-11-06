@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/app/theme/theme_book.dart';
+import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/essay_content_widget.dart';
 import 'package:torrid/features/essay/widgets/detail/message_input_widget.dart';
 import 'package:torrid/features/essay/widgets/modify/retag_widget.dart';
 
 class EssayDetailPage extends ConsumerWidget {
-  const EssayDetailPage({super.key});
+  final String essayId;
+  const EssayDetailPage({super.key, required this.essayId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final essay = ref.watch(essayByIdProvider(essayId));
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppTheme.surfaceContainer,
@@ -29,35 +32,40 @@ class EssayDetailPage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => _showModify(context, ref),
+            onPressed: essay.valueOrNull == null
+                ? null
+                : () => _showModify(context),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            EssayContentWidget(),
-
-            const SizedBox(height: 24),
-
-            // 添加留言
-            const MessageInputWidget(),
-          ],
-        ),
+      body: essay.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(child: Text('读取失败：$error')),
+        data: (essay) => essay == null
+            ? const Center(child: Text('随笔已不存在'))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    EssayContentWidget(essay: essay),
+                    const SizedBox(height: 24),
+                    MessageInputWidget(essayId: essayId),
+                  ],
+                ),
+              ),
       ),
     );
   }
 
-  void _showModify(BuildContext context, WidgetRef ref) {
+  void _showModify(BuildContext context) {
     showModalBottomSheet(
       isScrollControlled: true,
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => RetagWidget(),
+      builder: (context) => RetagWidget(essayId: essayId),
     );
   }
 }

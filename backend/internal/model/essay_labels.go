@@ -8,7 +8,11 @@ import (
 )
 
 const HiddenEssayLabelID = "00000000-0000-4000-8000-000000000001"
-const EssaySchemaVersion = 2
+const EssaySchemaVersion = 3
+
+func EssaySchemaFor(requested int) int {
+	return min(EssaySchemaVersion, max(2, requested))
+}
 
 func (l EssayLabel) IsHiddenRoot() bool {
 	return l.ID.String() == HiddenEssayLabelID || (l.Name == "隐藏" && l.ParentID == nil)

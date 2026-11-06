@@ -43,8 +43,16 @@ class Essay {
   @HiveField(9)
   final DateTime? updatedAt;
 
+  @HiveField(10)
+  final DateTime? createdAt;
+
+  @HiveField(11)
+  final DateTime? labelsUpdatedAt;
+
   Essay({
     this.updatedAt,
+    this.createdAt,
+    this.labelsUpdatedAt,
     required this.id,
     required this.date,
     required this.wordCount,
@@ -58,6 +66,8 @@ class Essay {
 
   Essay copyWith({
     DateTime? updatedAt,
+    DateTime? createdAt,
+    DateTime? labelsUpdatedAt,
     String? id,
     DateTime? date,
     int? wordCount,
@@ -71,6 +81,8 @@ class Essay {
   }) {
     return Essay(
       updatedAt: updatedAt ?? this.updatedAt,
+      createdAt: createdAt ?? this.createdAt,
+      labelsUpdatedAt: labelsUpdatedAt ?? this.labelsUpdatedAt,
       id: id ?? this.id,
       date: date ?? this.date,
       wordCount: wordCount ?? this.wordCount,
@@ -88,4 +100,14 @@ class Essay {
 
   int get year => date.year;
   int get month => date.month;
+
+  int get messageWordCount =>
+      messages.fold(0, (sum, message) => sum + message.content.trim().length);
+
+  int get totalWordCount => wordCount + messageWordCount;
+
+  String get wordCountText {
+    final extra = messageWordCount;
+    return extra == 0 ? '$wordCount字' : '$wordCount字(+$extra字)';
+  }
 }

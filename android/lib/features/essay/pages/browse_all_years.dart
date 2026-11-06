@@ -6,7 +6,6 @@ import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
 import 'package:torrid/features/essay/pages/year_overview_page.dart';
-import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 import 'package:torrid/core/models/mood.dart';
@@ -41,7 +40,6 @@ class BrowseAllYearsState extends ConsumerState<BrowseAllYears> {
   @override
   Widget build(BuildContext context) {
     final essaysAsync = ref.watch(filteredEssaysProvider);
-    ref.watch(contentServerProvider); // 防止contentServerProvider被销毁.
 
     return essaysAsync.when(
       error: (error, stack) => Center(child: Text('加载失败：$error')),
@@ -85,10 +83,11 @@ class BrowseAllYearsState extends ConsumerState<BrowseAllYears> {
             child: _EssayCardWithYear(
               essay: essay,
               onTap: () {
-                ref.read(contentServerProvider.notifier).switchEssay(essay);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => EssayDetailPage()),
+                  MaterialPageRoute(
+                    builder: (_) => EssayDetailPage(essayId: essay.id),
+                  ),
                 );
               },
             ),
@@ -268,7 +267,7 @@ class _EssayCardWithYear extends ConsumerWidget {
                 else
                   const SizedBox(),
                 Text(
-                  '${essay.wordCount} 字',
+                  essay.wordCountText,
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),

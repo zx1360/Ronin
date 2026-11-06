@@ -14,6 +14,7 @@ import (
 // AppConfig 应用配置数据类
 type AppConfig struct {
 	StaticDir  string
+	DataDir    string
 	GalleryDir string
 }
 
@@ -90,6 +91,7 @@ func Load() error {
 	_ = godotenv.Load()
 
 	AppConf.StaticDir = os.Getenv("STATIC_DIR")
+	AppConf.DataDir = envAbsOr("DATA_DIR", "data")
 	AppConf.GalleryDir = os.Getenv("GALLERY_DIR")
 
 	NetConf.LocalPort = os.Getenv("LOCAL_PORT")
