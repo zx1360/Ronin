@@ -115,6 +115,7 @@ class _ReviewPresetsPageState extends ConsumerState<ReviewPresetsPage> {
     final state = ref.watch(reviewPresetsControllerProvider);
     final presets = _current(state);
     final dirty = _dirty(state);
+    final colors = Theme.of(context).colorScheme;
 
     return PopScope(
       canPop: !dirty,
@@ -124,20 +125,25 @@ class _ReviewPresetsPageState extends ConsumerState<ReviewPresetsPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('角色与语气预设', style: TextStyle(fontSize: 17)),
+          actionsPadding: const EdgeInsetsDirectional.only(end: 12),
           actions: [
             if (state.syncing)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Center(
                   child: SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.onPrimary,
+                    ),
                   ),
                 ),
               ),
-            TextButton(
-              onPressed: dirty ? () => _save(presets) : null,
+            FilledButton(
+              style: AppTheme.appBarActionStyle(colors),
+              onPressed: dirty && !state.syncing ? () => _save(presets) : null,
               child: const Text('保存'),
             ),
           ],

@@ -64,6 +64,13 @@ Future<void> verifyGalleryWrites(
         } else if (field == 'message') {
           if ((expected ?? '') != (actual ?? '')) mismatch(id);
         } else if (expected != actual) {
+          // 本机只保留已下载主文件的关联。
+          if (field == 'group_id' &&
+              expected == null &&
+              actual is String &&
+              (await db.getCachedMediaIds([actual])).isEmpty) {
+            continue;
+          }
           mismatch(id);
         }
       }

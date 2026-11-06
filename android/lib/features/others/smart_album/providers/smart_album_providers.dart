@@ -79,14 +79,37 @@ class SmartAlbumController extends _$SmartAlbumController {
   @override
   SmartAlbumState build() {
     ref.watch(aiApiProvider);
-    ref.listen(immichDeletionRevisionProvider, (_, __) {
-      if (_query != null) unawaited(reload());
+    ref.listen(immichMediaUpdateProvider, (_, update) {
+      if (update == null || _query == null) return;
+      if (update.changesVisibility || state.loading || state.loadingMore) {
+        unawaited(reload());
+      } else {
+        _updateAssets(update.assets);
+      }
     });
     ref.onDispose(() {
       _requestId++;
       _query = null;
     });
     return const SmartAlbumState();
+  }
+
+  void _updateAssets(List<MediaAsset> assets) {
+    final byId = {for (final asset in assets) asset.id: asset};
+    final result = state.result;
+    state = state.copyWith(
+      result: AiSearchResult(
+        mode: result.mode,
+        total: result.total,
+        hits: [
+          for (final hit in result.hits)
+            if (byId[hit.id] case final asset?)
+              AiSearchHit(asset: asset, score: hit.score)
+            else
+              hit,
+        ],
+      ),
+    );
   }
 
   Future<void> search(String text, {AiSearchMode? mode}) {

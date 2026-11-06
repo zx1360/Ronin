@@ -48,10 +48,8 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('背景图片设置'),
-        bottom: TabBar(
-          labelColor: colorScheme.onPrimary,
-          unselectedLabelColor: colorScheme.onPrimary.withAlpha(179),
-          indicatorColor: colorScheme.onPrimary,
+        bottom: AppTheme.appBarTabs(
+          colorScheme,
           controller: _tabController,
           tabs: const [
             Tab(text: '主页背景'),
@@ -155,7 +153,7 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
           const SizedBox(height: AppSpacing.sm),
           Text(
             '点击右下角按钮添加图片',
-            style: TextStyle(fontSize: 14, color: AppTheme.outline),
+            style: TextStyle(fontSize: 14, color: AppTheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.lg),
           OutlinedButton.icon(
