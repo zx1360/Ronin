@@ -54,11 +54,15 @@ class LabelSelector extends StatelessWidget {
         ],
       ),
     );
-    return maxHeight == null
-        ? content
-        : ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight!),
-            child: content,
-          );
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      heightFactor: 1,
+      child: maxHeight == null
+          ? content
+          : ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight!),
+              child: content,
+            ),
+    );
   }
 }

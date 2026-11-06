@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/chat/chat_entry.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
+import 'package:torrid/features/others/immich/widgets/album_media_viewer.dart';
 import 'package:torrid/features/others/immich/widgets/immich_ai_tag_sheet.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_ops_sheet.dart';
 import 'package:torrid/features/others/immich/widgets/immich_tag_tree.dart';
-import 'package:torrid/features/others/widgets/media_viewer_page.dart';
 import 'package:torrid/features/others/services/media_share_service.dart';
+import 'package:torrid/features/others/smart_album/pages/smart_album_page.dart';
+import 'package:torrid/features/others/smart_album/providers/smart_album_providers.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
-/// 相册页 (immich)
-///
-/// 始终在线的媒体/标签管理页: 数据直连局域网后端, 同时把结果镜像回本地缓存。
-/// - 标签树 (Drawer): 浏览/筛选/新建/重命名/移动/删除/快捷标签
-/// - AI 标签 (只读): 由服务端 VLM 自动生成, 仅用于筛选与查看, 不与人工标签混淆
-/// - 媒体网格: 分页浏览, 多选批量加标签/移除标签/删除/恢复/备注/捆绑/解绑
-/// - 单张媒体: 全屏查看 (缩放/播放) + 详情面板编辑备注与标签
 class ImmichPage extends ConsumerStatefulWidget {
   const ImmichPage({super.key});
 
@@ -28,94 +22,131 @@ class ImmichPage extends ConsumerStatefulWidget {
   ConsumerState<ImmichPage> createState() => _ImmichPageState();
 }
 
-class _ImmichPageState extends ConsumerState<ImmichPage> {
+class _ImmichPageState extends ConsumerState<ImmichPage>
+    with SingleTickerProviderStateMixin {
+  late final _tabs = TabController(length: 3, vsync: this);
+  int _tab = 0;
   bool _selectionMode = false;
 
   @override
   void initState() {
     super.initState();
-    // 服务端为权威: 进入页面时同步一次标签 (失败则继续用本地缓存)
+    _tabs.addListener(() {
+      if (_tab == _tabs.index) return;
+      FocusManager.instance.primaryFocus?.unfocus();
+      setState(() => _tab = _tabs.index);
+    });
     Future.microtask(() async {
       try {
+        if (!mounted) return;
         await ref.read(tagTreeProvider.notifier).syncFromServer();
       } catch (_) {}
     });
   }
 
   @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final mediaAsync = ref.watch(immichMediaProvider);
-    final page = mediaAsync.valueOrNull;
+    final page = mediaAsync.hasError ? null : mediaAsync.valueOrNull;
     final selection = ref.watch(immichSelectionProvider);
     final busy = ref.watch(immichActionsProvider);
     final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
     final tagById = {for (final tag in tags) tag.id: tag};
+    final search = ref.watch(smartAlbumControllerProvider.notifier);
+    ref.listen(immichFilterNotifierProvider, (_, __) => _clearSelection());
+    final selected = [
+      for (final asset in page?.assets ?? const <MediaAsset>[])
+        if (selection.contains(asset.id)) asset,
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('相册'),
-            if (page != null)
-              Text(
-                '${page.total} 项',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
+        leading: const BackButton(),
+        title: const Text('相册'),
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(text: '照片'),
+            Tab(text: '检索'),
+            Tab(text: '人物'),
           ],
         ),
-        actions: [
-          if (busy)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+        actions: _tab != 0
+            ? null
+            : [
+                Builder(
+                  builder: (context) => IconButton(
+                    tooltip: '标签与筛选',
+                    icon: const Icon(Icons.filter_list),
+                    onPressed: busy
+                        ? null
+                        : () => Scaffold.of(context).openDrawer(),
+                  ),
                 ),
-              ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.sync),
-            tooltip: '同步',
-            onPressed: _sync,
-          ),
-          IconButton(
-            icon: Icon(_selectionMode ? Icons.close : Icons.checklist),
-            tooltip: _selectionMode ? '退出多选' : '多选',
-            onPressed: _toggleSelectionMode,
-          ),
-        ],
+                IconButton(
+                  icon: const Icon(Icons.sync),
+                  tooltip: '同步',
+                  onPressed: busy ? null : _sync,
+                ),
+                IconButton(
+                  icon: Icon(_selectionMode ? Icons.close : Icons.checklist),
+                  tooltip: _selectionMode ? '退出多选' : '多选',
+                  onPressed: busy || mediaAsync.isLoading
+                      ? null
+                      : _toggleSelectionMode,
+                ),
+              ],
       ),
       drawer: const ImmichTagTreePanel(),
-      body: Column(
-        children: [
-          _buildFilterBar(),
-          Expanded(child: _buildBody(mediaAsync, page, selection, tagById)),
-        ],
+      drawerEnableOpenDragGesture: _tab == 0 && !busy,
+      body: SafeArea(
+        top: false,
+        child: TabBarView(
+          controller: _tabs,
+          children: [
+            Column(
+              children: [
+                _buildFilterBar(),
+                Expanded(
+                  child: _buildBody(mediaAsync, page, selection, tagById, busy),
+                ),
+              ],
+            ),
+            const SmartAlbumSearch(),
+            SmartAlbumPeople(
+              onPerson: (person) {
+                if (busy) return;
+                _tabs.animateTo(1);
+                search.searchByPerson(person);
+              },
+            ),
+          ],
+        ),
       ),
-      bottomNavigationBar: selection.isEmpty
+      bottomNavigationBar: _tab != 0 || selected.isEmpty
           ? null
           : ImmichSelectionBar(
-              count: selection.length,
+              count: selected.length,
+              busy: busy || mediaAsync.isLoading,
               onAddTags: _addTagsToSelection,
               onRemoveTags: _removeTagsFromSelection,
-              onDelete: _deleteSelection,
-              onRestore: _restoreSelection,
+              onDelete: selected.any((asset) => !asset.isDeleted)
+                  ? () => _setDeleted(selected, true)
+                  : null,
+              onRestore: selected.any((asset) => asset.isDeleted)
+                  ? () => _setDeleted(selected, false)
+                  : null,
               onMessage: _editSelectionMessage,
-              onBundle: _bundleSelection,
+              onBundle: selected.length >= 2 ? _bundleSelection : null,
               onUnbundle: _unbundleSelection,
               onClear: _clearSelection,
               onShare: () {
-                final selected = [
-                  for (final asset in page?.assets ?? <MediaAsset>[])
-                    if (selection.contains(asset.id)) asset,
-                ];
                 showMediaShareDialog(
                   context,
                   ref.read(apiClientManagerProvider),
@@ -170,7 +201,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
               ],
               const SizedBox(width: 6),
               FilterChip(
-                label: const Text('含已删除', style: TextStyle(fontSize: 12)),
+                label: const Text('含待删除', style: TextStyle(fontSize: 12)),
                 selected: filter.includeDeleted,
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -331,6 +362,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     ImmichMediaPage? page,
     Set<String> selection,
     Map<String, Tag> tagById,
+    bool busy,
   ) {
     if (page == null) {
       return mediaAsync.when(
@@ -386,18 +418,26 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
 
     return Stack(
       children: [
-        ImmichMediaGrid(
-          page: page,
-          tagById: tagById,
+        AlbumMediaGrid(
+          key: const PageStorageKey('album-photos'),
+          assets: page.assets,
+          tagsFor: (asset) => [
+            for (final id in page.tagIdsByMedia[asset.id] ?? const <String>[])
+              if (tagById[id] case final tag?) tag.name,
+          ],
           selectionMode: _selectionMode,
           selectedIds: selection,
-          selectionOrder: selection.toList(),
-          onLoadMore: _loadMore,
+          loadingMore: page.loadingMore,
+          onLoadMore: page.hasMore && !busy ? _loadMore : null,
           onRefresh: _refresh,
-          onTap: _onTapAsset,
-          onLongPress: _onLongPressAsset,
+          onTap: (asset) {
+            if (!busy && !mediaAsync.isLoading) _onTapAsset(asset);
+          },
+          onLongPress: (asset) {
+            if (!busy && !mediaAsync.isLoading) _onLongPressAsset(asset);
+          },
         ),
-        if (mediaAsync.isLoading)
+        if (mediaAsync.isLoading || busy)
           const Positioned(
             top: 0,
             left: 0,
@@ -451,43 +491,17 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     _openViewer(asset.id);
   }
 
-  /// 打开全屏查看器；管理入口（备注/人工标签/删除）作为右上角操作注入。
   void _openViewer(String mediaId) {
     final assets =
         ref.read(immichMediaProvider).valueOrNull?.assets ?? const [];
-    final index = assets.indexWhere((item) => item.id == mediaId);
-    if (index < 0) return;
-
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MediaViewerPage(
-          assets: assets,
-          initialIndex: index,
-          actions: (viewerContext, asset) => [
-            IconButton(
-              icon: const Icon(Icons.auto_awesome),
-              tooltip: '问问AI',
-              onPressed: () {
-                Navigator.of(viewerContext).pop();
-                askAiAboutMedia(
-                  context,
-                  mediaId: asset.id,
-                  fileName: asset.filePath.split(RegExp(r'[/\\]')).last,
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.tune),
-              tooltip: '详情与标签',
-              onPressed: () => showImmichMediaDetail(
-                viewerContext,
-                mediaId: asset.id,
-                fallback: asset,
-              ),
-            ),
-          ],
-        ),
-      ),
+    openAlbumMediaViewer(
+      context,
+      assets: assets,
+      mediaId: mediaId,
+      onSimilar: (asset) {
+        _tabs.animateTo(1);
+        ref.read(smartAlbumControllerProvider.notifier).searchSimilar(asset);
+      },
     );
   }
 
@@ -497,6 +511,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
   }
 
   void _clearSelection() {
+    if (!_selectionMode) return;
     ref.read(immichSelectionProvider.notifier).clear();
     setState(() => _selectionMode = false);
   }
@@ -528,7 +543,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     final ids = _selectedIdsOrdered;
     if (ids.isEmpty) return;
     final picked = await showImmichTagPicker(context, title: '添加标签');
-    if (picked == null || picked.isEmpty) return;
+    if (!mounted || picked == null || picked.isEmpty) return;
     await _run(
       () => ref
           .read(immichActionsProvider.notifier)
@@ -554,7 +569,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
       title: '移除标签',
       restrictTo: present,
     );
-    if (picked == null || picked.isEmpty) return;
+    if (!mounted || picked == null || picked.isEmpty) return;
     await _run(
       () => ref
           .read(immichActionsProvider.notifier)
@@ -563,29 +578,16 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     );
   }
 
-  Future<void> _deleteSelection() async {
-    final ids = _selectedIdsOrdered;
-    if (ids.isEmpty) return;
-    final confirmed = await showImmichConfirmDialog(
-      context,
-      title: '删除媒体',
-      message: '确定软删除选中的 ${ids.length} 项吗?',
-      confirmText: '删除',
-      danger: true,
-    );
-    if (!confirmed) return;
+  Future<void> _setDeleted(List<MediaAsset> selected, bool deleted) async {
+    final ids = [
+      for (final asset in selected)
+        if (asset.isDeleted != deleted) asset.id,
+    ];
+    if (deleted && !await confirmAlbumDeletion(context, ids.length)) return;
+    if (!mounted) return;
     await _run(
-      () => ref.read(immichActionsProvider.notifier).setDeleted(ids, true),
-      ok: '已删除 ${ids.length} 项',
-    );
-  }
-
-  Future<void> _restoreSelection() async {
-    final ids = _selectedIdsOrdered;
-    if (ids.isEmpty) return;
-    await _run(
-      () => ref.read(immichActionsProvider.notifier).setDeleted(ids, false),
-      ok: '已恢复 ${ids.length} 项',
+      () => ref.read(immichActionsProvider.notifier).setDeleted(ids, deleted),
+      ok: deleted ? '已标记待删除，可在「含待删除」中恢复' : '已恢复 ${ids.length} 项',
     );
   }
 
@@ -603,7 +605,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
       hint: same ? '留空即清除备注' : '多项备注不同, 输入将覆盖为同一备注',
       maxLines: 3,
     );
-    if (text == null) return;
+    if (!mounted || text == null) return;
     await _run(
       () => ref.read(immichActionsProvider.notifier).setMessage(ids, text),
       ok: '备注已更新',
@@ -622,7 +624,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
       return;
     }
     final leadId = await showImmichLeadPicker(context, assets);
-    if (leadId == null) return;
+    if (!mounted || leadId == null) return;
     final members = [
       for (final id in ids)
         if (id != leadId) id,
@@ -647,7 +649,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage> {
     try {
       await action();
       if (!mounted) return;
-      setState(() => _selectionMode = false);
+      _clearSelection();
       if (ok != null) _snack(ok);
     } catch (e) {
       _snack('操作失败: $e');

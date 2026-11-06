@@ -38,6 +38,7 @@ class RetagWidget extends ConsumerWidget {
       constraints: BoxConstraints(maxHeight: maxHeight, minWidth: minWidth),
       padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(

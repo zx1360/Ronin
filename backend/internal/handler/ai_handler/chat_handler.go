@@ -99,7 +99,6 @@ func (t chatTuning) resolve(e *ai.Engine) (string, ai.ChatOptions, error) {
 		options.KeepAliveSeconds = *t.KeepAliveSeconds
 	}
 
-	// 模型清单由服务端下发给两端，这里只做"必须是本机已安装模型"的校验（并归一化大小写）
 	modelName, err := e.NormalizeModel(t.Model)
 	if err != nil {
 		return "", options, err

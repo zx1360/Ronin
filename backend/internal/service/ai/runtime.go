@@ -249,9 +249,7 @@ type ExecutorCandidate struct {
 
 // ExecutorCandidates 返回该能力的执行者候选与当前选择。
 //
-// VLM 的候选**实时来自本机 Ollama**（按模型名排序，只列已安装的），
-// 因此用户自行 ollama pull/rm 增删模型后无需改配置、改代码或重启：两端都只渲染这里下发的列表。
-// 其余能力固定一种实现，仍然下发列表以便消费端统一渲染而不必在端上硬编码。
+// VLM 与对话共用 Ollama 已安装且支持生成的候选，视觉能力单独下发。
 func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandidate {
 	apply := func(candidates []ExecutorCandidate) []ExecutorCandidate {
 		// current 是能力指纹里的执行者（VLM 形如 `ollama:<模型名>`），
@@ -275,6 +273,9 @@ func (e *Engine) ExecutorCandidates(capability, current string) []ExecutorCandid
 		candidates := make([]ExecutorCandidate, 0, len(names))
 		for _, key := range names {
 			info := installed[key]
+			if !info.Completion {
+				continue
+			}
 			candidates = append(candidates, ExecutorCandidate{
 				Model:     info.Name,
 				Installed: true,
@@ -314,8 +315,7 @@ func (e *Engine) installedModelInfo() map[string]ModelInfo {
 
 // NormalizeModel 校验客户端指定的模型并归一化为本机实际使用的模型名。
 //
-// 空串表示沿用当前选定的模型；非空时必须是本机已安装的模型（Ollama 不可达时无法确认，
-// 直接拒绝并说明），因此用户增删模型后两端都能立刻切换，不需要改代码。
+// 空串沿用当前选定的模型；显式选择要求模型已安装且支持生成。
 func (e *Engine) NormalizeModel(requested string) (string, error) {
 	selected := strings.TrimSpace(requested)
 	if selected == "" {
@@ -324,25 +324,26 @@ func (e *Engine) NormalizeModel(requested string) (string, error) {
 		}
 		return "", fmt.Errorf("尚未选定模型：本机没有可用的 Ollama 模型")
 	}
-	for _, candidate := range e.ExecutorCandidates(model.CapVLM, "ollama:"+e.VLMModel()) {
-		if strings.EqualFold(candidate.Model, selected) && candidate.Installed {
-			return candidate.Model, nil
+	installed := e.installedModelInfo()
+	info, ok := installed[strings.ToLower(selected)]
+	if !ok {
+		info, ok = installed[strings.ToLower(selected)+":latest"]
+	}
+	if ok {
+		if !info.Completion {
+			return "", fmt.Errorf("模型 %s 不支持对话生成，请选择支持对话的模型", info.Name)
+		}
+		return info.Name, nil
+	}
+	available := make([]string, 0, len(installed))
+	for _, item := range installed {
+		if item.Completion {
+			available = append(available, item.Name)
 		}
 	}
-	available := e.installedModelNames()
 	if len(available) == 0 {
-		return "", fmt.Errorf("模型 %s 不可用，请在对话设置的模型区启动 Ollama 或检查模型是否已安装", selected)
+		return "", fmt.Errorf("模型 %s 不可用，请启动 Ollama 或检查是否安装了对话模型", selected)
 	}
-	return "", fmt.Errorf("模型 %s 不可用（本机已安装: %s）", selected, strings.Join(available, "、"))
-}
-
-// installedModelNames 返回本机已安装模型名（按名称排序，供错误提示）。
-func (e *Engine) installedModelNames() []string {
-	installed := e.installedModelInfo()
-	names := make([]string, 0, len(installed))
-	for _, info := range installed {
-		names = append(names, info.Name)
-	}
-	sort.Strings(names)
-	return names
+	sort.Strings(available)
+	return "", fmt.Errorf("模型 %s 不可用（已安装的对话模型：%s）", selected, strings.Join(available, "、"))
 }

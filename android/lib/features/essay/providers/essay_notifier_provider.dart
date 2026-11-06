@@ -153,30 +153,28 @@ class EssayService extends _$EssayService {
     return essay;
   }
 
-  Future<void> acceptSuggestedLabel(Essay source, String labelId) =>
-      _write(() async {
-        final hidden = hiddenLabelIds(state.labelBox.values);
-        final essay = _suggestionTarget(source, hidden);
-        if (!state.labelBox.containsKey(labelId) || hidden.contains(labelId)) {
-          throw StateError('标签已不可用');
-        }
-        if (essay.labels.contains(labelId)) return;
-        if (essay.labels.length >= 4) throw StateError('随笔最多可有 4 个标签');
-        await _saveEssay(
-          essay.copyWith(labels: [...essay.labels, labelId]),
-          essay,
-        );
-      });
-
-  Future<void> acceptSuggestedTitle(Essay source, String title) =>
-      _write(() async {
-        final essay = _suggestionTarget(
-          source,
-          hiddenLabelIds(state.labelBox.values),
-        );
-        if (essay.title != source.title) throw StateError('随笔标题已变更，请重新分析');
-        await _saveEssay(essay.copyWith(title: title), essay);
-      });
+  Future<void> acceptSuggestions(
+    Essay source, {
+    String? title,
+    required List<String> labelIds,
+  }) => _write(() async {
+    final hidden = hiddenLabelIds(state.labelBox.values);
+    final essay = _suggestionTarget(source, hidden);
+    if (title != null && essay.title != source.title && essay.title != title) {
+      throw StateError('随笔标题已变更，请重新分析');
+    }
+    if (labelIds.any(
+      (id) => !state.labelBox.containsKey(id) || hidden.contains(id),
+    )) {
+      throw StateError('所选标签已不可用');
+    }
+    final additions = labelIds.toSet().difference(essay.labels.toSet());
+    final labels = [...essay.labels, ...additions];
+    if (additions.isNotEmpty && labels.length > 4) {
+      throw StateError('随笔最多可有 4 个标签');
+    }
+    await _saveEssay(essay.copyWith(title: title, labels: labels), essay);
+  });
 
   Future<void> deleteEssay(Essay essay) => _write(() async {
     final current = state.essayBox.get(essay.id);

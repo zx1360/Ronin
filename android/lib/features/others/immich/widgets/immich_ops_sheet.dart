@@ -10,40 +10,49 @@ import 'package:torrid/features/others/gallery/providers/gallery_providers.dart'
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 
-// 底部批量操作栏
-
-/// 多选状态下的底部操作栏
 class ImmichSelectionBar extends StatelessWidget {
   final int count;
-  final VoidCallback onAddTags;
-  final VoidCallback onRemoveTags;
-  final VoidCallback onDelete;
-  final VoidCallback onRestore;
-  final VoidCallback onMessage;
-  final VoidCallback onBundle;
-  final VoidCallback onUnbundle;
+  final bool busy;
   final VoidCallback onClear;
-  final VoidCallback onShare;
+  final VoidCallback? onAddTags;
+  final VoidCallback? onDelete;
+  final VoidCallback? onRestore;
+  final VoidCallback? onRemoveTags;
+  final VoidCallback? onMessage;
+  final VoidCallback? onBundle;
+  final VoidCallback? onUnbundle;
+  final VoidCallback? onShare;
 
   const ImmichSelectionBar({
     super.key,
     required this.count,
-    required this.onAddTags,
-    required this.onRemoveTags,
-    required this.onDelete,
-    required this.onRestore,
-    required this.onMessage,
-    required this.onBundle,
-    required this.onUnbundle,
+    required this.busy,
     required this.onClear,
-    required this.onShare,
+    this.onAddTags,
+    this.onDelete,
+    this.onRestore,
+    this.onRemoveTags,
+    this.onMessage,
+    this.onBundle,
+    this.onUnbundle,
+    this.onShare,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final actions = [
+      (Icons.label_outline, '加标签', onAddTags),
+      (Icons.delete_outline, '标记待删除', onDelete),
+      (Icons.restore, '恢复', onRestore),
+      (Icons.share, '分享', onShare),
+      (Icons.label_off_outlined, '移除标签', onRemoveTags),
+      (Icons.link, '捆绑', onBundle),
+      (Icons.link_off, '解绑', onUnbundle),
+      (Icons.edit_note, '备注', onMessage),
+    ];
     return Material(
-      elevation: 8,
+      elevation: 4,
       color: scheme.surface,
       child: SafeArea(
         top: false,
@@ -55,96 +64,55 @@ class ImmichSelectionBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
                   '已选 $count',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.primary,
-                  ),
+                  style: TextStyle(color: scheme.primary),
                 ),
               ),
               Expanded(
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    _BarAction(icon: Icons.share, label: '分享', onTap: onShare),
-                    _BarAction(
-                        icon: Icons.label_outline,
-                        label: '加标签',
-                        onTap: onAddTags),
-                    _BarAction(
-                        icon: Icons.label_off_outlined,
-                        label: '移除标签',
-                        onTap: onRemoveTags),
-                    _BarAction(
-                        icon: Icons.link,
-                        label: '捆绑',
-                        enabled: count >= 2,
-                        onTap: onBundle),
-                    _BarAction(
-                        icon: Icons.link_off,
-                        label: '解绑',
-                        onTap: onUnbundle),
-                    _BarAction(
-                        icon: Icons.edit_note,
-                        label: '备注',
-                        onTap: onMessage),
-                    _BarAction(
-                        icon: Icons.delete_outline,
-                        label: '删除',
-                        color: Colors.red,
-                        onTap: onDelete),
-                    _BarAction(
-                        icon: Icons.restore,
-                        label: '恢复',
-                        color: Colors.green,
-                        onTap: onRestore),
-                    _BarAction(
-                        icon: Icons.close,
-                        label: '取消选择',
-                        onTap: onClear),
+                    for (final (icon, label, action) in actions)
+                      if (action != null)
+                        InkWell(
+                          onTap: busy ? null : action,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  icon,
+                                  size: 20,
+                                  color: busy ? scheme.outline : null,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  label,
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                   ],
                 ),
               ),
+              if (busy)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                IconButton(
+                  onPressed: onClear,
+                  icon: const Icon(Icons.close),
+                  tooltip: '退出多选',
+                ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BarAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _BarAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tint = enabled ? color : Colors.grey;
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 20, color: tint),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(fontSize: 10, color: tint),
-            ),
-          ],
         ),
       ),
     );
@@ -496,64 +464,63 @@ class _MediaDetailSheet extends ConsumerStatefulWidget {
 
 class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
   bool _busy = false;
-
-  /// 列表未覆盖该媒体时兜底拉取一次标签（多页刷新后仍能正确显示）
-  List<String>? _fetchedTagIds;
-
-  /// 该媒体的 AI 分析结果（只读展示，不参与编辑）
+  late MediaAsset _asset = widget.fallback;
+  List<String>? _tagIds;
+  bool _loadFailed = false;
   AiMediaDetail? _aiDetail;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _ensureTagsLoaded();
-      _loadAiDetail();
-    });
+    _loadMedia();
+    _loadAiDetail();
   }
 
-  Future<void> _ensureTagsLoaded() async {
-    final page = ref.read(immichMediaProvider).valueOrNull;
-    if (page != null && page.tagIdsByMedia.containsKey(widget.mediaId)) return;
+  Future<void> _loadMedia() async {
     try {
-      final result = await ref.read(galleryApiProvider).queryMedia(
-            ids: [widget.mediaId],
-            includeDeleted: true,
-            limit: 1,
-          );
-      final ids = [
-        for (final link in result.mediaTagLinks)
-          if (link.mediaId == widget.mediaId) link.tagId,
-      ];
-      if (mounted) setState(() => _fetchedTagIds = ids);
+      final result = await ref
+          .read(galleryApiProvider)
+          .queryMedia(ids: [widget.mediaId], includeDeleted: true, limit: 1);
+      final asset = result.mediaAssets.firstOrNull;
+      if (asset == null) throw StateError('媒体已不存在');
+      if (!mounted) return;
+      setState(() {
+        _asset = asset;
+        _tagIds = result.mediaTagLinks.map((link) => link.tagId).toList();
+        _loadFailed = false;
+      });
     } catch (_) {
-      // 拉取失败时保持空标签展示, 不做额外提示
+      if (mounted) {
+        setState(() {
+          _tagIds = null;
+          _loadFailed = true;
+        });
+      }
     }
   }
 
   /// AI 结果读取失败（未初始化 AI 层 / 离线）时整块不展示。
   Future<void> _loadAiDetail() async {
     try {
-      final detail = await ref.read(aiApiProvider).fetchMediaDetail(widget.mediaId);
+      final detail = await ref
+          .read(aiApiProvider)
+          .fetchMediaDetail(widget.mediaId);
       if (mounted) setState(() => _aiDetail = detail);
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    final page = ref.watch(immichMediaProvider).valueOrNull;
-    final asset = _findAsset(page, widget.mediaId) ?? widget.fallback;
-    final tagIds = page?.tagIdsByMedia[widget.mediaId] ??
-        _fetchedTagIds ??
-        const <String>[];
+    final asset = _asset;
+    final tagIds = _tagIds;
+    final busy = _busy || ref.watch(immichActionsProvider);
+    final canEdit = !busy && tagIds != null;
     final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
     final byId = {for (final tag in tags) tag.id: tag};
     final linkedTags = [
-      for (final id in tagIds)
+      for (final id in tagIds ?? const <String>[])
         if (byId[id] != null) byId[id]!,
-    ]..sort(
-        (a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name),
-      );
+    ]..sort((a, b) => (a.fullPath ?? a.name).compareTo(b.fullPath ?? b.name));
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -565,7 +532,13 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_busy) const LinearProgressIndicator(minHeight: 2),
+            if (busy) const LinearProgressIndicator(minHeight: 2),
+            if (_loadFailed)
+              TextButton.icon(
+                onPressed: busy ? null : _loadMedia,
+                icon: const Icon(Icons.refresh),
+                label: const Text('详情加载失败，重试'),
+              ),
             Row(
               children: [
                 Icon(
@@ -586,33 +559,44 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
                 ),
                 if (asset.isDeleted)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text('已删除',
-                        style: TextStyle(fontSize: 10, color: Colors.white)),
+                    child: const Text(
+                      '待删除',
+                      style: TextStyle(fontSize: 10, color: Colors.white),
+                    ),
                   ),
               ],
             ),
             const SizedBox(height: 6),
             _InfoRow(
               icon: Icons.schedule,
-              text: DateFormat('yyyy-MM-dd HH:mm').format(asset.capturedAt),
+              text: DateFormat(
+                'yyyy-MM-dd HH:mm',
+              ).format(asset.capturedAt.toLocal()),
             ),
-            _InfoRow(icon: Icons.sd_storage_outlined, text: _formatSize(asset.sizeBytes)),
+            _InfoRow(
+              icon: Icons.sd_storage_outlined,
+              text: _formatSize(asset.sizeBytes),
+            ),
             if (asset.isGroupMember)
               const _InfoRow(icon: Icons.link, text: '已捆绑到其他文件'),
             const Divider(height: 24),
             Row(
               children: [
-                const Text('备注',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const Text(
+                  '备注',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
                 const Spacer(),
                 TextButton.icon(
-                  onPressed: () => _editMessage(asset),
+                  onPressed: canEdit ? () => _editMessage(asset) : null,
                   icon: const Icon(Icons.edit, size: 16),
                   label: const Text('编辑', style: TextStyle(fontSize: 12)),
                 ),
@@ -632,19 +616,27 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
             const Divider(height: 24),
             Row(
               children: [
-                const Text('标签',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const Text(
+                  '人工标签',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
                 const Spacer(),
                 TextButton.icon(
-                  onPressed: () => _editTags(asset, tagIds),
+                  onPressed: canEdit ? () => _editTags(asset, tagIds) : null,
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('修改', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
             if (linkedTags.isEmpty)
-              const Text('暂无标签',
-                  style: TextStyle(fontSize: 12, color: Colors.grey))
+              Text(
+                tagIds != null
+                    ? '暂无标签'
+                    : _loadFailed
+                    ? '标签暂不可用'
+                    : '正在加载标签…',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              )
             else
               Wrap(
                 spacing: 6,
@@ -652,11 +644,15 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
                 children: [
                   for (final tag in linkedTags)
                     InputChip(
-                      label: Text(tag.name,
-                          style: const TextStyle(fontSize: 12)),
+                      label: Text(
+                        tag.name,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                       visualDensity: VisualDensity.compact,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      onDeleted: () => _removeTag(asset, tag.id),
+                      onDeleted: canEdit
+                          ? () => _removeTag(asset, tag.id)
+                          : null,
                     ),
                 ],
               ),
@@ -666,18 +662,23 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
                 children: [
                   const Icon(Icons.auto_awesome, size: 16, color: Colors.teal),
                   const SizedBox(width: 6),
-                  const Text('AI 标签',
-                      style:
-                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'AI 标签',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(width: 6),
-                  Text('只读',
-                      style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                  Text(
+                    '只读',
+                    style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                  ),
                 ],
               ),
               const SizedBox(height: 6),
               if (_aiDetail!.vlmTags.isEmpty)
-                const Text('暂无 AI 标签',
-                    style: TextStyle(fontSize: 12, color: Colors.grey))
+                const Text(
+                  '暂无 AI 标签',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                )
               else
                 Wrap(
                   spacing: 6,
@@ -686,8 +687,11 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
                     for (final tag in _aiDetail!.vlmTags)
                       Chip(
                         label: Text(tag, style: const TextStyle(fontSize: 12)),
-                        avatar: const Icon(Icons.auto_awesome,
-                            size: 14, color: Colors.teal),
+                        avatar: const Icon(
+                          Icons.auto_awesome,
+                          size: 14,
+                          color: Colors.teal,
+                        ),
                         visualDensity: VisualDensity.compact,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         side: BorderSide(
@@ -698,10 +702,17 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
                 ),
               if (_aiDetail!.caption != null) ...[
                 const SizedBox(height: 10),
-                Text('AI 描述',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                Text(
+                  'AI 描述',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
                 const SizedBox(height: 2),
                 Text(_aiDetail!.caption!, style: const TextStyle(fontSize: 13)),
+              ],
+              if (_aiDetail!.ocrText case final ocr?) ...[
+                const SizedBox(height: 10),
+                const Text('识别文字'),
+                SelectableText(ocr, style: const TextStyle(fontSize: 13)),
               ],
             ],
             const Divider(height: 24),
@@ -709,17 +720,22 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
               children: [
                 if (asset.isDeleted)
                   OutlinedButton.icon(
-                    onPressed: () => _setDeleted(asset, false),
+                    onPressed: canEdit ? () => _setDeleted(asset, false) : null,
                     icon: const Icon(Icons.restore, size: 18),
                     label: const Text('恢复'),
                   )
                 else
                   OutlinedButton.icon(
-                    onPressed: () => _setDeleted(asset, true),
-                    icon: const Icon(Icons.delete_outline,
-                        size: 18, color: Colors.red),
-                    label: const Text('删除',
-                        style: TextStyle(color: Colors.red)),
+                    onPressed: canEdit ? () => _setDeleted(asset, true) : null,
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.red,
+                    ),
+                    label: const Text(
+                      '标记待删除',
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
               ],
             ),
@@ -735,6 +751,7 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
     setState(() => _busy = true);
     try {
       await action();
+      if (mounted) await _loadMedia();
       if (ok != null) _snack(ok);
     } catch (e) {
       _snack('操作失败: $e');
@@ -752,11 +769,10 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
       hint: '留空即清除备注',
       maxLines: 3,
     );
-    if (text == null) return;
+    if (!mounted || text == null) return;
     await _run(
-      () => ref
-          .read(immichActionsProvider.notifier)
-          .setMessage([asset.id], text),
+      () =>
+          ref.read(immichActionsProvider.notifier).setMessage([asset.id], text),
       ok: '备注已更新',
     );
   }
@@ -767,16 +783,17 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
       title: '编辑标签',
       initialChecked: currentIds.toSet(),
     );
-    if (picked == null) return;
+    if (!mounted || picked == null) return;
     final current = currentIds.toSet();
     final toAdd = picked.difference(current).toList();
     final toRemove = current.difference(picked).toList();
     if (toAdd.isEmpty && toRemove.isEmpty) return;
-    await _run(() async {
-      final actions = ref.read(immichActionsProvider.notifier);
-      if (toAdd.isNotEmpty) await actions.addTags([asset.id], toAdd);
-      if (toRemove.isNotEmpty) await actions.removeTags([asset.id], toRemove);
-    }, ok: '标签已更新');
+    await _run(
+      () => ref
+          .read(immichActionsProvider.notifier)
+          .editTags([asset.id], add: toAdd, remove: toRemove),
+      ok: '标签已更新',
+    );
   }
 
   Future<void> _removeTag(MediaAsset asset, String tagId) async {
@@ -789,21 +806,13 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
   }
 
   Future<void> _setDeleted(MediaAsset asset, bool deleted) async {
-    if (deleted) {
-      final confirmed = await showImmichConfirmDialog(
-        context,
-        title: '删除媒体',
-        message: '确定删除 "${_fileName(asset.filePath)}" 吗?',
-        confirmText: '删除',
-        danger: true,
-      );
-      if (!confirmed) return;
-    }
+    if (deleted && !await confirmAlbumDeletion(context, 1)) return;
+    if (!mounted) return;
     await _run(
-      () => ref
-          .read(immichActionsProvider.notifier)
-          .setDeleted([asset.id], deleted),
-      ok: deleted ? '已删除' : '已恢复',
+      () => ref.read(immichActionsProvider.notifier).setDeleted([
+        asset.id,
+      ], deleted),
+      ok: deleted ? '已标记待删除' : '已恢复',
     );
   }
 
@@ -842,13 +851,6 @@ class _InfoRow extends StatelessWidget {
 }
 
 // 工具
-
-MediaAsset? _findAsset(ImmichMediaPage? page, String mediaId) {
-  for (final asset in page?.assets ?? const <MediaAsset>[]) {
-    if (asset.id == mediaId) return asset;
-  }
-  return null;
-}
 
 String _fileName(String path) => path.split(RegExp(r'[\\/]')).last;
 

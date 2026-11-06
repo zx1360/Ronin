@@ -5,65 +5,18 @@ library;
 
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 
-/// 一条检索命中。
 class AiSearchHit {
-  final String id;
-  final String filePath;
-  final String? mimeType;
-  final DateTime capturedAt;
-  final int sizeBytes;
+  final MediaAsset asset;
   final double score;
-  final List<String> source;
 
-  const AiSearchHit({
-    required this.id,
-    required this.filePath,
-    this.mimeType,
-    required this.capturedAt,
-    this.sizeBytes = 0,
-    this.score = 0,
-    this.source = const [],
-  });
+  const AiSearchHit({required this.asset, required this.score});
 
-  factory AiSearchHit.fromJson(Map<String, dynamic> json) {
-    return AiSearchHit(
-      id: (json['id'] ?? '').toString(),
-      filePath: (json['file_path'] ?? '').toString(),
-      mimeType: json['mime_type'] as String?,
-      capturedAt: _parseTime(json['captured_at']),
-      sizeBytes: (json['size_bytes'] as num?)?.toInt() ?? 0,
-      score: (json['score'] as num?)?.toDouble() ?? 0,
-      source: [
-        for (final item in (json['source'] as List? ?? const []))
-          item.toString(),
-      ],
-    );
-  }
+  String get id => asset.id;
 
-  /// 转为通用媒体模型，供全屏查看器复用。
-  ///
-  /// 检索结果不含缩略图路径与编辑参数（本端不写本地缓存），保持为空即可。
-  MediaAsset toAsset() => MediaAsset(
-        id: id,
-        createdAt: capturedAt,
-        updatedAt: capturedAt,
-        capturedAt: capturedAt,
-        filePath: filePath,
-        hash: '',
-        sizeBytes: sizeBytes,
-        mimeType: mimeType,
-      );
-
-  /// 缩略图地址（复用画廊文件流接口）。
-  String thumbUrl(String baseUrl) => '$baseUrl/API/gallery/$id/thumb';
-
-  bool get isVideo => (mimeType ?? '').startsWith('video/');
-
-  /// 文件名的最后一段，用于列表展示。
-  String get fileName {
-    final segments = filePath.split(RegExp(r'[/\\]'));
-    return segments.isEmpty ? filePath : segments.last;
-  }
+  factory AiSearchHit.fromJson(Map<String, dynamic> json) => AiSearchHit(
+    asset: MediaAsset.fromJson(json),
+    score: (json['score'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 /// 检索结果集。
@@ -72,11 +25,7 @@ class AiSearchResult {
   final int total;
   final String mode;
 
-  const AiSearchResult({
-    this.hits = const [],
-    this.total = 0,
-    this.mode = '',
-  });
+  const AiSearchResult({this.hits = const [], this.total = 0, this.mode = ''});
 
   static const empty = AiSearchResult();
 
@@ -115,8 +64,7 @@ class AiPerson {
     );
   }
 
-  String get displayName =>
-      (name == null || name!.isEmpty) ? '未命名人物' : name!;
+  String get displayName => (name == null || name!.isEmpty) ? '未命名人物' : name!;
 }
 
 /// AI 标签及其出现次数（服务端聚合结果，只读）。
@@ -171,13 +119,4 @@ class AiMediaDetail {
 String? _nullIfEmpty(Object? raw) {
   final text = (raw ?? '').toString().trim();
   return text.isEmpty ? null : text;
-}
-
-/// 解析服务端时间；缺失或非法时退化为当前时间，避免整条结果解析失败。
-DateTime _parseTime(Object? raw) {
-  if (raw is String && raw.isNotEmpty) {
-    final parsed = DateTime.tryParse(raw);
-    if (parsed != null) return parsed;
-  }
-  return DateTime.now();
 }
