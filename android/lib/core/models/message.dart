@@ -1,4 +1,3 @@
-// 随笔/打卡的中途留言（只有时间与内容两项）。
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/utils/serialization.dart';
@@ -15,7 +14,11 @@ class Message {
   @HiveField(1)
   final String content;
 
-  Message({required this.timestamp, required this.content});
+  @HiveField(2)
+  @JsonKey(name: 'updated_at', includeIfNull: false)
+  final DateTime? updatedAt;
+
+  Message({required this.timestamp, required this.content, this.updatedAt});
 
   factory Message.fromJson(Map<String, dynamic> json) =>
       _$MessageFromJson(json);

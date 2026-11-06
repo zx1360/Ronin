@@ -1,10 +1,4 @@
-/// Essay 模块的设置与状态管理
-///
-/// 包含浏览设置管理 [BrowseManager] 和当前选中随笔 [SelectedEssay]。
-library;
-
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:torrid/features/essay/models/essay.dart';
 
 part 'setting_provider.g.dart';
 
@@ -20,6 +14,8 @@ enum SortType {
   random,
 }
 
+enum LabelFilterMode { subtree, direct }
+
 /// 浏览设置状态
 ///
 /// 包含排序方式和已选标签筛选条件。
@@ -27,19 +23,18 @@ class BrowseSettings {
   /// 当前排序方式
   final SortType sortType;
 
-  /// 已选中的标签ID列表（用于筛选）
-  final List<String> selectedLabels;
+  final Map<String, LabelFilterMode> selectedLabels;
   final bool showHidden;
 
   const BrowseSettings({
     this.sortType = SortType.descending,
-    this.selectedLabels = const [],
+    this.selectedLabels = const {},
     this.showHidden = false,
   });
 
   BrowseSettings copyWith({
     SortType? sortType,
-    List<String>? selectedLabels,
+    Map<String, LabelFilterMode>? selectedLabels,
     bool? showHidden,
   }) {
     return BrowseSettings(
@@ -71,44 +66,28 @@ class BrowseManager extends _$BrowseManager {
       showHidden: value,
       selectedLabels: value
           ? state.selectedLabels
-          : state.selectedLabels
-                .where((id) => !hiddenIds.contains(id))
-                .toList(),
+          : (Map.of(state.selectedLabels)
+              ..removeWhere((id, _) => hiddenIds.contains(id))),
     );
   }
 
-  /// 切换标签选中状态
-  void toggleLabel(String labelId) {
-    final selectedLabels = List<String>.from(state.selectedLabels);
-    if (selectedLabels.contains(labelId)) {
-      selectedLabels.remove(labelId);
-    } else {
-      selectedLabels.add(labelId);
+  void toggleLabel(String labelId, {required bool hasChildren}) {
+    final selected = Map.of(state.selectedLabels);
+    switch (selected[labelId]) {
+      case null:
+        selected[labelId] = hasChildren
+            ? LabelFilterMode.subtree
+            : LabelFilterMode.direct;
+      case LabelFilterMode.subtree:
+        selected[labelId] = LabelFilterMode.direct;
+      case LabelFilterMode.direct:
+        selected.remove(labelId);
     }
-    state = state.copyWith(selectedLabels: selectedLabels);
+    state = state.copyWith(selectedLabels: selected);
   }
 
   /// 清除所有筛选条件
   void clearFilters() {
     state = const BrowseSettings();
-  }
-}
-
-/// 当前选中/正在查看的随笔
-///
-/// 用于详情页和相关操作时保持当前随笔的引用。
-@Riverpod(keepAlive: false)
-class ContentServer extends _$ContentServer {
-  @override
-  Essay? build() => null;
-
-  /// 切换当前选中的随笔
-  void switchEssay(Essay essay) {
-    state = essay.copyWith();
-  }
-
-  /// 清除当前选中
-  void clear() {
-    state = null;
   }
 }

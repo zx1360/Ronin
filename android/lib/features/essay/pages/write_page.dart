@@ -1,18 +1,15 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:torrid/core/modals/confirm_modal.dart';
-import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/core/utils/util.dart';
 import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/essay_draft.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_draft_store.dart';
@@ -75,27 +72,6 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     _title.addListener(_changed);
     _content.addListener(_changed);
     WidgetsBinding.instance.addObserver(this);
-    if (_images.any((image) => !image.startsWith('essay_drafts/'))) {
-      _busy = true;
-      unawaited(_cacheOriginalImages());
-    }
-  }
-
-  Future<void> _cacheOriginalImages() async {
-    try {
-      for (var i = 0; i < _images.length; i++) {
-        if (_images[i].startsWith('essay_drafts/')) continue;
-        _images[i] = await _store.importImage(
-          _draft.essay.id,
-          await IoService.userFile(_images[i]),
-        );
-      }
-      await _persist();
-    } catch (e) {
-      _error(e);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   EssayDraft _snapshot() => EssayDraft(
@@ -236,17 +212,13 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     }
   }
 
-  String _editableFields(Essay essay) => jsonEncode(
-    essay.toJson()
-      ..remove('messages')
-      ..remove('updated_at'),
-  );
-
   Future<void> _saveEssay() async {
     if (_busy) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    if (_content.text.trim().isEmpty || _labels.isEmpty || _labels.length > 4) {
-      _error('正文不能为空，请选择 1–4 个标签');
+    if ((_content.text.trim().isEmpty && _images.isEmpty) ||
+        _labels.isEmpty ||
+        _labels.length > 4) {
+      _error('请填写正文或添加图片，并选择 1–4 个标签');
       return;
     }
     setState(() => _busy = true);
@@ -254,23 +226,17 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
       if (!await _persist()) return;
       await _store.flush();
       final base = _draft.original;
-      final current = ref.read(essayBoxProvider).get(_draft.essay.id);
-      if (base != null &&
-          (current == null ||
-              _editableFields(current) != _editableFields(base))) {
-        throw const FormatException('原随笔已被修改或同步替换。草稿已保留，请核对原文后再处理');
-      }
-      var essay = _draft.essay.copyWith(
-        title: _title.text.trim(),
-        content: _content.text.trim(),
-        date: base?.date ?? DateTime.now(),
-        messages: current?.messages ?? [],
-      );
-      essay = await _store.publish(
-        essay,
+      final essay = await _store.publish(
+        _draft.essay.copyWith(
+          title: _title.text == base?.title ? _title.text : _title.text.trim(),
+          content: _content.text == base?.content
+              ? _content.text
+              : _content.text.trim(),
+          date: base?.date ?? DateTime.now(),
+        ),
         (published) => ref
             .read(essayServiceProvider.notifier)
-            .writeEssay(essay: published),
+            .writeEssay(essay: published, original: base),
       );
       // 保存成功后再删草稿；清理失败时保留可继续的同 ID 草稿。
       _draft = EssayDraft(

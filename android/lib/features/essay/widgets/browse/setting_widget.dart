@@ -17,19 +17,15 @@ class SettingWidget extends ConsumerWidget {
 
     final labels = ref.watch(labelsProvider);
     final hidden = hiddenLabelIds(labels);
-    final selectedLabels = labels
-        .where((l) => settings.selectedLabels.contains(l.id))
-        .map((l) => l.id)
-        .toList();
+    final filterLabels = settings.showHidden
+        ? labels
+        : labels.where((l) => !hidden.contains(l.id)).toList();
+    final parents = filterLabels.map((l) => l.parentId).toSet();
 
     void onToggle(String labelId) {
-      ref.read(browseManagerProvider.notifier).toggleLabel(labelId);
-    }
-
-    Future<void> refreshStatistics() async {
-      final notifier = ref.read(essayServiceProvider.notifier);
-      await notifier.refreshLabel();
-      await notifier.refreshYear();
+      ref
+          .read(browseManagerProvider.notifier)
+          .toggleLabel(labelId, hasChildren: parents.contains(labelId));
     }
 
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
@@ -80,7 +76,7 @@ class SettingWidget extends ConsumerWidget {
             const Text('标签筛选:', style: TextStyle(fontWeight: FontWeight.bold)),
             SwitchListTile(
               title: const Text('显示隐藏随笔'),
-              subtitle: const Text('含子标签；AI 回顾始终排除隐藏内容'),
+              subtitle: const Text('含子标签。统计和 AI 回顾始终排除隐藏内容。'),
               value: settings.showHidden,
               onChanged: (value) => ref
                   .read(browseManagerProvider.notifier)
@@ -89,10 +85,15 @@ class SettingWidget extends ConsumerWidget {
             const SizedBox(height: 8),
 
             LabelSelector(
-              labels: settings.showHidden
-                  ? labels
-                  : labels.where((l) => !hidden.contains(l.id)).toList(),
-              selectedLabels: selectedLabels,
+              labels: filterLabels,
+              selectedLabels: settings.selectedLabels.keys.toList(),
+              selectionHints: {
+                for (final entry in settings.selectedLabels.entries)
+                  if (parents.contains(entry.key))
+                    entry.key: entry.value == LabelFilterMode.subtree
+                        ? '含子标签'
+                        : '仅本级',
+              },
               onToggleLabel: onToggle,
             ),
 
@@ -115,7 +116,9 @@ class SettingWidget extends ConsumerWidget {
                 ElevatedButton(
                   onPressed: () async {
                     try {
-                      await refreshStatistics();
+                      await ref
+                          .read(essayServiceProvider.notifier)
+                          .refreshStatistics();
                       if (context.mounted) displaySnackBar(context, '统计信息已刷新');
                     } catch (e) {
                       if (context.mounted) displaySnackBar(context, '刷新失败: $e');

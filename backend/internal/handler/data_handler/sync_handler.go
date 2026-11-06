@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"monarch/internal/model"
 	"monarch/internal/repository/data_repo"
 
 	"github.com/gin-gonic/gin"
@@ -53,6 +54,10 @@ func syncFromDB(c *gin.Context, moduleName string) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
 		return
+	}
+	if moduleName == "essay" {
+		version, _ := strconv.Atoi(c.Query("essay_schema_version"))
+		data["essay_schema_version"] = model.EssaySchemaFor(version)
 	}
 	c.JSON(http.StatusOK, data)
 }

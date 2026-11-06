@@ -38,7 +38,6 @@ class _EssaySearchPageState extends ConsumerState<EssaySearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(contentServerProvider);
     final settings = ref.watch(browseManagerProvider);
     final index = ref.watch(essaySearchIndexProvider);
     return Scaffold(
@@ -111,13 +110,11 @@ class _EssaySearchPageState extends ConsumerState<EssaySearchPage> {
                                       .get(results[index].id);
                                   if (essay == null) return;
                                   FocusManager.instance.primaryFocus?.unfocus();
-                                  ref
-                                      .read(contentServerProvider.notifier)
-                                      .switchEssay(essay);
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => const EssayDetailPage(),
+                                      builder: (_) =>
+                                          EssayDetailPage(essayId: essay.id),
                                     ),
                                   );
                                 },

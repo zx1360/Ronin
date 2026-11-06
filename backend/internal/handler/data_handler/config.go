@@ -14,26 +14,22 @@ type ModuleConfig struct {
 	IsDB      bool     // true=读写数据库表，false=读写 JSON 文件
 }
 
-// modules 模块注册表。
-//
-// staticDir 由调用方传入而非常量：STATIC_DIR 可配置，且包级变量初始化早于
-// config.Load()，因此不能在包初始化时读取配置。
-func modules(staticDir string) []ModuleConfig {
+func modules(dataDir string) []ModuleConfig {
 	return []ModuleConfig{
 		{
 			Name:     "booklet",
-			ImageDir: filepath.Join(staticDir, "img_storage", "booklet"),
+			ImageDir: filepath.Join(dataDir, "img_storage", "booklet"),
 			IsDB:     true,
 		},
 		{
 			Name:     "essay",
-			ImageDir: filepath.Join(staticDir, "img_storage", "essay"),
+			ImageDir: filepath.Join(dataDir, "img_storage", "essay"),
 			IsDB:     true,
 		},
 		{
 			Name:      "preferences",
-			JSONFiles: []string{filepath.Join(staticDir, "preferences", "preferences.json")},
-			ImageDir:  filepath.Join(staticDir, "img_storage", "preferences"),
+			JSONFiles: []string{filepath.Join(dataDir, "preferences", "preferences.json")},
+			ImageDir:  filepath.Join(dataDir, "img_storage", "preferences"),
 			IsDB:      false,
 		},
 	}
@@ -41,7 +37,7 @@ func modules(staticDir string) []ModuleConfig {
 
 // FindModuleConfigByName 根据模块名称查找其配置（未找到返回 nil）。
 func FindModuleConfigByName(name string) *ModuleConfig {
-	all := modules(config.AppConf.StaticDir)
+	all := modules(config.AppConf.DataDir)
 	for i := range all {
 		if all[i].Name == name {
 			return &all[i]

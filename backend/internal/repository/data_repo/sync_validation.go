@@ -64,10 +64,15 @@ func validateRow(name string, row map[string]any) error {
 				if _, ok := message["content"].(string); !ok {
 					return fmt.Errorf("留言内容必须为文本")
 				}
-				var timestamp model.FlexTime
-				encoded, _ := json.Marshal(message["timestamp"])
-				if err := json.Unmarshal(encoded, &timestamp); err != nil || timestamp.Time().IsZero() {
-					return fmt.Errorf("留言缺少有效时间")
+				for _, field := range []string{"timestamp", "updated_at"} {
+					if field == "updated_at" && message[field] == nil {
+						continue
+					}
+					var stamp model.FlexTime
+					encoded, _ := json.Marshal(message[field])
+					if err := json.Unmarshal(encoded, &stamp); err != nil || stamp.Time().IsZero() {
+						return fmt.Errorf("留言缺少有效的 %s", field)
+					}
 				}
 			}
 		}

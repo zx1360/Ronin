@@ -5,6 +5,7 @@ import 'package:torrid/features/essay/models/label_tree.dart';
 class LabelSelector extends StatelessWidget {
   final List<Label> labels;
   final List<String> selectedLabels;
+  final Map<String, String> selectionHints;
   final ValueChanged<String> onToggleLabel;
   final double? maxHeight;
 
@@ -12,6 +13,7 @@ class LabelSelector extends StatelessWidget {
     super.key,
     required this.labels,
     required this.selectedLabels,
+    this.selectionHints = const {},
     required this.onToggleLabel,
     this.maxHeight,
   });
@@ -37,7 +39,11 @@ class LabelSelector extends StatelessWidget {
                   size: 18,
                 ),
                 label: Text(
-                  '${node.label.name}  ${node.label.essayCount}',
+                  [
+                    node.label.name,
+                    node.label.essayCount.toString(),
+                    if (selectionHints[node.label.id] case final hint?) hint,
+                  ].join('  '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

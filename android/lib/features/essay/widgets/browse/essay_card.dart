@@ -136,7 +136,7 @@ class EssayCard extends ConsumerWidget {
                 Row(
                   children: [
                     Text(
-                      '${essay.wordCount} 字',
+                      essay.wordCountText,
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),

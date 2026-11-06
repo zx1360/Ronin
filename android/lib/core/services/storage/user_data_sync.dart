@@ -9,8 +9,14 @@ final _uuid = RegExp(
   caseSensitive: false,
 );
 DateTime _version(Map<String, dynamic> row) =>
-    DateTime.tryParse(row['updated_at'] as String? ?? '') ??
+    _readTime(row['updated_at']) ??
     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+DateTime? _readTime(Object? value) =>
+    value is String ? DateTime.tryParse(value) : null;
+
+DateTime _labelVersion(Map<String, dynamic> row) =>
+    _readTime(row['labels_updated_at']) ?? _version(row);
 
 Future<void> _writes = Future.value();
 
@@ -110,8 +116,21 @@ Map<String, String> deletedUserData(
         final stamp = _version(row);
         final old = rows[id];
         // 同时间保留服务端版本；本地更新必须生成新的毫秒时间戳。
-        if (old == null || !_version(old).isAfter(stamp)) {
-          rows[id] = row;
+        final latest = old == null || !_version(old).isAfter(stamp) ? row : old;
+        if (old != null && collection == 'essays') {
+          final tags = _labelVersion(old).isAfter(_labelVersion(row))
+              ? old
+              : row;
+          rows[id] = {
+            ...latest,
+            'date': row['date'],
+            'created_at': row['created_at'] ?? old['created_at'],
+            'labels': tags['labels'],
+            'labels_updated_at':
+                tags['labels_updated_at'] ?? tags['updated_at'],
+          };
+        } else {
+          rows[id] = latest;
         }
       }
     }

@@ -15,7 +15,7 @@ import (
 
 // 运行时配置与能力契约
 //
-// 引擎持有的配置是可变的：界面改完 <STATIC_DIR>/data/ai_config.json 后立即生效，
+// 引擎持有的配置是可变的：界面改完 DATA_DIR/ai_config.json 后立即生效，
 // 不必重启进程。所有读取都走快照，避免并发读写。
 
 // runtimeStore 包一层互斥，保证配置副本的读写一致。

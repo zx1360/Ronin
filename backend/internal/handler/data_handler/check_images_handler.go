@@ -13,7 +13,8 @@ import (
 
 // CheckImagesRequest 客户端请求检查图片是否已存在的请求体
 type CheckImagesRequest struct {
-	Filenames []string `json:"filenames"`
+	Filenames          []string `json:"filenames"`
+	EssaySchemaVersion int      `json:"essay_schema_version"`
 }
 
 // CheckImagesResponse 返回已存在和缺失的图片文件名
@@ -57,7 +58,7 @@ func CheckImagesHandler(c *gin.Context) {
 
 	version := 0
 	if moduleName == "essay" {
-		version = model.EssaySchemaVersion
+		version = model.EssaySchemaFor(req.EssaySchemaVersion)
 	}
 	c.JSON(http.StatusOK, CheckImagesResponse{
 		Existing:           existing,

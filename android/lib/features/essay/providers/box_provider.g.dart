@@ -38,6 +38,154 @@ final essayBoxProvider = AutoDisposeProvider<Box<Essay>>.internal(
 );
 
 typedef EssayBoxRef = AutoDisposeProviderRef<Box<Essay>>;
+String _$essayByIdHash() => r'02794d642db17ff9ddc5a1d8334b40a4542ba20c';
+
+/// Copied from Dart SDK
+class _SystemHash {
+  _SystemHash._();
+
+  static int combine(int hash, int value) {
+    // ignore: parameter_assignments
+    hash = 0x1fffffff & (hash + value);
+    // ignore: parameter_assignments
+    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
+    return hash ^ (hash >> 6);
+  }
+
+  static int finish(int hash) {
+    // ignore: parameter_assignments
+    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
+    // ignore: parameter_assignments
+    hash = hash ^ (hash >> 11);
+    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
+  }
+}
+
+/// See also [essayById].
+@ProviderFor(essayById)
+const essayByIdProvider = EssayByIdFamily();
+
+/// See also [essayById].
+class EssayByIdFamily extends Family<AsyncValue<Essay?>> {
+  /// See also [essayById].
+  const EssayByIdFamily();
+
+  /// See also [essayById].
+  EssayByIdProvider call(
+    String id,
+  ) {
+    return EssayByIdProvider(
+      id,
+    );
+  }
+
+  @override
+  EssayByIdProvider getProviderOverride(
+    covariant EssayByIdProvider provider,
+  ) {
+    return call(
+      provider.id,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'essayByIdProvider';
+}
+
+/// See also [essayById].
+class EssayByIdProvider extends AutoDisposeStreamProvider<Essay?> {
+  /// See also [essayById].
+  EssayByIdProvider(
+    String id,
+  ) : this._internal(
+          (ref) => essayById(
+            ref as EssayByIdRef,
+            id,
+          ),
+          from: essayByIdProvider,
+          name: r'essayByIdProvider',
+          debugGetCreateSourceHash:
+              const bool.fromEnvironment('dart.vm.product')
+                  ? null
+                  : _$essayByIdHash,
+          dependencies: EssayByIdFamily._dependencies,
+          allTransitiveDependencies: EssayByIdFamily._allTransitiveDependencies,
+          id: id,
+        );
+
+  EssayByIdProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.id,
+  }) : super.internal();
+
+  final String id;
+
+  @override
+  Override overrideWith(
+    Stream<Essay?> Function(EssayByIdRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: EssayByIdProvider._internal(
+        (ref) => create(ref as EssayByIdRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        id: id,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeStreamProviderElement<Essay?> createElement() {
+    return _EssayByIdProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is EssayByIdProvider && other.id == id;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, id.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+mixin EssayByIdRef on AutoDisposeStreamProviderRef<Essay?> {
+  /// The parameter `id` of this provider.
+  String get id;
+}
+
+class _EssayByIdProviderElement extends AutoDisposeStreamProviderElement<Essay?>
+    with EssayByIdRef {
+  _EssayByIdProviderElement(super.provider);
+
+  @override
+  String get id => (origin as EssayByIdProvider).id;
+}
+
 String _$essayStreamHash() => r'f3ec87b2c434c806c378da17b5fd9dceb4b6631e';
 
 /// 随笔数据的响应式流

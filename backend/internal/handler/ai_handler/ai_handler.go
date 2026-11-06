@@ -904,7 +904,7 @@ func GetSettings(c *gin.Context) {
 
 // UpdateSettings 处理 PUT /API/ai/settings
 //
-// 字段全部可选：未传（null）表示不改动。写入 <STATIC_DIR>/data/ai_config.json 后
+// 字段全部可选：未传（null）表示不改动。写入 DATA_DIR/ai_config.json 后
 // 立即生效，不必重启进程。
 func UpdateSettings(c *gin.Context) {
 	e := engine(c)
