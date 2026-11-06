@@ -93,7 +93,7 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 
 ### Immich 相册
 
-该页始终按在线模型走 `retryServerWrite`，失败重试直接针对服务端。Gallery 的操作表按服务器地址隔离，已回传记录仍保留至批次校验；标记已处理的请求 ID 持久化，超时或重启后重试不会重复递增游标。
+该页始终按在线模型走 `retryServerWrite`，失败重试直接针对服务端。Gallery 的离线操作按当前连接回传，已回传记录仍保留至批次校验；标记已处理的请求 ID 持久化，超时或重启后重试不会重复递增游标。
 
 ## 6. Chat / Review 流式边界
 

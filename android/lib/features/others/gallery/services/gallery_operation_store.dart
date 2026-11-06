@@ -2,14 +2,12 @@ part of 'gallery_database_service.dart';
 
 class GalleryOperation {
   final int seq;
-  final String server;
   final String kind;
   final Map<String, dynamic> body;
   final bool synced;
 
   GalleryOperation.fromRow(Map<String, Object?> row)
     : seq = row['seq'] as int,
-      server = row['server'] as String,
       kind = row['kind'] as String,
       body = jsonDecode(row['body'] as String) as Map<String, dynamic>,
       synced = row['synced'] == 1;
@@ -18,7 +16,6 @@ class GalleryOperation {
 Future<void> _createOperations(DatabaseExecutor db) => db.execute('''
   CREATE TABLE IF NOT EXISTS gallery_operations (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    server TEXT NOT NULL,
     kind TEXT NOT NULL,
     body TEXT NOT NULL,
     synced INTEGER NOT NULL DEFAULT 0
@@ -50,22 +47,16 @@ extension GalleryOperationStore on GalleryDatabaseService {
   );
 
   /// 操作与工作副本同事务落盘，网络不参与本地提交。
-  Future<void> recordOperation(
-    String server,
-    String kind,
-    Map<String, dynamic> data,
-  ) async {
+  Future<void> recordOperation(String kind, Map<String, dynamic> data) async {
     final db = await database;
     await db.transaction((txn) async {
-      final checks = (await txn.rawQuery(
-        '''
-        SELECT EXISTS(SELECT 1 FROM gallery_operations WHERE server <> ?) AS other_server,
-               EXISTS(SELECT 1 FROM gallery_operations WHERE kind = 'processed') AS completing
-      ''',
-        [server],
-      )).single;
-      if (checks['other_server'] == 1) throw StateError('请切回原画廊服务器完成回传');
-      if (checks['completing'] == 1) throw StateError('请先重试完成上次的标记已处理');
+      final completing = await txn.query(
+        'gallery_operations',
+        columns: ['seq'],
+        where: "kind = 'processed'",
+        limit: 1,
+      );
+      if (completing.isNotEmpty) throw StateError('请先重试完成上次的标记已处理');
       final body = Map<String, dynamic>.from(data);
       switch (kind) {
         case 'patch':
@@ -109,7 +100,6 @@ extension GalleryOperationStore on GalleryDatabaseService {
           throw StateError('未知画廊操作');
       }
       await txn.insert('gallery_operations', {
-        'server': server,
         'kind': kind,
         'body': jsonEncode(body),
       });

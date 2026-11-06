@@ -7,7 +7,7 @@ part of 'write_buffer_provider.dart';
 // **************************************************************************
 
 String _$galleryWriteBufferHash() =>
-    r'df1d1af607459665f8975cd255d0a4677d222eff';
+    r'0317477abedefebf1851246bb336fa1e9359ac59';
 
 /// See also [galleryWriteBuffer].
 @ProviderFor(galleryWriteBuffer)
