@@ -809,9 +809,10 @@ func KeywordSources(ids []uuid.UUID, keyword string) (map[uuid.UUID][]string, er
 	}
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
+	// 预先取出命中的标签媒体 ID，避免 SQLite 为当前页的每条结果重复扫描标签表。
 	rows, err := db.Read().QueryContext(ctx, fmt.Sprintf(`
 		SELECT m.id, coalesce(a.ocr_text LIKE ? ESCAPE '!', 0), coalesce(a.caption LIKE ? ESCAPE '!', 0),
-		       EXISTS(SELECT 1 FROM media_ai_tags t WHERE t.media_id = m.id AND t.tag LIKE ? ESCAPE '!')
+		       m.id IN (SELECT t.media_id FROM media_ai_tags t WHERE t.tag LIKE ? ESCAPE '!')
 		FROM media_assets m LEFT JOIN media_ai a ON a.media_id = m.id
 		WHERE m.id IN (%s)`, placeholders(len(ids))), args...)
 	if err != nil {
