@@ -4,7 +4,7 @@
 // （只读，与人工标签物理隔离）、person_ids、mime_type、from/to。
 // 一页 60 条由服务端 limit/offset 分页，命中数可能远多于 60，故结果区自己滚动并支持续取。
 
-import { ref, computed, onMounted, onUnmounted } from '../../vue.js';
+import { ref, computed, onUnmounted } from '../../vue.js';
 import { api } from '../../api.js';
 import { toast } from '../../store.js';
 import { Card, Placeholder, Badge, MediaTile } from '../../ui.js';
@@ -72,13 +72,21 @@ export default {
     const vlmTags = ref([]);
     const persons = ref([]);
     const filterError = ref('');
+    const filterLoading = ref(false);
+    const lifetime = new AbortController();
+    let filtersLoaded = false;
 
     const loadFilters = async () => {
+      if (filtersLoaded || filterLoading.value) return;
+      filterLoading.value = true;
+      const options = { signal: lifetime.signal };
       const results = await Promise.allSettled([
-        api.get('/API/gallery/tags'),
-        api.get('/API/ai/tags?limit=500'),
-        api.get('/API/ai/persons'),
+        api.get('/API/gallery/tags', options),
+        api.get('/API/ai/tags?limit=500', options),
+        api.get('/API/ai/persons', options),
       ]);
+      if (lifetime.signal.aborted) return;
+      filterLoading.value = false;
       const [tagResult, vlmResult, personResult] = results;
       tags.value = tagResult.status === 'fulfilled' && Array.isArray(tagResult.value && tagResult.value.tags)
         ? tagResult.value.tags
@@ -90,14 +98,11 @@ export default {
         ? personResult.value.persons
         : [];
       const failures = results.filter((item) => item.status === 'rejected');
+      filtersLoaded = failures.length === 0;
       filterError.value = failures.length === results.length
         ? '筛选数据不可用（标签/人物接口均失败）'
         : '';
     };
-
-    onMounted(() => {
-      loadFilters();
-    });
 
     const tagOptions = computed(() => tags.value.map((tag) => ({
       id: tag.id || '',
@@ -117,26 +122,30 @@ export default {
     })));
 
     /** 组查询串：与 Dart 客户端的参数名保持一致（空值不下发）。 */
-    const buildQuery = (withText, offset) => {
-      const params = [
-        'mode=' + encodeURIComponent(mode.value || 'auto'),
-        'limit=' + PAGE_SIZE,
-        'offset=' + num(offset),
-      ];
-      if (withText && query.value.trim()) params.push('q=' + encodeURIComponent(query.value.trim()));
-      if (filters.value.tagIds.length) params.push('tag_ids=' + encodeURIComponent(filters.value.tagIds.join(',')));
-      if (filters.value.vlmTags.length) params.push('vlm_tags=' + encodeURIComponent(filters.value.vlmTags.join(',')));
-      if (filters.value.personIds.length) params.push('person_ids=' + encodeURIComponent(filters.value.personIds.join(',')));
-      if (filters.value.mimeType) params.push('mime_type=' + encodeURIComponent(filters.value.mimeType));
-      if (filters.value.from) params.push('from=' + encodeURIComponent(filters.value.from));
-      if (filters.value.to) params.push('to=' + encodeURIComponent(filters.value.to));
-      return params.join('&');
+    const buildQuery = (withText) => {
+      const params = new URLSearchParams({ mode: mode.value || 'auto', limit: PAGE_SIZE });
+      const text = query.value.trim();
+      if (withText && text) params.set('q', text);
+      if (withText && mode.value === 'filename') params.set('filename_only', 'true');
+      if (filters.value.tagIds.length) params.set('tag_ids', filters.value.tagIds.join(','));
+      if (filters.value.vlmTags.length) params.set('vlm_tags', filters.value.vlmTags.join(','));
+      if (filters.value.personIds.length) params.set('person_ids', filters.value.personIds.join(','));
+      if (filters.value.mimeType) params.set('mime_type', filters.value.mimeType);
+      if (filters.value.from) params.set('from', filters.value.from);
+      if (filters.value.to) params.set('to', filters.value.to);
+      return params;
     };
 
     /** 写入结果；append 为真时续接在既有列表之后。返回本次新增条数。 */
     const applyResult = (data, append) => {
       const list = Array.isArray(data && data.hits) ? data.hits : [];
-      hits.value = append ? hits.value.concat(list) : list;
+      if (append) {
+        const byId = new Map(hits.value.map((hit) => [hit.id, hit]));
+        for (const hit of list) byId.set(hit.id, hit);
+        hits.value = [...byId.values()];
+      } else {
+        hits.value = list;
+      }
       // 以服务端 total 为准；字段缺失时也不至于出现「已显示 60 / 命中 0」
       total.value = Math.max(num(data && data.total), hits.value.length);
       resultMode.value = (data && data.mode) || '';
@@ -161,26 +170,41 @@ export default {
     };
 
     let requestId = 0;
-    onUnmounted(() => requestId++);
+    let request;
+    let appliedRequest;
+    onUnmounted(() => {
+      requestId++;
+      request?.abort();
+      lifetime.abort();
+    });
 
     const requestResults = async (action, source, offset = 0, append = false) => {
       const id = ++requestId;
+      request?.abort();
+      const controller = request = new AbortController();
       loading.value = !append && source !== 'image';
       uploading.value = !append && source === 'image';
       loadingMore.value = append;
       error.value = '';
       try {
-        const data = await action();
+        const data = await action(offset, controller.signal, append ? resultMode.value : '');
         if (id !== requestId) return false;
+        if (append && data?.mode !== resultMode.value) {
+          throw new Error('检索方式已变化，请重新开始');
+        }
         nextOffset.value = num(offset) + applyResult(data, append);
         resultSource.value = source;
-        if (!append) filtersOpen.value = false;
+        if (!append) {
+          appliedRequest = action;
+          filtersOpen.value = false;
+        }
         return true;
       } catch (err) {
         if (id === requestId) failRequest(err, append);
         return false;
       } finally {
         if (id === requestId) {
+          request = null;
           loading.value = false;
           uploading.value = false;
           loadingMore.value = false;
@@ -188,35 +212,46 @@ export default {
       }
     };
 
-    const runSearch = (offset, append) => requestResults(
-      () => api.get('/API/ai/search?' + buildQuery(true, offset), { timeoutMs: 600000 }),
-      'search', offset, append,
-    );
-    const search = () => runSearch(0, false);
+    const pageQuery = (base, offset, resultMode) => {
+      const params = new URLSearchParams(base);
+      params.set('offset', offset);
+      if (resultMode && params.get('mode') === 'auto') params.set('mode', resultMode);
+      return params;
+    };
 
-    const runImageSearch = (offset, append) => {
+    const search = () => {
+      const params = buildQuery(true);
+      return requestResults((offset, signal, resultMode) =>
+        api.get('/API/ai/search?' + pageQuery(params, offset, resultMode), { signal, timeoutMs: 600000 }),
+      'search');
+    };
+
+    const runImageSearch = () => {
       const file = imageFile.value;
       if (!file) {
         error.value = '请先选择用于检索的图片';
         return Promise.resolve(false);
       }
-      const form = new FormData();
-      form.append('image', file, file.name);
-      return requestResults(
-        () => api.post('/API/ai/search/image?' + buildQuery(false, offset), form, { timeoutMs: 600000 }),
-        'image', offset, append,
-      );
+      const params = buildQuery(false);
+      return requestResults((offset, signal) => {
+        const form = new FormData();
+        form.append('image', file, file.name);
+        return api.post('/API/ai/search/image?' + pageQuery(params, offset), form, { signal, timeoutMs: 600000 });
+      }, 'image');
     };
 
     const similarTo = async (id) => {
       if (await requestResults(
-        () => api.get('/API/ai/similar/' + id + '?limit=' + SIMILAR_LIMIT, { timeoutMs: 600000 }),
+        (_, signal) => api.get('/API/ai/similar/' + id + '?limit=' + SIMILAR_LIMIT, { signal, timeoutMs: 600000 }),
         'similar',
       )) toast('已按所选图片查找相似媒体', 'success');
     };
 
     const clearResult = () => {
       requestId++;
+      request?.abort();
+      request = null;
+      appliedRequest = null;
       loading.value = false;
       uploading.value = false;
       loadingMore.value = false;
@@ -245,7 +280,7 @@ export default {
       imageFile.value = file;
       imageName.value = file.name;
       try {
-        await runImageSearch(0, false);
+        await runImageSearch();
       } finally {
         event.target.value = '';
       }
@@ -254,7 +289,7 @@ export default {
     /** search / image 支持 offset 续取；similar 接口无 offset，不显示分页条。 */
     const pageable = computed(() => resultSource.value === 'search' || resultSource.value === 'image');
 
-    const hasMore = computed(() => pageable.value && lastPageFull.value && hits.value.length < total.value);
+    const hasMore = computed(() => pageable.value && lastPageFull.value && nextOffset.value < total.value);
 
     const resultModeText = computed(() => MODE_TEXT[resultMode.value] || resultMode.value || '—');
 
@@ -268,18 +303,17 @@ export default {
     ));
 
     const loadMore = () => {
-      if (!hasMore.value || loading.value || loadingMore.value) return;
-      if (resultSource.value === 'image') runImageSearch(nextOffset.value, true);
-      else runSearch(nextOffset.value, true);
+      if (!appliedRequest || !hasMore.value || loading.value || uploading.value || loadingMore.value) return;
+      return requestResults(appliedRequest, resultSource.value, nextOffset.value, true);
     };
 
     const restart = () => {
-      if (resultSource.value === 'image') runImageSearch(0, false);
-      else runSearch(0, false);
+      return resultSource.value === 'image' ? runImageSearch() : search();
     };
 
     const toggleFilters = () => {
       filtersOpen.value = !filtersOpen.value;
+      if (filtersOpen.value) loadFilters();
     };
 
     const hitCards = computed(() => hits.value.map((hit) => {
@@ -306,11 +340,10 @@ export default {
         mimeType: hit.mime_type || '',
         size: formatBytes(hit.size_bytes),
         captured: formatTime(hit.captured_at, false),
-        selected: selectedId.value === hit.id,
       };
     }));
 
-    const selectedHit = computed(() => hitCards.value.find((item) => item.selected) || null);
+    const selectedHit = computed(() => hitCards.value.find((item) => item.id === selectedId.value) || null);
 
     const selectHit = async (card) => {
       const id = requestId;
@@ -318,7 +351,7 @@ export default {
       detail.value = null;
       detailError.value = '';
       try {
-        const data = await api.get('/API/ai/media/' + card.id);
+        const data = await api.get('/API/ai/media/' + card.id, { signal: lifetime.signal });
         if (id !== requestId || selectedId.value !== card.id) return;
         const source = data || {};
         const faces = Array.isArray(source.faces) ? source.faces : [];
@@ -339,10 +372,10 @@ export default {
     return {
       query, mode, filters, hits, total, searched, loading, loadingMore, uploading, error,
       imageName, imageInput, tagOptions, vlmTagOptions, personOptions, filterError,
-      hitCards, selectedHit, detail, detailError, MODES, MIME_TYPES, PAGE_SIZE,
-      filtersOpen, activeFilterCount, pageable, hasMore, resultModeText,
+      hitCards, selectedId, selectedHit, detail, detailError, MODES, MIME_TYPES, PAGE_SIZE,
+      filtersOpen, filterLoading, activeFilterCount, pageable, hasMore, resultModeText,
       search, loadMore, restart, toggleFilters, similarTo, clearResult, pickImage, onImagePicked,
-      selectHit, loadFilters, baseName, reveal: revealMedia,
+      selectHit, baseName, reveal: revealMedia,
     };
   },
   template: `
@@ -375,7 +408,7 @@ export default {
         </div>
         <div class="small muted">
           智能模式有文本即走语义检索并把 OCR/描述/关键词命中加权；文字模式只匹配 OCR/描述/AI 关键词；
-          文件名模式只匹配文件路径。以图搜图上传的图片只用于本次查询，不落库。
+          文件名模式匹配文件名及扩展名。以图搜图上传的图片只用于本次查询，不落库。
           <span v-if="imageName"> 已选文件：<span class="mono">{{ imageName }}</span></span>
         </div>
         <div class="small" style="color: var(--warning)" v-if="filterError">{{ filterError }}</div>
@@ -384,6 +417,7 @@ export default {
         </div>
 
         <div v-if="filtersOpen" style="margin-top: 12px">
+          <div v-if="filterLoading" class="small muted">加载筛选条件…</div>
           <div class="grid cols-3">
             <label class="field">
               人工标签（任一命中，可多选）
@@ -441,13 +475,13 @@ export default {
                 :key="card.id"
                 :src="card.thumb"
                 :caption="card.name + (card.scoreText ? ' · ' + card.scoreText : '')"
-                :selected="card.selected"
+                :selected="selectedId === card.id"
                 @click="selectHit(card)"
               />
             </div>
           </div>
           <div class="pager" v-if="pageable">
-            <button class="ghost sm" :disabled="loading || loadingMore || !hasMore" @click="loadMore()">
+            <button class="ghost sm" :disabled="loading || uploading || loadingMore || !hasMore" @click="loadMore()">
               {{ loadingMore ? '加载中…' : (hasMore ? '加载更多（每批 ' + PAGE_SIZE + ' 张）' : '已全部加载') }}
             </button>
             <button class="ghost sm" :disabled="loading || loadingMore" @click="restart()">重新开始</button>

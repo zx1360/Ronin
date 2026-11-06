@@ -396,7 +396,7 @@ func RebuildIndex(c *gin.Context) {
 		return
 	}
 	e.Index().Invalidate()
-	if err := e.Index().Reload(); err != nil {
+	if err := e.Index().Reload(c.Request.Context()); err != nil {
 		fail(c, err)
 		return
 	}
@@ -485,7 +485,7 @@ func Similar(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := e.SimilarMedia(id, queryInt(c, "limit", 40, 1, 200))
+	result, err := e.SimilarMedia(c.Request.Context(), id, queryInt(c, "limit", 40, 1, 200))
 	if err != nil {
 		fail(c, err)
 		return
@@ -624,7 +624,7 @@ func ListVLMTags(c *gin.Context) {
 	if !schemaGuard(c) {
 		return
 	}
-	tags, err := ai_repo.ListVLMTags(queryInt(c, "limit", 500, 1, 2000))
+	tags, err := ai_repo.ListVLMTags(c.Request.Context(), queryInt(c, "limit", 500, 1, 2000))
 	if err != nil {
 		fail(c, err)
 		return

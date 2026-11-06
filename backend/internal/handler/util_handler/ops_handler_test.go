@@ -42,7 +42,7 @@ func TestDirUsageCacheConcurrentAndRefresh(t *testing.T) {
 		t.Fatal("缓存未过期时发生了扫描")
 	}
 	usageCacheMu.Lock()
-	usageCache[root].updatedAt = time.Now().Add(-2 * usageCacheTTL)
+	usageCache[dirUsageKey{root: root}].updatedAt = time.Now().Add(-2 * usageCacheTTL)
 	usageCacheMu.Unlock()
 	if usage := getCachedDirUsage(root); usage.Bytes != 3 {
 		t.Fatal("过期访问应立即返回现有快照")

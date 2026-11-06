@@ -316,7 +316,7 @@ func QueryMedia(c *gin.Context) {
 		params.Offset = 0
 	}
 
-	assets, links, total, err := gallery_repo.FetchMediaAssetsByQuery(params)
+	assets, links, total, err := gallery_repo.FetchMediaAssetsByQuery(c.Request.Context(), params)
 	if err != nil {
 		respondRepoError(c, err)
 		return

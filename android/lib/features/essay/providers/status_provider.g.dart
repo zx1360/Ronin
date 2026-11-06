@@ -22,7 +22,7 @@ final labelsProvider = AutoDisposeProvider<List<Label>>.internal(
 );
 
 typedef LabelsRef = AutoDisposeProviderRef<List<Label>>;
-String _$idMapHash() => r'5cf27ecf870f0b54ea7611b82f29edc194d963c3';
+String _$idMapHash() => r'b1eacb5f7356127085390f63bd6d1564153c0aaf';
 
 /// 标签 ID 到名称的映射表
 ///
@@ -40,7 +40,7 @@ final idMapProvider = AutoDisposeProvider<Map<String, String>>.internal(
 );
 
 typedef IdMapRef = AutoDisposeProviderRef<Map<String, String>>;
-String _$summariesHash() => r'8ebdae823b4622c38515bddb70b3dfa171fdca24';
+String _$summariesHash() => r'cb228c058fc475ac8982ef96ee615efae003dcb0';
 
 /// 所有年度统计数据（按年份降序排列，每年内月份按升序排列）
 ///

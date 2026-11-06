@@ -218,18 +218,25 @@ class GalleryDatabaseService {
   Future<void> updateMediaAssetsLocal(
     List<MediaAsset> assets, {
     bool preserveOperations = false,
+    Map<String, List<String>>? tagIdsByMedia,
   }) async {
     if (assets.isEmpty) return;
     final db = await database;
     await db.transaction((txn) async {
       if (preserveOperations && await _hasOperations(txn)) return;
+      final cached = (await _getCachedMediaIds(
+        txn,
+        assets.map((asset) => asset.id),
+      )).toSet();
+      if (cached.isEmpty) return;
+      final cachedAssets = assets.where((asset) => cached.contains(asset.id));
       final groupIds = {
-        for (final asset in assets)
+        for (final asset in cachedAssets)
           if (asset.groupId case final id?) id,
       };
       final cachedGroups = (await _getCachedMediaIds(txn, groupIds)).toSet();
       final batch = txn.batch();
-      for (final asset in assets) {
+      for (final asset in cachedAssets) {
         final values = asset.toDbMap();
         // 主文件未下载时，缓存成员仍可单独浏览。
         if (!cachedGroups.contains(asset.groupId)) values['group_id'] = null;
@@ -241,6 +248,9 @@ class GalleryDatabaseService {
         );
       }
       await batch.commit(noResult: true);
+      if (tagIdsByMedia != null) {
+        await _replaceMediaTags(txn, cached, tagIdsByMedia);
+      }
     });
   }
 
@@ -471,28 +481,33 @@ class GalleryDatabaseService {
     List<String> removeTagIds = const [],
   }) async {
     if (mediaIds.isEmpty) return;
-    // 未缓存的媒体写关联会触发外键约束
-    final cached = await getCachedMediaIds(mediaIds);
-    if (cached.isEmpty) return;
-
     final db = await database;
-    final placeholders = List.filled(cached.length, '?').join(',');
     await db.transaction((txn) async {
+      final cached = await _getCachedMediaIds(txn, mediaIds);
+      if (cached.isEmpty) return;
+      final batch = txn.batch();
       if (removeTagIds.isNotEmpty) {
-        final tagPlaceholders = List.filled(removeTagIds.length, '?').join(',');
-        await txn.rawDelete(
-          'DELETE FROM media_tag_links WHERE media_id IN ($placeholders) AND tag_id IN ($tagPlaceholders)',
-          [...cached, ...removeTagIds],
-        );
+        final removed = _mediaChunks(removeTagIds).toList();
+        for (final media in _mediaChunks(cached)) {
+          final mediaMarks = List.filled(media.length, '?').join(',');
+          for (final tags in removed) {
+            final tagMarks = List.filled(tags.length, '?').join(',');
+            batch.rawDelete(
+              'DELETE FROM media_tag_links WHERE media_id IN ($mediaMarks) AND tag_id IN ($tagMarks)',
+              [...media, ...tags],
+            );
+          }
+        }
       }
       for (final mediaId in cached) {
         for (final tagId in addTagIds) {
-          await txn.insert('media_tag_links', {
+          batch.insert('media_tag_links', {
             'media_id': mediaId,
             'tag_id': tagId,
           }, conflictAlgorithm: ConflictAlgorithm.ignore);
         }
       }
+      await batch.commit(noResult: true);
     });
   }
 
@@ -503,30 +518,40 @@ class GalleryDatabaseService {
   }) async {
     if (tagIdsByMedia.isEmpty) return;
     final db = await database;
-    final mediaIds = tagIdsByMedia.keys.toList();
-    final cached = await getCachedMediaIds(mediaIds);
-    if (cached.isEmpty) return;
-
     await db.transaction((txn) async {
       if (preserveOperations && await _hasOperations(txn)) return;
-      for (final mediaId in cached) {
-        await txn.delete(
-          'media_tag_links',
-          where: 'media_id = ?',
-          whereArgs: [mediaId],
-        );
-        for (final tagId in tagIdsByMedia[mediaId] ?? const <String>[]) {
-          await txn.insert('media_tag_links', {
-            'media_id': mediaId,
-            'tag_id': tagId,
-          }, conflictAlgorithm: ConflictAlgorithm.ignore);
-        }
-      }
+      final cached = await _getCachedMediaIds(txn, tagIdsByMedia.keys);
+      await _replaceMediaTags(txn, cached, tagIdsByMedia);
     });
   }
 
+  Future<void> _replaceMediaTags(
+    Transaction txn,
+    Iterable<String> cached,
+    Map<String, List<String>> tagIdsByMedia,
+  ) async {
+    if (cached.isEmpty) return;
+    final batch = txn.batch();
+    for (final mediaId in cached) {
+      final tags = tagIdsByMedia[mediaId];
+      if (tags == null) continue;
+      batch.delete(
+        'media_tag_links',
+        where: 'media_id = ?',
+        whereArgs: [mediaId],
+      );
+      for (final tagId in tags) {
+        batch.insert('media_tag_links', {
+          'media_id': mediaId,
+          'tag_id': tagId,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+    }
+    await batch.commit(noResult: true);
+  }
+
   /// 过滤出本地已缓存的媒体 ID（避免写关联时触发外键约束）
-  Future<List<String>> getCachedMediaIds(List<String> ids) async {
+  Future<List<String>> getCachedMediaIds(Iterable<String> ids) async {
     if (ids.isEmpty) return const [];
     return _getCachedMediaIds(await database, ids);
   }
@@ -535,14 +560,60 @@ class GalleryDatabaseService {
     DatabaseExecutor db,
     Iterable<String> ids,
   ) async => [
+    for (final row in await _queryByIds(
+      db,
+      'media_assets',
+      'id',
+      ids,
+      columns: ['id'],
+    ))
+      row['id'] as String,
+  ];
+
+  Future<Map<String, MediaAsset>> getMediaAssetsByIds(
+    Iterable<String> ids,
+  ) async => {
+    for (final row in await _queryByIds(
+      await database,
+      'media_assets',
+      'id',
+      ids,
+    ))
+      row['id'] as String: MediaAsset.fromDbMap(row),
+  };
+
+  Future<Map<String, Set<String>>> getMediaTagIdsByMedia(
+    Iterable<String> ids,
+  ) async {
+    if (ids.isEmpty) return {};
+    final result = <String, Set<String>>{};
+    for (final row in await _queryByIds(
+      await database,
+      'media_tag_links',
+      'media_id',
+      ids,
+    )) {
+      result
+          .putIfAbsent(row['media_id'] as String, () => {})
+          .add(row['tag_id'] as String);
+    }
+    return result;
+  }
+
+  Future<List<Map<String, Object?>>> _queryByIds(
+    DatabaseExecutor db,
+    String table,
+    String column,
+    Iterable<String> ids, {
+    List<String>? columns,
+  }) async => [
     for (final chunk in _mediaChunks(ids))
-      for (final row in await db.query(
-        'media_assets',
-        columns: ['id'],
-        where: 'id IN (${List.filled(chunk.length, '?').join(',')})',
+      ...await db.query(
+        table,
+        columns: columns,
+        where: '$column IN (${List.filled(chunk.length, '?').join(',')})',
         whereArgs: chunk,
-      ))
-        row['id'] as String,
+      ),
   ];
 
   /// 获取关联记录总数

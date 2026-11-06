@@ -106,9 +106,9 @@ export function usePolling(callback, { interval, enabled }) {
       }
     }
     pending = null;
-    if (!controller.signal.aborted && enabled()) {
+    if (!controller.signal.aborted && !document.hidden && enabled()) {
       timer = setTimeout(() => {
-        if (enabled()) trigger();
+        if (!document.hidden && enabled()) trigger();
       }, Math.max(1000, interval() * 1000));
     }
   };
@@ -120,7 +120,13 @@ export function usePolling(callback, { interval, enabled }) {
     return pending ??= Promise.resolve().then(run);
   };
 
+  const onVisibility = () => {
+    clearTimeout(timer);
+    if (!document.hidden && enabled() && !pending) trigger();
+  };
+  document.addEventListener('visibilitychange', onVisibility);
   onUnmounted(() => {
+    document.removeEventListener('visibilitychange', onVisibility);
     controller.abort();
     clearTimeout(timer);
   });

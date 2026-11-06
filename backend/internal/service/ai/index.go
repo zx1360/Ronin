@@ -2,9 +2,12 @@ package ai
 
 import (
 	"bytes"
+	"cmp"
+	"context"
 	"log"
 	"math"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -103,9 +106,12 @@ func (ix *Index) InvalidateIgnores() {
 
 // EnsureLoaded 确保向量索引可用；每隔 vectorStaleCheck 抽查一次数据库条数，
 // 发现变化（例如批量处理完成后）则整体重建。
-func (ix *Index) EnsureLoaded() error {
+func (ix *Index) EnsureLoaded(ctx context.Context) error {
 	ix.loadMu.Lock()
 	defer ix.loadMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	ix.mu.Lock()
 	ix.lastUsed = time.Now()
 	loaded := ix.loaded
@@ -128,18 +134,18 @@ func (ix *Index) EnsureLoaded() error {
 			return nil
 		}
 	}
-	return ix.reload()
+	return ix.reload(ctx)
 }
 
 // Reload 从数据库整体重建向量索引。
-func (ix *Index) Reload() error {
+func (ix *Index) Reload(ctx context.Context) error {
 	ix.loadMu.Lock()
 	defer ix.loadMu.Unlock()
-	return ix.reload()
+	return ix.reload(ctx)
 }
 
-func (ix *Index) reload() error {
-	rows, err := ai_repo.LoadEmbeddings("image", ix.model)
+func (ix *Index) reload(ctx context.Context) error {
+	rows, err := ai_repo.LoadEmbeddings(ctx, "image", ix.model)
 	if err != nil {
 		return err
 	}
@@ -221,57 +227,58 @@ type SimilarHit struct {
 // SearchVector 用查询向量做精确余弦扫描，返回得分最高的 topK 条。
 //
 // allow 为 nil 时不过滤；否则仅统计 allow 返回 true 的候选。
-func (ix *Index) SearchVector(query []float32, topK int, allow func(uuid.UUID) bool) ([]SimilarHit, error) {
-	if err := ix.EnsureLoaded(); err != nil {
+func (ix *Index) SearchVector(ctx context.Context, query []float32, topK int, allow func(uuid.UUID) bool) ([]SimilarHit, error) {
+	if topK <= 0 {
+		return nil, nil
+	}
+	if err := ix.EnsureLoaded(ctx); err != nil {
 		return nil, err
 	}
 
 	ix.mu.RLock()
-	defer ix.mu.RUnlock()
 	ids, vecs, scales, dim := ix.ids, ix.vecs, ix.scales, ix.dim
 
 	if dim == 0 || len(query) != dim || len(ids) == 0 {
+		ix.mu.RUnlock()
 		return nil, nil
 	}
 
-	scores := make([]float32, len(ids))
-	parallelFor(len(ids), func(start, end int) {
-		for i := start; i < end; i++ {
+	order := make([]int, 0, len(ids))
+	for i, id := range ids {
+		if allow == nil || allow(id) {
+			order = append(order, i)
+		}
+	}
+	hits := make([]SimilarHit, len(order))
+	parallelFor(len(order), func(start, end int) {
+		for pos := start; pos < end; pos++ {
+			if ctx.Err() != nil {
+				return
+			}
+			i := order[pos]
 			base := i * dim
 			var dot float32
 			for j := 0; j < dim; j++ {
 				dot += query[j] * float32(vecs[base+j])
 			}
-			scores[i] = dot * scales[i]
+			hits[pos] = SimilarHit{MediaID: ids[i], Score: dot * scales[i]}
 		}
 	})
-
-	order := make([]int, 0, len(ids))
-	for i := range ids {
-		if allow == nil || allow(ids[i]) {
-			order = append(order, i)
-		}
+	ix.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	sort.Slice(order, func(a, b int) bool {
-		i, j := order[a], order[b]
-		if scores[i] == scores[j] {
-			return bytes.Compare(ids[i][:], ids[j][:]) < 0
+	slices.SortFunc(hits, func(a, b SimilarHit) int {
+		if a.Score == b.Score {
+			return bytes.Compare(a.MediaID[:], b.MediaID[:])
 		}
-		return scores[i] > scores[j]
+		return cmp.Compare(b.Score, a.Score)
 	})
-
-	if topK > len(order) {
-		topK = len(order)
-	}
-	hits := make([]SimilarHit, 0, topK)
-	for _, i := range order[:topK] {
-		hits = append(hits, SimilarHit{MediaID: ids[i], Score: scores[i]})
-	}
-	return hits, nil
+	return hits[:min(topK, len(hits))], nil
 }
 
 // SimilarTo 返回与给定媒体最相似的其它媒体（以图搜图 / 相似推荐）。
-func (ix *Index) SimilarTo(mediaID uuid.UUID, topK int) ([]SimilarHit, error) {
+func (ix *Index) SimilarTo(ctx context.Context, mediaID uuid.UUID, topK int) ([]SimilarHit, error) {
 	row, err := ai_repo.GetEmbedding(mediaID, "image", ix.model)
 	if err != nil {
 		return nil, err
@@ -280,7 +287,7 @@ func (ix *Index) SimilarTo(mediaID uuid.UUID, topK int) ([]SimilarHit, error) {
 		return nil, nil
 	}
 	query := dequantize(row, ix.dimOf())
-	return ix.SearchVector(query, topK+1, func(id uuid.UUID) bool { return id != mediaID })
+	return ix.SearchVector(ctx, query, topK, func(id uuid.UUID) bool { return id != mediaID })
 }
 
 func (ix *Index) dimOf() int {

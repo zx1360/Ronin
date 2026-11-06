@@ -44,7 +44,10 @@ Future<void> verifyGalleryWrites(
   Never mismatch(String id) => throw StateError('回传校验不一致（$id），本地操作已保留，请刷新或重试');
   final mediaIds = {...fields.keys, ...tagged}.toList();
   for (var offset = 0; offset < mediaIds.length; offset += 200) {
-    final ids = mediaIds.skip(offset).take(200).toList();
+    final ids = mediaIds.sublist(
+      offset,
+      (offset + 200).clamp(0, mediaIds.length),
+    );
     final result = await api.queryMedia(
       ids: ids,
       includeDeleted: true,
@@ -53,8 +56,21 @@ Future<void> verifyGalleryWrites(
     final remote = {
       for (final asset in result.mediaAssets) asset.id: asset.toJson(),
     };
+    final localAssets = await db.getMediaAssetsByIds(ids);
+    final cachedLeads = (await db.getCachedMediaIds({
+      for (final asset in result.mediaAssets)
+        if (fields[asset.id]?.contains('group_id') == true)
+          if (asset.groupId case final lead?) lead,
+    })).toSet();
+    final localTags = await db.getMediaTagIdsByMedia(
+      ids.where(tagged.contains),
+    );
+    final remoteTags = <String, Set<String>>{};
+    for (final link in result.mediaTagLinks) {
+      remoteTags.putIfAbsent(link.mediaId, () => {}).add(link.tagId);
+    }
     for (final id in ids) {
-      final local = (await db.getMediaAssetById(id))?.toJson();
+      final local = localAssets[id]?.toJson();
       if (local == null || remote[id] == null) mismatch(id);
       for (final field in fields[id] ?? <String>{}) {
         final expected = local[field];
@@ -68,18 +84,15 @@ Future<void> verifyGalleryWrites(
           if (field == 'group_id' &&
               expected == null &&
               actual is String &&
-              (await db.getCachedMediaIds([actual])).isEmpty) {
+              !cachedLeads.contains(actual)) {
             continue;
           }
           mismatch(id);
         }
       }
       if (tagged.contains(id)) {
-        final expected = (await db.getTagIdsForMedia(id)).toSet();
-        final actual = result.mediaTagLinks
-            .where((link) => link.mediaId == id)
-            .map((link) => link.tagId)
-            .toSet();
+        final expected = localTags[id] ?? const <String>{};
+        final actual = remoteTags[id] ?? const <String>{};
         if (!setEquals(expected, actual)) mismatch(id);
       }
     }

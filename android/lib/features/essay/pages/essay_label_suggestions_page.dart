@@ -111,11 +111,8 @@ class _EssayLabelSuggestionsPageState
           api: api,
           options: options,
           essay: essay,
-          labelPaths: {
-            for (final label in labels)
-              if (!hidden.contains(label.id))
-                label.id: labelPath(label, labels),
-          },
+          labelPaths: labelPaths(labels)
+            ..removeWhere((id, _) => hidden.contains(id)),
           cancelToken: token,
         );
         if (!mounted || token.isCancelled) return;
@@ -161,12 +158,12 @@ class _EssayLabelSuggestionsPageState
   @override
   Widget build(BuildContext context) {
     final running = _request != null;
-    final hidden = hiddenLabelIds(ref.watch(labelsProvider));
+    final labels =
+        ref.watch(labelStreamProvider).asData?.value ??
+        ref.read(labelBoxProvider).values;
+    final hidden = hiddenLabelIds(labels);
     final paths = ref.watch(idMapProvider);
-    final essays =
-        ref.watch(essayStreamProvider).valueOrNull ??
-        ref.read(essayBoxProvider).values;
-    final currentById = {for (final essay in essays) essay.id: essay};
+    final essayBox = ref.watch(essayBoxProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -267,8 +264,9 @@ class _EssayLabelSuggestionsPageState
             ),
           ),
           for (final result in _results)
-            if (currentById[result.source.id] case final essay?
-                when !essay.labels.any(hidden.contains))
+            if ((ref.watch(essayByIdProvider(result.source.id)).asData?.value ??
+                    essayBox.get(result.source.id))
+                case final essay? when !essay.labels.any(hidden.contains))
               _SuggestionCard(
                 key: ObjectKey(result.source),
                 source: result.source,

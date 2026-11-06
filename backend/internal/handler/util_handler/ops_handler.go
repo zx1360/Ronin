@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,44 +28,64 @@ type dirUsage struct {
 
 // ---------------------------------------------------------------------------
 // 目录用量按需异步扫描；首次返回待统计，过期时返回旧值。
-// gallery 的 Media/Deleted 数量与体积不遍历磁盘，改由 DB 聚合提供。
+// Gallery 的 Media/Deleted 单项统计来自数据库。
 // ---------------------------------------------------------------------------
 
 const usageCacheTTL = 5 * time.Minute
 
 var (
 	usageCacheMu sync.Mutex
-	usageCache   = map[string]*dirUsageEntry{}
+	usageCache   = map[dirUsageKey]*dirUsageEntry{}
 )
+
+type dirUsageKey struct {
+	root, subdirs string
+}
 
 type dirUsageEntry struct {
 	usage      dirUsage
+	subdirs    map[string]dirUsage
 	updatedAt  time.Time
 	refreshing bool
 }
 
-func refreshDirUsage(root string, entry *dirUsageEntry) {
-	usage := collectDirUsage(root)
+func refreshDirUsage(root string, names []string, entry *dirUsageEntry) {
+	subdirs := make(map[string]dirUsage, len(names))
+	for _, name := range names {
+		subdirs[dirNameKey(name)] = inspectDir(filepath.Join(root, name))
+	}
+	usage := collectDirUsage(root, subdirs)
 	usageCacheMu.Lock()
 	defer usageCacheMu.Unlock()
-	entry.usage, entry.updatedAt, entry.refreshing = usage, time.Now(), false
+	entry.usage, entry.subdirs, entry.updatedAt, entry.refreshing = usage, subdirs, time.Now(), false
 }
 
-// getCachedDirUsage 同一目录的并发访问共用一次扫描。
 func getCachedDirUsage(root string) dirUsage {
+	usage, _ := getCachedDirUsages(root)
+	return usage
+}
+
+// getCachedDirUsages 在同一次遍历中统计根目录和指定的直接子目录。
+func getCachedDirUsages(root string, names ...string) (dirUsage, map[string]dirUsage) {
 	usageCacheMu.Lock()
-	entry, ok := usageCache[root]
+	defer usageCacheMu.Unlock()
+	key := dirUsageKey{root: root, subdirs: strings.Join(names, "/")}
+	entry, ok := usageCache[key]
 	if !ok {
-		entry = &dirUsageEntry{usage: dirUsage{Path: root, Pending: true}}
-		usageCache[root] = entry
+		entry = &dirUsageEntry{
+			usage:   dirUsage{Path: root, Pending: true},
+			subdirs: make(map[string]dirUsage, len(names)),
+		}
+		for _, name := range names {
+			entry.subdirs[dirNameKey(name)] = dirUsage{Path: filepath.Join(root, name), Pending: true}
+		}
+		usageCache[key] = entry
 	}
 	if !entry.refreshing && (entry.updatedAt.IsZero() || time.Since(entry.updatedAt) >= usageCacheTTL) {
 		entry.refreshing = true
-		go refreshDirUsage(root, entry)
+		go refreshDirUsage(root, names, entry)
 	}
-	usage := entry.usage
-	usageCacheMu.Unlock()
-	return usage
+	return entry.usage, entry.subdirs
 }
 
 // galleryDBStats gallery 媒体文件的聚合统计（由 media_assets 直接算出，无需遍历磁盘）。
@@ -99,6 +121,13 @@ func queryGalleryDBStats(ctx context.Context) galleryDBStats {
 // SystemOverview 返回服务端基础运维信息，便于网页运维端统一展示。
 func SystemOverview(c *gin.Context) {
 	galleryStats := queryGalleryDBStats(c.Request.Context())
+	galleryUsage, gallerySubdirs := getCachedDirUsages(config.AppConf.GalleryDir, "Thumbs", "Preview")
+	staticUsage := galleryUsage
+	if dirNameKey(filepath.Clean(config.AppConf.StaticDir)) == dirNameKey(filepath.Clean(config.AppConf.GalleryDir)) {
+		staticUsage.Path = config.AppConf.StaticDir
+	} else {
+		staticUsage = getCachedDirUsage(config.AppConf.StaticDir)
+	}
 
 	// 网页端需要直接读写文件（如资源管理器定位），因此必须给出绝对路径：
 	// 服务端与浏览器的路径视角不同，相对路径无法解析。
@@ -136,17 +165,17 @@ func SystemOverview(c *gin.Context) {
 			"error":     dbErr,
 		},
 		"storage": gin.H{
-			"static":         getCachedDirUsage(config.AppConf.StaticDir),
-			"galleryRoot":    getCachedDirUsage(config.AppConf.GalleryDir),
+			"static":         staticUsage,
+			"galleryRoot":    galleryUsage,
 			"galleryMedia":   galleryDirUsage("Media", galleryStats.MediaFiles, galleryStats.MediaBytes),
-			"galleryThumbs":  getCachedDirUsage(filepath.Join(config.AppConf.GalleryDir, "Thumbs")),
-			"galleryPreview": getCachedDirUsage(filepath.Join(config.AppConf.GalleryDir, "Preview")),
+			"galleryThumbs":  gallerySubdirs[dirNameKey("Thumbs")],
+			"galleryPreview": gallerySubdirs[dirNameKey("Preview")],
 			"galleryDeleted": galleryDirUsage("Deleted", galleryStats.DeletedFiles, galleryStats.DeletedBytes),
 		},
 	})
 }
 
-func collectDirUsage(root string) dirUsage {
+func inspectDir(root string) dirUsage {
 	usage := dirUsage{Path: root}
 	if root == "" {
 		usage.Error = "path is empty"
@@ -162,19 +191,35 @@ func collectDirUsage(root string) dirUsage {
 		usage.Error = err.Error()
 		return usage
 	}
+	usage.Exists = true
 	if !info.IsDir() {
-		usage.Exists = true
 		usage.Error = "path is not a directory"
+	}
+	return usage
+}
+
+func dirNameKey(name string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(name)
+	}
+	return name
+}
+
+func collectDirUsage(root string, subdirs map[string]dirUsage) dirUsage {
+	usage := inspectDir(root)
+	if !usage.Exists || usage.Error != "" {
 		return usage
 	}
 
-	usage.Exists = true
+	separator := string(filepath.Separator)
+	prefix := strings.TrimSuffix(filepath.Clean(root), separator) + separator
+	rootLink := false
 	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
+		if err != nil || d.IsDir() {
 			return nil
 		}
-		if d.IsDir() {
-			return nil
+		if path == root {
+			rootLink = true
 		}
 		fileInfo, statErr := d.Info()
 		if statErr != nil {
@@ -182,10 +227,24 @@ func collectDirUsage(root string) dirUsage {
 		}
 		usage.Files++
 		usage.Bytes += fileInfo.Size()
+		if len(subdirs) > 0 {
+			name, _, _ := strings.Cut(strings.TrimPrefix(path, prefix), separator)
+			key := dirNameKey(name)
+			if child, ok := subdirs[key]; ok && child.Exists && child.Error == "" {
+				child.Files++
+				child.Bytes += fileInfo.Size()
+				subdirs[key] = child
+			}
+		}
 		return nil
 	})
 	if walkErr != nil {
 		usage.Error = walkErr.Error()
+	}
+	if rootLink {
+		for name, child := range subdirs {
+			subdirs[name] = collectDirUsage(child.Path, nil)
+		}
 	}
 
 	return usage

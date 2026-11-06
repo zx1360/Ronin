@@ -163,7 +163,15 @@ func validateRelations(ctx context.Context, tx *sql.Tx, module string) error {
 
 func refreshStats(ctx context.Context, tx *sql.Tx, module string) error {
 	if module == "essay" {
-		if _, err := tx.ExecContext(ctx, `UPDATE essay_labels SET essay_count=(SELECT COUNT(*) FROM essay_articles a WHERE EXISTS(SELECT 1 FROM json_each(a.labels) WHERE value=essay_labels.id))`); err != nil {
+		if _, err := tx.ExecContext(ctx, `
+			WITH counts AS (
+				SELECT j.value AS label_id, COUNT(DISTINCT a.id) AS n
+				FROM essay_articles a CROSS JOIN json_each(a.labels) j
+				GROUP BY j.value
+			)
+			UPDATE essay_labels AS label SET essay_count = COALESCE(counts.n, 0)
+			FROM essay_labels AS current LEFT JOIN counts ON counts.label_id = current.id
+			WHERE label.id = current.id AND label.essay_count IS NOT COALESCE(counts.n, 0)`); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `DELETE FROM essay_year_summaries;

@@ -46,7 +46,6 @@ type Ollama struct {
 	closed    bool
 	modelsMu  sync.Mutex
 	models    []ModelInfo
-	modelsErr error
 	modelsAt  time.Time
 }
 
@@ -97,6 +96,7 @@ type ModelInfo struct {
 	Vision bool
 	// Thinking 该模型是否支持思考链（决定客户端是否展示"深度思考"开关）。
 	Thinking bool
+	digest   string
 }
 
 // visionFamilies 带视觉编码器的模型族；仅在 Ollama 未上报 capabilities 时作为兜底判断。
@@ -123,17 +123,17 @@ func (o *Ollama) ListModels(ctx context.Context) ([]string, error) {
 func (o *Ollama) ListModelInfo(ctx context.Context) ([]ModelInfo, error) {
 	o.modelsMu.Lock()
 	defer o.modelsMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if time.Since(o.modelsAt) >= 5*time.Second {
 		models, err := o.loadModelInfo(ctx)
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		o.models, o.modelsErr, o.modelsAt = models, err, time.Now()
 		if err != nil {
-			o.modelsAt = time.Time{}
+			return nil, err
 		}
+		o.models, o.modelsAt = models, time.Now()
 	}
-	return append([]ModelInfo(nil), o.models...), o.modelsErr
+	return append([]ModelInfo(nil), o.models...), nil
 }
 
 func (o *Ollama) loadModelInfo(ctx context.Context) ([]ModelInfo, error) {
@@ -156,6 +156,7 @@ func (o *Ollama) loadModelInfo(ctx context.Context) ([]ModelInfo, error) {
 	var parsed struct {
 		Models []struct {
 			Name         string   `json:"name"`
+			Digest       string   `json:"digest"`
 			Capabilities []string `json:"capabilities"`
 			Details      struct {
 				Family   string   `json:"family"`
@@ -166,14 +167,23 @@ func (o *Ollama) loadModelInfo(ctx context.Context) ([]ModelInfo, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("解析 Ollama 模型列表失败: %w", err)
 	}
+	previous := make(map[string]ModelInfo, len(o.models))
+	for _, info := range o.models {
+		previous[info.Name] = info
+	}
 	models := make([]ModelInfo, 0, len(parsed.Models))
 	for _, m := range parsed.Models {
 		capabilities := m.Capabilities
 		if len(capabilities) == 0 {
+			if cached := previous[m.Name]; m.Digest != "" && cached.digest == m.Digest {
+				models = append(models, cached)
+				continue
+			}
 			capabilities = o.showCapabilities(reqCtx, m.Name)
 		}
 		info := ModelInfo{Name: m.Name, Completion: true}
 		if len(capabilities) > 0 {
+			info.digest = m.Digest
 			info.Completion = hasCapability(capabilities, "completion")
 			info.Vision = hasCapability(capabilities, "vision")
 			info.Thinking = hasCapability(capabilities, "thinking")
@@ -189,6 +199,9 @@ func (o *Ollama) loadModelInfo(ctx context.Context) ([]ModelInfo, error) {
 			info.Thinking = SupportsThinking(m.Name)
 		}
 		models = append(models, info)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return models, nil
 }

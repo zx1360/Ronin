@@ -29,6 +29,9 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
 
   final _text = TextEditingController();
   final _selected = <String>{};
+  AiSearchResult? _displayedResult;
+  List<MediaAsset> _assets = const [];
+  Map<String, List<String>> _sourcesById = const {};
   bool _selecting = false;
 
   @override
@@ -55,6 +58,27 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
     });
   }
 
+  void _updateDisplay(AiSearchResult result) {
+    if (identical(_displayedResult, result)) return;
+    _displayedResult = result;
+    _assets = [for (final hit in result.hits) hit.asset];
+    _sourcesById = result.mode == 'keyword'
+        ? {for (final hit in result.hits) hit.id: hit.sources}
+        : const {};
+  }
+
+  List<String> _labelsFor(MediaAsset asset) {
+    if (_displayedResult?.mode == 'filename') {
+      final path = asset.filePath;
+      final separator = path.lastIndexOf(RegExp(r'[/\\]'));
+      return [path.substring(separator + 1)];
+    }
+    return [
+      for (final source in _sourcesById[asset.id] ?? const <String>[])
+        if (_sourceLabels[source] case final label?) label,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -72,10 +96,11 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
       (_, __) => _clearSelection(),
     );
     final result = state.result;
-    final assets = [for (final hit in result.hits) hit.asset];
-    final selected = assets
-        .where((asset) => _selected.contains(asset.id))
-        .toList();
+    _updateDisplay(result);
+    final assets = _assets;
+    final selected = _selected.isEmpty
+        ? const <MediaAsset>[]
+        : assets.where((asset) => _selected.contains(asset.id)).toList();
     final canRank = result.mode == 'semantic';
     final theme = Theme.of(context);
     final canSelect = !busy && assets.isNotEmpty;
@@ -88,21 +113,6 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
             'filename' => '文件名匹配',
             _ => '',
           };
-    final labelsById = switch (result.mode) {
-      'filename' => {
-        for (final asset in assets)
-          asset.id: [asset.filePath.split(RegExp(r'[/\\]')).last],
-      },
-      'keyword' => {
-        for (final hit in result.hits)
-          hit.id: hit.sources
-              .map((source) => _sourceLabels[source])
-              .whereType<String>()
-              .toList(),
-      },
-      _ => const <String, List<String>>{},
-    };
-
     return Column(
       children: [
         Padding(
@@ -272,7 +282,7 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
               : AlbumMediaGrid(
                   key: ValueKey(state.revision),
                   assets: assets,
-                  labelsFor: (asset) => labelsById[asset.id] ?? const [],
+                  labelsFor: _labelsFor,
                   timeline: state.timeline || !canRank,
                   selectedIds: _selected,
                   selectionMode: _selecting,

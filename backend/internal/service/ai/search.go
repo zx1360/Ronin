@@ -100,16 +100,19 @@ func (e *Engine) Search(ctx context.Context, req SearchRequest) (*model.AiSearch
 	}
 
 	if !useSemantic {
-		return e.plainSearch(filters, query, mode, limit, req.Offset)
+		return e.plainSearch(ctx, filters, query, mode, limit, req.Offset)
 	}
 
 	vector, err := e.queryVector(ctx, query, req.MediaID, req.ImagePath)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		if req.MediaID != "" || req.ImagePath != "" {
 			return nil, err
 		}
 		// 语义链路不可用时退化为关键词检索，保证搜索框始终有结果
-		fallback, fallbackErr := e.plainSearch(filters, query, ModeKeyword, limit, req.Offset)
+		fallback, fallbackErr := e.plainSearch(ctx, filters, query, ModeKeyword, limit, req.Offset)
 		if fallbackErr != nil {
 			return nil, fallbackErr
 		}
@@ -195,7 +198,7 @@ func decodeQuantized(payload embedPayload) ([]float32, error) {
 }
 
 // plainSearch 不做向量打分的结构化检索（关键词/文件名），SQL 分页，结果稳定。
-func (e *Engine) plainSearch(filters ai_repo.SearchFilters, query, mode string, limit, offset int) (*model.AiSearchResponse, error) {
+func (e *Engine) plainSearch(ctx context.Context, filters ai_repo.SearchFilters, query, mode string, limit, offset int) (*model.AiSearchResponse, error) {
 	source := "keyword"
 	if mode == ModeFilename {
 		filters.Filename = query
@@ -207,7 +210,17 @@ func (e *Engine) plainSearch(filters ai_repo.SearchFilters, query, mode string, 
 	filters.Limit = limit
 	filters.Offset = offset
 
-	ids, total, err := ai_repo.SearchMediaIDs(filters)
+	var ids []uuid.UUID
+	var total int
+	var sources map[uuid.UUID][]string
+	var err error
+	if filters.Keyword != "" || filters.Filename != "" {
+		var page ai_repo.TextSearchPage
+		page, err = ai_repo.SearchText(ctx, filters)
+		ids, total, sources = page.IDs, page.Total, page.Sources
+	} else {
+		ids, total, err = ai_repo.SearchMediaIDs(ctx, filters)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -215,14 +228,8 @@ func (e *Engine) plainSearch(filters ai_repo.SearchFilters, query, mode string, 
 	if err != nil {
 		return nil, err
 	}
-	if mode == ModeKeyword && query != "" && len(hits) > 0 {
-		sources, err := ai_repo.KeywordSources(ids, query)
-		if err != nil {
-			return nil, err
-		}
-		for i := range hits {
-			hits[i].Source = append(hits[i].Source, sources[hits[i].ID]...)
-		}
+	for i := range hits {
+		hits[i].Source = append(hits[i].Source, sources[hits[i].ID]...)
 	}
 	return &model.AiSearchResponse{Hits: hits, Total: total, Mode: mode}, nil
 }
@@ -250,7 +257,7 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 	candidateFilters := filters
 	candidateFilters.Limit = -1
 	candidateFilters.Offset = 0
-	candidateIDs, _, err := ai_repo.SearchMediaIDs(candidateFilters)
+	candidateIDs, _, err := ai_repo.SearchMediaIDs(ctx, candidateFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -258,9 +265,10 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 		return &model.AiSearchResponse{Hits: []model.AiSearchHit{}, Total: 0, Mode: ModeSemantic}, nil
 	}
 
+	excluded, excludeErr := uuid.Parse(mediaID)
 	allowed := make(map[uuid.UUID]bool, len(candidateIDs))
 	for _, id := range candidateIDs {
-		if mediaID == "" || id.String() != mediaID {
+		if excludeErr != nil || id != excluded {
 			allowed[id] = true
 		}
 	}
@@ -270,7 +278,7 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 	if semanticLimit > 0 {
 		topK = min(topK, semanticLimit)
 	}
-	hits, err := e.index.SearchVector(vector, topK, func(id uuid.UUID) bool { return allowed[id] })
+	hits, err := e.index.SearchVector(ctx, vector, topK, func(id uuid.UUID) bool { return allowed[id] })
 	if err != nil {
 		return nil, err
 	}
@@ -292,9 +300,9 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 		keywordFilters.Keyword = query
 		keywordFilters.Limit = -1
 		keywordFilters.Offset = 0
-		if keywordIDs, _, err := ai_repo.SearchMediaIDs(keywordFilters); err == nil {
+		if keywordIDs, _, err := ai_repo.SearchMediaIDs(ctx, keywordFilters); err == nil {
 			for _, id := range keywordIDs {
-				if mediaID != "" && id.String() == mediaID {
+				if excludeErr == nil && id == excluded {
 					continue
 				}
 				sources[id] = []string{"keyword"}
@@ -306,6 +314,9 @@ func (e *Engine) semanticSearch(ctx context.Context, filters ai_repo.SearchFilte
 				ordered = append(ordered, id)
 			}
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	if filters.SortBy == "captured_at" {
@@ -389,11 +400,11 @@ func buildHits(ids []uuid.UUID, scores []float32, sources []string) ([]model.AiS
 }
 
 // SimilarMedia 返回与指定媒体在视觉上最接近的其它媒体。
-func (e *Engine) SimilarMedia(mediaID uuid.UUID, limit int) (*model.AiSearchResponse, error) {
+func (e *Engine) SimilarMedia(ctx context.Context, mediaID uuid.UUID, limit int) (*model.AiSearchResponse, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 60
 	}
-	hits, err := e.index.SimilarTo(mediaID, limit)
+	hits, err := e.index.SimilarTo(ctx, mediaID, limit)
 	if err != nil {
 		return nil, err
 	}

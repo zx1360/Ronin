@@ -222,9 +222,7 @@ type EmbeddingRow struct {
 }
 
 // LoadEmbeddings 载入某模型的全部图像向量（7w × 768B ≈ 54MB）。
-func LoadEmbeddings(kind, modelName string) ([]EmbeddingRow, error) {
-	ctx, cancel := db.GetLongCtx()
-	defer cancel()
+func LoadEmbeddings(ctx context.Context, kind, modelName string) ([]EmbeddingRow, error) {
 	rows, err := db.Read().QueryContext(ctx, `
 		SELECT media_id, dim, scale, vec FROM embeddings WHERE kind = ? AND model = ?`,
 		kind, modelName)
@@ -745,44 +743,53 @@ func BuildSearchWhere(f SearchFilters) (string, []any) {
 	return where, args
 }
 
-// SearchMediaIDs 返回满足结构化条件的媒体 ID 及总数。
-func SearchMediaIDs(f SearchFilters) ([]uuid.UUID, int, error) {
-	ctx, cancel := db.GetLongCtx()
-	defer cancel()
-
+func searchWhere(f SearchFilters) (string, []any, error) {
 	if f.Descendants && len(f.TagIDs) > 0 {
 		expanded, err := gallery_repo.ExpandTagIDs(f.TagIDs)
 		if err != nil {
-			return nil, 0, err
+			return "", nil, err
 		}
 		f.TagIDs = expanded
 	}
-
 	where, args := BuildSearchWhere(f)
+	return where, args, nil
+}
 
-	var total int
-	if err := db.Read().QueryRowContext(ctx,
-		fmt.Sprintf(`SELECT COUNT(*) FROM media_assets m WHERE %s`, where),
-		args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("统计搜索结果失败: %w", err)
-	}
-
-	order := "m.captured_at"
+func searchOrder(f SearchFilters) (field, direction string) {
+	field = "m.captured_at"
 	switch f.SortBy {
 	case "size_bytes":
-		order = "m.size_bytes"
+		field = "m.size_bytes"
 	case "file_path":
-		order = "m.file_path"
+		field = "m.file_path"
 	}
+	direction = "DESC"
 	if strings.EqualFold(f.SortOrder, "asc") {
-		order += " ASC"
-	} else {
-		order += " DESC"
+		direction = "ASC"
+	}
+	return field, direction
+}
+
+// SearchMediaIDs 返回满足条件的媒体 ID 及总数。
+func SearchMediaIDs(ctx context.Context, f SearchFilters) ([]uuid.UUID, int, error) {
+	where, args, err := searchWhere(f)
+	if err != nil {
+		return nil, 0, err
+	}
+	unpaged := f.Limit < 0 && f.Offset == 0
+	var total int
+	if !unpaged {
+		if err := db.Read().QueryRowContext(ctx,
+			fmt.Sprintf(`SELECT COUNT(*) FROM media_assets m WHERE %s`, where),
+			args...).Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("统计搜索结果失败: %w", err)
+		}
 	}
 
+	field, direction := searchOrder(f)
 	query := fmt.Sprintf(`
 		SELECT m.id FROM media_assets m
-		WHERE %s ORDER BY %s, m.id ASC LIMIT ? OFFSET ?`, where, order)
+		WHERE %s ORDER BY %s %s, m.id ASC LIMIT ? OFFSET ?`, where, field, direction)
 
 	rows, err := db.Read().QueryContext(ctx, query, append(args, f.Limit, f.Offset)...)
 	if err != nil {
@@ -798,46 +805,89 @@ func SearchMediaIDs(f SearchFilters) ([]uuid.UUID, int, error) {
 		}
 		ids = append(ids, id)
 	}
+	if unpaged {
+		total = len(ids)
+	}
 	return ids, total, rows.Err()
 }
 
-func KeywordSources(ids []uuid.UUID, keyword string) (map[uuid.UUID][]string, error) {
-	pattern := containsPattern(keyword)
-	args := []any{pattern, pattern, pattern}
-	for _, id := range ids {
-		args = append(args, id)
-	}
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-	// 预先取出命中的标签媒体 ID，避免 SQLite 为当前页的每条结果重复扫描标签表。
-	rows, err := db.Read().QueryContext(ctx, fmt.Sprintf(`
-		SELECT m.id, coalesce(a.ocr_text LIKE ? ESCAPE '!', 0), coalesce(a.caption LIKE ? ESCAPE '!', 0),
-		       m.id IN (SELECT t.media_id FROM media_ai_tags t WHERE t.tag LIKE ? ESCAPE '!')
-		FROM media_assets m LEFT JOIN media_ai a ON a.media_id = m.id
-		WHERE m.id IN (%s)`, placeholders(len(ids))), args...)
+type TextSearchPage struct {
+	IDs     []uuid.UUID
+	Sources map[uuid.UUID][]string
+	Total   int
+}
+
+// SearchText 在同一份命中集合上计数、分页和标记来源。
+func SearchText(ctx context.Context, f SearchFilters) (TextSearchPage, error) {
+	keyword := strings.TrimSpace(f.Keyword)
+	f.Keyword = ""
+	where, args, err := searchWhere(f)
 	if err != nil {
-		return nil, err
+		return TextSearchPage{}, err
+	}
+	field, direction := searchOrder(f)
+	var matches string
+	if keyword == "" {
+		matches = fmt.Sprintf(`
+			SELECT m.id, %s AS sort_value, 0 AS ocr, 0 AS caption, 0 AS tag
+			FROM media_assets m WHERE %s`, field, where)
+	} else {
+		pattern := containsPattern(keyword)
+		args = append([]any{pattern, pattern, pattern}, args...)
+		matches = fmt.Sprintf(`
+			WITH sources AS (
+				SELECT media_id, ocr_text LIKE ? ESCAPE '!' AS ocr_hit,
+				       caption LIKE ? ESCAPE '!' AS caption_hit, 0 AS tag_hit
+				FROM media_ai WHERE ocr_hit OR caption_hit
+				UNION ALL
+				SELECT media_id, 0, 0, 1 FROM media_ai_tags WHERE tag LIKE ? ESCAPE '!'
+			)
+			SELECT m.id, %s AS sort_value, max(coalesce(s.ocr_hit, 0)) AS ocr,
+			       max(coalesce(s.caption_hit, 0)) AS caption, max(s.tag_hit) AS tag
+			FROM sources s CROSS JOIN media_assets m ON m.id = s.media_id
+			WHERE %s GROUP BY m.id`, field, where)
+	}
+	query := fmt.Sprintf(`
+		WITH matches AS MATERIALIZED (%s)
+		SELECT t.total, p.id, coalesce(p.ocr, 0), coalesce(p.caption, 0), coalesce(p.tag, 0)
+		FROM (SELECT count(*) AS total FROM matches) t
+		LEFT JOIN (SELECT * FROM matches ORDER BY sort_value %[2]s, id LIMIT ? OFFSET ?) p ON true
+		ORDER BY p.sort_value %[2]s, p.id`, matches, direction)
+	rows, err := db.Read().QueryContext(ctx, query, append(args, f.Limit, f.Offset)...)
+	if err != nil {
+		return TextSearchPage{}, fmt.Errorf("查询文本命中失败: %w", err)
 	}
 	defer rows.Close()
 
-	sources := make(map[uuid.UUID][]string, len(ids))
+	page := TextSearchPage{}
+	if keyword != "" {
+		page.Sources = make(map[uuid.UUID][]string)
+	}
 	for rows.Next() {
-		var id uuid.UUID
+		var id uuid.NullUUID
 		var ocr, caption, tag bool
-		if err := rows.Scan(&id, &ocr, &caption, &tag); err != nil {
-			return nil, err
+		if err := rows.Scan(&page.Total, &id, &ocr, &caption, &tag); err != nil {
+			return TextSearchPage{}, err
 		}
+		if !id.Valid {
+			continue
+		}
+		page.IDs = append(page.IDs, id.UUID)
+		var sources []string
 		if ocr {
-			sources[id] = append(sources[id], "ocr")
+			sources = append(sources, "ocr")
 		}
 		if caption {
-			sources[id] = append(sources[id], "caption")
+			sources = append(sources, "caption")
 		}
 		if tag {
-			sources[id] = append(sources[id], "vlm_tag")
+			sources = append(sources, "vlm_tag")
+		}
+		if len(sources) > 0 {
+			page.Sources[id.UUID] = sources
 		}
 	}
-	return sources, rows.Err()
+	return page, rows.Err()
 }
 
 // VLMTagCount AI 标签及其出现次数（供客户端展示只读的 AI 标签筛选）。
@@ -847,10 +897,7 @@ type VLMTagCount struct {
 }
 
 // ListVLMTags 聚合未删除媒体的全部 AI 标签。
-func ListVLMTags(limit int) ([]VLMTagCount, error) {
-	ctx, cancel := db.GetLongCtx()
-	defer cancel()
-
+func ListVLMTags(ctx context.Context, limit int) ([]VLMTagCount, error) {
 	if limit <= 0 || limit > 2000 {
 		limit = 500
 	}
@@ -858,8 +905,7 @@ func ListVLMTags(limit int) ([]VLMTagCount, error) {
 	rows, err := db.Read().QueryContext(ctx, `
 		SELECT t.tag, COUNT(*) AS n
 		FROM media_ai_tags t
-		JOIN media_assets m ON m.id = t.media_id
-		WHERE m.is_deleted = 0 AND t.tag <> ''
+		WHERE t.tag <> '' AND t.media_id IN (SELECT id FROM media_assets WHERE is_deleted = 0)
 		GROUP BY t.tag
 		ORDER BY n DESC, t.tag ASC
 		LIMIT ?`, limit)
