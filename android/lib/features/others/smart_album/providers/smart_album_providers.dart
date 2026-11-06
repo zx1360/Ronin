@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
@@ -76,7 +77,7 @@ typedef _AlbumQuery = ({
 
 @riverpod
 class SmartAlbumController extends _$SmartAlbumController {
-  int _requestId = 0;
+  CancelToken? _request;
   int _nextOffset = 0;
   _AlbumQuery? _query;
 
@@ -85,14 +86,17 @@ class SmartAlbumController extends _$SmartAlbumController {
     ref.watch(aiApiProvider);
     ref.listen(immichMediaUpdateProvider, (_, update) {
       if (update == null || _query == null) return;
-      if (update.changesVisibility || state.loading || state.loadingMore) {
+      if ((update.changesVisibility && !state.includeDeleted) ||
+          state.loading ||
+          state.loadingMore) {
         unawaited(reload());
       } else {
         _updateAssets(update.assets);
       }
     });
     ref.onDispose(() {
-      _requestId++;
+      _request?.cancel();
+      _request = null;
       _query = null;
     });
     return const SmartAlbumState();
@@ -101,6 +105,7 @@ class SmartAlbumController extends _$SmartAlbumController {
   void _updateAssets(List<MediaAsset> assets) {
     final byId = {for (final asset in assets) asset.id: asset};
     final result = state.result;
+    if (!result.hits.any((hit) => byId.containsKey(hit.id))) return;
     state = state.copyWith(
       result: AiSearchResult(
         mode: result.mode,
@@ -161,7 +166,8 @@ class SmartAlbumController extends _$SmartAlbumController {
     bool? timeline,
     bool? includeDeleted,
   }) async {
-    _requestId++;
+    _request?.cancel();
+    _request = null;
     _nextOffset = 0;
     state = state.copyWith(
       mode: mode,
@@ -187,7 +193,7 @@ class SmartAlbumController extends _$SmartAlbumController {
   Future<void> _fetchPage({required bool append}) async {
     final query = _query;
     if (query == null) return;
-    final requestId = _requestId;
+    final token = _request = CancelToken();
     final mode =
         query.personId != null ||
             (append &&
@@ -207,8 +213,9 @@ class SmartAlbumController extends _$SmartAlbumController {
             timeline: state.timeline,
             includeDeleted: state.includeDeleted,
             offset: _nextOffset,
+            cancelToken: token,
           );
-      if (requestId != _requestId) return;
+      if (token.isCancelled) return;
       if (append && page.mode != state.result.mode) {
         await reload();
         return;
@@ -230,12 +237,14 @@ class SmartAlbumController extends _$SmartAlbumController {
         hasMore: page.hits.isNotEmpty && _nextOffset < page.total,
       );
     } catch (error) {
-      if (requestId != _requestId) return;
+      if (token.isCancelled) return;
       state = state.copyWith(
         loading: false,
         loadingMore: false,
         error: aiFriendlyError(error),
       );
+    } finally {
+      if (identical(_request, token)) _request = null;
     }
   }
 }

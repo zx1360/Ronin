@@ -61,10 +61,9 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
     final tagById = {for (final tag in tags) tag.id: tag};
     final search = ref.watch(smartAlbumControllerProvider.notifier);
     ref.listen(immichFilterNotifierProvider, (_, __) => _clearSelection());
-    final selected = [
-      for (final asset in page?.assets ?? const <MediaAsset>[])
-        if (selection.contains(asset.id)) asset,
-    ];
+    final selected = _tab != 0 || selection.isEmpty || page == null
+        ? const <MediaAsset>[]
+        : page.assets.where((asset) => selection.contains(asset.id)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -114,7 +113,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
           children: [
             Column(
               children: [
-                _buildFilterBar(),
+                _buildFilterBar(tagById, page?.total),
                 Expanded(
                   child: _buildBody(mediaAsync, page, selection, tagById, busy),
                 ),
@@ -165,13 +164,10 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
 
   // 筛选栏
 
-  Widget _buildFilterBar() {
+  Widget _buildFilterBar(Map<String, Tag> byId, int? total) {
     final filter = ref.watch(immichFilterNotifierProvider);
     final notifier = ref.read(immichFilterNotifierProvider.notifier);
-    final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
-    final byId = {for (final tag in tags) tag.id: tag};
     final favorites = ref.watch(favoriteTagsProvider);
-    final total = ref.watch(immichMediaProvider).valueOrNull?.total;
     final active =
         filter.tagIds.isNotEmpty ||
         filter.untagged ||

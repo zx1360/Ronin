@@ -137,9 +137,17 @@ export function labelTree(labels) {
 }
 
 export function descendants(labels, root) {
+  if (!root) return new Set();
+  const children = new Map();
+  for (const label of labels) {
+    const siblings = children.get(label.parent_id);
+    if (siblings) siblings.push(label.id);
+    else children.set(label.parent_id, [label.id]);
+  }
   const ids = new Set([root]);
-  let size;
-  do { size = ids.size; for (const l of labels) if (ids.has(l.parent_id)) ids.add(l.id); } while (size !== ids.size);
+  for (const id of ids) {
+    for (const child of children.get(id) || []) ids.add(child);
+  }
   return ids;
 }
 

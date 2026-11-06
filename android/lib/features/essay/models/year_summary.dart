@@ -46,20 +46,44 @@ class YearSummary {
   /// 从指定年份的 essays 列表计算生成 YearSummary
   /// 用于刷新/重建年度统计信息
   factory YearSummary.fromEssays(String year, Iterable<Essay> essays) {
-    final essaysInYear = essays.where((e) => e.date.year.toString() == year);
-    final monthSummaries = <MonthSummary>[];
-    for (int month = 1; month <= 12; month++) {
-      final summary = MonthSummary.fromEssays(month, essaysInYear);
-      if (summary.essayCount > 0) {
-        monthSummaries.add(summary);
-      }
+    final counts = List.filled(13, 0);
+    final words = List.filled(13, 0);
+    var essayCount = 0;
+    var wordCount = 0;
+    for (final essay in essays) {
+      if (essay.year.toString() != year) continue;
+      final month = essay.date.month;
+      final count = essay.totalWordCount;
+      counts[month]++;
+      words[month] += count;
+      essayCount++;
+      wordCount += count;
     }
     return YearSummary(
       year: year,
-      essayCount: essaysInYear.length,
-      wordCount: monthSummaries.fold(0, (sum, m) => sum + m.wordCount),
-      monthSummaries: monthSummaries,
+      essayCount: essayCount,
+      wordCount: wordCount,
+      monthSummaries: [
+        for (var month = 1; month <= 12; month++)
+          if (counts[month] > 0)
+            MonthSummary(
+              month: month.toString(),
+              essayCount: counts[month],
+              wordCount: words[month],
+            ),
+      ],
     );
+  }
+
+  static Map<String, YearSummary> groupByYear(Iterable<Essay> essays) {
+    final groups = <String, List<Essay>>{};
+    for (final essay in essays) {
+      groups.putIfAbsent(essay.year.toString(), () => []).add(essay);
+    }
+    return {
+      for (final group in groups.entries)
+        group.key: YearSummary.fromEssays(group.key, group.value),
+    };
   }
 
   // 增/删随笔时. 更新信息.
@@ -124,16 +148,6 @@ class MonthSummary {
       month: month,
       essayCount: essayCount + flag,
       wordCount: wordCount + essay.totalWordCount * flag,
-    );
-  }
-
-  /// 从指定月份的 essays 列表计算生成 MonthSummary
-  factory MonthSummary.fromEssays(int month, Iterable<Essay> essays) {
-    final essaysInMonth = essays.where((e) => e.date.month == month);
-    return MonthSummary(
-      month: month.toString(),
-      essayCount: essaysInMonth.length,
-      wordCount: essaysInMonth.fold(0, (sum, e) => sum + e.totalWordCount),
     );
   }
 

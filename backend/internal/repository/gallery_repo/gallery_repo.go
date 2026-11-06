@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -324,7 +325,7 @@ func buildMediaOrderClause(params model.MediaQueryParams) string {
 }
 
 // FetchMediaAssetsByQuery 按标签/类型/删除状态等条件查询媒体及其标签关联
-func FetchMediaAssetsByQuery(params model.MediaQueryParams) ([]model.MediaAsset, []model.MediaTagLink, int, error) {
+func FetchMediaAssetsByQuery(ctx context.Context, params model.MediaQueryParams) ([]model.MediaAsset, []model.MediaTagLink, int, error) {
 	conditions := []string{}
 	args := []any{}
 
@@ -377,7 +378,7 @@ func FetchMediaAssetsByQuery(params model.MediaQueryParams) ([]model.MediaAsset,
 		where = strings.Join(conditions, " AND ")
 	}
 
-	ctx, cancel := db.GetDefaultCtx()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	var total int
@@ -409,7 +410,7 @@ func FetchMediaAssetsByQuery(params model.MediaQueryParams) ([]model.MediaAsset,
 	for i, asset := range assets {
 		mediaIDs[i] = asset.ID
 	}
-	links, err := FetchMediaTagLinks(mediaIDs)
+	links, err := fetchMediaTagLinks(ctx, mediaIDs)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -503,12 +504,15 @@ func FetchAllTags() ([]model.Tag, error) {
 
 // FetchMediaTagLinks 获取指定媒体 ID 列表对应的所有标签关联
 func FetchMediaTagLinks(mediaIDs []uuid.UUID) ([]model.MediaTagLink, error) {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return fetchMediaTagLinks(ctx, mediaIDs)
+}
+
+func fetchMediaTagLinks(ctx context.Context, mediaIDs []uuid.UUID) ([]model.MediaTagLink, error) {
 	if len(mediaIDs) == 0 {
 		return []model.MediaTagLink{}, nil
 	}
-	ctx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
 	clause, args := inClause(mediaIDs)
 	rows, err := db.Read().QueryContext(ctx,
 		`SELECT media_id, tag_id FROM media_tag_links WHERE media_id `+clause, args...)

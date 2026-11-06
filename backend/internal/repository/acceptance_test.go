@@ -381,7 +381,7 @@ func TestAiSearch(t *testing.T) {
 		t.Fatalf("写入 VLM 失败: %v", err)
 	}
 
-	ids, total, err := ai_repo.SearchMediaIDs(ai_repo.SearchFilters{
+	ids, total, err := ai_repo.SearchMediaIDs(t.Context(), ai_repo.SearchFilters{
 		Keyword: "独一无二的验收检索词", Limit: 10,
 	})
 	if err != nil {
@@ -391,13 +391,13 @@ func TestAiSearch(t *testing.T) {
 		t.Fatalf("关键词检索结果不符: total=%d ids=%v", total, ids)
 	}
 
-	if _, total, err := ai_repo.SearchMediaIDs(ai_repo.SearchFilters{
+	if _, total, err := ai_repo.SearchMediaIDs(t.Context(), ai_repo.SearchFilters{
 		VLMTags: []string{"验收专属标签"}, Limit: 10,
 	}); err != nil || total != 1 {
 		t.Fatalf("AI 标签筛选不符: total=%d err=%v", total, err)
 	}
 
-	tags, err := ai_repo.ListVLMTags(100)
+	tags, err := ai_repo.ListVLMTags(t.Context(), 100)
 	if err != nil {
 		t.Fatalf("AI 标签聚合失败: %v", err)
 	}
@@ -483,7 +483,7 @@ func TestGalleryTagTree(t *testing.T) {
 	if _, err := gallery_repo.ReplaceMediaTags(mediaID, []uuid.UUID{grand.ID}); err != nil {
 		t.Fatalf("全量替换标签失败: %v", err)
 	}
-	_, _, total, err := gallery_repo.FetchMediaAssetsByQuery(model.MediaQueryParams{
+	_, _, total, err := gallery_repo.FetchMediaAssetsByQuery(t.Context(), model.MediaQueryParams{
 		TagIDs: root.ID.String(), IncludeDescendants: true, Limit: 10,
 	})
 	if err != nil || total != 1 {
@@ -559,7 +559,7 @@ func TestGalleryMediaPatch(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("软删除失败: %v", err)
 	}
-	_, _, onlyDeleted, err := gallery_repo.FetchMediaAssetsByQuery(model.MediaQueryParams{
+	_, _, onlyDeleted, err := gallery_repo.FetchMediaAssetsByQuery(t.Context(), model.MediaQueryParams{
 		OnlyDeleted: true, Limit: 1000,
 	})
 	if err != nil || onlyDeleted < 1 {

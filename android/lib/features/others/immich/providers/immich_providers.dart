@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
@@ -156,18 +157,21 @@ final immichAiTagsProvider = FutureProvider<List<AiTagCount>>((ref) async {
 /// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
 @riverpod
 class ImmichMedia extends _$ImmichMedia {
-  int _requestId = 0;
+  CancelToken? _request;
   int? _reloadLimit;
 
   @override
   Future<ImmichMediaPage> build() async {
-    final requestId = ++_requestId;
-    ref.onDispose(() => _requestId++);
+    final token = _request = CancelToken();
+    ref.onDispose(() {
+      _request?.cancel();
+      _request = null;
+    });
     final filter = ref.watch(immichFilterNotifierProvider);
     ref.watch(galleryApiProvider);
     final limit = _reloadLimit ?? _kPageSize;
     _reloadLimit = null;
-    return _fetch(filter, 0, requestId: requestId, limit: limit);
+    return _fetch(filter, 0, token, limit: limit);
   }
 
   Future<void> loadMore() async {
@@ -175,19 +179,19 @@ class ImmichMedia extends _$ImmichMedia {
     final current = state.valueOrNull;
     if (current == null || !current.hasMore || current.loadingMore) return;
 
-    final requestId = ++_requestId;
+    final token = _request = CancelToken();
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final next = await _fetch(
         ref.read(immichFilterNotifierProvider),
         current.assets.length,
-        requestId: requestId,
+        token,
         previous: current,
       );
-      if (requestId != _requestId) return;
+      if (token.isCancelled) return;
       state = AsyncData(next);
     } catch (e) {
-      if (requestId != _requestId) return;
+      if (token.isCancelled) return;
       state = AsyncData(current.copyWith(loadingMore: false));
       rethrow;
     }
@@ -205,10 +209,26 @@ class ImmichMedia extends _$ImmichMedia {
     await refresh();
   }
 
+  Future<void> replaceLoadedAssets(List<MediaAsset> updated) async {
+    final current = state.valueOrNull;
+    if (state.isLoading || (current?.loadingMore ?? false)) {
+      await reloadKeepingLength();
+      return;
+    }
+    if (current == null || updated.isEmpty) return;
+    final byId = {for (final asset in updated) asset.id: asset};
+    if (!current.assets.any((asset) => byId.containsKey(asset.id))) return;
+    state = AsyncData(
+      current.copyWith(
+        assets: [for (final asset in current.assets) byId[asset.id] ?? asset],
+      ),
+    );
+  }
+
   Future<ImmichMediaPage> _fetch(
     ImmichFilter filter,
-    int offset, {
-    required int requestId,
+    int offset,
+    CancelToken token, {
     ImmichMediaPage? previous,
     int limit = _kPageSize,
   }) async {
@@ -223,6 +243,7 @@ class ImmichMedia extends _$ImmichMedia {
       vlmTags: filter.vlmTags,
       limit: limit,
       offset: offset,
+      cancelToken: token,
     );
 
     final pageTags = <String, List<String>>{
@@ -231,12 +252,12 @@ class ImmichMedia extends _$ImmichMedia {
     for (final link in result.mediaTagLinks) {
       pageTags.putIfAbsent(link.mediaId, () => []).add(link.tagId);
     }
-    if (requestId == _requestId) {
+    if (!token.isCancelled) {
       await db.updateMediaAssetsLocal(
         result.mediaAssets,
         preserveOperations: true,
+        tagIdsByMedia: pageTags,
       );
-      await db.replaceTagsForMediaBatch(pageTags, preserveOperations: true);
     }
 
     final assets = [...?previous?.assets, ...result.mediaAssets];
@@ -279,20 +300,29 @@ class ImmichActions extends _$ImmichActions {
   @override
   bool build() => false;
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(Future<List<MediaAsset>?> Function() action) async {
     if (state) throw StateError('正在提交另一项操作');
     final keepAlive = ref.keepAlive();
     state = true;
     try {
-      await ref.read(galleryWriteBufferProvider).writeOnline(action);
+      final updated = await ref
+          .read(galleryWriteBufferProvider)
+          .writeOnline(action);
       ref.invalidate(mediaAssetListProvider);
-      ref.invalidate(mediaIdsWithTagsProvider);
       try {
-        await ref.read(immichMediaProvider.notifier).reloadKeepingLength();
+        final photos = ref.read(immichMediaProvider.notifier);
+        if (updated == null) {
+          await photos.reloadKeepingLength();
+        } else {
+          await photos.replaceLoadedAssets(updated);
+        }
       } catch (_) {}
-      try {
-        await ref.read(tagTreeProvider.notifier).syncFromServer();
-      } catch (_) {}
+      if (updated == null) {
+        ref.invalidate(mediaIdsWithTagsProvider);
+        try {
+          await ref.read(tagTreeProvider.notifier).syncFromServer();
+        } catch (_) {}
+      }
     } finally {
       state = false;
       keepAlive.close();
@@ -326,6 +356,7 @@ class ImmichActions extends _$ImmichActions {
         addTagIds: add,
         removeTagIds: remove,
       );
+      return null;
     });
   }
 
@@ -360,6 +391,7 @@ class ImmichActions extends _$ImmichActions {
         assets: updated,
         changesVisibility: intent.isDeleted != null,
       );
+      return intent.isDeleted == null ? updated : null;
     });
   }
 }
