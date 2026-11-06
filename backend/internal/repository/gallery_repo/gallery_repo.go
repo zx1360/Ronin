@@ -339,6 +339,10 @@ func FetchMediaAssetsByQuery(ctx context.Context, params model.MediaQueryParams)
 		conditions = append(conditions, cond)
 		args = append(args, value)
 	}
+	if params.CapturedBefore != "" {
+		conditions = append(conditions, "m.captured_at < ?")
+		args = append(args, params.CapturedBefore)
+	}
 	if ids := parseUUIDList(params.IDs); len(ids) > 0 {
 		clause, values := inClause(ids)
 		conditions = append(conditions, "m.id "+clause)

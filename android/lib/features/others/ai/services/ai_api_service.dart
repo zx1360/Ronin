@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/network/api_client.dart';
+import 'package:torrid/core/utils/serialization.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -61,7 +62,10 @@ class AiApiService {
     bool timeline = false,
     bool includeDeleted = false,
     List<String> vlmTags = const [],
+    Set<String> tagIds = const {},
     String? mimeType,
+    DateTime? from,
+    DateTime? to,
     int? limit,
     int offset = 0,
     CancelToken? cancelToken,
@@ -84,7 +88,13 @@ class AiApiService {
           if (timeline) 'sort_by': 'captured_at',
           if (includeDeleted) 'include_deleted': true,
           if (vlmTags.isNotEmpty) 'vlm_tags': vlmTags.join(','),
+          if (tagIds.isNotEmpty) ...{
+            'tag_ids': tagIds.join(','),
+            'include_descendants': true,
+          },
           if (mimeType != null && mimeType.isNotEmpty) 'mime_type': mimeType,
+          if (from != null) 'from': dateToJson(from),
+          if (to != null) 'to': dateToJson(to),
           'limit': limit ?? (semantic ? semanticLimit : 60),
           'offset': offset,
         },

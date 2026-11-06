@@ -10,6 +10,7 @@ import 'package:torrid/features/others/immich/widgets/immich_ai_tag_sheet.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_ops_sheet.dart';
+import 'package:torrid/features/others/immich/widgets/immich_tag_picker.dart';
 import 'package:torrid/features/others/immich/widgets/immich_tag_tree.dart';
 import 'package:torrid/features/others/services/media_share_service.dart';
 import 'package:torrid/features/others/smart_album/pages/smart_album_page.dart';
@@ -27,6 +28,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
     with SingleTickerProviderStateMixin {
   late final _tabs = TabController(length: 3, vsync: this);
   int _tab = 0;
+  int _photoJump = 0;
   bool _selectionMode = false;
 
   @override
@@ -54,13 +56,18 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   @override
   Widget build(BuildContext context) {
     final mediaAsync = ref.watch(immichMediaProvider);
-    final page = mediaAsync.hasError ? null : mediaAsync.valueOrNull;
+    final page = mediaAsync.hasError || mediaAsync.isReloading
+        ? null
+        : mediaAsync.valueOrNull;
     final selection = ref.watch(immichSelectionProvider);
     final busy = ref.watch(immichActionsProvider);
     final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
     final tagById = {for (final tag in tags) tag.id: tag};
     final search = ref.watch(smartAlbumControllerProvider.notifier);
-    ref.listen(immichFilterNotifierProvider, (_, __) => _clearSelection());
+    ref.listen(immichFilterNotifierProvider, (previous, next) {
+      if (previous?.jumpMonth != next.jumpMonth) _photoJump++;
+      _clearSelection();
+    });
     final selected = _tab != 0 || selection.isEmpty || page == null
         ? const <MediaAsset>[]
         : page.assets.where((asset) => selection.contains(asset.id)).toList();
@@ -113,7 +120,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
           children: [
             Column(
               children: [
-                _buildFilterBar(tagById, page?.total),
+                _buildFilterBar(tagById, page?.total, busy),
                 Expanded(
                   child: _buildBody(mediaAsync, page, selection, tagById, busy),
                 ),
@@ -135,8 +142,13 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
           : ImmichSelectionBar(
               count: selected.length,
               busy: busy || mediaAsync.isLoading,
-              onAddTags: _addTagsToSelection,
-              onRemoveTags: _removeTagsFromSelection,
+              onEditTags: (remove) => editAlbumSelectionTags(
+                context,
+                ref,
+                selected,
+                remove: remove,
+                onApplied: _clearSelection,
+              ),
               onDelete: selected.any((asset) => !asset.isDeleted)
                   ? () => _setDeleted(selected, true)
                   : null,
@@ -164,7 +176,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
 
   // 筛选栏
 
-  Widget _buildFilterBar(Map<String, Tag> byId, int? total) {
+  Widget _buildFilterBar(Map<String, Tag> byId, int? total, bool busy) {
     final filter = ref.watch(immichFilterNotifierProvider);
     final notifier = ref.read(immichFilterNotifierProvider.notifier);
     final favorites = ref.watch(favoriteTagsProvider);
@@ -173,7 +185,8 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
         filter.untagged ||
         filter.includeDeleted ||
         filter.vlmTags.isNotEmpty ||
-        !filter.includeDescendants;
+        !filter.includeDescendants ||
+        filter.jumpMonth != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,6 +197,23 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
           child: Row(
             children: [
+              if (filter.jumpMonth case final month?)
+                InputChip(
+                  avatar: const Icon(Icons.calendar_month_outlined, size: 16),
+                  label: Text('${month.year}年${month.month}月及以前'),
+                  onPressed: busy ? null : _jumpToMonth,
+                  onDeleted: busy ? null : () => notifier.setJumpMonth(null),
+                  deleteButtonTooltipMessage: '回到最新',
+                  visualDensity: VisualDensity.compact,
+                )
+              else
+                ActionChip(
+                  avatar: const Icon(Icons.calendar_month_outlined, size: 16),
+                  label: const Text('跳到月份'),
+                  onPressed: busy ? null : _jumpToMonth,
+                  visualDensity: VisualDensity.compact,
+                ),
+              const SizedBox(width: 6),
               FilterChip(
                 label: const Text('未打标签', style: TextStyle(fontSize: 12)),
                 selected: filter.untagged,
@@ -421,7 +451,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
     return Stack(
       children: [
         AlbumMediaGrid(
-          key: const PageStorageKey('album-photos'),
+          key: PageStorageKey(('album-photos', _photoJump)),
           assets: page.assets,
           labelsFor: (asset) => [
             for (final id in page.tagIdsByMedia[asset.id] ?? const <String>[])
@@ -451,6 +481,25 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   }
 
   // 基础交互
+
+  Future<void> _jumpToMonth() async {
+    final current = ref.read(immichFilterNotifierProvider).jumpMonth;
+    final newest = ref
+        .read(immichMediaProvider)
+        .valueOrNull
+        ?.assets
+        .firstOrNull;
+    final month = await showImmichMonthPicker(
+      context,
+      current ?? newest?.capturedAt.toLocal() ?? DateTime.now(),
+    );
+    if (!mounted || month == null) return;
+    if (month == current) {
+      setState(() => _photoJump++);
+    } else {
+      ref.read(immichFilterNotifierProvider.notifier).setJumpMonth(month);
+    }
+  }
 
   Future<void> _sync() async {
     try {
@@ -540,45 +589,6 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   }
 
   // 批量操作
-
-  Future<void> _addTagsToSelection() async {
-    final ids = _selectedIdsOrdered;
-    if (ids.isEmpty) return;
-    final picked = await showImmichTagPicker(context, title: '添加标签');
-    if (!mounted || picked == null || picked.isEmpty) return;
-    await _run(
-      () => ref
-          .read(immichActionsProvider.notifier)
-          .addTags(ids, picked.toList()),
-      ok: '已为 ${ids.length} 项添加标签',
-    );
-  }
-
-  Future<void> _removeTagsFromSelection() async {
-    final ids = _selectedIdsOrdered;
-    if (ids.isEmpty) return;
-    final page = ref.read(immichMediaProvider).valueOrNull;
-    final present = <String>{};
-    for (final id in ids) {
-      present.addAll(page?.tagIdsByMedia[id] ?? const <String>[]);
-    }
-    if (present.isEmpty) {
-      _snack('选中的媒体没有标签');
-      return;
-    }
-    final picked = await showImmichTagPicker(
-      context,
-      title: '移除标签',
-      restrictTo: present,
-    );
-    if (!mounted || picked == null || picked.isEmpty) return;
-    await _run(
-      () => ref
-          .read(immichActionsProvider.notifier)
-          .removeTags(ids, picked.toList()),
-      ok: '已移除标签',
-    );
-  }
 
   Future<void> _setDeleted(List<MediaAsset> selected, bool deleted) async {
     final ids = [
