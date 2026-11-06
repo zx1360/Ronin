@@ -8,14 +8,20 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 class AiSearchHit {
   final MediaAsset asset;
   final double score;
+  final List<String> sources;
 
-  const AiSearchHit({required this.asset, required this.score});
+  const AiSearchHit({
+    required this.asset,
+    required this.score,
+    this.sources = const [],
+  });
 
   String get id => asset.id;
 
   factory AiSearchHit.fromJson(Map<String, dynamic> json) => AiSearchHit(
     asset: MediaAsset.fromJson(json),
     score: (json['score'] as num?)?.toDouble() ?? 0,
+    sources: (json['source'] as List? ?? const []).whereType<String>().toList(),
   );
 }
 

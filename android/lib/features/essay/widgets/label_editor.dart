@@ -14,6 +14,11 @@ Future<void> showLabelEditor(
   final excluded = label == null
       ? <String>{}
       : labelSubtree(labels, [label.id]);
+  final parents = [
+    for (final node in flattenLabels(labels))
+      if (!excluded.contains(node.label.id)) node.label,
+  ];
+  final paths = ref.read(idMapProvider);
   var name = label?.name ?? '';
   String? parent = label?.parentId;
   String? error;
@@ -40,15 +45,14 @@ Future<void> showLabelEditor(
                 decoration: const InputDecoration(labelText: '上级标签'),
                 items: [
                   const DropdownMenuItem(value: '', child: Text('根级')),
-                  for (final node in flattenLabels(labels))
-                    if (!excluded.contains(node.label.id))
-                      DropdownMenuItem(
-                        value: node.label.id,
-                        child: Text(
-                          labelPath(node.label, labels),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  for (final label in parents)
+                    DropdownMenuItem(
+                      value: label.id,
+                      child: Text(
+                        paths[label.id] ?? label.name,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
                 ],
                 onChanged: busy
                     ? null

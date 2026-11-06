@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
@@ -51,7 +52,7 @@ class AiApiService {
 
   /// 组合检索：q 为自然语言、关键词或文件名片段。
   ///
-  /// [filename] 模式只匹配文件路径，因此"`.mp4`"这类扩展名查询也能命中。
+  /// 文件名模式匹配文件名及扩展名。
   Future<AiSearchResult> search(
     String query, {
     AiSearchMode mode = AiSearchMode.auto,
@@ -61,22 +62,30 @@ class AiApiService {
     bool includeDeleted = false,
     List<String> vlmTags = const [],
     String? mimeType,
-    int limit = 60,
+    int? limit,
     int offset = 0,
+    CancelToken? cancelToken,
   }) {
+    final text = query.trim();
+    final semantic = mediaId != null || mode == AiSearchMode.auto;
+    const semanticLimit = 200;
     return _guard(() async {
       final resp = await _client.get(
         '/API/ai/search',
+        cancelToken: cancelToken,
         queryParams: {
-          if (query.trim().isNotEmpty) 'q': query.trim(),
+          if (text.isNotEmpty) 'q': text,
           'mode': mediaId == null ? mode.value : 'semantic',
+          if (mediaId == null && mode == AiSearchMode.filename)
+            'filename_only': true,
+          if (semantic) 'semantic_limit': semanticLimit,
           if (mediaId != null) 'media_id': mediaId,
           if (personId != null) 'person_ids': personId,
           if (timeline) 'sort_by': 'captured_at',
           if (includeDeleted) 'include_deleted': true,
           if (vlmTags.isNotEmpty) 'vlm_tags': vlmTags.join(','),
           if (mimeType != null && mimeType.isNotEmpty) 'mime_type': mimeType,
-          'limit': limit,
+          'limit': limit ?? (semantic ? semanticLimit : 60),
           'offset': offset,
         },
       );

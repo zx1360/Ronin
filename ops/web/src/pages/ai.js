@@ -118,7 +118,6 @@ export default {
 
     const reload = async () => {
       await load({ refresh: true });
-      return poller.trigger();
     };
 
     onMounted(async () => {
@@ -126,7 +125,6 @@ export default {
         if (!disposed && !status.value) status.value = mergeProgress(null, progress);
       });
       await Promise.allSettled([initialProgress, load()]);
-      if (!disposed) poller.trigger();
     });
     watch(active, (value) => {
       if (value && !disabled.value) poller.trigger();
@@ -143,7 +141,6 @@ export default {
         const result = await action();
         if (notice) toast(notice, 'success');
         await load();
-        poller.trigger();
         return result === undefined ? true : result;
       } catch (err) {
         toast('操作失败: ' + (err && err.message ? err.message : String(err)), 'error');

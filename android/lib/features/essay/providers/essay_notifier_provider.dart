@@ -46,10 +46,7 @@ class EssayService extends _$EssayService {
       state.labelBox: {
         for (final label in countEssayLabels(visible, labels)) label.id: label,
       },
-      state.summaryBox: {
-        for (final year in visible.map((e) => e.year.toString()).toSet())
-          year: YearSummary.fromEssays(year, visible),
-      },
+      state.summaryBox: YearSummary.groupByYear(visible),
     };
   }
 

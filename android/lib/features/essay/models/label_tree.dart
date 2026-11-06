@@ -29,17 +29,12 @@ void validateLabelTree(Iterable<Label> labels) {
 }
 
 Set<String> labelSubtree(Iterable<Label> labels, Iterable<String> roots) {
-  final byId = {for (final label in labels) label.id: label};
+  final children = _labelsByParent(labels);
   final result = roots.toSet();
-  for (final label in labels) {
-    final seen = <String>{};
-    String? id = label.id;
-    while (id != null && seen.add(id)) {
-      if (result.contains(id)) {
-        result.add(label.id);
-        break;
-      }
-      id = byId[id]?.parentId;
+  final pending = result.toList();
+  while (pending.isNotEmpty) {
+    for (final child in children[pending.removeLast()] ?? const <Label>[]) {
+      if (result.add(child.id)) pending.add(child.id);
     }
   }
   return result;
@@ -57,17 +52,16 @@ List<Essay> visibleEssays(Iterable<Essay> essays, Iterable<Label> labels) {
 
 List<Label> countEssayLabels(Iterable<Essay> essays, Iterable<Label> labels) {
   final byId = {for (final label in labels) label.id: label};
+  final children = _labelsByParent(byId.values);
   final roots = <String, String>{};
-  for (final label in byId.values) {
-    final seen = <String>{};
-    Label? ancestor = label;
-    while (ancestor != null && seen.add(ancestor.id)) {
-      final parentId = ancestor.parentId;
-      if (parentId == null) {
-        roots[label.id] = ancestor.id;
-        break;
+  for (final root in children[null] ?? const <Label>[]) {
+    final pending = [root];
+    while (pending.isNotEmpty) {
+      final label = pending.removeLast();
+      roots[label.id] = root.id;
+      if (children[label.id] case final descendants?) {
+        pending.addAll(descendants);
       }
-      ancestor = byId[parentId];
     }
   }
   final counts = <String, int>{};
@@ -87,8 +81,12 @@ List<Label> countEssayLabels(Iterable<Essay> essays, Iterable<Label> labels) {
   ];
 }
 
-String labelPath(Label label, Iterable<Label> labels) {
-  final byId = {for (final item in labels) item.id: item};
+Map<String, String> labelPaths(Iterable<Label> labels) {
+  final byId = {for (final label in labels) label.id: label};
+  return {for (final label in byId.values) label.id: _labelPath(label, byId)};
+}
+
+String _labelPath(Label label, Map<String, Label> byId) {
   final parts = <String>[];
   final seen = <String>{};
   Label? item = label;
@@ -99,11 +97,16 @@ String labelPath(Label label, Iterable<Label> labels) {
   return parts.reversed.join(' / ');
 }
 
-List<({Label label, int depth})> flattenLabels(Iterable<Label> labels) {
+Map<String?, List<Label>> _labelsByParent(Iterable<Label> labels) {
   final children = <String?, List<Label>>{};
   for (final label in labels) {
     children.putIfAbsent(label.parentId, () => []).add(label);
   }
+  return children;
+}
+
+List<({Label label, int depth})> flattenLabels(Iterable<Label> labels) {
+  final children = _labelsByParent(labels);
   for (final siblings in children.values) {
     siblings.sort((a, b) {
       final count = b.essayCount.compareTo(a.essayCount);

@@ -97,7 +97,7 @@ func TestIndexRebuildAfterIdleKeepsSearchResults(t *testing.T) {
 	ix := NewIndex("test")
 	search := func() {
 		t.Helper()
-		hits, err := ix.SearchVector([]float32{1, 0}, 1, nil)
+		hits, err := ix.SearchVector(t.Context(), []float32{1, 0}, 1, nil)
 		if err != nil || len(hits) != 1 || hits[0].MediaID != id || hits[0].Score != 1 {
 			t.Fatalf("搜索结果不符: %+v err=%v", hits, err)
 		}

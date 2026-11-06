@@ -36,8 +36,10 @@ List<Label> labels(LabelsRef ref) {
 /// 便于在显示时快速查找标签名称。
 @riverpod
 Map<String, String> idMap(IdMapRef ref) {
-  final allLabels = ref.watch(labelsProvider);
-  return {for (final label in allLabels) label.id: labelPath(label, allLabels)};
+  final allLabels =
+      ref.watch(labelStreamProvider).asData?.value ??
+      ref.read(labelBoxProvider).values;
+  return labelPaths(allLabels);
 }
 
 /// 所有年度统计数据（按年份降序排列，每年内月份按升序排列）
@@ -50,11 +52,7 @@ List<YearSummary> summaries(SummariesRef ref) {
   final source = asyncVal.asData?.value ?? ref.read(essayBoxProvider).values;
   final labels = ref.watch(labelsProvider);
   final visible = visibleEssays(source, labels);
-  final sorted = visible
-      .map((e) => e.year.toString())
-      .toSet()
-      .map((year) => YearSummary.fromEssays(year, visible))
-      .toList();
+  final sorted = YearSummary.groupByYear(visible).values.toList();
 
   sorted.sort((a, b) => int.parse(b.year).compareTo(int.parse(a.year)));
   return sorted;

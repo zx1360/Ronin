@@ -6,6 +6,8 @@ import { toast, confirmAction } from '../../store.js';
 import { Card, Placeholder, MediaTile } from '../../ui.js';
 import { num, thumbUrl } from './shared.js';
 
+const PAGE_SIZE = 60;
+
 export default {
   components: { Card, Placeholder, MediaTile },
   props: {
@@ -13,6 +15,7 @@ export default {
   },
   setup(props) {
     const persons = ref([]);
+    const shown = ref(PAGE_SIZE);
     const error = ref('');
     const loading = ref(false);
     const busy = ref(false);
@@ -34,8 +37,8 @@ export default {
         const data = await api.get('/API/ai/persons');
         persons.value = Array.isArray(data && data.persons) ? data.persons : [];
         error.value = '';
-        const alive = persons.value.map((item) => item.id);
-        selected.value = selected.value.filter((id) => alive.indexOf(id) >= 0);
+        const alive = new Set(persons.value.map((item) => item.id));
+        selected.value = selected.value.filter((id) => alive.has(id));
       } catch (err) {
         error.value = err.message;
       } finally {
@@ -54,10 +57,11 @@ export default {
       faceCount: num(person.face_count),
       caption: (person.name || '未命名') + ' · ' + num(person.face_count) + ' 张',
       thumb: thumbUrl(person.cover_media_id),
-      selected: selected.value.indexOf(person.id) >= 0,
     })));
 
-    const selectedCards = computed(() => cards.value.filter((item) => item.selected));
+    const visibleCards = computed(() => cards.value.slice(0, shown.value));
+    const selectedIds = computed(() => new Set(selected.value));
+    const selectedCards = computed(() => cards.value.filter((item) => selectedIds.value.has(item.id)));
     const mergeOptions = computed(() => selectedCards.value.map((item) => ({
       id: item.id,
       label: item.displayName + '（' + item.faceCount + ' 张）',
@@ -251,7 +255,8 @@ export default {
     };
 
     return {
-      persons, error, loading, busy, selected, mergeTarget, cards,
+      persons, error, loading, busy, selectedIds, mergeTarget, cards, visibleCards,
+      showMore: () => { shown.value += PAGE_SIZE; },
       selectedCards, mergeOptions, otherPersons, editingCard, editName,
       facesOf, facesOwner, faceCards, faceError, faceLoading, faceTotal, faceSelected, moveTarget,
       toggleSelect, clearSelection, startRename, cancelRename, saveRename, removePerson,
@@ -296,8 +301,8 @@ export default {
         <Placeholder v-if="error" :error="'获取 /API/ai/persons 失败: ' + error" />
         <Placeholder v-else-if="!cards.length" text="暂无人物分组：请先处理人脸能力，再执行增量聚类" />
         <div class="media-grid" v-else>
-          <div class="col" v-for="card in cards" :key="card.id">
-            <MediaTile :src="card.thumb" :caption="card.caption" :selected="card.selected" @click="toggleSelect(card.id)" />
+          <div class="col" v-for="card in visibleCards" :key="card.id">
+            <MediaTile :src="card.thumb" :caption="card.caption" :selected="selectedIds.has(card.id)" @click="toggleSelect(card.id)" />
             <div class="row">
               <button class="ghost sm" :disabled="busy" @click="startRename(card)">命名</button>
               <button class="ghost sm" :disabled="busy" @click="loadFaces(card)">人脸 {{ card.faceCount }}</button>
@@ -305,6 +310,9 @@ export default {
             </div>
           </div>
         </div>
+        <button v-if="!error && visibleCards.length < cards.length" class="ghost sm" @click="showMore()">
+          加载更多（{{ visibleCards.length }} / {{ cards.length }}）
+        </button>
       </Card>
 
       <Card v-if="facesOf" :title="'「' + (facesOwner ? facesOwner.displayName : facesOf) + '」的人脸'">

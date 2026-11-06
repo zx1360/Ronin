@@ -476,9 +476,11 @@ func Stats() ([]model.AiCapabilityStat, error) {
 	ctx, cancel := db.GetDefaultCtx()
 	defer cancel()
 
-	byCap := map[string]*model.AiCapabilityStat{}
-	for _, c := range model.AllCapabilities {
-		byCap[c] = &model.AiCapabilityStat{Capability: c}
+	stats := make([]model.AiCapabilityStat, len(model.AllCapabilities))
+	byCap := make(map[string]int, len(stats))
+	for i, c := range model.AllCapabilities {
+		stats[i].Capability = c
+		byCap[c] = i
 	}
 
 	if err := ensureSchema(ctx); err != nil {
@@ -486,36 +488,40 @@ func Stats() ([]model.AiCapabilityStat, error) {
 	}
 
 	rows, err := db.Read().QueryContext(ctx, `
-		SELECT capability,
-		       COUNT(*) FILTER (WHERE status = 'pending'),
-		       COUNT(*) FILTER (WHERE status = 'running'),
-		       COUNT(*) FILTER (WHERE status = 'done'),
-		       COUNT(*) FILTER (WHERE status = 'failed'),
-		       COUNT(*)
-		FROM jobs GROUP BY capability`)
+		SELECT capability, status, COUNT(*)
+		FROM jobs GROUP BY capability, status`)
 	if err != nil {
 		return nil, fmt.Errorf("统计任务队列失败: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var stat model.AiCapabilityStat
-		if err := rows.Scan(&stat.Capability, &stat.Pending, &stat.Running,
-			&stat.Done, &stat.Failed, &stat.Total); err != nil {
+		var capability, status string
+		var count int
+		if err := rows.Scan(&capability, &status, &count); err != nil {
 			return nil, fmt.Errorf("扫描队列统计失败: %w", err)
 		}
-		if target, ok := byCap[stat.Capability]; ok {
-			*target = stat
+		i, ok := byCap[capability]
+		if !ok {
+			continue
+		}
+		stat := &stats[i]
+		stat.Total += count
+		switch status {
+		case "pending":
+			stat.Pending = count
+		case "running":
+			stat.Running = count
+		case "done":
+			stat.Done = count
+		case "failed":
+			stat.Failed = count
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	stats := make([]model.AiCapabilityStat, 0, len(model.AllCapabilities))
-	for _, c := range model.AllCapabilities {
-		stats = append(stats, *byCap[c])
-	}
 	return stats, nil
 }
 

@@ -22,8 +22,16 @@ export function useEssayBoard() {
   const page = computed(() => filtered.value.slice(0, limit.value));
   const detail = computed(() => visible.value.find((e) => e.id === detailId.value));
   watch([query, year, labelFilter, showHidden, sort], () => { limit.value = 20; });
-  const labelName = (id) => labels.value.find((l) => l.id === id)?.path || '已删除标签';
-  const labelCount = (id) => data.value.essays.filter((e) => e.labels.includes(id)).length;
+  const pathsById = computed(() => new Map(labels.value.map((label) => [label.id, label.path])));
+  const countsById = computed(() => {
+    const counts = new Map();
+    for (const essay of data.value.essays) {
+      for (const id of new Set(essay.labels)) counts.set(id, (counts.get(id) || 0) + 1);
+    }
+    return counts;
+  });
+  const labelName = (id) => pathsById.value.get(id) || '已删除标签';
+  const labelCount = (id) => countsById.value.get(id) || 0;
 
   const drafts = ref([]), draftError = ref(''), editor = ref(null), original = ref(null), draftStatus = ref(''), preview = ref(false), files = ref(new Map()), publishing = ref(false);
   let timer, draftWrites = Promise.resolve(), disposed = false, pending = false, revision = 0;
@@ -110,7 +118,10 @@ export function useEssayBoard() {
   }
   const labelForm = ref(null);
   function editLabel(label = null) { labelForm.value = label ? clone(label) : { id: crypto.randomUUID(), name: '', parent_id: null, essay_count: 0 }; }
-  const parentOptions = computed(() => labels.value.filter((l) => !descendants(data.value.labels, labelForm.value?.id).has(l.id)));
+  const parentOptions = computed(() => {
+    const excluded = descendants(data.value.labels, labelForm.value?.id);
+    return labels.value.filter((label) => !excluded.has(label.id));
+  });
   async function saveLabel() {
     const row = clone(labelForm.value);
     row.name = row.name.trim(); row.parent_id ||= null;

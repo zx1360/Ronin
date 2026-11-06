@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
@@ -65,7 +64,7 @@ class _ThumbPlaceholder extends StatelessWidget {
 
 class AlbumMediaGrid extends StatefulWidget {
   final List<MediaAsset> assets;
-  final List<String> Function(MediaAsset)? tagsFor;
+  final List<String> Function(MediaAsset)? labelsFor;
   final bool timeline;
   final bool selectionMode;
   final Set<String> selectedIds;
@@ -79,7 +78,7 @@ class AlbumMediaGrid extends StatefulWidget {
   const AlbumMediaGrid({
     super.key,
     required this.assets,
-    this.tagsFor,
+    this.labelsFor,
     this.timeline = true,
     required this.selectionMode,
     required this.selectedIds,
@@ -97,6 +96,8 @@ class AlbumMediaGrid extends StatefulWidget {
 
 class _AlbumMediaGridState extends State<AlbumMediaGrid> {
   final _scroll = ScrollController();
+  int _columns = 0;
+  var _rows = <({DateTime? day, int start, int end})>[];
 
   @override
   void initState() {
@@ -108,6 +109,40 @@ class _AlbumMediaGridState extends State<AlbumMediaGrid> {
         widget.onLoadMore?.call();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant AlbumMediaGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.assets, widget.assets) ||
+        oldWidget.timeline != widget.timeline) {
+      _columns = 0;
+    }
+  }
+
+  void _layoutRows(int columns) {
+    if (_columns == columns) return;
+    _columns = columns;
+    final assets = widget.assets;
+    _rows = [];
+    var start = 0;
+    while (start < assets.length) {
+      var end = assets.length;
+      if (widget.timeline) {
+        final day = DateUtils.dateOnly(assets[start].capturedAt.toLocal());
+        _rows.add((day: day, start: start, end: start));
+        end = start + 1;
+        while (end < assets.length &&
+            DateUtils.isSameDay(day, assets[end].capturedAt.toLocal())) {
+          end++;
+        }
+      }
+      while (start < end) {
+        final next = (start + columns).clamp(start, end);
+        _rows.add((day: null, start: start, end: next));
+        start = next;
+      }
+    }
   }
 
   @override
@@ -125,25 +160,8 @@ class _AlbumMediaGridState extends State<AlbumMediaGrid> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = (constraints.maxWidth / 120).ceil().clamp(2, 6);
-        final rows = <({DateTime? day, int start, int end})>[];
-        var start = 0;
-        while (start < assets.length) {
-          final day = DateUtils.dateOnly(assets[start].capturedAt.toLocal());
-          var end = assets.length;
-          if (widget.timeline) {
-            rows.add((day: day, start: start, end: start));
-            end = start + 1;
-            while (end < assets.length &&
-                DateUtils.isSameDay(day, assets[end].capturedAt.toLocal())) {
-              end++;
-            }
-          }
-          while (start < end) {
-            final next = (start + columns).clamp(start, end);
-            rows.add((day: null, start: start, end: next));
-            start = next;
-          }
-        }
+        _layoutRows(columns);
+        final rows = _rows;
         final hasFooter = widget.onLoadMore != null || widget.loadingMore;
         return RefreshIndicator(
           onRefresh: widget.onRefresh,
@@ -177,7 +195,7 @@ class _AlbumMediaGridState extends State<AlbumMediaGrid> {
                     child: Semantics(
                       header: true,
                       child: Text(
-                        DateFormat('yyyy年M月d日').format(day),
+                        '${day.year}年${day.month}月${day.day}日',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                     ),
@@ -209,7 +227,7 @@ class _AlbumMediaGridState extends State<AlbumMediaGrid> {
 
   Widget _tile(MediaAsset asset, Map<String, int> order) => _MediaTile(
     asset: asset,
-    tagNames: widget.tagsFor?.call(asset) ?? const [],
+    labels: widget.labelsFor?.call(asset) ?? const [],
     selectionMode: widget.selectionMode,
     selected: order.containsKey(asset.id),
     selectionIndex: order[asset.id],
@@ -220,7 +238,7 @@ class _AlbumMediaGridState extends State<AlbumMediaGrid> {
 
 class _MediaTile extends StatelessWidget {
   final MediaAsset asset;
-  final List<String> tagNames;
+  final List<String> labels;
   final bool selectionMode;
   final bool selected;
   final int? selectionIndex;
@@ -229,7 +247,7 @@ class _MediaTile extends StatelessWidget {
 
   const _MediaTile({
     required this.asset,
-    required this.tagNames,
+    required this.labels,
     required this.selectionMode,
     required this.selected,
     required this.selectionIndex,
@@ -330,8 +348,7 @@ class _MediaTile extends StatelessWidget {
                     : null,
               ),
             ),
-          // 底部标签名 (最多 2 个)
-          if (tagNames.isNotEmpty)
+          if (labels.isNotEmpty)
             Positioned(
               left: 0,
               right: 0,
@@ -349,7 +366,7 @@ class _MediaTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final name in tagNames.take(2))
+                    for (final name in labels.take(2))
                       Text(
                         name,
                         maxLines: 1,
@@ -360,9 +377,9 @@ class _MediaTile extends StatelessWidget {
                           height: 1.2,
                         ),
                       ),
-                    if (tagNames.length > 2)
+                    if (labels.length > 2)
                       Text(
-                        '+${tagNames.length - 2}',
+                        '+${labels.length - 2}',
                         style: const TextStyle(
                           fontSize: 9,
                           color: Colors.white70,

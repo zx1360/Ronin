@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
@@ -182,6 +183,7 @@ class GalleryApiService {
     int offset = 0,
     String? sortBy,
     String? sortOrder,
+    CancelToken? cancelToken,
   }) {
     return _guard(() async {
       final params = <String, dynamic>{
@@ -197,7 +199,11 @@ class GalleryApiService {
         if (sortBy != null && sortBy.isNotEmpty) 'sort_by': sortBy,
         if (sortOrder != null && sortOrder.isNotEmpty) 'sort_order': sortOrder,
       };
-      final resp = await _client.get('/API/gallery/media', queryParams: params);
+      final resp = await _client.get(
+        '/API/gallery/media',
+        queryParams: params,
+        cancelToken: cancelToken,
+      );
       final data = resp.data as Map<String, dynamic>;
       return (
         mediaAssets: _parseList(data['media_assets'], MediaAsset.fromJson),

@@ -1,14 +1,19 @@
 package ai
 
 import (
+	"bytes"
+	"cmp"
+	"context"
 	"log"
 	"math"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/semaphore"
 
 	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
@@ -24,7 +29,7 @@ const vectorStaleCheck = 30 * time.Second
 // 足够快，且索引可随时丢弃重建，不引入任何外部扩展。
 type Index struct {
 	model  string
-	loadMu sync.Mutex
+	loadMu *semaphore.Weighted
 
 	mu         sync.RWMutex
 	ids        []uuid.UUID
@@ -45,6 +50,7 @@ type Index struct {
 func NewIndex(model string) *Index {
 	return &Index{
 		model:   model,
+		loadMu:  semaphore.NewWeighted(1),
 		phashes: map[uuid.UUID]int64{},
 		ignores: map[uuid.UUID]struct{}{},
 	}
@@ -102,9 +108,11 @@ func (ix *Index) InvalidateIgnores() {
 
 // EnsureLoaded 确保向量索引可用；每隔 vectorStaleCheck 抽查一次数据库条数，
 // 发现变化（例如批量处理完成后）则整体重建。
-func (ix *Index) EnsureLoaded() error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
+func (ix *Index) EnsureLoaded(ctx context.Context) error {
+	if err := ix.loadMu.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer ix.loadMu.Release(1)
 	ix.mu.Lock()
 	ix.lastUsed = time.Now()
 	loaded := ix.loaded
@@ -115,7 +123,7 @@ func (ix *Index) EnsureLoaded() error {
 	}
 
 	if loaded {
-		count, err := ai_repo.EmbeddingCount("image", ix.model)
+		count, err := ai_repo.EmbeddingCount(ctx, "image", ix.model)
 		if err != nil {
 			return err
 		}
@@ -127,18 +135,20 @@ func (ix *Index) EnsureLoaded() error {
 			return nil
 		}
 	}
-	return ix.reload()
+	return ix.reload(ctx)
 }
 
 // Reload 从数据库整体重建向量索引。
-func (ix *Index) Reload() error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
-	return ix.reload()
+func (ix *Index) Reload(ctx context.Context) error {
+	if err := ix.loadMu.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer ix.loadMu.Release(1)
+	return ix.reload(ctx)
 }
 
-func (ix *Index) reload() error {
-	rows, err := ai_repo.LoadEmbeddings("image", ix.model)
+func (ix *Index) reload(ctx context.Context) error {
+	rows, err := ai_repo.LoadEmbeddings(ctx, "image", ix.model)
 	if err != nil {
 		return err
 	}
@@ -149,6 +159,9 @@ func (ix *Index) reload() error {
 	dim := 0
 
 	for _, row := range rows {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if row.Dim <= 0 || len(row.Vec) != row.Dim {
 			continue
 		}
@@ -220,51 +233,58 @@ type SimilarHit struct {
 // SearchVector 用查询向量做精确余弦扫描，返回得分最高的 topK 条。
 //
 // allow 为 nil 时不过滤；否则仅统计 allow 返回 true 的候选。
-func (ix *Index) SearchVector(query []float32, topK int, allow func(uuid.UUID) bool) ([]SimilarHit, error) {
-	if err := ix.EnsureLoaded(); err != nil {
+func (ix *Index) SearchVector(ctx context.Context, query []float32, topK int, allow func(uuid.UUID) bool) ([]SimilarHit, error) {
+	if topK <= 0 {
+		return nil, nil
+	}
+	if err := ix.EnsureLoaded(ctx); err != nil {
 		return nil, err
 	}
 
 	ix.mu.RLock()
 	ids, vecs, scales, dim := ix.ids, ix.vecs, ix.scales, ix.dim
-	ix.mu.RUnlock()
 
 	if dim == 0 || len(query) != dim || len(ids) == 0 {
+		ix.mu.RUnlock()
 		return nil, nil
 	}
 
-	scores := make([]float32, len(ids))
-	parallelFor(len(ids), func(start, end int) {
-		for i := start; i < end; i++ {
+	order := make([]int, 0, len(ids))
+	for i, id := range ids {
+		if allow == nil || allow(id) {
+			order = append(order, i)
+		}
+	}
+	hits := make([]SimilarHit, len(order))
+	parallelFor(len(order), func(start, end int) {
+		for pos := start; pos < end; pos++ {
+			if ctx.Err() != nil {
+				return
+			}
+			i := order[pos]
 			base := i * dim
 			var dot float32
 			for j := 0; j < dim; j++ {
 				dot += query[j] * float32(vecs[base+j])
 			}
-			scores[i] = dot * scales[i]
+			hits[pos] = SimilarHit{MediaID: ids[i], Score: dot * scales[i]}
 		}
 	})
-
-	order := make([]int, 0, len(ids))
-	for i := range ids {
-		if allow == nil || allow(ids[i]) {
-			order = append(order, i)
+	ix.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(hits, func(a, b SimilarHit) int {
+		if a.Score == b.Score {
+			return bytes.Compare(a.MediaID[:], b.MediaID[:])
 		}
-	}
-	sort.Slice(order, func(a, b int) bool { return scores[order[a]] > scores[order[b]] })
-
-	if topK > len(order) {
-		topK = len(order)
-	}
-	hits := make([]SimilarHit, 0, topK)
-	for _, i := range order[:topK] {
-		hits = append(hits, SimilarHit{MediaID: ids[i], Score: scores[i]})
-	}
-	return hits, nil
+		return cmp.Compare(b.Score, a.Score)
+	})
+	return hits[:min(topK, len(hits))], nil
 }
 
 // SimilarTo 返回与给定媒体最相似的其它媒体（以图搜图 / 相似推荐）。
-func (ix *Index) SimilarTo(mediaID uuid.UUID, topK int) ([]SimilarHit, error) {
+func (ix *Index) SimilarTo(ctx context.Context, mediaID uuid.UUID, topK int) ([]SimilarHit, error) {
 	row, err := ai_repo.GetEmbedding(mediaID, "image", ix.model)
 	if err != nil {
 		return nil, err
@@ -273,7 +293,7 @@ func (ix *Index) SimilarTo(mediaID uuid.UUID, topK int) ([]SimilarHit, error) {
 		return nil, nil
 	}
 	query := dequantize(row, ix.dimOf())
-	return ix.SearchVector(query, topK+1, func(id uuid.UUID) bool { return id != mediaID })
+	return ix.SearchVector(ctx, query, topK, func(id uuid.UUID) bool { return id != mediaID })
 }
 
 func (ix *Index) dimOf() int {
@@ -284,8 +304,8 @@ func (ix *Index) dimOf() int {
 
 // EnsurePHashes 载入全部感知哈希。
 func (ix *Index) EnsurePHashes() error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
+	_ = ix.loadMu.Acquire(context.Background(), 1)
+	defer ix.loadMu.Release(1)
 	ix.mu.Lock()
 	ix.lastUsed = time.Now()
 	ready := ix.phashReady
@@ -308,8 +328,8 @@ func (ix *Index) EnsurePHashes() error {
 
 // EnsureIgnores 载入"非重复"标记集合。
 func (ix *Index) EnsureIgnores() error {
-	ix.loadMu.Lock()
-	defer ix.loadMu.Unlock()
+	_ = ix.loadMu.Acquire(context.Background(), 1)
+	defer ix.loadMu.Release(1)
 	ix.mu.Lock()
 	ix.lastUsed = time.Now()
 	ready := ix.ignoresReady

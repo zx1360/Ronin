@@ -158,10 +158,8 @@ class YearOverviewPage extends ConsumerWidget {
   }
 
   Widget _buildYearlyTrendChart(BuildContext context, List<Essay> essays) {
-    final years = essays.map((e) => e.year).toSet().toList()..sort();
-    final yearSummaries = [
-      for (final year in years) YearSummary.fromEssays(year.toString(), essays),
-    ];
+    final yearSummaries = YearSummary.groupByYear(essays).values.toList()
+      ..sort((a, b) => int.parse(a.year).compareTo(int.parse(b.year)));
 
     if (yearSummaries.isEmpty) {
       return const Center(child: Text('暂无数据'));

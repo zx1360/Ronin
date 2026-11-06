@@ -29,10 +29,7 @@ def log(message: str) -> None:
 
 def _handler_for(capability: str):
     """按能力懒加载对应处理器（导入即拉起 onnxruntime，故延迟到此处）。"""
-    if capability == "embed":
-        from .embedder import get_embedder
-        return get_embedder()
-    if capability == "embed_text":
+    if capability in ("embed", "embed_text"):
         from .embedder import get_embedder
         return get_embedder()
     if capability == "face":
@@ -96,7 +93,10 @@ def run_loop() -> int:
 
             try:
                 handler = _handler_for(capability)
-                handler.ensure_loaded(params)
+                if capability == "embed_text":
+                    handler.ensure_loaded(params, text=True)
+                else:
+                    handler.ensure_loaded(params)
                 handler_params = params or {}
                 if count == 0:
                     # count=0 为预热请求：加载完成即回报就绪
