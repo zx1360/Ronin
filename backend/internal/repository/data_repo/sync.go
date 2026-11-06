@@ -20,6 +20,7 @@ import (
 const SyncVersion = 2
 
 var ErrInvalidSyncCursor = errors.New("同步游标已失效，请重新完整合并")
+var ErrSyncConflict = errors.New("另一端已更新数据，本次修改未写入；请核对最新版本后重试")
 
 type Tombstone struct {
 	Collection string         `json:"collection"`
@@ -29,6 +30,7 @@ type Tombstone struct {
 
 type SyncData struct {
 	SyncVersion        int                   `json:"sync_version"`
+	BaseCursor         *int64                `json:"base_cursor,omitempty"`
 	EssaySchemaVersion int                   `json:"essay_schema_version,omitempty"`
 	Essays             []model.EssayArticle  `json:"essays,omitempty"`
 	Labels             []model.EssayLabel    `json:"labels,omitempty"`
@@ -217,6 +219,10 @@ func (data SyncData) Images(module string) (map[string]bool, error) {
 }
 
 func MergeSync(module string, data SyncData) error {
+	return MergeSyncWithReceipt(module, data, nil)
+}
+
+func MergeSyncWithReceipt(module string, data SyncData, receipt *[]EssayReceipt) error {
 	if data.SyncVersion != SyncVersion {
 		return fmt.Errorf("请更新客户端：用户数据需要 sync_version=%d 的增量合并协议", SyncVersion)
 	}
@@ -229,6 +235,16 @@ func MergeSync(module string, data SyncData) error {
 	ctx, cancel := db.GetLongCtx()
 	defer cancel()
 	return db.Tx(ctx, func(tx *sql.Tx) error {
+		// 在线编辑以读取快照为前提；离线客户端仍按逐行时间戳合并。
+		if data.BaseCursor != nil {
+			var current int64
+			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(revision),0) FROM user_data_changes WHERE module=?`, module).Scan(&current); err != nil {
+				return err
+			}
+			if *data.BaseCursor < 0 || *data.BaseCursor != current {
+				return ErrSyncConflict
+			}
+		}
 		changed := false
 		seen := map[string]bool{}
 		for _, item := range data.Tombstones {
@@ -295,7 +311,16 @@ func MergeSync(module string, data SyncData) error {
 			return err
 		}
 		if changed {
-			return refreshStats(ctx, tx, module)
+			if err := refreshStats(ctx, tx, module); err != nil {
+				return err
+			}
+		}
+		if receipt != nil {
+			confirmed, err := essayReceipts(ctx, tx, data.Essays)
+			if err != nil {
+				return err
+			}
+			*receipt = confirmed
 		}
 		return nil
 	})

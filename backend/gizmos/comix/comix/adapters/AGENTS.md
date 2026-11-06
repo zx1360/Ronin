@@ -11,4 +11,4 @@
 | morui | requests，chapterImages + CDN；章节标题去“连载 ”前缀 |
 | xmanhua | requests + packer 解码；必须桌面 UA，否则没有桌面章节列表；标题繁体 |
 
-Playwright 统一用 `base.PLAYWRIGHT_OPTIONS`；新增浏览器依赖同步 `requirements.txt`。
+Requests 和 Playwright 共用 `BaseAdapter` 的站点线路配置。浏览器通过 `reader()` 打开。

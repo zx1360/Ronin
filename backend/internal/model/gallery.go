@@ -162,6 +162,7 @@ type MediaQueryParams struct {
 	IncludeDeleted     bool   `form:"include_deleted"`     // 是否包含已软删除的媒体
 	OnlyDeleted        bool   `form:"only_deleted"`        // 仅返回已软删除的媒体（优先级高于 include_deleted）
 	MimeType           string `form:"mime_type"`           // image / video / image/jpeg
+	CapturedBefore     string `form:"captured_before"`     // 不含该日，格式 YYYY-MM-DD
 	IDs                string `form:"ids"`                 // 逗号分隔的媒体 ID, 指定则只查这些
 	SortBy             string `form:"sort_by"`             // captured_at(默认) / sync_count / size_bytes / file_path
 	SortOrder          string `form:"sort_order"`          // desc(默认) / asc

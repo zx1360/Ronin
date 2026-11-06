@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
+	"monarch/internal/galleryfs"
 	"monarch/internal/service/db"
 )
 
@@ -121,7 +122,7 @@ func queryGalleryDBStats(ctx context.Context) galleryDBStats {
 // SystemOverview 返回服务端基础运维信息，便于网页运维端统一展示。
 func SystemOverview(c *gin.Context) {
 	galleryStats := queryGalleryDBStats(c.Request.Context())
-	galleryUsage, gallerySubdirs := getCachedDirUsages(config.AppConf.GalleryDir, "Thumbs", "Preview")
+	galleryUsage, gallerySubdirs := getCachedDirUsages(config.AppConf.GalleryDir, galleryfs.Thumbs, galleryfs.Preview)
 	staticUsage := galleryUsage
 	if dirNameKey(filepath.Clean(config.AppConf.StaticDir)) == dirNameKey(filepath.Clean(config.AppConf.GalleryDir)) {
 		staticUsage.Path = config.AppConf.StaticDir
@@ -167,10 +168,10 @@ func SystemOverview(c *gin.Context) {
 		"storage": gin.H{
 			"static":         staticUsage,
 			"galleryRoot":    galleryUsage,
-			"galleryMedia":   galleryDirUsage("Media", galleryStats.MediaFiles, galleryStats.MediaBytes),
-			"galleryThumbs":  gallerySubdirs[dirNameKey("Thumbs")],
-			"galleryPreview": gallerySubdirs[dirNameKey("Preview")],
-			"galleryDeleted": galleryDirUsage("Deleted", galleryStats.DeletedFiles, galleryStats.DeletedBytes),
+			"galleryMedia":   galleryDirUsage(galleryfs.Media, galleryStats.MediaFiles, galleryStats.MediaBytes),
+			"galleryThumbs":  gallerySubdirs[dirNameKey(galleryfs.Thumbs)],
+			"galleryPreview": gallerySubdirs[dirNameKey(galleryfs.Preview)],
+			"galleryDeleted": galleryDirUsage(galleryfs.Deleted, galleryStats.DeletedFiles, galleryStats.DeletedBytes),
 		},
 	})
 }

@@ -3,7 +3,6 @@ package pipeline
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,17 +11,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 
-	"gizmos/internal/gallery/model"
-	"gizmos/internal/gallery/processor"
-	"gizmos/internal/gallery/repository"
-	"gizmos/internal/gallery/scanner"
-	"gizmos/internal/service/db"
+	"monarch/gizmos/internal/gallery/model"
+	"monarch/gizmos/internal/gallery/processor"
+	"monarch/gizmos/internal/gallery/repository"
+	"monarch/gizmos/internal/gallery/scanner"
+	"monarch/internal/galleryfs"
+	"monarch/internal/service/db"
 )
 
 // Config 流水线配置
@@ -71,232 +70,10 @@ func NewPipeline(config Config) *Pipeline {
 	}
 }
 
-// RunIngestion 运行摄入流水线
-func (p *Pipeline) RunIngestion(ctx context.Context) (*Stats, error) {
-	log.Println("========== 开始摄入流水线 ==========")
-	log.Printf("原始目录: %s", p.config.RawDir)
-	log.Printf("媒体目录: %s", p.config.MediaDir)
-	log.Printf("并发数: %d", p.config.Concurrency)
-
-	stats := &Stats{}
-
-	// 确保目录存在
-	if err := p.ensureDirectories(); err != nil {
-		return nil, fmt.Errorf("创建目录失败: %w", err)
-	}
-
-	// 扫描文件
-	pathChan, errChan := p.scanner.ScanDir()
-
-	// 收集扫描错误
-	go func() {
-		for err := range errChan {
-			log.Printf("扫描警告: %v", err)
-		}
-	}()
-
-	// 工作队列
-	type workItem struct {
-		path string
-	}
-	workChan := make(chan workItem, p.config.Concurrency*2)
-
-	// 结果收集
-	resultChan := make(chan *model.MediaAsset, p.config.Concurrency*2)
-	doneChan := make(chan struct{})
-
-	// 批量写入协程
-	go p.batchWriter(ctx, resultChan, doneChan, stats)
-
-	// 启动工作协程
-	var wg sync.WaitGroup
-	for i := 0; i < p.config.Concurrency; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			for work := range workChan {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-
-				asset, err := p.processFile(ctx, work.path)
-				if err != nil {
-					if err == ErrDuplicate {
-						atomic.AddInt64(&stats.DuplicateFiles, 1)
-						log.Printf("[Worker %d] 重复文件: %s", workerID, filepath.Base(work.path))
-					} else {
-						atomic.AddInt64(&stats.FailedFiles, 1)
-						log.Printf("[Worker %d] 处理失败: %s - %v", workerID, filepath.Base(work.path), err)
-					}
-					continue
-				}
-
-				resultChan <- asset
-				atomic.AddInt64(&stats.ProcessedFiles, 1)
-				log.Printf("[Worker %d] 处理完成: %s", workerID, filepath.Base(work.path))
-			}
-		}(i)
-	}
-
-	// 分发工作
-	for path := range pathChan {
-		atomic.AddInt64(&stats.TotalFiles, 1)
-		workChan <- workItem{path: path}
-	}
-	close(workChan)
-
-	// 等待所有工作完成
-	wg.Wait()
-	close(resultChan)
-
-	// 等待批量写入完成
-	<-doneChan
-
-	// 清理 rawDir 中的空目录
-	log.Println("清理 Raw 目录中的空文件夹...")
-	p.cleanEmptyDirsRecursive(p.config.RawDir)
-
-	log.Println("========== 摄入流水线完成 ==========")
-	log.Printf("总文件数: %d", stats.TotalFiles)
-	log.Printf("处理成功: %d", stats.ProcessedFiles)
-	log.Printf("重复文件: %d", stats.DuplicateFiles)
-	log.Printf("处理失败: %d", stats.FailedFiles)
-
-	return stats, nil
-}
-
-// ErrDuplicate 重复文件错误
-var ErrDuplicate = fmt.Errorf("duplicate file")
-
-// processFile 处理单个文件
-func (p *Pipeline) processFile(ctx context.Context, filePath string) (*model.MediaAsset, error) {
-	// 1. 提取文件信息
-	fileInfo, err := p.scanner.ExtractFileInfo(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("提取文件信息失败: %w", err)
-	}
-
-	// 2. 检查哈希是否存在
-	dbCtx, cancel := db.GetDefaultCtx()
-	defer cancel()
-
-	exists, err := p.repository.HashExists(dbCtx, fileInfo.Hash)
-	if err != nil {
-		return nil, fmt.Errorf("检查哈希失败: %w", err)
-	}
-
-	if exists {
-		// 移动到删除目录
-		if err := p.moveToDeleted(filePath); err != nil {
-			log.Printf("移动重复文件到删除目录失败: %v", err)
-		}
-		return nil, ErrDuplicate
-	}
-
-	// 3. 计算年月目录
-	yearMonth := fileInfo.CapturedAt.Format("2006-01")
-
-	// 4. 移动原文件到媒体目录
-	mediaSubDir := filepath.Join(p.config.MediaDir, yearMonth)
-	if err := os.MkdirAll(mediaSubDir, 0755); err != nil {
-		return nil, fmt.Errorf("创建媒体子目录失败: %w", err)
-	}
-
-	// 生成唯一文件名（避免冲突）
-	newFileName := generateUniqueFileName(mediaSubDir, fileInfo.FileName)
-	newMediaPath := filepath.Join(mediaSubDir, newFileName)
-
-	if err := moveFile(filePath, newMediaPath); err != nil {
-		return nil, fmt.Errorf("移动文件失败: %w", err)
-	}
-
-	// 5. 生成缩略图和预览图
-	// 更新 fileInfo 的文件名（可能已更改）
-	fileInfo.FileName = newFileName
-	processResult, err := p.processor.Process(fileInfo, newMediaPath, yearMonth)
-	if err != nil {
-		// 处理失败时，尝试将文件移回或删除
-		log.Printf("生成缩略图/预览图失败: %v", err)
-		// 仍然继续，使用空的缩略图路径
-		processResult = &processor.ProcessResult{}
-	}
-
-	// 6. 构建媒体资产
-	mimeType := fileInfo.MimeType
-	thumbPath := processResult.ThumbPath
-	previewPath := processResult.PreviewPath
-
-	asset := &model.MediaAsset{
-		ID:          uuid.New(),
-		CapturedAt:  fileInfo.CapturedAt,
-		FilePath:    filepath.Join(yearMonth, newFileName),
-		ThumbPath:   strPtr(thumbPath),
-		PreviewPath: strPtr(previewPath),
-		Hash:        fileInfo.Hash,
-		SizeBytes:   fileInfo.SizeBytes,
-		MimeType:    &mimeType,
-		IsDeleted:   false,
-		SyncCount:   0,
-		GroupID:     nil,
-	}
-
-	return asset, nil
-}
-
-// batchWriter 批量写入数据库
-func (p *Pipeline) batchWriter(ctx context.Context, resultChan <-chan *model.MediaAsset, doneChan chan<- struct{}, stats *Stats) {
-	defer close(doneChan)
-
-	batch := make([]*model.MediaAsset, 0, p.config.BatchSize)
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	flush := func() {
-		if len(batch) == 0 {
-			return
-		}
-
-		dbCtx, cancel := db.GetLongCtx()
-		defer cancel()
-
-		if err := p.repository.BatchInsertMediaAssets(dbCtx, batch); err != nil {
-			log.Printf("批量写入失败: %v", err)
-			atomic.AddInt64(&stats.FailedFiles, int64(len(batch)))
-		} else {
-			log.Printf("批量写入成功: %d 条记录", len(batch))
-		}
-
-		batch = batch[:0]
-	}
-
-	for {
-		select {
-		case asset, ok := <-resultChan:
-			if !ok {
-				flush()
-				return
-			}
-			batch = append(batch, asset)
-			if len(batch) >= p.config.BatchSize {
-				flush()
-			}
-
-		case <-ticker.C:
-			flush()
-
-		case <-ctx.Done():
-			flush()
-			return
-		}
-	}
-}
-
 // RunExecution 运行执行流水线
 // Phase A: 处理软删除 → 文件移入 trash → 物理删除 DB 记录
 // Phase B: 处理编辑 → 应用编辑 → 原文件移入 trash → 新文件写回 → 重建缩略图/预览图 → DB UPDATE
-func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
+func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (*Stats, error) {
 	log.Println("========== 开始执行流水线 ==========")
 
 	stats := &Stats{}
@@ -320,6 +97,20 @@ func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 	log.Printf("找到 %d 个待删除的资产", len(deletedAssets))
 
 	var deleteIDs []uuid.UUID
+	moved := make(map[uuid.UUID]bool)
+	move := func(asset *model.MediaAsset) bool {
+		if moved[asset.ID] {
+			return true
+		}
+		if err := p.moveAssetToDeleted(asset, pruneMissing); err != nil {
+			log.Printf("移动资产文件失败 [%s]: %v", asset.ID, err)
+			stats.FailedFiles++
+			return false
+		}
+		moved[asset.ID] = true
+		deleteIDs = append(deleteIDs, asset.ID)
+		return true
+	}
 	for _, asset := range deletedAssets {
 		select {
 		case <-ctx.Done():
@@ -327,46 +118,34 @@ func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 		default:
 		}
 
-		// 获取被捆绑的资产
 		groupedAssets, err := p.repository.GetGroupedAssets(dbCtx, asset.ID)
 		if err != nil {
 			log.Printf("获取捆绑资产失败: %v", err)
+			stats.FailedFiles++
+			continue
 		}
-
-		// 移动主资产文件
-		if err := p.moveAssetToDeleted(asset); err != nil {
-			log.Printf("移动资产文件失败: %v", err)
-		} else {
-			deleteIDs = append(deleteIDs, asset.ID)
-			atomic.AddInt64(&stats.DeletedFiles, 1)
-		}
-
-		// 移动捆绑的资产文件
+		groupMoved := true
 		for _, grouped := range groupedAssets {
-			if err := p.moveAssetToDeleted(grouped); err != nil {
-				log.Printf("移动捆绑资产文件失败: %v", err)
-			} else {
-				deleteIDs = append(deleteIDs, grouped.ID)
-				atomic.AddInt64(&stats.DeletedFiles, 1)
+			if !move(grouped) {
+				groupMoved = false
 			}
 		}
-	}
-
-	// 批量删除数据库记录
-	if len(deleteIDs) > 0 {
-		if err := p.repository.BatchDeleteAssetRecords(dbCtx, deleteIDs); err != nil {
-			log.Printf("删除数据库记录失败: %v", err)
-		} else {
-			log.Printf("删除数据库记录成功: %d 条", len(deleteIDs))
+		if groupMoved {
+			move(asset)
 		}
 	}
+
+	if err := p.repository.BatchDeleteAssetRecords(dbCtx, deleteIDs); err != nil {
+		return stats, fmt.Errorf("删除数据库记录失败，可重试: %w", err)
+	}
+	stats.DeletedFiles = int64(len(deleteIDs))
 
 	// ========== Phase B: 处理编辑 ==========
 	log.Println("--- Phase B: 处理编辑 ---")
 
 	editedAssets, err := p.repository.GetEditedAssets(dbCtx)
 	if err != nil {
-		log.Printf("获取编辑资产失败: %v", err)
+		return stats, fmt.Errorf("获取编辑资产失败: %w", err)
 	} else {
 		log.Printf("找到 %d 个待编辑的资产", len(editedAssets))
 
@@ -389,6 +168,9 @@ func (p *Pipeline) RunExecution(ctx context.Context) (*Stats, error) {
 
 	// 清理空目录
 	p.cleanEmptyDirs()
+	if stats.FailedFiles > 0 {
+		return stats, fmt.Errorf("%d 项未能完成，请查看任务日志", stats.FailedFiles)
+	}
 
 	log.Println("========== 执行流水线完成 ==========")
 	log.Printf("删除文件数: %d", stats.DeletedFiles)
@@ -486,7 +268,7 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 		return fmt.Errorf("新文件写回失败: %w", err)
 	}
 	// 重新计算 hash
-	newHash, err := calculateFileHash(srcPath)
+	newHash, err := galleryfs.HashFile(srcPath)
 	if err != nil {
 		return fmt.Errorf("计算新 hash 失败: %w", err)
 	}
@@ -556,43 +338,54 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 }
 
 // moveAssetToDeleted 移动资产文件到删除目录，删除缩略图和预览图
-func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset) error {
-	// 从 FilePath 中提取 yyyy-mm 目录（如 "2023-05/xxx.jpg" -> "2023-05"）
-	yearMonth := filepath.Dir(asset.FilePath)
+func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset, pruneMissing bool) error {
+	relative, ok := galleryfs.RelativePath(asset.FilePath)
+	if !ok {
+		return fmt.Errorf("原件路径无效: %q", asset.FilePath)
+	}
+	yearMonth := filepath.Dir(relative)
 	if yearMonth == "." {
 		yearMonth = "unknown"
 	}
 
-	// 确保目标目录存在
-	trashDir := filepath.Join(p.config.DeletedDir, "trash", yearMonth)
-	if err := os.MkdirAll(trashDir, 0755); err != nil {
-		return fmt.Errorf("创建目标目录失败: %w", err)
-	}
-
-	// 生成唯一文件名（处理重名）
-	originalFileName := filepath.Base(asset.FilePath)
-	uniqueFileName := generateUniqueFileName(trashDir, originalFileName)
-
-	// 移动原文件到 deletedDir/trash/yyyy-mm/
-	srcMedia := filepath.Join(p.config.MediaDir, asset.FilePath)
-	dstMedia := filepath.Join(trashDir, uniqueFileName)
-	if err := moveFile(srcMedia, dstMedia); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("移动原文件失败: %w", err)
-	}
-
-	// 删除缩略图
-	if asset.ThumbPath != nil && *asset.ThumbPath != "" {
-		srcThumb := filepath.Join(p.config.ThumbsDir, *asset.ThumbPath)
-		if err := os.Remove(srcThumb); err != nil && !os.IsNotExist(err) {
-			log.Printf("删除缩略图失败: %v", err)
+	// 路径含资产 ID，中断后可确认原件已进入回收目录。
+	trashDir := filepath.Join(p.config.DeletedDir, "trash", yearMonth, asset.ID.String())
+	srcMedia := filepath.Join(p.config.MediaDir, relative)
+	dstMedia := filepath.Join(trashDir, filepath.Base(relative))
+	if info, err := os.Stat(srcMedia); os.IsNotExist(err) {
+		trashed, err := os.Stat(dstMedia)
+		switch {
+		case err == nil && trashed.Mode().IsRegular():
+		case os.IsNotExist(err) && pruneMissing:
+			log.Printf("按显式选项清理缺失原件记录: %q", relative)
+		default:
+			return fmt.Errorf("找不到原件或对应回收文件: %q", relative)
+		}
+	} else {
+		if err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("原件不可用: %q (%v)", relative, err)
+		}
+		if err := os.MkdirAll(trashDir, 0755); err != nil {
+			return fmt.Errorf("创建回收目录失败: %w", err)
+		}
+		if err := moveFile(srcMedia, dstMedia); err != nil {
+			return fmt.Errorf("移动原件失败: %w", err)
 		}
 	}
 
-	// 删除预览图
-	if asset.PreviewPath != nil && *asset.PreviewPath != "" {
-		srcPreview := filepath.Join(p.config.PreviewDir, *asset.PreviewPath)
-		if err := os.Remove(srcPreview); err != nil && !os.IsNotExist(err) {
-			log.Printf("删除预览图失败: %v", err)
+	for _, derived := range []struct {
+		dir  string
+		path *string
+	}{{p.config.ThumbsDir, asset.ThumbPath}, {p.config.PreviewDir, asset.PreviewPath}} {
+		if derived.path == nil {
+			continue
+		}
+		rel, ok := galleryfs.RelativePath(*derived.path)
+		if !ok {
+			continue
+		}
+		if err := os.Remove(filepath.Join(derived.dir, rel)); err != nil && !os.IsNotExist(err) {
+			log.Printf("删除派生图失败: %v", err)
 		}
 	}
 
@@ -711,22 +504,6 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
-}
-
-// calculateFileHash 计算文件的 SHA-256 哈希
-func calculateFileHash(filePath string) ([]byte, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
-		return nil, err
-	}
-
-	return hasher.Sum(nil), nil
 }
 
 // copyFileData 流式复制文件（用于编辑结果写回，避免把整个文件读入内存）

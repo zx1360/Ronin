@@ -90,12 +90,15 @@ erDiagram
 [taskengine.Manager](../../backend/internal/service/taskengine/engine.go) 是统一的子进程生命周期层：
 
 - 异步启动、stdout/stderr 逐行日志、退出码和结构化结果。
+- 共用资源通过 FIFO 门禁分配，区分排队与运行，取消排队无需等待前面的任务；初始化和删除不得插队。
 - 任务状态只保留在内存，服务重启即清空。
+- 终态立即裁剪历史；单任务日志限制 512 KiB，结构化输出限制 16 MiB，超限报告失败。
 - `Stop` 中断单个任务；`Close` 拒绝新任务、杀进程树并等待任务退出。
 
 两个消费者：
 
-1. [Gallery service](../../backend/internal/service/gallery/cli.go)：`ingest`、`execute`、`refresh`；同一时间只允许一个任务，因为它们都可能改写媒体文件和数据库。
+1. [Gallery service](../../backend/internal/service/gallery/cli.go)：`ingest`、`execute`、`refresh`。CLI 与 Monarch 共用 Go 模块和 SQLite 连接配置，每个图库同一时间只允许运行一个任务。入库先落盘并提交数据库，再清理 Raw。
+   `refresh` 修复派生图并报告缺失的原件。确认原件永久缺失且已标记删除后，可在 Gallery CLI 的 `execute` 模式显式加 `-prune-missing` 清理记录。
 2. [comix service](../../backend/internal/service/comix/tasks.go)：调用 `python -m comix.cli --json`；stdout 是单行 JSON，进度主要来自 stderr。
 
 comix 本身是无状态 CLI；数据库/文件协议见 [comix AGENTS](../../backend/gizmos/comix/AGENTS.md)。
@@ -105,13 +108,15 @@ comix 本身是无状态 CLI；数据库/文件协议见 [comix AGENTS](../../ba
 [ai.Engine](../../backend/internal/service/ai/engine.go) 是后台 AI 门面：
 
 ```text
-reconcile：发现无任务行的媒体 -> jobs 幂等入队
-worker：事务认领 jobs -> 准备图源 -> 执行能力 -> 保存产物
+reconcile：托管入库结束触发，定期补扫手动入库 -> jobs 幂等入队
+worker：入队唤醒，空队列退避 -> 事务认领 jobs -> 执行并保存产物
 sidecar：embed / face / ocr Python 进程，空闲回收
 ollama：VLM 进程/服务监管，按需使用
 index：int8 向量加载到 Go 内存做精确扫描
 cluster：人脸在线归并与批量重聚类
 ```
+
+worker 使用退避定时器，暂停时只等待显式唤醒；全部侧车、Ollama 与索引共用一个轻量回收循环。回收不查询数据库或探测依赖，索引实际释放时才归还堆页。
 
 ### 关键不变量
 

@@ -7,7 +7,6 @@ import 'package:torrid/features/others/gallery/providers/media_providers.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
 import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
 import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
-import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
 import 'package:torrid/features/others/gallery/services/gallery_write_buffer.dart';
 
 part 'tag_providers.g.dart';
@@ -34,12 +33,13 @@ class TagTree extends _$TagTree {
 
   /// 从服务端拉取标签并镜像到本地缓存（标签管理/immich 页进入时调用）
   Future<void> syncFromServer() async {
-    final api = ref.read(galleryApiProvider);
-    final db = ref.read(galleryDatabaseProvider);
-    final tags = await retryServerWrite(api.fetchTags);
-    await db.syncTagsCache(tags);
-    await refresh();
-    ref.invalidate(mediaIdsWithTagsProvider);
+    await ref.read(galleryWriteBufferProvider).writeOnline((api) async {
+      final db = ref.read(galleryDatabaseProvider);
+      final tags = await retryServerWrite(api.fetchTags);
+      await db.syncTagsCache(tags);
+      await refresh();
+      ref.invalidate(mediaIdsWithTagsProvider);
+    });
   }
 
   /// 新建标签
@@ -58,8 +58,7 @@ class TagTree extends _$TagTree {
       await refresh();
       return state.requireValue.firstWhere((tag) => tag.id == id);
     }
-    return ref.read(galleryWriteBufferProvider).writeOnline(() async {
-      final api = ref.read(galleryApiProvider);
+    return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
       final tag = await retryServerWrite(
         () => api.createTag(name: name, parentId: parentId),
@@ -73,8 +72,7 @@ class TagTree extends _$TagTree {
   /// 重命名标签（服务端会级联重算子孙 full_path, 因此整表回拉）
   Future<Tag> renameTag(Tag tag, String name, {bool localFirst = false}) async {
     if (localFirst) return _editLocal(tag.id, {'name': name.trim()});
-    return ref.read(galleryWriteBufferProvider).writeOnline(() async {
-      final api = ref.read(galleryApiProvider);
+    return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
       final updated = await retryServerWrite(
         () => api.updateTag(tag.id, name: name),
@@ -93,8 +91,7 @@ class TagTree extends _$TagTree {
     bool localFirst = false,
   }) async {
     if (localFirst) return _editLocal(tagId, {'parent_id': newParentId});
-    return ref.read(galleryWriteBufferProvider).writeOnline(() async {
-      final api = ref.read(galleryApiProvider);
+    return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
       final updated = await retryServerWrite(
         () => api.updateTag(
@@ -120,8 +117,7 @@ class TagTree extends _$TagTree {
       ref.invalidate(currentMediaTagsProvider);
       return refresh();
     }
-    return ref.read(galleryWriteBufferProvider).writeOnline(() async {
-      final api = ref.read(galleryApiProvider);
+    return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
       final removedIds = await retryServerWrite(() => api.deleteTag(tagId));
       for (final id in removedIds) {
@@ -143,8 +139,7 @@ class TagTree extends _$TagTree {
       await _editLocal(tagId, {'is_favorite': value});
       return;
     }
-    return ref.read(galleryWriteBufferProvider).writeOnline(() async {
-      final api = ref.read(galleryApiProvider);
+    return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
       final current = state.valueOrNull ?? const <Tag>[];
 

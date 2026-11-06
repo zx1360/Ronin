@@ -1,24 +1,21 @@
 import 'dart:async';
 
+import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
+import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
 import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
+import 'package:torrid/features/others/gallery/services/gallery_write_verification.dart';
 
 /// 本地事务提交后顺序回传；确认过的记录保留到批次校验和清理完成。
 class GalleryWriteBuffer {
   GalleryWriteBuffer({
     required this.db,
-    required this.server,
-    required this.send,
-    required this.verify,
+    required this.currentClient,
     this.onChanged,
-  }) {
-    retry();
-  }
+  });
 
   final GalleryDatabaseService db;
-  final String Function() server;
-  final Future<void> Function(GalleryOperation) send;
-  final Future<void> Function(List<GalleryOperation>) verify;
+  final ApiClient Function() currentClient;
   final void Function()? onChanged;
   Future<void> _localWrites = Future.value();
   Future<bool>? _sending;
@@ -26,7 +23,6 @@ class GalleryWriteBuffer {
   bool _disposed = false;
   bool _locked = false;
   int _attempt = 0;
-  Object? lastError;
 
   Future<void> queueTags(String id, List<String> tags) =>
       queue('tags', {'media_id': id, 'tag_ids': tags.toSet().toList()});
@@ -36,8 +32,6 @@ class GalleryWriteBuffer {
 
   Future<void> queue(String kind, Map<String, dynamic> body) {
     if (_locked || _disposed) return Future.error(StateError('正在回传，请稍后操作'));
-    final origin = server();
-    if (origin.isEmpty) return Future.error(StateError('请先选择画廊服务器地址'));
     final snapshot = {
       for (final entry in body.entries)
         entry.key: entry.value is List
@@ -45,9 +39,8 @@ class GalleryWriteBuffer {
             : entry.value,
     };
     final next = _localWrites.then((_) async {
-      await db.recordOperation(origin, kind, snapshot);
+      await db.recordOperation(kind, snapshot);
       if (!_disposed) onChanged?.call();
-      _attempt = 0;
       retry();
     });
     _localWrites = next.then((_) {}, onError: (Object _) {});
@@ -55,56 +48,99 @@ class GalleryWriteBuffer {
   }
 
   void retry() {
+    _attempt = 0;
+    _scheduleRetry();
+  }
+
+  void _scheduleRetry() {
     _timer?.cancel();
-    if (_disposed || _locked) return;
+    if (_disposed || _locked || currentClient().baseUrl.isEmpty) return;
     _timer = Timer(Duration(milliseconds: 250 * (1 << _attempt)), () async {
-      if (!await flushAll() && _attempt++ < 2) retry();
+      if (!await _flushInBackground() && _attempt++ < 2) _scheduleRetry();
     });
   }
 
-  Future<bool> flushAll() async {
-    _timer?.cancel();
+  Future<bool> _flushInBackground() async {
     await _localWrites;
-    if (_disposed) return false;
-    while (!_disposed) {
-      if (!await (_sending ??= _drain().whenComplete(() => _sending = null))) {
-        return false;
-      }
+    while (!_disposed && !_locked) {
+      final client = currentClient();
+      if (client.baseUrl.isEmpty) return true;
+      final sending = _sending ??= _flushPending(
+        client,
+      ).whenComplete(() => _sending = null);
+      if (!await sending) return false;
       await _localWrites;
       if ((await db.operations(pendingOnly: true, limit: 1)).isEmpty) {
         return true;
       }
     }
-    return false;
+    return true;
   }
 
-  Future<bool> _drain() async {
+  Future<bool> _flushPending(ApiClient client) async {
     try {
-      while (!_disposed) {
-        final pending = await db.operations(pendingOnly: true, limit: 1);
-        if (pending.isEmpty) return true;
-        final operation = pending.first;
-        if (operation.server != server()) throw StateError('请切回原画廊服务器完成回传');
-        await send(operation);
-        await db.acknowledge(operation.seq);
+      if ((await db.operations(pendingOnly: true, limit: 1)).isNotEmpty) {
+        await _drain(await _boundApi(client));
       }
-    } catch (error) {
-      lastError = error;
+      return true;
+    } catch (_) {
+      return false;
     }
-    return false;
+  }
+
+  Future<void> _drain(GalleryApiService api) async {
+    while (!_disposed) {
+      final pending = await db.operations(pendingOnly: true, limit: 1);
+      if (pending.isEmpty) return;
+      final operation = pending.first;
+      await api.sendOperation(operation);
+      await db.acknowledge(operation.seq);
+    }
+  }
+
+  Future<GalleryApiService> _boundApi(
+    ApiClient client, {
+    Future<bool> Function(String address)? confirmLegacy,
+  }) async {
+    final id = await GalleryApiService(client).fetchLibraryId();
+    final stored = await db.libraryId();
+    if (stored != null && stored != id) {
+      throw StateError('本机画廊属于另一图库，请切回原图库。本机修改已保留');
+    }
+    if (stored == null && await db.hasWorkingCopy()) {
+      if (confirmLegacy == null || !await confirmLegacy(client.baseUrl)) {
+        throw StateError('请在画廊设置中确认旧缓存所属图库。本机修改已保留');
+      }
+    }
+    if (_disposed || !identical(client, currentClient())) {
+      throw StateError('服务器连接已切换，请重试');
+    }
+    if (stored == null) await db.bindLibrary(id);
+    return GalleryApiService(client, libraryId: id);
   }
 
   /// 确认期间冻结编辑，防止校验后的新操作被清理。
-  Future<void> confirmAndLock() async {
+  Future<GalleryApiService> confirmAndLock({
+    bool requireConnection = true,
+    Future<bool> Function(String address)? confirmLegacy,
+  }) async {
     if (_locked) throw StateError('已有回传操作正在执行');
     _locked = true;
+    _timer?.cancel();
     try {
-      if (!await flushAll()) throw StateError('修改已保存在本机，回传未完成：$lastError');
-      final operations = await db.operations();
-      if (operations.any((op) => op.server != server())) {
-        throw StateError('请切回原画廊服务器完成回传');
+      await _localWrites;
+      await _sending;
+      final client = currentClient();
+      if (!requireConnection && (await db.operations(limit: 1)).isEmpty) {
+        return GalleryApiService(client);
       }
-      await verify(operations);
+      if (client.baseUrl.isEmpty) {
+        throw StateError('请先配置服务器地址，本机修改已保留');
+      }
+      final api = await _boundApi(client, confirmLegacy: confirmLegacy);
+      await _drain(api);
+      await verifyGalleryWrites(db, api, await db.operations());
+      return api;
     } catch (_) {
       unlock();
       rethrow;
@@ -113,13 +149,13 @@ class GalleryWriteBuffer {
 
   void unlock() => _locked = false;
 
-  Future<T> writeOnline<T>(Future<T> Function() action) async {
-    await confirmAndLock();
+  Future<T> writeOnline<T>(Future<T> Function(GalleryApiService) action) async {
+    final api = await confirmAndLock();
     try {
       if ((await db.operations()).any((op) => op.kind == 'processed')) {
         throw StateError('请先重试完成上次的标记已处理');
       }
-      return await action();
+      return await action(api);
     } finally {
       unlock();
     }

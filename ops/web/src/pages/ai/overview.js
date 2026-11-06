@@ -4,20 +4,18 @@
 // 能力名称、说明、档位、执行者与候选全部来自服务端（status / capabilities），
 // 端上只渲染列表，不硬编码能力语义。
 
-import { ref, computed, watch } from '../../vue.js';
+import { ref, computed } from '../../vue.js';
 import { api } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
 import { Card, Placeholder, Badge } from '../../ui.js';
-import { formatTime } from '../../utils.js';
+import OverviewFailures from './overview-failures.js';
+import OverviewSettings from './overview-settings.js';
 import {
-  baseName, capabilityLabel, doneCount, num, progressPercent, revealMedia, thumbUrl,
+  capabilityLabel, doneCount, num, progressPercent,
 } from './shared.js';
 
-/** 失败项单批加载条数：处理失败通常是个位数，留出足够的排查余地即可。 */
-const FAILURE_PAGE_SIZE = 60;
-
 export default {
-  components: { Card, Placeholder, Badge },
+  components: { Card, Placeholder, Badge, OverviewFailures, OverviewSettings },
   props: {
     status: { type: Object, default: null },
     capabilities: { type: Array, default: () => [] },
@@ -31,11 +29,6 @@ export default {
     refresh: { type: Function, default: null },
   },
   setup(props) {
-    const saving = ref(false);
-    const configError = ref('');
-    const form = ref(null);
-    const dirty = ref(false);
-
     /** 统一走服务端的「操作 + 提示 + 刷新状态」通道；失败不吞异常。 */
     const act = async (notice, action) => {
       if (typeof props.run === 'function') return props.run(notice, action);
@@ -206,120 +199,7 @@ export default {
 
     const inAuto = (name) => autoCapabilities.value.indexOf(name) >= 0;
 
-    // ---- 失败项 ----
-
     const failureCap = ref('');
-    const failures = ref([]);
-    const failureTotal = ref(0);
-    const failureError = ref('');
-    const failureLoading = ref(false);
-    const failureSelected = ref([]);
-
-    const failureLabel = computed(
-      () => capabilityLabel(props.capabilities, failureCap.value) || failureCap.value,
-    );
-    const failureHasMore = computed(() => failures.value.length < failureTotal.value);
-
-    /** 取某个能力"到底哪些文件失败了"；失败项通常是个位数，按批加载即可。 */
-    const loadFailures = async (more) => {
-      if (!failureCap.value || failureLoading.value) return;
-      if (more && !failureHasMore.value) return;
-      failureLoading.value = true;
-      failureError.value = '';
-      const offset = more ? failures.value.length : 0;
-      try {
-        const data = await api.get(
-          '/API/ai/failures?capability=' + encodeURIComponent(failureCap.value)
-          + '&limit=' + FAILURE_PAGE_SIZE + '&offset=' + offset,
-        );
-        const page = (Array.isArray(data && data.failures) ? data.failures : []).map((item) => ({
-          mediaId: item.media_id || '',
-          name: baseName(item.file_path) || String(item.media_id || '').slice(0, 8),
-          filePath: item.file_path || '',
-          mimeType: item.mime_type || '',
-          attempts: num(item.attempts),
-          lastError: item.last_error || '',
-          updated: formatTime(item.updated_at, false),
-          // 没有缩略图的媒体（视频、源文件已缺失）直接给占位，省掉一次必 404 的请求
-          thumb: item.thumb_path ? thumbUrl(item.media_id) : '',
-          thumbFailed: !item.thumb_path,
-          isDeleted: item.is_deleted === true,
-        }));
-        failures.value = more ? failures.value.concat(page) : page;
-        failureTotal.value = num(data && data.total);
-        const alive = failures.value.map((item) => item.mediaId);
-        failureSelected.value = failureSelected.value.filter((id) => alive.indexOf(id) >= 0);
-      } catch (err) {
-        failureError.value = err.message;
-      } finally {
-        failureLoading.value = false;
-      }
-    };
-
-    const openFailures = (card) => {
-      if (failureCap.value === card.name) {
-        closeFailures();
-        return;
-      }
-      failureCap.value = card.name;
-      failures.value = [];
-      failureTotal.value = 0;
-      failureSelected.value = [];
-      return loadFailures(false);
-    };
-
-    const closeFailures = () => {
-      failureCap.value = '';
-      failures.value = [];
-      failureTotal.value = 0;
-      failureSelected.value = [];
-      failureError.value = '';
-    };
-
-    const toggleFailure = (id) => {
-      const next = failureSelected.value.slice();
-      const position = next.indexOf(id);
-      if (position >= 0) next.splice(position, 1);
-      else next.push(id);
-      failureSelected.value = next;
-    };
-
-    const isFailureSelected = (id) => failureSelected.value.indexOf(id) >= 0;
-
-    /** 缩略图加载失败（媒体没有缩略图或源文件已缺失）：退回文字占位，别留破图。 */
-    const markThumbMissing = (item) => {
-      item.thumbFailed = true;
-    };
-
-    /** 只作用于已加载的条目：没进 DOM 的不替用户做看不见的选择。 */
-    const selectAllFailures = () => {
-      failureSelected.value = failures.value.map((item) => item.mediaId);
-    };
-
-    const clearFailureSelection = () => {
-      failureSelected.value = [];
-    };
-
-    /**
-     * 标记软删除：复用 gallery 的软删除标记，磁盘文件不动。
-     *
-     * 失败项往往就是"这个文件本身没救"（损坏、非图片、源文件缺失），
-     * 标掉之后既不会再被补处理反复排队，也能在「已删除」页恢复。
-     */
-    const softDeleteFailures = async (ids) => {
-      if (!ids.length) return;
-      const ok = await confirmAction(
-        '将把选中的 ' + ids.length + ' 个文件标记为软删除（只改数据库标记，磁盘文件仍在，可在「已删除」页恢复）。',
-        { title: '确认标记软删除', danger: true },
-      );
-      if (!ok) return;
-      await act('', async () => {
-        await api.patch('/API/gallery/media', { media_ids: ids, is_deleted: true });
-        toast('已标记软删除 ' + ids.length + ' 个文件', 'success');
-        failureSelected.value = [];
-        await loadFailures(false);
-      });
-    };
 
     // ---- 能力卡片动作 ----
 
@@ -419,74 +299,12 @@ export default {
       });
     };
 
-    // ---- 处理配置 ----
-
-    /** 从服务端配置镜像表单；用户正在编辑（dirty）时不覆盖，避免轮询打断输入。 */
-    const applyRuntime = (source) => {
-      if (!source) return;
-      form.value = {
-        idle: num(source.idle_timeout_seconds),
-        job: num(source.job_timeout_seconds),
-        batch: num(source.batch_size),
-        attempts: num(source.max_attempts),
-        workers: num(source.workers),
-        device: source.device || '',
-      };
-    };
-
-    watch(() => props.runtime, (value) => {
-      if (!form.value || !dirty.value) applyRuntime(value);
-    }, { immediate: true });
-
-    const markDirty = () => {
-      dirty.value = true;
-      configError.value = '';
-    };
-
-    const saveConfig = async () => {
-      if (!form.value) return;
-      configError.value = '';
-      saving.value = true;
-      try {
-        const data = await api.put('/API/ai/settings', {
-          idle_timeout_seconds: num(form.value.idle),
-          job_timeout_seconds: num(form.value.job),
-          batch_size: num(form.value.batch),
-          max_attempts: num(form.value.attempts),
-          workers: num(form.value.workers),
-          device: form.value.device,
-        });
-        dirty.value = false;
-        applyRuntime(data);
-        toast('处理配置已保存', 'success');
-        doRefresh();
-      } catch (err) {
-        // 服务端会按取值范围回 400 并带原因，原样展示而不是笼统提示
-        configError.value = err.message;
-        toast('保存失败: ' + err.message, 'error');
-      } finally {
-        saving.value = false;
-      }
-    };
-
-    const resetConfig = () => {
-      dirty.value = false;
-      configError.value = '';
-      applyRuntime(props.runtime);
-    };
-
     return {
-      saving, configError, form, dirty,
       header, cards, lastRun, index, cluster, ollama, workerText,
       vlmCandidates, autoCapabilities, capabilityOptions, configPath, inAuto,
       retryFailed, enqueueMissing, regenerate, toggleProcess, unloadVlm,
       togglePause, rebuildIndex, switchVlmModel, toggleAuto,
-      failureCap, failures, failureTotal, failureError, failureLoading, failureSelected,
-      failureLabel, failureHasMore, openFailures, closeFailures, toggleFailure,
-      isFailureSelected, selectAllFailures, clearFailureSelection, softDeleteFailures,
-      loadFailures, markThumbMissing,
-      revealMedia, FAILURE_PAGE_SIZE,
-      markDirty, saveConfig, resetConfig, doRefresh,
+      failureCap, act, doRefresh,
     };
   },
   template: `
@@ -587,78 +405,20 @@ export default {
               <button
                 class="ghost sm"
                 :disabled="busy || card.failed === 0"
-                @click="openFailures(card)"
+                @click="failureCap = failureCap === card.name ? '' : card.name"
               >{{ failureCap === card.name ? '收起失败项' : '查看失败项 ' + card.failed }}</button>
               <button class="danger sm" :disabled="busy" @click="regenerate(card)">全量重生成</button>
             </div>
 
-            <div v-if="failureCap === card.name">
-              <div class="row between">
-                <span class="small muted">
-                  处理失败的媒体清单（{{ failureLabel }}）· 每批最多 {{ FAILURE_PAGE_SIZE }} 条 ·
-                  已加载 {{ failures.length }} / 共 {{ failureTotal }} 项
-                </span>
-                <span class="row">
-                  <button class="ghost sm" :disabled="failureLoading" @click="loadFailures(false)">刷新</button>
-                  <button class="ghost sm" :disabled="failureLoading" @click="closeFailures()">关闭</button>
-                </span>
-              </div>
-
-              <Placeholder v-if="failureError" :error="'获取 /API/ai/failures 失败: ' + failureError" />
-              <Placeholder v-else-if="failureLoading && !failures.length" text="正在读取失败项…" />
-              <Placeholder v-else-if="!failures.length" text="没有失败项" />
-              <template v-else>
-                <div class="row" style="margin: 6px 0">
-                  <button
-                    class="ghost sm"
-                    :disabled="busy"
-                    @click="selectAllFailures()"
-                  >全选已加载的 {{ failures.length }} 项</button>
-                  <button
-                    class="ghost sm"
-                    :disabled="busy || !failureSelected.length"
-                    @click="clearFailureSelection()"
-                  >取消选择（{{ failureSelected.length }}）</button>
-                  <button
-                    class="danger sm"
-                    :disabled="busy || !failureSelected.length"
-                    @click="softDeleteFailures(failureSelected)"
-                  >标记软删除（{{ failureSelected.length }}）</button>
-                  <span class="grow"></span>
-                  <button
-                    class="ghost sm"
-                    v-if="failureHasMore"
-                    :disabled="failureLoading"
-                    @click="loadFailures(true)"
-                  >加载更多</button>
-                </div>
-
-                <div class="media-grid wide">
-                  <div
-                    v-for="item in failures"
-                    :key="item.mediaId"
-                    class="media-tile"
-                    :class="{ selected: isFailureSelected(item.mediaId) }"
-                    @click="toggleFailure(item.mediaId)"
-                  >
-                    <img v-if="!item.thumbFailed" :src="item.thumb" alt="" loading="lazy" @error="markThumbMissing(item)" />
-                    <div v-else class="thumb-missing">无缩略图</div>
-                    <div class="meta">
-                      <div :title="item.filePath">{{ item.name }}</div>
-                      <div class="small muted">{{ item.updated }} · 尝试 {{ item.attempts }} 次</div>
-                      <div class="small" v-if="item.isDeleted">已标记软删除</div>
-                      <div class="small clamp-2" style="color: var(--warning)" :title="item.lastError">{{ item.lastError }}</div>
-                      <div class="row" style="margin-top: 4px">
-                        <button class="danger sm" :disabled="busy" @click.stop="softDeleteFailures([item.mediaId])">
-                          标记软删除
-                        </button>
-                        <button class="ghost sm" @click.stop="revealMedia(item.filePath)">打开目录</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
+            <OverviewFailures
+              v-if="failureCap === card.name"
+              :key="card.name"
+              :capability="card.name"
+              :label="card.label"
+              :busy="busy"
+              :run="act"
+              @close="failureCap = ''"
+            />
           </div>
         </Card>
 
@@ -749,51 +509,7 @@ export default {
           </div>
         </Card>
 
-        <Card title="处理配置">
-          <template #actions>
-            <button class="ghost sm" :disabled="!dirty || saving" @click="resetConfig()">放弃改动</button>
-            <button class="primary sm" :disabled="!form || saving" @click="saveConfig()">
-              {{ saving ? '保存中…' : '保存' }}
-            </button>
-          </template>
-
-          <Placeholder v-if="!form" text="正在获取 /API/ai/settings…" />
-          <template v-else>
-            <div class="grid cols-3">
-              <label class="field">
-                侧车空闲退出（秒，5-86400）
-                <input type="number" min="5" max="86400" v-model.number="form.idle" @input="markDirty()" />
-              </label>
-              <label class="field">
-                批次超时（秒，30-86400）
-                <input type="number" min="30" max="86400" v-model.number="form.job" @input="markDirty()" />
-              </label>
-              <label class="field">
-                批大小（1-512）
-                <input type="number" min="1" max="512" v-model.number="form.batch" @input="markDirty()" />
-              </label>
-              <label class="field">
-                重试上限（1-20）
-                <input type="number" min="1" max="20" v-model.number="form.attempts" @input="markDirty()" />
-              </label>
-              <label class="field">
-                并发批次数（1-4）
-                <input type="number" min="1" max="4" v-model.number="form.workers" @input="markDirty()" />
-              </label>
-              <label class="field">
-                推理设备
-                <select v-model="form.device" @change="markDirty()">
-                  <option value="auto">自动（优先 DirectML）</option>
-                  <option value="cpu">强制 CPU</option>
-                </select>
-              </label>
-            </div>
-            <div class="small muted" style="margin-top: 8px">
-              保存在服务端配置文件里，改完立即生效、无需重启 Monarch。推理设备只影响速度与显存占用，不改变产物语义，因此不会触发重排。
-            </div>
-            <Placeholder v-if="configError" :error="'保存失败（服务端原样返回）: ' + configError" />
-          </template>
-        </Card>
+        <OverviewSettings :runtime="runtime" @saved="doRefresh" />
       </template>
     </div>`,
 };

@@ -114,12 +114,8 @@ function Invoke-Generation {
         if ($LASTEXITCODE -ne 0) { throw "Monarch 构建失败" }
         Capture-HelpSnapshot -WorkingDir $Root -OutPath (Join-Path $cliDir "monarch-main.md") -Command $monarch -Args @("-h") -DisplayCommand "monarch -h"
         $gizmosRoot = Join-Path $Root "gizmos"
-        Push-Location $gizmosRoot
-        try {
-            go build -o $gallery ./cmd/gallery
-            if ($LASTEXITCODE -ne 0) { throw "Gallery 构建失败" }
-        }
-        finally { Pop-Location }
+        go build -o $gallery ./gizmos/cmd/gallery
+        if ($LASTEXITCODE -ne 0) { throw "Gallery 构建失败" }
         Capture-HelpSnapshot -WorkingDir $gizmosRoot -OutPath (Join-Path $cliDir "gizmos-gallery.md") -Command $gallery -Args @("-h") -DisplayCommand "gallery -h"
     }
     finally {

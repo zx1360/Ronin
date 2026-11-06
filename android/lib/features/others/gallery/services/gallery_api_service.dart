@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/network/api_client.dart';
+import 'package:torrid/core/utils/serialization.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
@@ -35,9 +36,34 @@ GalleryApiService galleryApi(GalleryApiRef ref) {
 }
 
 class GalleryApiService {
-  GalleryApiService(this._client);
+  GalleryApiService(this._client, {this.libraryId});
 
   final ApiClient _client;
+  final String? libraryId;
+
+  ApiClient get client => _client;
+
+  String path(String route) => libraryId == null
+      ? route
+      : '$route?library_id=${Uri.encodeQueryComponent(libraryId!)}';
+
+  Future<String> fetchLibraryId() => _guard(() async {
+    final Response response;
+    try {
+      response = await _client.get('/API/gallery/library');
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) {
+        throw const ApiException('请先升级 Monarch，再同步离线画廊');
+      }
+      rethrow;
+    }
+    final data = response.data;
+    final id = data is Map ? data['library_id'] : null;
+    if (id is! String || id.isEmpty) {
+      throw const FormatException('服务器未返回图库标识，请更新后端');
+    }
+    return id;
+  });
 
   Future<void> sendOperation(GalleryOperation operation) => _guard(() async {
     final body = Map<String, dynamic>.from(operation.body);
@@ -48,7 +74,7 @@ class GalleryApiService {
       case 'patch':
       case 'processed':
         final response = await _client.patchJson(
-          '/API/gallery/media',
+          path('/API/gallery/media'),
           data: body,
         );
         final data = response.data as Map<String, dynamic>;
@@ -75,7 +101,7 @@ class GalleryApiService {
         }
       case 'tagCreate':
         final response = await _client.postJson(
-          '/API/gallery/tags',
+          path('/API/gallery/tags'),
           data: {'id': id, ...body},
         );
         if (_tagOf(response.data)['id'] != id) {
@@ -83,7 +109,7 @@ class GalleryApiService {
         }
       case 'tagUpdate':
         final response = await _client.putJson(
-          '/API/gallery/tags/$id',
+          path('/API/gallery/tags/$id'),
           data: body,
         );
         if (_tagOf(response.data)['id'] != id) {
@@ -91,7 +117,7 @@ class GalleryApiService {
         }
       case 'tagDelete':
         try {
-          await _client.delete('/API/gallery/tags/$id');
+          await _client.delete(path('/API/gallery/tags/$id'));
         } catch (error) {
           if (ApiClient.mapError(error).statusCode != 404) rethrow;
         }
@@ -113,7 +139,7 @@ class GalleryApiService {
   /// 获取完整标签树（含收藏标记与媒体数）
   Future<List<Tag>> fetchTags() {
     return _guard(() async {
-      final resp = await _client.get('/API/gallery/tags');
+      final resp = await _client.get(path('/API/gallery/tags'));
       final data = resp.data as Map<String, dynamic>;
       return _parseList(data['tags'], Tag.fromJson);
     });
@@ -123,7 +149,7 @@ class GalleryApiService {
   Future<Tag> createTag({required String name, String? parentId}) {
     return _guard(() async {
       final resp = await _client.postJson(
-        '/API/gallery/tags',
+        path('/API/gallery/tags'),
         data: {'name': name, if (parentId != null) 'parent_id': parentId},
       );
       return Tag.fromJson(_tagOf(resp.data));
@@ -148,7 +174,10 @@ class GalleryApiService {
       }
       if (isFavorite != null) body['is_favorite'] = isFavorite;
 
-      final resp = await _client.putJson('/API/gallery/tags/$id', data: body);
+      final resp = await _client.putJson(
+        path('/API/gallery/tags/$id'),
+        data: body,
+      );
       return Tag.fromJson(_tagOf(resp.data));
     });
   }
@@ -156,7 +185,7 @@ class GalleryApiService {
   /// 删除标签, 返回被级联删除的全部标签 ID（含子孙）
   Future<List<String>> deleteTag(String id) {
     return _guard(() async {
-      final resp = await _client.delete('/API/gallery/tags/$id');
+      final resp = await _client.delete(path('/API/gallery/tags/$id'));
       final data = resp.data as Map<String, dynamic>;
       return [
         for (final e in (data['deleted_ids'] as List? ?? const []))
@@ -179,6 +208,7 @@ class GalleryApiService {
     List<String> vlmTags = const [],
     List<String> ids = const [],
     String? mimeType,
+    DateTime? capturedBefore,
     int limit = 60,
     int offset = 0,
     String? sortBy,
@@ -196,11 +226,13 @@ class GalleryApiService {
         if (vlmTags.isNotEmpty) 'vlm_tags': vlmTags.join(','),
         if (ids.isNotEmpty) 'ids': ids.join(','),
         if (mimeType != null && mimeType.isNotEmpty) 'mime_type': mimeType,
+        if (capturedBefore != null)
+          'captured_before': dateToJson(capturedBefore),
         if (sortBy != null && sortBy.isNotEmpty) 'sort_by': sortBy,
         if (sortOrder != null && sortOrder.isNotEmpty) 'sort_order': sortOrder,
       };
       final resp = await _client.get(
-        '/API/gallery/media',
+        path('/API/gallery/media'),
         queryParams: params,
         cancelToken: cancelToken,
       );
@@ -216,11 +248,30 @@ class GalleryApiService {
     });
   }
 
+  Future<Set<String>> fetchAssignedTagIds(
+    List<String> mediaIds, {
+    CancelToken? cancelToken,
+  }) async {
+    final tags = <String>{};
+    const batchSize = 100;
+    for (var start = 0; start < mediaIds.length; start += batchSize) {
+      final end = (start + batchSize).clamp(start, mediaIds.length);
+      final page = await queryMedia(
+        ids: mediaIds.sublist(start, end),
+        includeDeleted: true,
+        limit: end - start,
+        cancelToken: cancelToken,
+      );
+      tags.addAll(page.mediaTagLinks.map((link) => link.tagId));
+    }
+    return tags;
+  }
+
   /// 全量替换单个媒体的标签集合（幂等, 返回服务端确认的标签集合）
   Future<List<String>> setMediaTags(String mediaId, List<String> tagIds) {
     return _guard(() async {
       final resp = await _client.putJson(
-        '/API/gallery/media/$mediaId/tags',
+        path('/API/gallery/media/$mediaId/tags'),
         data: {'tag_ids': tagIds},
       );
       final data = resp.data as Map<String, dynamic>;
@@ -238,7 +289,7 @@ class GalleryApiService {
   }) {
     return _guard(() async {
       final resp = await _client.postJson(
-        '/API/gallery/media/tags',
+        path('/API/gallery/media/tags'),
         data: {
           'media_ids': mediaIds,
           'add_tag_ids': addTagIds,
@@ -257,7 +308,7 @@ class GalleryApiService {
   }) {
     return _guard(() async {
       final resp = await _client.patchJson(
-        '/API/gallery/media',
+        path('/API/gallery/media'),
         data: intent.toBody(mediaIds),
       );
       final data = resp.data as Map<String, dynamic>;

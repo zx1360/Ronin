@@ -23,6 +23,13 @@ func TestBuildArgs(t *testing.T) {
 	}
 }
 
+func TestTaskBusinessFailurePreservesResult(t *testing.T) {
+	result, err := parseTaskResult(`{"ok":false,"error":"章节下载失败","data":{"failed":2}}`, "", 2, errors.New("exit status 2"))
+	if err == nil || result == nil || !strings.Contains(err.Error(), "章节下载失败") {
+		t.Fatalf("任务业务错误被当作成功或丢失结果: %v / %v", result, err)
+	}
+}
+
 func TestParseOutput(t *testing.T) {
 	t.Run("成功输出", func(t *testing.T) {
 		result, err := parseOutput(`{"ok":true,"data":{"comic_id":7},"exit_code":0}`, "", 0, nil)

@@ -8,8 +8,15 @@ download_chapter 在基类中统一实现，站点通常无需覆盖。
 """
 from __future__ import annotations
 
-import random
+import os
+from contextlib import contextmanager
+from functools import cached_property
 from typing import List, Tuple
+from urllib.parse import unquote, urlsplit
+
+import requests
+from playwright.sync_api import sync_playwright
+from requests.utils import get_environ_proxies, select_proxy
 
 from .. import config
 from ..models import ChapterInfo, ComicDetail, ComicInfo
@@ -17,23 +24,9 @@ from util.common import (
     create_http_session,
     download_pages_atomic,
     get_random_headers,
-    init_requests_warnings,
     random_sleep,
+    require_public_url,
 )
-
-# 通用 Playwright 启动参数（需要浏览器的站点复用）
-PLAYWRIGHT_OPTIONS = {
-    "headless": True,
-    "args": [
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-logging",
-        "--log-level=3",
-        "--disable-extensions",
-        "--ignore-certificate-errors",
-    ],
-}
 
 
 class BaseAdapter:
@@ -51,9 +44,6 @@ class BaseAdapter:
     # 章节图片总数是否必须完整（True=缺图即失败重试，False=警告后继续）
     strict_expected_total: bool = True
 
-    def __init__(self) -> None:
-        init_requests_warnings()
-
     # ------------------------------------------------------------------
     # 子类必须实现的接口
     # ------------------------------------------------------------------
@@ -69,25 +59,73 @@ class BaseAdapter:
     # ------------------------------------------------------------------
     # 通用实现（站点通常无需覆盖）
     # ------------------------------------------------------------------
-    def download_chapter(self, chapter: ChapterInfo, save_dir: str) -> Tuple[bool, int, str]:
-        """下载单章全部图片到 save_dir（原子化，失败不留残目录）。"""
-        ok, pages, error = download_pages_atomic(
-            save_dir=save_dir,
-            chapter_url=chapter.url,
-            fetch_image_urls=self._fetch_chapter_image_urls,
-            img_timeout_sec=self.img_timeout_sec,
-            image_retry_times=self.image_retry_times,
-            strict_expected_total=self.strict_expected_total,
-            base_url=self.base_url,
-        )
-        return ok, pages, error
+    def download_chapter(self, chapter: ChapterInfo, save_dir: str) -> list[dict]:
+        with self.session() as session:
+            return download_pages_atomic(
+                save_dir=save_dir,
+                chapter_url=chapter.url,
+                fetch_image_urls=self._fetch_chapter_image_urls,
+                session=session,
+                img_timeout_sec=self.img_timeout_sec,
+                image_retry_times=self.image_retry_times,
+                strict_expected_total=self.strict_expected_total,
+            )
 
     # ------------------------------------------------------------------
     # 通用工具
     # ------------------------------------------------------------------
+    @cached_property
+    def proxy(self) -> str | None:
+        key = f"COMIX_{self.code.upper()}_ROUTE"
+        value = os.getenv(key, "system").strip()
+        if value.lower() in ("", "system"):
+            value = select_proxy(self.base_url, get_environ_proxies(self.base_url)) or "direct"
+        if value.lower() == "direct":
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError(f"{key} 需设为 system、direct 或 HTTP(S) 代理地址")
+        return value
+
     def session(self):
-        """创建带重试策略的 requests 会话。"""
-        return create_http_session()
+        return create_http_session(self.proxy)
+
+    @contextmanager
+    def reader(self, chapter_url: str, timeout_ms: int):
+        require_public_url(chapter_url)
+        options = {"headless": True, "chromium_sandbox": True}
+        if self.proxy:
+            proxy = urlsplit(self.proxy)
+            server = proxy.netloc.rsplit("@", 1)[-1]
+            options["proxy"] = {"server": f"{proxy.scheme}://{server}"}
+            if proxy.username is not None:
+                options["proxy"]["username"] = unquote(proxy.username)
+                options["proxy"]["password"] = unquote(proxy.password or "")
+        else:
+            options["args"] = ["--no-proxy-server"]
+
+        def allow_public(route):
+            try:
+                require_public_url(route.request.url)
+            except (ValueError, requests.RequestException):
+                route.abort()
+            else:
+                route.continue_()
+
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(**options)
+            try:
+                context = browser.new_context(service_workers="block")
+                context.route("http*://**/*", allow_public)
+                page = context.new_page()
+                response = page.goto(chapter_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                if response is None or not response.ok:
+                    status = response.status if response else "无响应"
+                    raise RuntimeError(f"{self.code} 章节页请求失败（{status}）")
+                require_public_url(page.url)
+                yield page
+            finally:
+                browser.close()
 
     def headers(self, referer: str = "") -> dict:
         """生成随机请求头（可附带 Referer）。"""
@@ -97,17 +135,16 @@ class BaseAdapter:
         return h
 
     def get(self, url: str, timeout: int | None = None, referer: str = "", **kw):
-        """GET 请求快捷方法（带重试会话与随机头）。"""
-        session = self.session()
-        resp = session.get(
-            url,
-            headers=self.headers(referer),
-            timeout=timeout or self.page_timeout_sec,
-            verify=False,
-            **kw,
-        )
-        resp.raise_for_status()
-        return resp
+        try:
+            with self.session() as session:
+                resp = session.get(
+                    url, headers=self.headers(referer),
+                    timeout=timeout or self.page_timeout_sec, **kw,
+                )
+                resp.raise_for_status()
+                return resp
+        except requests.RequestException as exc:
+            raise RuntimeError(f"{self.code} 页面请求失败: {exc}") from exc
 
     def sleep(self) -> None:
         """随机小睡，降低短时高频请求特征。"""

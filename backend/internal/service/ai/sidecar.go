@@ -258,6 +258,9 @@ func drainStderr(capability string, reader io.Reader) {
 			log.Printf("[AI:%s] %s", capability, line)
 		}
 	}
+	if scanner.Err() != nil {
+		_, _ = io.Copy(io.Discard, reader)
+	}
 }
 
 // RunBatch 执行一个批次：确保进程存活 → 写入请求 → 读满响应。
@@ -313,15 +316,16 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 				batchErr = fmt.Errorf("%s 侧车响应格式错误: %w (原文: %.200s)", s.capability, err, trimmed)
 				return
 			}
+			if len(items) == 0 && !resp.Ready {
+				batchErr = fmt.Errorf("%s 侧车预热失败: %s", s.capability, resp.Error)
+				return
+			}
 			results = append(results, BatchResult{
 				ID:     resp.ID,
 				OK:     resp.OK || resp.Ready,
 				Error:  resp.Error,
 				Result: resp.Result,
 			})
-			if resp.Ready {
-				return // ping 只回一条
-			}
 		}
 	}()
 
@@ -379,22 +383,6 @@ func (s *Sidecar) writeRequest(stdin io.Writer, params map[string]any, items []S
 		return fmt.Errorf("刷新侧车请求失败: %w", err)
 	}
 	return nil
-}
-
-// supervise 周期性回收空闲进程（ticker 粒度 10s）。
-//
-// 空闲阈值每次从当前配置读取：界面改小后无需重启进程即可生效。
-func (s *Sidecar) supervise(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.reapIdle()
-		}
-	}
 }
 
 func (s *Sidecar) reapIdle() {

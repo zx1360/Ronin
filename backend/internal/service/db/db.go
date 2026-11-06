@@ -52,23 +52,63 @@ func File() string {
 
 // Init 打开数据库文件、应用 pragma 并执行幂等建表脚本。
 func Init(conf config.DbConfig) (err error) {
+	if err := open(conf.File, true); err != nil {
+		return err
+	}
 	defer func() {
 		if err != nil {
 			Close()
 		}
 	}()
-	abs, err := filepath.Abs(conf.File)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := applySchema(ctx, conf.SchemaFile); err != nil {
+		return fmt.Errorf("初始化数据库结构失败: %w", err)
+	}
+	if err := ensureColumns(ctx); err != nil {
+		return fmt.Errorf("数据库列迁移失败: %w", err)
+	}
+	if err := ensureUserDataSync(ctx); err != nil {
+		return fmt.Errorf("用户数据同步结构初始化失败: %w", err)
+	}
+	return nil
+}
+
+// OpenExisting 供 CLI 打开已初始化的库。
+func OpenExisting(file string) error {
+	return open(file, false)
+}
+
+func open(file string, create bool) (err error) {
+	defer func() {
+		if err != nil {
+			Close()
+		}
+	}()
+	abs, err := filepath.Abs(file)
 	if err != nil {
 		return fmt.Errorf("解析数据库路径失败: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return fmt.Errorf("创建数据库目录失败: %w", err)
+	if create {
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			return fmt.Errorf("创建数据库目录失败: %w", err)
+		}
+	} else if info, err := os.Stat(abs); err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("数据库文件不可用: %s（请先启动 Monarch 初始化）", abs)
 	}
-	dbFile = abs
 
+	synchronous := "NORMAL"
+	if !create {
+		// CLI 提交媒体索引后会清理 Raw。
+		synchronous = "FULL"
+	}
 	base := fmt.Sprintf("file:%s?_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)"+
-		"&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)"+
-		"&_pragma=cache_size(-%d)", filepath.ToSlash(abs), busyTimeoutMS, pageCacheKiB)
+		"&_pragma=synchronous(%s)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)"+
+		"&_pragma=cache_size(-%d)", filepath.ToSlash(abs), busyTimeoutMS, synchronous, pageCacheKiB)
+	if !create {
+		base += "&mode=rw"
+	}
 
 	if writePool, err = sql.Open("sqlite", base+"&_txlock=immediate"); err != nil {
 		return fmt.Errorf("打开数据库（写）失败: %w", err)
@@ -90,17 +130,7 @@ func Init(conf config.DbConfig) (err error) {
 	if err := writePool.PingContext(ctx); err != nil {
 		return fmt.Errorf("数据库连接失败: %w", err)
 	}
-
-	if err := applySchema(ctx, conf.SchemaFile); err != nil {
-		return fmt.Errorf("初始化数据库结构失败: %w", err)
-	}
-	if err := ensureColumns(ctx); err != nil {
-		return fmt.Errorf("数据库列迁移失败: %w", err)
-	}
-	if err := ensureUserDataSync(ctx); err != nil {
-		return fmt.Errorf("用户数据同步结构初始化失败: %w", err)
-	}
-
+	dbFile = abs
 	log.Printf("SQLite 数据库就绪: %s", abs)
 	return nil
 }
@@ -119,6 +149,7 @@ func applySchema(ctx context.Context, schemaFile string) error {
 
 // Close 关闭连接池。
 func Close() {
+	dbFile = ""
 	if writePool != nil {
 		_ = writePool.Close()
 		writePool = nil

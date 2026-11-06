@@ -8,23 +8,10 @@ import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/home/widgets/default_background.dart';
-import 'package:torrid/features/home/widgets/menu_button.dart';
+import 'package:torrid/features/home/back_handler.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
-const double _menuWidthRatio = 0.7;
-const Duration _animationDuration = Duration(milliseconds: 250);
-const double _largeSpacing = 60.0;
-const double _mediumSpacing = 30.0;
-const double _smallSpacing = 8.0;
-const double _buttonVerticalPadding = 3.0;
-const double _dividerThickness = 1.2;
-const double _boxShadowBlurRadius = 14.0;
-const double _boxShadowSpreadRadius = 1.0;
-const Offset _boxShadowOffset = Offset(4, 0);
-const double _imageOpacity = 0.28; // 对应 Color(0x47FFFFFF)
-
 class HomePage extends ConsumerStatefulWidget {
-  /// 背景图片相对路径，为空字符串或null时使用默认背景
   final String? bgPath;
   const HomePage({super.key, this.bgPath});
 
@@ -32,281 +19,237 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _opacityAnimation;
+class _HomePageState extends ConsumerState<HomePage> {
+  final _scaffold = GlobalKey<ScaffoldState>();
+  final _personalization = PersonalizationService();
+  String _motto = '';
+  File? _background, _sidebar;
+  int _load = 0;
 
-  bool _isMenuOpen = false;
-
-  // 个性化配置
-  final PersonalizationService _personalizationService =
-      PersonalizationService();
-  late String _motto;
-  String? _sidebarImagePath;
-  File? _bgFile;
-  File? _sidebarFile;
-  bool _isReloading = false; // 防止并发重载
-
-  final List<ButtonInfo> _buttonInfos = [
-    const ButtonInfo(name: "积微", icon: Icons.book, route: "booklet"),
-    const ButtonInfo(name: "随笔", icon: Icons.description, route: "essay"),
-    const ButtonInfo(
-      name: "对话",
-      icon: Icons.chat_bubble_outline,
-      route: "chat",
+  static const _destinations = [
+    (
+      label: '积微',
+      icon: Icons.check_circle_outline_rounded,
+      route: 'booklet',
+      hint: '记录每天的小事',
     ),
-    const ButtonInfo(name: "阅读", icon: Icons.newspaper, route: "news"),
-    const ButtonInfo(
-      name: "其他",
-      icon: Icons.account_tree_rounded,
-      route: "others",
+    (label: '随笔', icon: Icons.edit_note_rounded, route: 'essay', hint: '书写与回读'),
+    (
+      label: '对话',
+      icon: Icons.chat_bubble_outline_rounded,
+      route: 'chat',
+      hint: '聊天与近期回顾',
     ),
-    const ButtonInfo(name: "个人", icon: Icons.person, route: "profile"),
+    (
+      label: '媒体',
+      icon: Icons.photo_library_outlined,
+      route: 'others',
+      hint: '漫画、藏品与相册',
+    ),
+    (
+      label: '阅读',
+      icon: Icons.auto_stories_outlined,
+      route: 'news',
+      hint: '资讯与常用网站',
+    ),
+    (
+      label: '个人与设置',
+      icon: Icons.tune_rounded,
+      route: 'profile',
+      hint: '连接、同步与本机存储',
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _animationDuration,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(-1, 0),
-      end: const Offset(0, 0),
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-    _opacityAnimation = Tween<double>(
-      begin: 0,
-      end: 0.5,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-    // 初始化个性化配置（首次加载）
-    _reloadPersonalization();
+    _reloadPersonalization(initial: true);
   }
 
-  /// 重新加载个性化配置（背景、侧边栏、座右铭）
-  Future<void> _reloadPersonalization() async {
-    if (_isReloading) return;
-    _isReloading = true;
-    try {
-      _motto = _personalizationService.getRandomMotto();
-      _sidebarImagePath = _personalizationService.getRandomSidebarImage();
-
-      // 优先使用传入的 bgPath，否则随机选择
-      final bgPath = widget.bgPath;
-      final effectivePath = (bgPath != null && bgPath.isNotEmpty)
-          ? bgPath
-          : _personalizationService.getRandomBackgroundImage();
-
-      if (effectivePath != null && effectivePath.isNotEmpty) {
-        _bgFile = await IoService.getImageFile(effectivePath);
-      } else {
-        _bgFile = null;
-      }
-
-      if (_sidebarImagePath != null) {
-        _sidebarFile = await IoService.getImageFile(_sidebarImagePath!);
-      } else {
-        _sidebarFile = null;
-      }
-
-      if (mounted) setState(() {});
-    } finally {
-      _isReloading = false;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  /// 切换菜单的显示与隐藏，并控制动画播放
-  void _toggleMenu() {
+  Future<void> _reloadPersonalization({bool initial = false}) async {
+    final generation = ++_load;
+    final path = initial && widget.bgPath?.isNotEmpty == true
+        ? widget.bgPath
+        : _personalization.getRandomBackgroundImage();
+    final sidebar = _personalization.getRandomSidebarImage();
+    final motto = _personalization.getRandomMotto();
+    final images = await Future.wait([
+      path == null ? Future<File?>.value() : IoService.getImageFile(path),
+      sidebar == null ? Future<File?>.value() : IoService.getImageFile(sidebar),
+    ]);
+    if (!mounted || generation != _load) return;
     setState(() {
-      _isMenuOpen = !_isMenuOpen;
-      _isMenuOpen ? _controller.forward() : _controller.reverse();
+      _motto = motto;
+      _background = images[0];
+      _sidebar = images[1];
     });
   }
 
-  /// 根据路由名称导航，并在导航后关闭菜单
-  void _navigateTo(String route) {
+  void _open(String route) {
+    _scaffold.currentState?.closeDrawer();
     context.pushNamed(route);
-    if (_isMenuOpen) {
-      _toggleMenu();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 监听偏好设置变化，即时刷新背景图 / 座右铭
-    ref.listen<AppSettings>(appSettingsProvider, (prev, next) {
-      if (prev != next) {
-        _reloadPersonalization();
-      }
+    ref.listen<AppSettings>(appSettingsProvider, (previous, next) {
+      if (previous != next) _reloadPersonalization();
     });
-
-    final size = MediaQuery.of(context).size;
-    final menuWidth = size.width * _menuWidthRatio;
-
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: Stack(
-        children: [
-          // 1. 主内容区域（背景）
-          GestureDetector(
-            onTap: !_isMenuOpen ? _toggleMenu : null,
-            child: Container(
-              constraints: const BoxConstraints.expand(),
-              child: _buildMainBackground(),
+    final colors = Theme.of(context).colorScheme;
+    return BackHandler(
+      onBack: () {
+        if (_scaffold.currentState?.isDrawerOpen != true) return false;
+        _scaffold.currentState?.closeDrawer();
+        return true;
+      },
+      child: Scaffold(
+        key: _scaffold,
+        drawer: Drawer(
+          child: Container(
+            decoration: BoxDecoration(
+              image: _sidebar == null
+                  ? null
+                  : DecorationImage(
+                      image: FileImage(_sidebar!),
+                      fit: BoxFit.cover,
+                      opacity: .16,
+                      onError: (_, _) {},
+                    ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _motto,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontFamily: 'kaiti',
+                          color: colors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Divider(indent: 24, endIndent: 24),
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        for (final item in _destinations)
+                          ListTile(
+                            leading: Icon(item.icon, color: colors.primary),
+                            title: Text(item.label),
+                            subtitle: Text(item.hint),
+                            onTap: () => _open(item.route),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-
-          // 2. 背景遮罩
-          FadeTransition(
-            opacity: _opacityAnimation,
-            child: GestureDetector(
-              onTap: _toggleMenu,
-              child: Container(color: Colors.black),
-            ),
-          ),
-
-          // 3. 侧边菜单
-          SlideTransition(
-            position: _slideAnimation,
-            child: _buildSideMenu(menuWidth, size.height),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建主背景
-  Widget _buildMainBackground() {
-    return BackgroundWidget(imageFile: _bgFile);
-  }
-
-  /// 构建侧边菜单
-  Widget _buildSideMenu(double menuWidth, double height) {
-    return Container(
-      width: menuWidth,
-      height: height,
-      decoration: _buildSideMenuDecoration(),
-      child: Column(
-        children: [
-          const SizedBox(height: _largeSpacing),
-          // 座右铭
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _mediumSpacing,
-              vertical: _smallSpacing,
-            ),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                _motto,
-                style: TextStyle(
-                  fontFamily: "kaiti",
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.primary,
-                  letterSpacing: 0.8,
+        ),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            BackgroundWidget(imageFile: _background, showBrand: false),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        IconButton.filledTonal(
+                          tooltip: '打开功能菜单',
+                          icon: const Icon(Icons.menu_rounded),
+                          onPressed: () => _scaffold.currentState?.openDrawer(),
+                        ),
+                        const Spacer(),
+                        IconButton.filledTonal(
+                          tooltip: '个人与设置',
+                          icon: const Icon(Icons.tune_rounded),
+                          onPressed: () => _open('profile'),
+                        ),
+                      ],
+                    ),
+                    Expanded(
+                      child: _background == null
+                          ? const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: TorridBrand(),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      color: colors.surface.withValues(alpha: .95),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '从这里开始',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                for (final item in _destinations.take(3))
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                      child: FilledButton.tonal(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
+                                            horizontal: 4,
+                                          ),
+                                        ),
+                                        onPressed: () => _open(item.route),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(item.icon, size: 22),
+                                            const SizedBox(height: 6),
+                                            Text(item.label),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: () => _open('others'),
+                              icon: const Icon(
+                                Icons.photo_library_outlined,
+                                size: 20,
+                              ),
+                              label: const Text('漫画、藏品与相册'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-          Divider(
-            height: _mediumSpacing,
-            thickness: _dividerThickness,
-            color: AppTheme.primaryContainer.withAlpha(102),
-            indent: _mediumSpacing,
-            endIndent: _mediumSpacing,
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: _buttonInfos.length - 1,
-              itemBuilder: (context, index) {
-                final button = _buttonInfos[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: _buttonVerticalPadding,
-                  ),
-                  child: MenuButton(
-                    info: button,
-                    func: _navigateTo,
-                    textColor: AppTheme.onSurface,
-                    highlightColor: AppTheme.primaryContainer.withAlpha(77),
-                  ),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _mediumSpacing,
-              vertical: _smallSpacing,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: AppTheme.surfaceContainerHighest.withAlpha(77),
-              ),
-              child: MenuButton(
-                info: _buttonInfos.last,
-                func: _navigateTo,
-                textColor: AppTheme.primary,
-                highlightColor: AppTheme.primaryContainer.withAlpha(64),
-              ),
-            ),
-          ),
-          const SizedBox(height: _largeSpacing),
-        ],
+          ],
+        ),
+        backgroundColor: AppTheme.background,
       ),
-    );
-  }
-
-  /// 构建侧边菜单装饰
-  BoxDecoration _buildSideMenuDecoration() {
-    // 如果有自定义侧边栏图片
-    if (_sidebarFile != null) {
-      return BoxDecoration(
-        image: DecorationImage(
-          image: FileImage(_sidebarFile!),
-          fit: BoxFit.cover,
-          opacity: _imageOpacity,
-          onError: (_, __) {
-            // 图片加载失败时不显示图片
-          },
-        ),
-        color: AppTheme.surfaceContainer,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(30),
-            blurRadius: _boxShadowBlurRadius,
-            spreadRadius: _boxShadowSpreadRadius,
-            offset: _boxShadowOffset,
-          ),
-        ],
-      );
-    }
-
-    // 默认简约样式（无背景图）
-    return BoxDecoration(
-      color: AppTheme.surfaceContainer,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withAlpha(30),
-          blurRadius: _boxShadowBlurRadius,
-          spreadRadius: _boxShadowSpreadRadius,
-          offset: _boxShadowOffset,
-        ),
-      ],
     );
   }
 }

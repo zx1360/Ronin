@@ -4,7 +4,7 @@
 Go 服务调用本 CLI 时会直接注入 `MONARCH_DB_FILE` / `COMIC_STORAGE_ROOT` 环境变量；
 本文件的两级 .env 加载只是为了让 comix 能独立运行（调试/运维脚本）。
 
-加载顺序：先 backend/.env（数据库与存储根），再本项目 .env（爬虫专用参数，可覆盖）。
+加载顺序：显式环境变量、backend/.env、comix/.env。
 """
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_ROOT = PROJECT_ROOT.parent.parent
 
 load_dotenv(BACKEND_ROOT / ".env")
-load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 
 def _resolve(raw: str, default: Path) -> str:
@@ -47,6 +46,7 @@ COMIC_STORAGE_ROOT = _resolve(
 )
 
 # 下载并发与稳定性配置
+load_dotenv(PROJECT_ROOT / ".env")
 COMIX_MAX_WORKERS = int(os.getenv("COMIX_MAX_WORKERS", "2"))
 IMG_TIMEOUT_SEC = int(os.getenv("IMG_TIMEOUT_SEC", "20"))
 IMAGE_RETRY_TIMES = int(os.getenv("IMAGE_RETRY_TIMES", "4"))
@@ -60,4 +60,8 @@ def storage_path(rel_dir: str) -> str:
     `comics/` 前缀与 /static 服务路径保持一致，对应存储根下的目录。
     """
     relative = rel_dir[7:] if rel_dir.startswith("comics/") else rel_dir
-    return str(Path(COMIC_STORAGE_ROOT) / relative)
+    root = Path(COMIC_STORAGE_ROOT)
+    path = (root / relative).resolve()
+    if path == root or not path.is_relative_to(root):
+        raise ValueError(f"漫画存储路径无效: {rel_dir!r}")
+    return str(path)

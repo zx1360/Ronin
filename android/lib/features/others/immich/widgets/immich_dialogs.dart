@@ -1,5 +1,83 @@
 import 'package:flutter/material.dart';
 
+Future<DateTime?> showImmichMonthPicker(
+  BuildContext context,
+  DateTime initial,
+) => showDialog<DateTime>(
+  context: context,
+  builder: (_) => _MonthPickerDialog(initial: initial),
+);
+
+class _MonthPickerDialog extends StatefulWidget {
+  final DateTime initial;
+
+  const _MonthPickerDialog({required this.initial});
+
+  @override
+  State<_MonthPickerDialog> createState() => _MonthPickerDialogState();
+}
+
+class _MonthPickerDialogState extends State<_MonthPickerDialog> {
+  late int _year = widget.initial.year.clamp(1, 9998);
+  late final int _lastYear = DateTime.now().year.clamp(_year, 9998);
+  bool _pickingYear = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('跳到月份'),
+      content: SizedBox(
+        width: 300,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => setState(() => _pickingYear = !_pickingYear),
+              icon: Icon(_pickingYear ? Icons.expand_less : Icons.expand_more),
+              label: Text('$_year年'),
+            ),
+            SizedBox(
+              height: 180,
+              child: _pickingYear
+                  ? YearPicker(
+                      firstDate: DateTime(1),
+                      lastDate: DateTime(_lastYear, 12, 31),
+                      selectedDate: DateTime(_year),
+                      onChanged: (date) => setState(() {
+                        _year = date.year;
+                        _pickingYear = false;
+                      }),
+                    )
+                  : GridView.count(
+                      crossAxisCount: 4,
+                      mainAxisExtent: 52,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        for (var month = 1; month <= 12; month++)
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(context, DateTime(_year, month)),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: Text('$month月'),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ],
+    );
+  }
+}
+
 Future<bool> confirmAlbumDeletion(BuildContext context, int count) =>
     showImmichConfirmDialog(
       context,

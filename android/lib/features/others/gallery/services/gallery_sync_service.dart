@@ -12,7 +12,6 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
-import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 part 'gallery_sync_service.g.dart';
 
@@ -90,7 +89,10 @@ class GallerySyncService extends _$GallerySyncService {
   }
 
   /// 下载一批媒体记录及缩略图、预览图。
-  Future<bool> downloadBatch({int limit = 50}) async {
+  Future<bool> downloadBatch({
+    int limit = 50,
+    Future<bool> Function(String address)? confirmLegacy,
+  }) async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
       return false;
@@ -99,7 +101,6 @@ class GallerySyncService extends _$GallerySyncService {
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
-    final apiClient = ref.read(apiClientManagerProvider);
     final buffer = ref.read(galleryWriteBufferProvider);
     var confirmedWrites = false;
 
@@ -111,7 +112,8 @@ class GallerySyncService extends _$GallerySyncService {
         total: 0,
       );
 
-      await buffer.confirmAndLock();
+      final api = await buffer.confirmAndLock(confirmLegacy: confirmLegacy);
+      final apiClient = api.client;
       confirmedWrites = true;
       if ((await db.operations()).any((op) => op.kind == 'processed')) {
         throw StateError('请先重试完成上次的标记已处理');
@@ -139,7 +141,7 @@ class GallerySyncService extends _$GallerySyncService {
       }
 
       final response = await apiClient.get(
-        "/API/gallery/batch",
+        api.path('/API/gallery/batch'),
         queryParams: queryParams,
         cancelToken: _cancelToken,
       );
@@ -197,7 +199,7 @@ class GallerySyncService extends _$GallerySyncService {
           downloadTasks.add(
             _downloadFile(
               apiClient: apiClient,
-              path: "/API/gallery/${asset.id}/thumb",
+              path: api.path('/API/gallery/${asset.id}/thumb'),
               saveFn: (bytes) => storage.saveThumbFile(
                 serverPath: asset.thumbPath!,
                 bytes: bytes,
@@ -217,7 +219,7 @@ class GallerySyncService extends _$GallerySyncService {
           downloadTasks.add(
             _downloadFile(
               apiClient: apiClient,
-              path: "/API/gallery/${asset.id}/preview",
+              path: api.path('/API/gallery/${asset.id}/preview'),
               saveFn: (bytes) => storage.savePreviewFile(
                 serverPath: asset.previewPath!,
                 bytes: bytes,
@@ -305,7 +307,9 @@ class GallerySyncService extends _$GallerySyncService {
   /// 1. 把队列前段 `0..[processedUpperIndex]` 的媒体在服务端 `sync_count + 1`
   ///    （批次处理游标, 使已处理媒体排到队尾, 下次下载取到的就是未处理的）;
   /// 2. 删除这批媒体的本地记录与缩略图/预览图, 腾出空间下载下一批.
-  Future<bool> markProcessedAndClean() async {
+  Future<bool> markProcessedAndClean({
+    Future<bool> Function(String address)? confirmLegacy,
+  }) async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
       return false;
@@ -314,7 +318,6 @@ class GallerySyncService extends _$GallerySyncService {
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
-    final api = ref.read(galleryApiProvider);
     final buffer = ref.read(galleryWriteBufferProvider);
     var confirmedWrites = false;
 
@@ -325,7 +328,7 @@ class GallerySyncService extends _$GallerySyncService {
       );
 
       state = state.copyWith(message: '正在回传并校验操作...');
-      await buffer.confirmAndLock();
+      final api = await buffer.confirmAndLock(confirmLegacy: confirmLegacy);
       confirmedWrites = true;
 
       final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
@@ -367,15 +370,11 @@ class GallerySyncService extends _$GallerySyncService {
       final mediaIds = processedAssets.map((a) => a.id).toList();
 
       if (saved == null) {
-        await db.recordOperation(
-          ref.read(apiClientManagerProvider).baseUrl,
-          'processed',
-          {
-            'media_ids': mediaIds,
-            'mark_processed': true,
-            'request_id': const Uuid().v4(),
-          },
-        );
+        await db.recordOperation('processed', {
+          'media_ids': mediaIds,
+          'mark_processed': true,
+          'request_id': const Uuid().v4(),
+        });
       }
       final completion = saved ?? (await db.operations()).last;
       await api.sendOperation(completion);

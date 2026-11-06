@@ -18,7 +18,7 @@
 | mime_type    | TEXT                                                      |
 | is_deleted   | INTEGER NOT NULL DEFAULT 0                                |
 | sync_count   | INTEGER NOT NULL DEFAULT 0（由调用方显式 +1，非触发器）    |
-| last_processed_request | TEXT（最近一次批次标记请求 ID，防止重试重复计数） |
+| last_processed_request | TEXT（旧库批次标记请求的去重后备） |
 | group_id     | TEXT DEFAULT NULL FK→media_assets (ON DELETE SET NULL)    |
 | message      | TEXT DEFAULT NULL                                         |
 | edit_params  | TEXT DEFAULT NULL（JSON 文本）                             |

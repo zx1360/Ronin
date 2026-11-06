@@ -18,7 +18,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"monarch/internal/config"
+	"monarch/internal/galleryfs"
 	"monarch/internal/handler/util_handler"
+	"monarch/internal/service/ai"
 	"monarch/internal/service/comix"
 	"monarch/internal/service/gallery"
 	"monarch/internal/service/taskengine"
@@ -49,7 +51,7 @@ func Bootstrap(c *gin.Context) {
 		"paths": gin.H{
 			"staticDir":    absPath(config.AppConf.StaticDir),
 			"galleryDir":   absPath(config.AppConf.GalleryDir),
-			"galleryMedia": absPath(filepath.Join(config.AppConf.GalleryDir, "Media")),
+			"galleryMedia": absPath(filepath.Join(config.AppConf.GalleryDir, galleryfs.Media)),
 			"opsWebDir":    absPath(config.OpsConf.WebDir),
 			"dbFile":       absPath(config.DbConf.File),
 		},
@@ -116,7 +118,11 @@ func StartTask(c *gin.Context) {
 		return
 	}
 
-	task, err := gallery.Start(opt)
+	var afterExit func()
+	if opt.Mode == gallery.ModeIngest && ai.Default != nil {
+		afterExit = ai.Default.NotifyMediaImported
+	}
+	task, err := gallery.Start(opt, afterExit)
 	if err != nil {
 		badRequest(c, err.Error())
 		return
@@ -148,7 +154,7 @@ func StopTask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":   true,
 		"data": gin.H{"task_id": taskID, "status": taskengine.StatusKilled},
 	})
 }

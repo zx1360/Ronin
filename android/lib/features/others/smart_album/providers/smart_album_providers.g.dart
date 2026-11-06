@@ -7,7 +7,7 @@ part of 'smart_album_providers.dart';
 // **************************************************************************
 
 String _$smartAlbumControllerHash() =>
-    r'5c2ad63ed9e3bc84e3343eba6df0cf5a353c0e0a';
+    r'fa83fa899dd76bc5c18789b87020c7dd17ce80e4';
 
 /// See also [SmartAlbumController].
 @ProviderFor(SmartAlbumController)

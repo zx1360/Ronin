@@ -13,7 +13,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 
 | 模块 | 表 | 说明 |
 |------|----|------|
-| 藏品 | `media_assets` / `tags` / `media_tag_links` | 见 `gallery.md`；标签 `full_path` 级联由 Go 维护 |
+| 藏品 | `media_assets` / `tags` / `media_tag_links` / `gallery_library` / `gallery_processed_requests` | 见 `gallery.md`；标签 `full_path` 级联由 Go 维护 |
 | 用户数据 | `essay_articles` / `essay_labels` / `essay_year_summaries` / `booklet_styles` / `booklet_records` / `user_data_changes` | 见 `user_data.md` |
 | AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md`。`jobs` 与 `media_ai`/`embeddings`/`faces` 各有 `input_sig` 列（输入档位 + 执行者指纹，用于追溯与显式重生成） |
 | 漫画 | `comic_sites` / `comics` / `comic_chapters` / `comic_images` / `comic_download_tasks` / `comic_aliases` | 见 `comix.md` |

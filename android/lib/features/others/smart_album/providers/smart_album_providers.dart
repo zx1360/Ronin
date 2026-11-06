@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
@@ -13,6 +14,23 @@ final albumPeopleProvider = FutureProvider.autoDispose<List<AiPerson>>(
   (ref) => ref.watch(aiApiProvider).fetchPersons(),
 );
 
+class AlbumSearchFilters {
+  final DateTimeRange? dates;
+  final String mimeType;
+  final Set<String> tagIds;
+
+  const AlbumSearchFilters({
+    this.dates,
+    this.mimeType = '',
+    this.tagIds = const {},
+  });
+
+  int get count =>
+      (dates == null ? 0 : 1) +
+      (mimeType.isEmpty ? 0 : 1) +
+      (tagIds.isEmpty ? 0 : 1);
+}
+
 class SmartAlbumState {
   final AiSearchMode mode;
   final bool loading;
@@ -20,6 +38,7 @@ class SmartAlbumState {
   final bool hasMore;
   final bool timeline;
   final bool includeDeleted;
+  final AlbumSearchFilters filters;
   final String? error;
   final AiSearchResult result;
   final String queryText;
@@ -33,6 +52,7 @@ class SmartAlbumState {
     this.hasMore = false,
     this.timeline = false,
     this.includeDeleted = false,
+    this.filters = const AlbumSearchFilters(),
     this.error,
     this.result = AiSearchResult.empty,
     this.queryText = '',
@@ -47,6 +67,7 @@ class SmartAlbumState {
     bool? hasMore,
     bool? timeline,
     bool? includeDeleted,
+    AlbumSearchFilters? filters,
     String? error,
     bool clearError = false,
     AiSearchResult? result,
@@ -60,6 +81,7 @@ class SmartAlbumState {
     hasMore: hasMore ?? this.hasMore,
     timeline: timeline ?? this.timeline,
     includeDeleted: includeDeleted ?? this.includeDeleted,
+    filters: filters ?? this.filters,
     error: clearError ? null : error ?? this.error,
     result: result ?? this.result,
     queryText: queryText ?? this.queryText,
@@ -85,7 +107,7 @@ class SmartAlbumController extends _$SmartAlbumController {
   SmartAlbumState build() {
     ref.watch(aiApiProvider);
     ref.listen(immichMediaUpdateProvider, (_, update) {
-      if (update == null || _query == null) return;
+      if (update == null || (_query == null && state.filters.count == 0)) return;
       if ((update.changesVisibility && !state.includeDeleted) ||
           state.loading ||
           state.loadingMore) {
@@ -93,6 +115,9 @@ class SmartAlbumController extends _$SmartAlbumController {
       } else {
         _updateAssets(update.assets);
       }
+    });
+    ref.listen(immichTagRevisionProvider, (_, __) {
+      if (state.filters.tagIds.isNotEmpty) unawaited(reload());
     });
     ref.onDispose(() {
       _request?.cancel();
@@ -121,12 +146,16 @@ class SmartAlbumController extends _$SmartAlbumController {
     );
   }
 
-  Future<void> search(String text, {AiSearchMode? mode}) {
+  Future<void> search(
+    String text, {
+    AiSearchMode? mode,
+    AlbumSearchFilters? filters,
+  }) {
     final query = text.trim();
     _query = query.isEmpty
         ? null
         : (text: query, subject: '', mediaId: null, personId: null);
-    return _restart(mode: mode);
+    return _restart(mode: mode, filters: filters);
   }
 
   Future<void> searchSimilar(MediaAsset asset) {
@@ -152,12 +181,15 @@ class SmartAlbumController extends _$SmartAlbumController {
 
   void clearResult() {
     _query = null;
-    unawaited(reload());
+    unawaited(_restart(filters: const AlbumSearchFilters()));
   }
 
   Future<void> setTimeline(bool value) => _restart(timeline: value);
 
   Future<void> setIncludeDeleted(bool value) => _restart(includeDeleted: value);
+
+  Future<void> setFilters(AlbumSearchFilters filters) =>
+      _restart(filters: filters);
 
   Future<void> reload() => _restart();
 
@@ -165,19 +197,22 @@ class SmartAlbumController extends _$SmartAlbumController {
     AiSearchMode? mode,
     bool? timeline,
     bool? includeDeleted,
+    AlbumSearchFilters? filters,
   }) async {
     _request?.cancel();
     _request = null;
     _nextOffset = 0;
+    final nextFilters = filters ?? state.filters;
     state = state.copyWith(
       mode: mode,
       timeline: timeline,
       includeDeleted: includeDeleted,
+      filters: nextFilters,
       queryText: _query?.text ?? '',
       subject: _query?.subject ?? '',
       result: AiSearchResult.empty,
       revision: state.revision + 1,
-      loading: _query != null,
+      loading: _query != null || nextFilters.count > 0,
       loadingMore: false,
       hasMore: false,
       clearError: true,
@@ -192,10 +227,12 @@ class SmartAlbumController extends _$SmartAlbumController {
 
   Future<void> _fetchPage({required bool append}) async {
     final query = _query;
-    if (query == null) return;
+    final filters = state.filters;
+    if (query == null && filters.count == 0) return;
     final token = _request = CancelToken();
     final mode =
-        query.personId != null ||
+        query == null ||
+            query.personId != null ||
             (append &&
                 state.mode == AiSearchMode.auto &&
                 state.result.mode == 'keyword')
@@ -206,12 +243,16 @@ class SmartAlbumController extends _$SmartAlbumController {
       final page = await ref
           .read(aiApiProvider)
           .search(
-            query.text,
+            query?.text ?? '',
             mode: mode,
-            mediaId: query.mediaId,
-            personId: query.personId,
+            mediaId: query?.mediaId,
+            personId: query?.personId,
             timeline: state.timeline,
             includeDeleted: state.includeDeleted,
+            tagIds: filters.tagIds,
+            mimeType: filters.mimeType,
+            from: filters.dates?.start,
+            to: filters.dates?.end,
             offset: _nextOffset,
             cancelToken: token,
           );

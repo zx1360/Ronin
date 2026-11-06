@@ -21,6 +21,14 @@ import (
 var backupMu sync.Mutex
 
 func BackupHandler(c *gin.Context) {
+	backup(c, false)
+}
+
+func EditHandler(c *gin.Context) {
+	backup(c, true)
+}
+
+func backup(c *gin.Context, guarded bool) {
 	cfg := FindModuleConfigByName(c.Param("module"))
 	if cfg == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "模块未找到"})
@@ -43,7 +51,18 @@ func BackupHandler(c *gin.Context) {
 			return
 		}
 	}
-	writeData, refs, err := prepareBackup(cfg, payload)
+	if guarded {
+		var cursor *int64
+		if !cfg.IsDB || json.Unmarshal(payload["base_cursor"], &cursor) != nil || cursor == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "在线编辑必须提供读取快照的 base_cursor"})
+			return
+		}
+	}
+	var receipt *[]data_repo.EssayReceipt
+	if cfg.Name == "essay" && c.Query("receipt") == "1" {
+		receipt = new([]data_repo.EssayReceipt)
+	}
+	writeData, refs, err := prepareBackup(cfg, payload, receipt)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -117,13 +136,21 @@ func BackupHandler(c *gin.Context) {
 		}
 	}
 	if err := files.commit(writeData); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "数据未写入: " + err.Error()})
+		response := gin.H{"error": "数据未写入: " + err.Error()}
+		if errors.Is(err, data_repo.ErrSyncConflict) {
+			response["code"] = "sync_conflict"
+		}
+		c.JSON(http.StatusConflict, response)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "success", "sync_version": data_repo.SyncVersion, "message": "数据合并完成"})
+	response := gin.H{"status": "success", "sync_version": data_repo.SyncVersion, "message": "数据合并完成"}
+	if receipt != nil {
+		response["essay_receipts"] = *receipt
+	}
+	c.JSON(http.StatusOK, response)
 }
 
-func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage) (func() error, map[string]bool, error) {
+func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage, receipt *[]data_repo.EssayReceipt) (func() error, map[string]bool, error) {
 	switch cfg.Name {
 	case "booklet", "essay":
 		raw, err := json.Marshal(payload)
@@ -141,7 +168,7 @@ func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage) (func(
 		if err != nil {
 			return nil, nil, err
 		}
-		return func() error { return data_repo.MergeSync(cfg.Name, data) }, refs, nil
+		return func() error { return data_repo.MergeSyncWithReceipt(cfg.Name, data, receipt) }, refs, nil
 	case "preferences":
 		prefs, err := readPreferences(payload["preferences"])
 		if err != nil {

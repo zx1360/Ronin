@@ -11,7 +11,7 @@ import { ref, computed, onMounted, nextTick } from '../../vue.js';
 import { api, assetUrl } from '../../api.js';
 import { state, toast, confirmAction } from '../../store.js';
 import { usePolling } from '../../ui.js';
-import { formatClock, formatDuration, formatTime } from '../../utils.js';
+import { formatClock, formatDuration, formatTime, taskActive } from '../../utils.js';
 import {
   chapterStatusKind,
   chapterStatusText,
@@ -145,7 +145,7 @@ export function useComixBoard() {
     }
   };
 
-  const runningCount = computed(() => tasks.value.filter((item) => item.status === 'running').length);
+  const runningCount = computed(() => tasks.value.filter((item) => taskActive(item.status)).length);
   const hasWork = computed(() => runningCount.value > 0 || pendingIds.value.length > 0);
 
   const poller = usePolling(async (signal) => {
@@ -522,7 +522,7 @@ export function useComixBoard() {
       started: formatTime(merged.started_at),
       finished: merged.finished_at ? formatTime(merged.finished_at) : '—',
       exit: merged.exit_code === null || merged.exit_code === undefined ? '—' : merged.exit_code,
-      running: merged.status === 'running',
+      running: taskActive(merged.status),
       failureReason: taskFailure(merged) ? taskFailureReason(merged) : '',
       summary: taskSummary(merged),
       status: merged.status,
@@ -575,6 +575,6 @@ export function useComixBoard() {
     togglePublic, toggleReaded, removeComic,
     chaptersComic, chapters, chaptersError, chaptersLoading, chapterKeyword,
     chapterDoneCount, chapterFailedCount, filteredChapters, openChapters, closeChapters,
-    formatTime, formatClock, isBusinessError,
+    formatTime, formatClock, isBusinessError, taskActive,
   };
 }

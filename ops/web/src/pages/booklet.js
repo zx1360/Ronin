@@ -1,5 +1,5 @@
 import { ref, computed, watch } from '../vue.js';
-import { Card, Placeholder } from '../ui.js';
+import { Card, Placeholder, useLeaveGuard } from '../ui.js';
 import { confirmAction, toast } from '../store.js';
 import { useUserData, MoodSelect, ImagePicker, day, stamp, clone, imageUrl, moodText } from './user-data.js';
 
@@ -27,6 +27,8 @@ export default {
     const board = useUserData('booklet');
     const { data, save } = board;
     const tab = ref('today'), date = ref(day()), form = ref(null), dirty = ref(false);
+    const recordStyle = ref(null);
+    let formCursor = 0, styleCursor = 0;
     const styles = computed(() => [...data.value.styles].sort((a, b) => b.start_date.localeCompare(a.start_date) || Date.parse(b.updated_at) - Date.parse(a.updated_at) || a.id.localeCompare(b.id)));
     const current = computed(() => styles.value.find((s) => s.start_date <= date.value));
     const selectedId = ref('');
@@ -34,26 +36,30 @@ export default {
     const related = computed(() => data.value.records.filter((r) => r.style_id === selected.value?.id));
     const stats = computed(() => statistics(related.value));
     function loadRecord() {
+      formCursor = board.snapshotCursor();
       const style = current.value;
+      recordStyle.value = style ? clone(style) : null;
       const saved = data.value.records.find((r) => r.style_id === style?.id && r.date === date.value);
       form.value = style ? clone(saved || { id: crypto.randomUUID(), style_id: style.id, date: date.value, message: '', mood: null, task_completion: Object.fromEntries(style.tasks.map((t) => [t.id, false])) }) : null;
       dirty.value = false;
     }
-    watch([date, () => current.value?.id], loadRecord);
-    const progress = computed(() => current.value?.tasks.filter((t) => form.value?.task_completion[t.id]).length || 0);
+    watch([date, () => current.value?.id], () => { if (!dirty.value) loadRecord(); });
+    const progress = computed(() => recordStyle.value?.tasks.filter((t) => form.value?.task_completion[t.id]).length || 0);
     async function saveRecord() {
       if (!form.value) return;
       const row = clone(form.value);
       row.updated_at = stamp(row);
       const empty = !row.message.trim() && !row.mood && !Object.values(row.task_completion).some(Boolean);
       const payload = empty ? { tombstones: [{ collection: 'records', id: row.id, updated_at: row.updated_at }] } : { records: [row] };
-      if (await save(payload)) { loadRecord(); toast(empty ? '已撤销这一天的打卡' : '打卡已保存', 'success'); }
+      if (await save(payload, undefined, { baseCursor: formCursor })) { loadRecord(); toast(empty ? '已撤销这一天的打卡' : '打卡已保存', 'success'); }
     }
     const creating = ref(false), newStyle = ref(null), files = new Map();
+    useLeaveGuard(() => dirty.value || creating.value);
     function addTask() {
       if (newStyle.value.tasks.length < 5) newStyle.value.tasks.push({ id: crypto.randomUUID(), title: '', description: '', image: '' });
     }
     function createStyle() {
+      styleCursor = board.snapshotCursor();
       files.clear();
       newStyle.value = { id: crypto.randomUUID(), start_date: day(), valid_check_in: 0, fully_done: 0, longest_streak: 0, longest_fully_streak: 0, tasks: [] };
       addTask(); creating.value = true;
@@ -68,7 +74,7 @@ export default {
       row.updated_at = updated;
       const tombstones = [...replaced.map((s) => ({ collection: 'styles', id: s.id, updated_at: updated })), ...removed.map((r) => ({ collection: 'records', id: r.id, updated_at: updated }))];
       const refs = new Set(row.tasks.map((t) => t.image.split('/').pop()));
-      if (await save({ styles: [row], tombstones }, new Map([...files].filter(([name]) => refs.has(name))))) {
+      if (await save({ styles: [row], tombstones }, new Map([...files].filter(([name]) => refs.has(name))), { baseCursor: styleCursor })) {
         creating.value = false; date.value = day(); tab.value = 'today'; loadRecord(); toast('新样式已启用', 'success');
       }
     }
@@ -99,11 +105,21 @@ export default {
     const visibleHistory = computed(() => history.value.slice(0, limit.value));
     const styleName = (id) => styles.value.find((s) => s.id === id)?.start_date || '已删除样式';
     const doneCount = (r) => Object.values(r.task_completion).filter(Boolean).length;
-    function openDay(value) { date.value = value; tab.value = 'today'; loadRecord(); }
+    async function openDay(value) {
+      if (!value || value > day()) return;
+      if (value === date.value) { tab.value = 'today'; return; }
+      if (dirty.value && !await confirmAction('切换日期将丢弃这一天尚未保存的输入，继续吗？', { danger: true })) return;
+      dirty.value = false; date.value = value; tab.value = 'today'; loadRecord();
+    }
+    async function changeDate(event) {
+      const input = event.target;
+      await openDay(input.value);
+      input.value = date.value;
+    }
     const refresh = async () => { await board.refresh(); if (!dirty.value) loadRecord(); };
-    return { ...board, refresh, tab, date, today: day(), form, dirty, styles, current, progress, loadRecord, saveRecord,
+    return { ...board, refresh, tab, date, today: day(), form, dirty, styles, recordStyle, progress, loadRecord, saveRecord,
       selectedId, selected, related, stats, creating, newStyle, files, createStyle, addTask, saveStyle, removeStyle,
-      month, moveMonth, taskFilter, calendar, historyQuery, historyStyle, history, visibleHistory, limit, styleName, doneCount, openDay, imageUrl, moodText };
+      month, moveMonth, taskFilter, calendar, historyQuery, historyStyle, history, visibleHistory, limit, styleName, doneCount, openDay, changeDate, imageUrl, moodText };
   },
   template: `
     <div class="user-page">
@@ -150,16 +166,16 @@ export default {
       <template v-if="tab==='today'">
         <Card title="每日打卡">
           <template #actions>
-            <input type="date" aria-label="打卡日期" v-model="date" :max="today" />
-            <button class="sm" @click="date=today">今天</button>
+            <input type="date" aria-label="打卡日期" :value="date" :max="today" @change="changeDate" />
+            <button class="sm" @click="openDay(today)">今天</button>
           </template>
-          <Placeholder v-if="!current" text="这一天还没有打卡样式。点击「新建样式」开始今天的积微。" />
+          <Placeholder v-if="!recordStyle" text="这一天还没有打卡样式。点击「新建样式」开始今天的积微。" />
           <form v-else-if="form" class="col" @submit.prevent="saveRecord" @input="dirty=true" @change="dirty=true">
             <div class="row between">
-              <span class="muted small">样式始于 {{current.start_date}}</span>
-              <strong>{{progress}} / {{current.tasks.length}} 项完成</strong>
+              <span class="muted small">样式始于 {{recordStyle.start_date}}</span>
+              <strong>{{progress}} / {{recordStyle.tasks.length}} 项完成</strong>
             </div>
-            <label v-for="task in current.tasks" :key="task.id" class="user-check-task">
+            <label v-for="task in recordStyle.tasks" :key="task.id" class="user-check-task">
               <input type="checkbox" v-model="form.task_completion[task.id]" />
               <span>
                 <strong>{{task.title}}</strong>

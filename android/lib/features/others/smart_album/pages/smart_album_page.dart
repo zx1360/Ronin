@@ -9,7 +9,9 @@ import 'package:torrid/features/others/immich/widgets/album_media_viewer.dart';
 import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_ops_sheet.dart';
+import 'package:torrid/features/others/immich/widgets/immich_tag_picker.dart';
 import 'package:torrid/features/others/smart_album/providers/smart_album_providers.dart';
+import 'package:torrid/features/others/smart_album/widgets/smart_album_filters.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class SmartAlbumSearch extends ConsumerStatefulWidget {
@@ -104,7 +106,7 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
     final canRank = result.mode == 'semantic';
     final theme = Theme.of(context);
     final canSelect = !busy && assets.isNotEmpty;
-    final matchKind = state.subject.isNotEmpty
+    final matchKind = state.subject.isNotEmpty || state.queryText.isEmpty
         ? ''
         : switch (result.mode) {
             'semantic' => '智能匹配',
@@ -123,7 +125,7 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
             textInputAction: TextInputAction.search,
             onChanged: (text) {
               if (text.trim().isEmpty && state.queryText.isNotEmpty) {
-                controller.clearResult();
+                controller.search(text);
               }
             },
             onSubmitted: controller.search,
@@ -160,7 +162,7 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
                       DropdownButton<AiSearchMode>(
                         value: state.mode,
                         underline: const SizedBox.shrink(),
-                        onChanged: busy
+                        onChanged: busy || state.subject.isNotEmpty
                             ? null
                             : (mode) {
                                 if (mode != null && mode != state.mode) {
@@ -174,6 +176,20 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
                               child: Text(mode.label),
                             ),
                         ],
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        avatar: const Icon(Icons.tune, size: 16),
+                        label: Text(
+                          state.filters.count == 0
+                              ? '筛选'
+                              : '筛选 ${state.filters.count}',
+                        ),
+                        selected: state.filters.count > 0,
+                        showCheckmark: false,
+                        onSelected: busy
+                            ? null
+                            : (_) => _chooseFilters(state.filters),
                       ),
                       const SizedBox(width: 8),
                       FilterChip(
@@ -218,11 +234,17 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
             ],
           ),
         ),
-        if (state.subject.isNotEmpty || state.queryText.isNotEmpty)
+        if (state.subject.isNotEmpty ||
+            state.queryText.isNotEmpty ||
+            state.filters.count > 0)
           ListTile(
             dense: true,
             title: Text(
-              state.subject.isEmpty ? '“${state.queryText}”' : state.subject,
+              state.subject.isNotEmpty
+                  ? state.subject
+                  : state.queryText.isNotEmpty
+                  ? '“${state.queryText}”'
+                  : '按条件检索',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -275,7 +297,7 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
                         : state.error != null
                         ? '暂时无法检索'
                         : result.mode.isEmpty
-                        ? '输入关键词，或从照片发起以图搜图'
+                        ? '输入关键词、设置筛选，或从照片发起以图搜图'
                         : '没有匹配的媒体',
                   ),
                 )
@@ -320,8 +342,13 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
             count: selected.length,
             busy: busy,
             onClear: _clearSelection,
-            onAddTags: () =>
-                _addTags(selected.map((asset) => asset.id).toList()),
+            onEditTags: (remove) => editAlbumSelectionTags(
+              context,
+              ref,
+              selected,
+              remove: remove,
+              onApplied: _clearSelection,
+            ),
             onBundle: selected.length >= 2 ? () => _bundle(selected) : null,
             onUnbundle: selected.any((asset) => asset.isGroupMember)
                 ? () => _unbundle(selected)
@@ -337,16 +364,17 @@ class _SmartAlbumSearchState extends ConsumerState<SmartAlbumSearch>
     );
   }
 
-  Future<void> _addTags(List<String> ids) async {
-    final tags = await showImmichTagPicker(
-      context,
-      title: '添加人工标签 · ${ids.length} 项',
-    );
-    if (!mounted || tags == null || tags.isEmpty) return;
-    await _submit(
-      (actions) => actions.addTags(ids, tags.toList()),
-      '已为 ${ids.length} 项添加标签',
-    );
+  Future<void> _chooseFilters(AlbumSearchFilters current) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final picked = await showAlbumSearchFilters(context, current);
+    if (!mounted || picked == null) return;
+    final state = ref.read(smartAlbumControllerProvider);
+    final controller = ref.read(smartAlbumControllerProvider.notifier);
+    if (state.subject.isNotEmpty && _text.text.trim().isEmpty) {
+      await controller.setFilters(picked);
+    } else {
+      await controller.search(_text.text, filters: picked);
+    }
   }
 
   Future<void> _setDeleted(List<MediaAsset> selected, bool deleted) async {

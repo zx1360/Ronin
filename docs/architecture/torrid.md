@@ -23,6 +23,8 @@ main
 
 顶层 GoRouter 路由见 [routes.dart](../../android/lib/app/routes/routes.dart)。`/others` 下的漫画、画廊、相册和智能相册是页面内 `Navigator.push` 的二级功能，不要误以为它们都是顶层深链路。
 
+首页用系统 Drawer 和可见快捷入口，保留背景、侧栏与座右铭配置；首页自身处理返回键，先关闭抽屉，再应用双击退出。媒体入口使用共享 Material 卡片，支持大字体单列布局。
+
 ## 2. 网络真源与请求链
 
 ```mermaid
@@ -93,7 +95,7 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 
 ### Immich 相册
 
-该页始终按在线模型走 `retryServerWrite`，失败重试直接针对服务端。Gallery 的操作表按服务器地址隔离，已回传记录仍保留至批次校验；标记已处理的请求 ID 持久化，超时或重启后重试不会重复递增游标。
+该页按在线模型走 `retryServerWrite`。Gallery 的离线工作副本按图库 ID 绑定，已回传记录保留至批次校验。升级后第一次下载或回传时需确认旧缓存归属，同一图库的不同地址可共用工作副本。
 
 ## 6. Chat / Review 流式边界
 

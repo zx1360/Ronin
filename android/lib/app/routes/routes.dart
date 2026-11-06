@@ -37,7 +37,7 @@ final List<RouteBase> routes = [
     name: "home",
     builder: (context, state) {
       final String? bgPath = state.uri.queryParameters['bgPath'];
-      return BackHandler(child: HomePage(bgPath: bgPath));
+      return HomePage(bgPath: bgPath);
     },
   ),
 

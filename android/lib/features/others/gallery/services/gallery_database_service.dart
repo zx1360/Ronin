@@ -17,7 +17,7 @@ class GalleryDatabaseService {
 
   static Database? _database;
   static const String _dbName = 'gallery.db';
-  static const int _dbVersion = 5;
+  static const int _dbVersion = 7;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -74,12 +74,26 @@ class GalleryDatabaseService {
         'ALTER TABLE tags ADD COLUMN media_count INTEGER NOT NULL DEFAULT 0',
       );
     }
-    if (oldVersion < 5) await _createOperations(db);
+    if (oldVersion < 5) {
+      await _createOperations(db);
+    } else if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE gallery_operations RENAME TO gallery_operations_v5',
+      );
+      await _createOperations(db);
+      await db.execute('''
+        INSERT INTO gallery_operations (seq, kind, body, synced)
+        SELECT seq, kind, body, synced FROM gallery_operations_v5
+      ''');
+      await db.execute('DROP TABLE gallery_operations_v5');
+    }
+    if (oldVersion < 7) await _createLibrary(db);
   }
 
   /// 创建表结构 - 与服务端字段保持一致（仅本地缓存，权威在服务端）
   Future<void> _onCreate(Database db, int version) async {
     await _createOperations(db);
+    await _createLibrary(db);
     // 媒体文件表
     await db.execute('''
       CREATE TABLE IF NOT EXISTS media_assets (
@@ -649,6 +663,34 @@ class GalleryDatabaseService {
 
   // 批量操作 / 同步相关
 
+  Future<void> _createLibrary(Database db) => db.execute('''
+    CREATE TABLE IF NOT EXISTS gallery_library (
+      slot INTEGER PRIMARY KEY CHECK (slot = 1),
+      id TEXT NOT NULL
+    )
+  ''');
+
+  Future<String?> libraryId() async {
+    final rows = await (await database).query('gallery_library');
+    return rows.isEmpty ? null : rows.single['id'] as String;
+  }
+
+  Future<bool> hasWorkingCopy() async =>
+      Sqflite.firstIntValue(
+        await (await database).rawQuery('''
+        SELECT EXISTS (
+          SELECT 1 FROM media_assets UNION ALL
+          SELECT 1 FROM tags UNION ALL
+          SELECT 1 FROM gallery_operations
+        )
+      '''),
+      ) ==
+      1;
+
+  Future<void> bindLibrary(String id) async {
+    await (await database).insert('gallery_library', {'slot': 1, 'id': id});
+  }
+
   /// 清空所有表数据
   Future<void> clearAllData() async {
     final db = await database;
@@ -657,6 +699,7 @@ class GalleryDatabaseService {
       await txn.delete('tags');
       await txn.delete('media_assets');
       await txn.delete('gallery_operations');
+      await txn.delete('gallery_library');
     });
     AppLogger().info('Gallery 数据库已清空');
   }
