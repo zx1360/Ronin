@@ -1,7 +1,7 @@
 // 设置：界面偏好（写回服务端 static/data/ops_web.json）与服务端信息只读展示。
 
 import { ref, computed, onMounted } from '../vue.js';
-import { state, saveSettings, toast } from '../store.js';
+import { state, saveSettings, toast, bootstrap } from '../store.js';
 import { Card, Badge } from '../ui.js';
 
 export default {
@@ -40,7 +40,7 @@ export default {
 
     const origin = window.location.origin;
 
-    return { state, form, saving, showKey, maskedKey, origin, save };
+    return { state, form, saving, showKey, maskedKey, origin, save, bootstrap };
   },
   template: `
     <div>
@@ -75,6 +75,9 @@ export default {
       </Card>
 
       <Card title="连接">
+        <template #actions>
+          <button class="ghost sm" :disabled="state.connecting" @click="bootstrap()">{{ state.connecting ? '刷新中…' : '刷新连接信息' }}</button>
+        </template>
         <div class="grid cols-2">
           <div class="col">
             <div class="small muted">服务地址（同源，页面由该服务托管）</div>

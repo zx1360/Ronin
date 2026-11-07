@@ -14,14 +14,14 @@ import EssayPage from './pages/essay.js';
 
 /** 导航项：顺序即侧边栏顺序。 */
 export const routes = [
-  { path: '/dashboard', group: '运行与维护', label: '工作台', description: '服务状态与常用操作入口', component: DashboardPage },
-  { path: '/tasks', group: '运行与维护', label: '任务中心', description: '查看媒体与漫画任务的排队、结果和日志', component: TasksPage },
-  { path: '/ai', group: '运行与维护', label: 'AI 与检索', description: '管理处理队列、模型与媒体检索', component: AiPage },
-  { path: '/comix', group: '运行与维护', label: '漫画管理', description: '查找资源、下载章节和管理追更', component: ComixPage },
-  { path: '/essay', group: '个人数据', label: '随笔', description: '在线写作与本机草稿，和手机共享正式随笔', component: EssayPage },
-  { path: '/booklet', group: '个人数据', label: '积微 · 打卡', description: '每日打卡、历史记录与样式管理', component: BookletPage },
-  { path: '/settings', group: '平台', label: '设置与连接', description: '界面偏好、服务路径和组件状态', component: SettingsPage },
-  { path: '/help', group: '平台', label: '使用说明', description: '数据归属、同步方式与操作边界', component: HelpPage },
+  { path: '/dashboard', group: '运行与维护', label: '工作台', component: DashboardPage },
+  { path: '/tasks', group: '运行与维护', label: '任务中心', component: TasksPage },
+  { path: '/ai', group: '运行与维护', label: 'AI 与检索', component: AiPage },
+  { path: '/comix', group: '运行与维护', label: '漫画管理', component: ComixPage },
+  { path: '/essay', group: '个人数据', label: '随笔', component: EssayPage },
+  { path: '/booklet', group: '个人数据', label: '积微 · 打卡', component: BookletPage },
+  { path: '/settings', group: '平台', label: '设置与连接', component: SettingsPage },
+  { path: '/help', group: '平台', label: '使用说明', component: HelpPage },
 ];
 
 const App = {
@@ -64,13 +64,10 @@ const App = {
       </aside>
       <div class="main">
         <header class="topbar">
-          <h1>
-            <strong>{{ current.label }}</strong>
-            <small class="muted">{{ current.description }}</small>
-          </h1>
+          <h1>{{ current.label }}</h1>
           <span class="grow"></span>
-          <span class="badge">仅本机</span>
-          <button class="ghost sm" :disabled="state.connecting" @click="bootstrap()">{{ state.connecting ? '连接中…' : '重新连接' }}</button>
+          <span v-if="state.bootError" class="small error">连接信息获取失败</span>
+          <button v-if="state.bootError" class="ghost sm" :disabled="state.connecting" @click="bootstrap()">{{ state.connecting ? '连接中…' : '重新连接' }}</button>
         </header>
         <main class="content">
           <component :is="current.component" :key="current.path" />
