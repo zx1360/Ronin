@@ -148,7 +148,7 @@ func Start(opt Options, afterExit func()) (*taskengine.Task, error) {
 	if err := Validate(opt); err != nil {
 		return nil, err
 	}
-	if Manager.RunningCount() > 0 {
+	if Manager.ActiveCount() > 0 {
 		return nil, errors.New("已有 Gallery 任务在运行，请先等待或中断")
 	}
 	dbFile := db.File()

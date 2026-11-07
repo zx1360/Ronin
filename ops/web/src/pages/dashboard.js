@@ -60,6 +60,12 @@ export default {
   },
   template: `
     <div>
+      <div class="quick-actions">
+        <a href="#/tasks"><strong>管理任务</strong><span>导入媒体、修复预览、检查执行结果</span></a>
+        <a href="#/ai"><strong>AI 与检索</strong><span>处理队列、人物整理、相似与重复检索</span></a>
+        <a href="#/comix"><strong>管理漫画</strong><span>搜索下载、追更、检查章节完整性</span></a>
+        <a href="#/essay"><strong>写一篇随笔</strong><span>继续本机草稿，或浏览正式随笔</span></a>
+      </div>
       <div class="row between">
         <div class="row">
           <span class="muted small" v-if="updatedAt">更新于 {{ formatTime(updatedAt) }}</span>
@@ -115,7 +121,8 @@ export default {
           </Card>
         </div>
 
-        <Card title="存储用量">
+        <details class="card">
+          <summary>存储用量与路径</summary>
           <table class="data">
             <thead>
               <tr><th>目录</th><th>状态</th><th>文件数</th><th>体积</th><th>路径</th></tr>
@@ -133,7 +140,7 @@ export default {
               </tr>
             </tbody>
           </table>
-        </Card>
+        </details>
       </template>
     </div>`,
 };

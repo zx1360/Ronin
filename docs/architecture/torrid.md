@@ -23,6 +23,8 @@ main
 
 顶层 GoRouter 路由见 [routes.dart](../../android/lib/app/routes/routes.dart)。`/others` 下的漫画、画廊、相册和智能相册是页面内 `Navigator.push` 的二级功能，不要误以为它们都是顶层深链路。
 
+首页用系统 Drawer 和可见快捷入口，保留背景、侧栏与座右铭配置；首页自身处理返回键，先关闭抽屉，再应用双击退出。媒体入口使用共享 Material 卡片，支持大字体单列布局。
+
 ## 2. 网络真源与请求链
 
 ```mermaid

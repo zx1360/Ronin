@@ -659,26 +659,6 @@ func (o *Ollama) endRequest() {
 	o.mu.Unlock()
 }
 
-// supervise 仅回收"由我们拉起"的 ollama 进程；用户自启的实例不会被触碰。
-//
-// 回收阈值每次从当前配置读取：界面改小后无需重启进程即可生效。
-func (o *Ollama) supervise(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			idle := o.currentConfig().OllamaIdle
-			if idle <= 0 {
-				idle = 120 * time.Second
-			}
-			o.reapIdle(idle)
-		}
-	}
-}
-
 func (o *Ollama) reapIdle(idle time.Duration) {
 	o.mu.Lock()
 	defer o.mu.Unlock()

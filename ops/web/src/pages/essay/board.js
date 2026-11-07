@@ -117,7 +117,8 @@ export function useEssayBoard() {
     else toast('最多选择 4 个标签', 'warning');
   }
   const labelForm = ref(null);
-  function editLabel(label = null) { labelForm.value = label ? clone(label) : { id: crypto.randomUUID(), name: '', parent_id: null, essay_count: 0 }; }
+  let labelCursor = 0;
+  function editLabel(label = null) { labelCursor = board.snapshotCursor(); labelForm.value = label ? clone(label) : { id: crypto.randomUUID(), name: '', parent_id: null, essay_count: 0 }; }
   const parentOptions = computed(() => {
     const excluded = descendants(data.value.labels, labelForm.value?.id);
     return labels.value.filter((label) => !excluded.has(label.id));
@@ -128,7 +129,7 @@ export function useEssayBoard() {
     if (!row.name) { toast('标签名称不能为空', 'error'); return; }
     if (data.value.labels.some((l) => l.id !== row.id && l.name === row.name && l.parent_id === row.parent_id)) { toast('同级标签已存在', 'error'); return; }
     row.updated_at = stamp(row);
-    if (await save({ labels: [row] })) { labelForm.value = null; toast('标签已保存', 'success'); }
+    if (await save({ labels: [row] }, undefined, { baseCursor: labelCursor })) { labelForm.value = null; toast('标签已保存', 'success'); }
   }
   const protectedLabel = (l) => l.id === hiddenID || (l.name === '隐藏' && !l.parent_id);
   async function removeLabel(label) {

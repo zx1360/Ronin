@@ -44,12 +44,12 @@ export function useUserData(module) {
     try { await pull(); } catch (e) { if (!disposed) error.value = e.message; }
     finally { loading.value = false; }
   }
-  async function save(changes, files = new Map(), { checkLabels = true } = {}) {
+  async function save(changes, files = new Map(), { checkLabels = true, baseCursor = cursor } = {}) {
     if (busy.value || loading.value) return false;
     busy.value = true;
     error.value = '';
     try {
-      const payload = { sync_version: 2, ...changes };
+      const payload = { sync_version: 2, ...changes, base_cursor: baseCursor };
       let body = payload;
       if (files.size) {
         body = new FormData();
@@ -57,7 +57,7 @@ export function useUserData(module) {
         for (const [name, file] of files) body.append('files', file, name);
       }
       const essays = changes.essays || [];
-      const response = await api.post(`/API/user-data/sync/${module}${essays.length ? '?receipt=1' : ''}`, body);
+      const response = await api.post(`/API/user-data/edit/${module}${essays.length ? '?receipt=1' : ''}`, body);
       await pull();
       if (essays.length) {
         const receipts = response?.essay_receipts;
@@ -75,12 +75,12 @@ export function useUserData(module) {
         && (changes.tombstones || []).every((item) => !data.value[item.collection].some((row) => row.id === item.id));
       if (!accepted) toast('另一端已有更新版本，请刷新编辑内容后重试', 'warning');
       return accepted;
-    } catch (e) { error.value = e.message; toast(e.message, 'error'); return false; }
+    } catch (e) { error.value = e.status === 404 ? '后端尚不支持安全在线编辑，请更新并重启 Monarch 后再保存' : e.message; toast(error.value, 'error'); return false; }
     finally { busy.value = false; }
   }
   onMounted(refresh);
   onUnmounted(() => { disposed = true; controller.abort(); });
-  return { data, loading, busy, error, refresh, save };
+  return { data, loading, busy, error, refresh, save, snapshotCursor: () => cursor };
 }
 
 export const MoodSelect = {

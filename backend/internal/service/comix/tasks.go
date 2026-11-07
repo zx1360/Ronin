@@ -55,5 +55,12 @@ func parseTaskResult(stdout, stderr string, exitCode int, runErr error) (any, er
 	if err != nil {
 		return nil, err
 	}
+	if !result.OK {
+		message := result.Error
+		if message == "" {
+			message = "漫画任务未成功完成"
+		}
+		return result, errors.New(message)
+	}
 	return result, nil
 }

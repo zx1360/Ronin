@@ -20,6 +20,7 @@ import (
 
 	"monarch/internal/config"
 	"monarch/internal/service/db"
+	"monarch/internal/service/taskengine"
 )
 
 // Result 为 comix CLI 的统一 JSON 响应（协议文档 §2）。
@@ -36,7 +37,7 @@ type Result struct {
 var (
 	pythonOnce sync.Once
 	pythonPath string
-	MutationMu sync.Mutex // 下载、初始化和删除共用漫画库写门禁。
+	MutationMu taskengine.Gate // 下载、初始化和删除共用漫画库写门禁。
 )
 
 // PythonExecutable 返回 python 解释器路径（首次解析后缓存）。

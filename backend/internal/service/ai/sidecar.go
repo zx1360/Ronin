@@ -385,22 +385,6 @@ func (s *Sidecar) writeRequest(stdin io.Writer, params map[string]any, items []S
 	return nil
 }
 
-// supervise 周期性回收空闲进程（ticker 粒度 10s）。
-//
-// 空闲阈值每次从当前配置读取：界面改小后无需重启进程即可生效。
-func (s *Sidecar) supervise(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.reapIdle()
-		}
-	}
-}
-
 func (s *Sidecar) reapIdle() {
 	// 批次持有会话锁；执行中的模型不属于空闲进程。
 	if !s.mu.TryAcquire(1) {
