@@ -4,6 +4,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -14,6 +15,8 @@ import (
 
 // Repository 数据库操作仓库
 type Repository struct{}
+
+var ErrAssetChanged = errors.New("媒体在执行期间已变更，请重新执行")
 
 // NewRepository 创建新的仓库实例
 func NewRepository() *Repository {
@@ -118,14 +121,27 @@ func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([
 }
 
 // BatchDeleteAssetRecords 批量删除数据库记录
-func (r *Repository) BatchDeleteAssetRecords(ctx context.Context, ids []uuid.UUID) error {
-	if len(ids) == 0 {
+func (r *Repository) BatchDeleteAssetRecords(ctx context.Context, assets []*model.MediaAsset) error {
+	if len(assets) == 0 {
 		return nil
 	}
-	_, err := db.Exec(ctx,
-		`DELETE FROM media_assets WHERE id IN (`+dbutil.Placeholders(len(ids))+`)`,
-		uuidArgs(ids)...)
-	return err
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		ids := make([]uuid.UUID, 0, len(assets))
+		for _, asset := range assets {
+			var unchanged bool
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM media_assets
+				WHERE id = ? AND hash = ? AND file_path = ? AND is_deleted = ? AND group_id IS ?)`,
+				asset.ID, asset.Hash, asset.FilePath, asset.IsDeleted, asset.GroupID).Scan(&unchanged); err != nil {
+				return err
+			}
+			if !unchanged {
+				return ErrAssetChanged
+			}
+			ids = append(ids, asset.ID)
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM media_assets WHERE id IN (`+dbutil.Placeholders(len(ids))+`)`, uuidArgs(ids)...)
+		return err
+	})
 }
 
 // GetAllAssets 获取所有媒体资产（包含 is_deleted=1 记录）
@@ -155,8 +171,8 @@ func (r *Repository) GetEditedAssets(ctx context.Context) ([]*model.MediaAsset, 
 }
 
 // UpdateAssetAfterEdit 编辑后更新资产：更新 file_path/thumb_path/preview_path/hash/size_bytes/mime_type 并清除 edit_params
-func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.MediaAsset) error {
-	_, err := db.Exec(ctx, `
+func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset, original *model.MediaAsset) error {
+	result, err := db.Exec(ctx, `
 		UPDATE media_assets SET
 			updated_at   = ?,
 			file_path    = ?,
@@ -166,7 +182,7 @@ func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.Medi
 			size_bytes   = ?,
 			mime_type    = ?,
 			edit_params  = NULL
-		WHERE id = ?
+		WHERE id = ? AND hash = ? AND edit_params = ? AND file_path = ? AND is_deleted = 0
 	`,
 		dbutil.TS(asset.UpdatedAt),
 		asset.FilePath,
@@ -176,18 +192,30 @@ func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.Medi
 		asset.SizeBytes,
 		asset.MimeType,
 		asset.ID,
+		original.Hash, original.EditParams, original.FilePath,
 	)
-	return err
+	return checkAssetUpdate(result, err)
 }
 
 // ClearEditParams 仅清除指定资产的 edit_params（用于"无操作编辑"场景，不触碰任何文件）
-func (r *Repository) ClearEditParams(ctx context.Context, id uuid.UUID) error {
-	_, err := db.Exec(ctx, `
+func (r *Repository) ClearEditParams(ctx context.Context, asset *model.MediaAsset) error {
+	result, err := db.Exec(ctx, `
 		UPDATE media_assets SET
 			updated_at  = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'),
 			edit_params = NULL
-		WHERE id = ?
-	`, id)
+		WHERE id = ? AND hash = ? AND edit_params = ? AND is_deleted = 0
+	`, asset.ID, asset.Hash, asset.EditParams)
+	return checkAssetUpdate(result, err)
+}
+
+func checkAssetUpdate(result sql.Result, err error) error {
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count != 1 {
+		return ErrAssetChanged
+	}
 	return err
 }
 

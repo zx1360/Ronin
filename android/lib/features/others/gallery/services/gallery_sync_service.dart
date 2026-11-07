@@ -7,7 +7,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
-import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
@@ -83,9 +82,8 @@ class GallerySyncService extends _$GallerySyncService {
 
   /// 取消当前操作
   void cancel() {
+    if (state.status != SyncStatus.downloading) return;
     _cancelToken?.cancel('用户取消');
-    _cancelToken = null;
-    state = const SyncProgress(status: SyncStatus.idle, message: '已取消');
   }
 
   /// 下载一批媒体记录及缩略图、预览图。
@@ -98,6 +96,7 @@ class GallerySyncService extends _$GallerySyncService {
       return false;
     }
 
+    final keepAlive = ref.keepAlive();
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
@@ -118,7 +117,7 @@ class GallerySyncService extends _$GallerySyncService {
       if ((await db.operations()).any((op) => op.kind == 'processed')) {
         throw StateError('请先重试完成上次的标记已处理');
       }
-      final offset = await db.getMediaAssetCount();
+      final cachedIds = await db.getMediaAssetIds();
 
       // 2. 请求 batch 数据（携带筛选/排序参数）
       final mimeFilter = ref.read(galleryDownloadMimeFilterProvider);
@@ -129,7 +128,7 @@ class GallerySyncService extends _$GallerySyncService {
       final filterDay = ref.read(galleryDownloadDayProvider);
       final secondarySort = ref.read(galleryDownloadSecondarySortProvider);
 
-      final queryParams = <String, dynamic>{'limit': limit, 'offset': offset};
+      final queryParams = <String, dynamic>{};
       if (mimeFilter.isNotEmpty) queryParams['mime_type'] = mimeFilter;
       if (sortBy.isNotEmpty) queryParams['sort_by'] = sortBy;
       if (sortOrder.isNotEmpty) queryParams['sort_order'] = sortOrder;
@@ -140,20 +139,16 @@ class GallerySyncService extends _$GallerySyncService {
         queryParams['secondary_sort'] = secondarySort;
       }
 
-      final response = await apiClient.get(
-        api.path('/API/gallery/batch'),
-        queryParams: queryParams,
+      final batchData = await api.fetchUncachedBatch(
+        limit: limit,
+        cachedIds: cachedIds,
+        filters: queryParams,
         cancelToken: _cancelToken,
       );
-
-      if (response.statusCode != 200) {
-        throw Exception('服务器响应错误: ${response.statusCode}');
-      }
-
-      final batchData = BatchData.fromJson(response.data);
       final assets = batchData.medias;
       final tags = batchData.tags;
       final links = batchData.links;
+      if (_cancelToken?.isCancelled == true) throw _cancelToken!.cancelError!;
 
       if (assets.isEmpty) {
         state = const SyncProgress(
@@ -245,11 +240,13 @@ class GallerySyncService extends _$GallerySyncService {
       if (downloadTasks.isNotEmpty) {
         await Future.wait(downloadTasks);
       }
+      if (_cancelToken?.isCancelled == true) throw _cancelToken!.cancelError!;
 
       // 5. 刷新数据
       ref.invalidate(mediaAssetListProvider);
       ref.invalidate(tagTreeProvider);
       ref.invalidate(mediaIdsWithTagsProvider);
+      ref.invalidate(galleryDbStatsProvider);
 
       state = SyncProgress(
         status: SyncStatus.success,
@@ -274,6 +271,7 @@ class GallerySyncService extends _$GallerySyncService {
     } finally {
       if (confirmedWrites) buffer.unlock();
       _cancelToken = null;
+      keepAlive.close();
     }
   }
 
@@ -315,6 +313,7 @@ class GallerySyncService extends _$GallerySyncService {
       return false;
     }
 
+    final keepAlive = ref.keepAlive();
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
@@ -387,9 +386,11 @@ class GallerySyncService extends _$GallerySyncService {
       ref.invalidate(mediaAssetListProvider);
       ref.invalidate(tagTreeProvider);
       ref.invalidate(mediaIdsWithTagsProvider);
+      ref.invalidate(galleryDbStatsProvider);
+      ref.invalidate(galleryServerOverviewProvider);
       await ref.read(mediaAssetListProvider.future);
 
-      _deleteLocalFilesInBackground(processedAssets, storage);
+      await _deleteLocalFiles(processedAssets, storage);
 
       state = SyncProgress(
         status: SyncStatus.success,
@@ -418,6 +419,7 @@ class GallerySyncService extends _$GallerySyncService {
     } finally {
       if (confirmedWrites) buffer.unlock();
       _cancelToken = null;
+      keepAlive.close();
     }
   }
 
@@ -428,13 +430,13 @@ class GallerySyncService extends _$GallerySyncService {
 
   /// 后台删除已处理媒体的本地缩略图和预览图
   /// 在主 isolate 中解析路径后，在后台 Isolate 中执行文件删除
-  void _deleteLocalFilesInBackground(
+  Future<void> _deleteLocalFiles(
     List<MediaAsset> assets,
     GalleryStorageService storage,
-  ) {
+  ) async {
     if (assets.isEmpty) return;
     // 先解析为本地绝对路径（主 isolate），再传给后台 isolate 删除
-    Future(() async {
+    try {
       final thumbResolved = <String>[];
       final previewResolved = <String>[];
       for (final asset in assets) {
@@ -453,7 +455,9 @@ class GallerySyncService extends _$GallerySyncService {
           () => _deleteFilesInIsolate(thumbResolved, previewResolved),
         );
       }
-    });
+    } catch (error) {
+      AppLogger().error('Gallery 本地缓存文件清理失败: $error');
+    }
   }
 }
 

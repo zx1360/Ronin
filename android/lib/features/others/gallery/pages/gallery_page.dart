@@ -73,6 +73,8 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   /// 数值配置
   Color get _barBackgroundColor => Color.fromRGBO(0, 0, 0, 0.25);
+  double get _toolbarHeight =>
+      44 * MediaQuery.textScalerOf(context).scale(14) / 14;
 
   @override
   void initState() {
@@ -128,6 +130,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
+    final inGroup = ref.watch(galleryActiveGroupProvider) != null;
     ref.listen(currentMediaAssetProvider, (previous, next) {
       if (previous?.id != next?.id) _manualMediaId = null;
     });
@@ -142,21 +145,20 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     });
 
     final mediaQuery = MediaQuery.of(context);
-    final topBarHeight = mediaQuery.padding.top + 44;
+    final topBarHeight = mediaQuery.padding.top + _toolbarHeight;
     final bottomBarHeight = mediaQuery.padding.bottom + 56 + 40;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          if (currentMedia == null)
-            const Center(
-              child: Text(
-                '暂无内容',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
-              ),
-            )
-          else
+    return PopScope(
+      canPop: !inGroup,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && inGroup) {
+          ref.read(currentMediaAssetProvider.notifier).closeGroup();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
             Positioned.fill(
               child: ContentWidget(
                 rotationQuarterTurns: _quarterTurns,
@@ -170,52 +172,53 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
               ),
             ),
 
-          // 顶部导航栏 (可切换显示/隐藏)
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 0),
-            curve: Curves.easeInOut,
-            top: _barsVisible ? 0 : -topBarHeight,
-            left: 0,
-            right: 0,
-            child: _buildTopBar(context),
-          ),
-
-          // 底部区域 (标签栏 + 导航栏)
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 0),
-            curve: Curves.easeInOut,
-            bottom: _barsVisible ? 0 : -bottomBarHeight,
-            left: 0,
-            right: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 当前媒体的标签显示
-                if (currentMedia != null)
-                  _buildTagBar(currentTags.valueOrNull ?? []),
-                // 底部导航栏
-                _buildBottomBar(context, currentMedia),
-              ],
-            ),
-          ),
-
-          // 预览小窗 - 仅在启用且存在下一个文件时显示
-          if (ref.watch(galleryPreviewWindowEnabledProvider))
-            PreviewWindowWidget(
-              onTap: _goToNext,
-              rotationQuarterTurns: _quarterTurns,
+            // 顶部导航栏 (可切换显示/隐藏)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 0),
+              curve: Curves.easeInOut,
+              top: _barsVisible ? 0 : -topBarHeight,
+              left: 0,
+              right: 0,
+              child: _buildTopBar(context),
             ),
 
-          // 拖拽打标签浮层（非拖动时为空组件，不拦截任何交互）
-          Positioned.fill(
-            child: TagDragOverlay(
-              key: _tagDragKey,
-              bottomInset: _barsVisible ? bottomBarHeight : 8,
-              // 浮层跟随媒体旋转方向，横向看图时打标签不必再转手机
-              quarterTurns: _quarterTurns,
+            // 底部区域 (标签栏 + 导航栏)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 0),
+              curve: Curves.easeInOut,
+              bottom: _barsVisible ? 0 : -bottomBarHeight,
+              left: 0,
+              right: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 当前媒体的标签显示
+                  if (currentMedia != null)
+                    _buildTagBar(currentTags.valueOrNull ?? []),
+                  // 底部导航栏
+                  _buildBottomBar(context, currentMedia),
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // 预览小窗 - 仅在启用且存在下一个文件时显示
+            if (ref.watch(galleryPreviewWindowEnabledProvider))
+              PreviewWindowWidget(
+                onTap: _goToNext,
+                rotationQuarterTurns: _quarterTurns,
+              ),
+
+            // 拖拽打标签浮层（非拖动时为空组件，不拦截任何交互）
+            Positioned.fill(
+              child: TagDragOverlay(
+                key: _tagDragKey,
+                bottomInset: _barsVisible ? bottomBarHeight : 8,
+                // 浮层跟随媒体旋转方向，横向看图时打标签不必再转手机
+                quarterTurns: _quarterTurns,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -225,23 +228,33 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     final fileName =
         currentMedia?.filePath.split('/').last.split('\\').last ?? '';
     final editInfo = parseEditInfo(currentMedia);
+    final inGroup = ref.watch(galleryActiveGroupProvider) != null;
+    final groupAssets =
+        ref.watch(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final groupIndex = ref.watch(galleryBrowsingIndexProvider);
 
     return Container(
       color: _barBackgroundColor,
       child: SafeArea(
         bottom: false,
         child: SizedBox(
-          height: 44,
+          height: _toolbarHeight,
           child: Row(
             children: [
               IconButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  if (inGroup) {
+                    ref.read(currentMediaAssetProvider.notifier).closeGroup();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
                 icon: const Icon(
                   Icons.arrow_back,
                   color: Colors.white,
                   size: 22,
                 ),
-                tooltip: "返回",
+                tooltip: inGroup ? '返回主列表' : '返回',
               ),
               Expanded(
                 child: Column(
@@ -250,10 +263,23 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                     Text(
                       fileName,
                       style: const TextStyle(color: Colors.white, fontSize: 14),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                     ),
-                    if (editInfo != null)
+                    if (inGroup)
+                      Text(
+                        groupAssets.isEmpty
+                            ? '组内浏览'
+                            : '组内 ${groupIndex + 1}/${groupAssets.length} · ${currentMedia?.groupId == null ? '主文件' : '成员'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 10,
+                        ),
+                      ),
+                    if (!inGroup && editInfo != null)
                       Text(
                         editInfo,
                         style: const TextStyle(
@@ -349,6 +375,11 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   /// 构建底部导航栏
   Widget _buildBottomBar(BuildContext context, MediaAsset? currentMedia) {
+    final inGroup = ref.watch(galleryActiveGroupProvider) != null;
+    final groupSize =
+        ref.watch(mediaGroupSizesProvider).valueOrNull?[currentMedia?.groupId ??
+            currentMedia?.id] ??
+        0;
     return SafeArea(
       top: false,
       child: Container(
@@ -382,13 +413,30 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
             // 网格视图 / 捆绑
             _BottomBarButton(
               icon: const IconData(0xe604, fontFamily: "iconfont"),
-              label: "网格",
+              label: inGroup ? '组内总览' : '网格',
               onPressed: () => _openGridView(context),
             ),
+            if (inGroup || groupSize > 1)
+              _BottomBarButton(
+                icon: inGroup
+                    ? Icons.layers_clear_outlined
+                    : Icons.layers_outlined,
+                label: inGroup ? '退出分组' : '组内 $groupSize 项',
+                color: Colors.amber,
+                onPressed: inGroup
+                    ? () => ref
+                          .read(currentMediaAssetProvider.notifier)
+                          .closeGroup()
+                    : () => _browseGroup(currentMedia!),
+              ),
             // 删除当前媒体文件
             _BottomBarButton(
               icon: const IconData(0xe649, fontFamily: "iconfont"),
-              label: "删除",
+              label: currentMedia?.isDeleted == true
+                  ? '恢复'
+                  : inGroup && currentMedia?.groupId == null
+                  ? '删除整组'
+                  : '删除',
               color: currentMedia?.isDeleted == true ? Colors.red : null,
               onPressed: currentMedia != null
                   ? () => _toggleDelete(currentMedia)
@@ -426,34 +474,44 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   /// 切换删除状态
   Future<void> _toggleDelete(MediaAsset media) async {
-    final isCurrentlyDeleted = media.isDeleted;
-
-    if (!isCurrentlyDeleted) {
-      // 先跳转到下一个未删除的文件，再标记删除
-      // 这样 UI 会先显示下一张，不会闪烁 loading 状态
-      await ref.read(currentMediaAssetProvider.notifier).next();
-
-      // 标记删除（乐观更新，无 loading）
+    try {
+      if (!media.isDeleted) {
+        await ref.read(currentMediaAssetProvider.notifier).next();
+      }
       await ref
           .read(mediaAssetListProvider.notifier)
-          .markDeleted(media.id, deleted: true);
-    } else {
-      // 取消删除标记
-      await ref
-          .read(mediaAssetListProvider.notifier)
-          .markDeleted(media.id, deleted: false);
+          .markDeleted(media.id, deleted: !media.isDeleted);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('操作失败：$error')));
+      }
     }
   }
 
   /// 打开详情页面
-  void _openDetailPage(BuildContext context) {
+  Future<void> _openDetailPage(BuildContext context) async {
     final currentMedia = ref.read(currentMediaAssetProvider);
     if (currentMedia == null) return;
 
-    Navigator.push(
+    final target = await Navigator.push<MediaAsset>(
       context,
       MaterialPageRoute(builder: (_) => MediaDetailPage(asset: currentMedia)),
     );
+    if (target != null && mounted) await _browseGroup(target);
+  }
+
+  Future<void> _browseGroup(MediaAsset asset) async {
+    try {
+      await ref.read(currentMediaAssetProvider.notifier).browseGroup(asset);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('分组加载失败：$error')));
+      }
+    }
   }
 
   /// 打开编辑页面
@@ -505,15 +563,23 @@ class _BottomBarButton extends StatelessWidget {
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: effectiveColor, size: 22),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(color: effectiveColor, fontSize: 9)),
-          ],
+      child: SizedBox(
+        width: MediaQuery.sizeOf(context).width / 5,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: effectiveColor, size: 22),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: effectiveColor, fontSize: 9),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -153,9 +153,6 @@ func processVideo(srcPath, thumbPath, previewPath string, req GenerateRequest) e
 		duration = 10.0 // 探测失败时退化为固定 1s 位置
 	}
 	seekTime := duration * 0.1
-	if seekTime < 0.1 {
-		seekTime = 0.1
-	}
 
 	tempFrame, err := tempFilePath("gallery_frame_", ".jpg")
 	if err != nil {

@@ -173,14 +173,9 @@ class _VideoPlayerWidgetState extends ConsumerState<VideoPlayerWidget> {
       color: Colors.black,
       child: RotatedBox(
         quarterTurns: widget.rotationQuarterTurns,
-        child: Center(
-          child: AspectRatio(
-            aspectRatio: _videoController!.value.aspectRatio,
-            child: _PlayerSurface(
-              key: ObjectKey(_videoController),
-              controller: _videoController!,
-            ),
-          ),
+        child: _PlayerSurface(
+          key: ObjectKey(_videoController),
+          controller: _videoController!,
         ),
       ),
     );
@@ -288,7 +283,7 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         // 点按即跳转（精确落点）
-        onTapDown: (d) {
+        onTapUp: (d) {
           _showControls();
           _seekToFraction(d.localPosition.dx / width);
         },
@@ -449,7 +444,12 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _toggleControls,
-            child: VideoPlayer(_vc),
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: value.aspectRatio,
+                child: VideoPlayer(_vc),
+              ),
+            ),
           ),
         ),
         // 底部控制条（可隐藏）
@@ -496,14 +496,17 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
                           onPressed: () =>
                               _skipRelative(const Duration(seconds: 10)),
                         ),
-                        Text(
-                          '${_fmt(position)} / ${_fmt(duration)}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
+                        Expanded(
+                          child: Text(
+                            '${_fmt(position)} / ${_fmt(duration)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
-                        const Spacer(),
                       ],
                     ),
                   ],

@@ -24,13 +24,14 @@ final galleryDbStatsProvider = FutureProvider<GalleryDbStats>.internal(
 
 typedef GalleryDbStatsRef = FutureProviderRef<GalleryDbStats>;
 String _$galleryServerOverviewHash() =>
-    r'597191a2ecbfe52f23b750c2a523085336f28588';
+    r'62e804e5b049f9a2d67f875d0569f54c66a0f13a';
 
 /// 服务端画廊总览 Provider
 ///
 /// Copied from [galleryServerOverview].
 @ProviderFor(galleryServerOverview)
-final galleryServerOverviewProvider = FutureProvider<GalleryOverview>.internal(
+final galleryServerOverviewProvider =
+    AutoDisposeFutureProvider<GalleryOverview>.internal(
   galleryServerOverview,
   name: r'galleryServerOverviewProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -40,7 +41,8 @@ final galleryServerOverviewProvider = FutureProvider<GalleryOverview>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef GalleryServerOverviewRef = FutureProviderRef<GalleryOverview>;
+typedef GalleryServerOverviewRef
+    = AutoDisposeFutureProviderRef<GalleryOverview>;
 String _$mediaIdsWithTagsHash() => r'7ad619b02b6a1941994ecee07f402fd641f544dd';
 
 /// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）

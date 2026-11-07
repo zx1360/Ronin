@@ -105,7 +105,25 @@ Map<String?, List<Label>> _labelsByParent(Iterable<Label> labels) {
   return children;
 }
 
-List<({Label label, int depth})> flattenLabels(Iterable<Label> labels) {
+List<({Label label, int depth})> flattenLabels(
+  Iterable<Label> labels, {
+  Set<String>? expanded,
+  String query = '',
+}) {
+  final needle = query.trim().toLowerCase();
+  Set<String>? visible;
+  if (needle.isNotEmpty) {
+    visible = <String>{};
+    final byId = {for (final label in labels) label.id: label};
+    final paths = labelPaths(labels);
+    for (final label in labels) {
+      if (!paths[label.id]!.toLowerCase().contains(needle)) continue;
+      Label? current = label;
+      while (current != null && visible.add(current.id)) {
+        current = byId[current.parentId];
+      }
+    }
+  }
   final children = _labelsByParent(labels);
   for (final siblings in children.values) {
     siblings.sort((a, b) {
@@ -117,9 +135,12 @@ List<({Label label, int depth})> flattenLabels(Iterable<Label> labels) {
   final visited = <String>{};
   void walk(String? parent, int depth) {
     for (final label in children[parent] ?? <Label>[]) {
+      if (visible != null && !visible.contains(label.id)) continue;
       if (!visited.add(label.id)) continue;
       result.add((label: label, depth: depth));
-      walk(label.id, depth + 1);
+      if (visible != null || expanded == null || expanded.contains(label.id)) {
+        walk(label.id, depth + 1);
+      }
     }
   }
 

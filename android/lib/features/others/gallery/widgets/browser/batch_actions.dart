@@ -11,7 +11,7 @@ extension _BrowserBatchActions on _MediasBrowserPageState {
         ),
       );
     }
-    final allAssets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+    final allAssets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
     final byId = {for (final asset in allAssets) asset.id: asset};
     final selected = [
       for (final id in _selectionOrder)
@@ -37,7 +37,9 @@ extension _BrowserBatchActions on _MediasBrowserPageState {
               ),
             ),
             // 捆绑按钮 (需要至少选择2个)
-            if (_selectedIds.length >= 2 && !hasDeletedSelected)
+            if (_selectedIds.length >= 2 &&
+                !hasDeletedSelected &&
+                ref.read(galleryActiveGroupProvider) == null)
               _BottomButton(
                 icon: Icons.link,
                 label: '捆绑',
@@ -196,20 +198,5 @@ extension _BrowserBatchActions on _MediasBrowserPageState {
           .read(mediaAssetListProvider.notifier)
           .batchMarkDeleted(ids, deleted: false);
     });
-  }
-
-  /// 单个媒体文件的恢复操作 (供模式二/三的双击回调使用)
-  Future<void> _undoDeleteSingle(MediaAsset asset) async {
-    await ref
-        .read(mediaAssetListProvider.notifier)
-        .markDeleted(asset.id, deleted: false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('已恢复: ${asset.filePath.split('/').last}'),
-          duration: const Duration(milliseconds: 400),
-        ),
-      );
-    }
   }
 }

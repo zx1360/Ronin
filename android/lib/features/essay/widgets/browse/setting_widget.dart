@@ -38,42 +38,30 @@ class SettingWidget extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              '浏览设置',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Text('浏览设置', style: Theme.of(context).textTheme.titleLarge),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('完成'),
+                ),
+              ],
             ),
-
-            const SizedBox(height: 16),
-
-            const Text('排序方式:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            RadioGroup<SortType>(
-              groupValue: settings.sortType,
-              onChanged: (value) {
-                if (value != null) {
-                  ref.read(browseManagerProvider.notifier).setSortType(value);
-                }
-              },
-              child: const Column(
-                children: [
-                  RadioListTile<SortType>(
-                    title: Text('时间升序'),
-                    value: SortType.ascending,
-                  ),
-                  RadioListTile<SortType>(
-                    title: Text('时间降序'),
-                    value: SortType.descending,
-                  ),
-                  RadioListTile<SortType>(
-                    title: Text('随机'),
-                    value: SortType.random,
-                  ),
-                ],
-              ),
+            const SizedBox(height: 12),
+            SegmentedButton<SortType>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: SortType.descending, label: Text('最新在前')),
+                ButtonSegment(value: SortType.ascending, label: Text('最早在前')),
+                ButtonSegment(value: SortType.random, label: Text('随机')),
+              ],
+              selected: {settings.sortType},
+              onSelectionChanged: (values) => ref
+                  .read(browseManagerProvider.notifier)
+                  .setSortType(values.first),
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 20),
             const Text('标签筛选:', style: TextStyle(fontWeight: FontWeight.bold)),
             SwitchListTile(
               title: const Text('显示隐藏随笔'),
@@ -83,8 +71,13 @@ class SettingWidget extends ConsumerWidget {
                   .read(browseManagerProvider.notifier)
                   .setShowHidden(value, hidden),
             ),
-            const SizedBox(height: 8),
-
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                '父标签可依次切换：含子标签 → 仅本级 → 取消',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
             LabelSelector(
               labels: filterLabels,
               selectedLabels: settings.selectedLabels.keys.toList(),
@@ -96,6 +89,10 @@ class SettingWidget extends ConsumerWidget {
                         : '仅本级',
               },
               onToggleLabel: onToggle,
+              onRemoveLabel: ref
+                  .read(browseManagerProvider.notifier)
+                  .removeLabel,
+              maxHeight: MediaQuery.sizeOf(context).height * 0.42,
             ),
 
             const SizedBox(height: 16),

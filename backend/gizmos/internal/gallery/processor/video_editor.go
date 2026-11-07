@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -44,7 +45,7 @@ type VideoEditParams struct {
 //   - 重新编码（H.264 + AAC）保证任意容器/编码都能得到时间轴正确的输出，
 //     避免 `-c copy` 在非关键帧处剪切导致的画面黑帧、音画不同步等；
 //   - 两轨时间戳归零（setpts / aresample），避免负起始时间戳造成黑屏与音画错位。
-func ApplyVideoEdit(srcPath, dstPath string, editParamsJSON string) error {
+func ApplyVideoEdit(ctx context.Context, srcPath, dstPath string, editParamsJSON string) error {
 	var params VideoEditParams
 	if err := json.Unmarshal([]byte(editParamsJSON), &params); err != nil {
 		return fmt.Errorf("解析编辑参数失败: %w", err)
@@ -114,7 +115,9 @@ func ApplyVideoEdit(srcPath, dstPath string, editParamsJSON string) error {
 	}
 	args = append(args, dstPath)
 
-	cmd := exec.Command(ffmpegPath, args...)
+	ctx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ffmpeg 剪辑失败: %w, 输出: %s", err, string(output))
