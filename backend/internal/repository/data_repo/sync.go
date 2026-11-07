@@ -217,6 +217,10 @@ func (data SyncData) Images(module string) (map[string]bool, error) {
 }
 
 func MergeSync(module string, data SyncData) error {
+	return MergeSyncWithReceipt(module, data, nil)
+}
+
+func MergeSyncWithReceipt(module string, data SyncData, receipt *[]EssayReceipt) error {
 	if data.SyncVersion != SyncVersion {
 		return fmt.Errorf("请更新客户端：用户数据需要 sync_version=%d 的增量合并协议", SyncVersion)
 	}
@@ -295,7 +299,16 @@ func MergeSync(module string, data SyncData) error {
 			return err
 		}
 		if changed {
-			return refreshStats(ctx, tx, module)
+			if err := refreshStats(ctx, tx, module); err != nil {
+				return err
+			}
+		}
+		if receipt != nil {
+			confirmed, err := essayReceipts(ctx, tx, data.Essays)
+			if err != nil {
+				return err
+			}
+			*receipt = confirmed
 		}
 		return nil
 	})

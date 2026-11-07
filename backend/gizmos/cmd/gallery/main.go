@@ -11,10 +11,10 @@ import (
 	"strings"
 	"syscall"
 
-	"gizmos/internal/gallery/pipeline"
-	"gizmos/internal/gallery/refresh"
-	"gizmos/internal/service/config"
-	"gizmos/internal/service/db"
+	"monarch/gizmos/internal/gallery/pipeline"
+	"monarch/gizmos/internal/gallery/refresh"
+	"monarch/internal/galleryfs"
+	"monarch/internal/service/db"
 )
 
 type galleryPaths struct {
@@ -27,11 +27,11 @@ type galleryPaths struct {
 
 func buildGalleryPaths(root string) galleryPaths {
 	return galleryPaths{
-		deletedDir: filepath.Join(root, "Deleted"),
-		mediaDir:   filepath.Join(root, "Media"),
-		previewDir: filepath.Join(root, "Preview"),
-		rawDir:     filepath.Join(root, "Raw"),
-		thumbsDir:  filepath.Join(root, "Thumbs"),
+		deletedDir: filepath.Join(root, galleryfs.Deleted),
+		mediaDir:   filepath.Join(root, galleryfs.Media),
+		previewDir: filepath.Join(root, galleryfs.Preview),
+		rawDir:     filepath.Join(root, galleryfs.Raw),
+		thumbsDir:  filepath.Join(root, galleryfs.Thumbs),
 	}
 }
 
@@ -64,13 +64,15 @@ func main() {
 	fmt.Printf("  - Deleted (已删除): %s\n", paths.deletedDir)
 	fmt.Println("=================================")
 
-	// 初始化数据库连接
-	if err := config.Validate(); err != nil {
-		log.Fatalf("配置校验失败: %v", err)
+	if err := db.OpenExisting(galleryDBFile()); err != nil {
+		log.Fatal(err)
 	}
-
-	db.Init(config.DbConf)
 	defer db.Close()
+	lock, err := lockGallery(*galleryDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lock.Close()
 
 	// 创建带取消的上下文（支持优雅退出）
 	ctx, cancel := context.WithCancel(context.Background())
@@ -103,10 +105,12 @@ func main() {
 	switch *mode {
 	case "ingest":
 		stats, err := p.RunIngestion(ctx)
+		if stats != nil {
+			printStats("摄入", stats)
+		}
 		if err != nil {
 			log.Fatalf("摄入流水线执行失败: %v", err)
 		}
-		printStats("摄入", stats)
 
 	case "execute":
 		stats, err := p.RunExecution(ctx)

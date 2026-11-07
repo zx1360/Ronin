@@ -2,6 +2,7 @@
 package scanner
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -12,7 +13,7 @@ import (
 
 	"github.com/rwcarlsen/goexif/exif"
 
-	"gizmos/internal/gallery/model"
+	"monarch/gizmos/internal/gallery/model"
 )
 
 // Scanner 文件扫描器
@@ -26,7 +27,7 @@ func NewScanner(rootDir string) *Scanner {
 }
 
 // ScanDir 扫描目录，返回所有支持的媒体文件信息通道
-func (s *Scanner) ScanDir() (<-chan string, <-chan error) {
+func (s *Scanner) ScanDir(ctx context.Context) (<-chan string, <-chan error) {
 	pathChan := make(chan string, 100)
 	errChan := make(chan error, 10)
 
@@ -35,6 +36,9 @@ func (s *Scanner) ScanDir() (<-chan string, <-chan error) {
 		defer close(errChan)
 
 		err := filepath.Walk(s.rootDir, func(path string, info os.FileInfo, err error) error {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			if err != nil {
 				errChan <- fmt.Errorf("访问路径 %s 失败: %w", path, err)
 				return nil // 继续遍历其他文件
@@ -46,13 +50,17 @@ func (s *Scanner) ScanDir() (<-chan string, <-chan error) {
 
 			ext := strings.ToLower(filepath.Ext(path))
 			if model.IsSupportedFile(ext) {
-				pathChan <- path
+				select {
+				case pathChan <- path:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			}
 
 			return nil
 		})
 
-		if err != nil {
+		if err != nil && ctx.Err() == nil {
 			errChan <- fmt.Errorf("遍历目录失败: %w", err)
 		}
 	}()

@@ -6,7 +6,7 @@ Go + Gin + `modernc.org/sqlite`；启动入口 `cmd/main.go`，路由真源 `int
 ## 代码边界
 
 - `handler` 负责 HTTP 校验/响应，`service` 负责业务与进程，`repository` 负责 SQL。
-- `gizmos/` 是独立 Go module，处理媒体入库/编辑/刷新；`gizmos/comix/` 是 Python CLI，修改前读其 `AGENTS.md`。
+- Gallery CLI 与 Monarch 共用 Go 模块，入口在 `gizmos/cmd/gallery/`，独立按需运行。`gizmos/comix/` 是 Python CLI，修改前读其 `AGENTS.md`。
 - gallery/comix 长任务共用 `service/taskengine/`；gallery 启动互斥，comix 写任务依次执行并与初始化/删除互斥。任务状态在内存，退出须杀进程树。
 - 远程业务 API 和媒体需要 `X-API-Key`，`api_key` 查询参数仅用于本机读取。Ops 页面及本机接口由 `LocalOnly` 校验 TCP 回环、Host 和浏览器同源；回环地址不得封禁。
 
@@ -29,7 +29,7 @@ Go + Gin + `modernc.org/sqlite`；启动入口 `cmd/main.go`，路由真源 `int
 
 ## 验收
 
-在 `backend/` 和 `backend/gizmos/` 各运行 `go build ./...`、`go vet ./...`、`go test ./...`。
+在 `backend/` 运行 `go build ./...`、`go vet ./...`、`go test ./...`。
 运行主服务用 `go build ./cmd` 后启动 `cmd.exe`，避免 `go run` 触发防火墙确认。
 网页冒烟：`python tools/smoke_ops_web.py`（`OPS_SMOKE_BASE` 可指向隔离实例）。
 AI 安装与依赖见 `tools/ai/README.md`。

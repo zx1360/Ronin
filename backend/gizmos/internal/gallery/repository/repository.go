@@ -4,13 +4,12 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"github.com/google/uuid"
 
-	"gizmos/internal/dbutil"
-	"gizmos/internal/gallery/model"
-	"gizmos/internal/service/db"
+	"monarch/gizmos/internal/gallery/model"
+	"monarch/internal/dbutil"
+	"monarch/internal/service/db"
 )
 
 // Repository 数据库操作仓库
@@ -41,46 +40,28 @@ func (r *Repository) BatchInsertMediaAssets(ctx context.Context, assets []*model
 		return nil
 	}
 
-	tx, err := db.Write().BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // 提交后为无操作
-
-	stmt, err := tx.PrepareContext(ctx, `
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO media_assets (
 			id, captured_at, file_path, thumb_path, preview_path,
 			hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (hash) DO NOTHING`)
-	if err != nil {
-		return fmt.Errorf("准备批量插入失败: %w", err)
-	}
-	defer stmt.Close()
-
-	for _, asset := range assets {
-		if _, err := stmt.ExecContext(ctx,
-			asset.ID,
-			dbutil.TS(asset.CapturedAt),
-			asset.FilePath,
-			asset.ThumbPath,
-			asset.PreviewPath,
-			asset.Hash,
-			asset.SizeBytes,
-			asset.MimeType,
-			asset.IsDeleted,
-			asset.SyncCount,
-			asset.GroupID,
-			asset.EditParams,
-		); err != nil {
-			return fmt.Errorf("批量插入失败: %w", err)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		if err != nil {
+			return err
 		}
-	}
+		defer stmt.Close()
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("提交批量插入失败: %w", err)
-	}
-	return nil
+		for _, asset := range assets {
+			if _, err := stmt.ExecContext(ctx,
+				asset.ID, dbutil.TS(asset.CapturedAt), asset.FilePath, asset.ThumbPath,
+				asset.PreviewPath, asset.Hash, asset.SizeBytes, asset.MimeType, asset.IsDeleted,
+				asset.SyncCount, asset.GroupID, asset.EditParams,
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // scanAssets 按 assetColumns 顺序扫描结果集（时间列存本地时间文本）。
@@ -138,7 +119,7 @@ func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([
 
 // DeleteAssetRecord 物理删除数据库记录
 func (r *Repository) DeleteAssetRecord(ctx context.Context, id uuid.UUID) error {
-	_, err := db.Write().ExecContext(ctx, `DELETE FROM media_assets WHERE id = ?`, id)
+	_, err := db.Exec(ctx, `DELETE FROM media_assets WHERE id = ?`, id)
 	return err
 }
 
@@ -147,7 +128,7 @@ func (r *Repository) BatchDeleteAssetRecords(ctx context.Context, ids []uuid.UUI
 	if len(ids) == 0 {
 		return nil
 	}
-	_, err := db.Write().ExecContext(ctx,
+	_, err := db.Exec(ctx,
 		`DELETE FROM media_assets WHERE id IN (`+dbutil.Placeholders(len(ids))+`)`,
 		uuidArgs(ids)...)
 	return err
@@ -165,7 +146,7 @@ func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, 
 
 // UpdateMediaAssetFull 显式更新媒体资产所有字段
 func (r *Repository) UpdateMediaAssetFull(ctx context.Context, asset *model.MediaAsset) error {
-	_, err := db.Write().ExecContext(ctx, `
+	_, err := db.Exec(ctx, `
 		UPDATE media_assets SET
 			created_at   = ?,
 			updated_at   = ?,
@@ -208,7 +189,7 @@ func (r *Repository) GetEditedAssets(ctx context.Context) ([]*model.MediaAsset, 
 
 // UpdateAssetAfterEdit 编辑后更新资产：更新 file_path/thumb_path/preview_path/hash/size_bytes/mime_type 并清除 edit_params
 func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.MediaAsset) error {
-	_, err := db.Write().ExecContext(ctx, `
+	_, err := db.Exec(ctx, `
 		UPDATE media_assets SET
 			updated_at   = ?,
 			file_path    = ?,
@@ -234,7 +215,7 @@ func (r *Repository) UpdateAssetAfterEdit(ctx context.Context, asset *model.Medi
 
 // ClearEditParams 仅清除指定资产的 edit_params（用于"无操作编辑"场景，不触碰任何文件）
 func (r *Repository) ClearEditParams(ctx context.Context, id uuid.UUID) error {
-	_, err := db.Write().ExecContext(ctx, `
+	_, err := db.Exec(ctx, `
 		UPDATE media_assets SET
 			updated_at  = strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'),
 			edit_params = NULL

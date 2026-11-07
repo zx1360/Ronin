@@ -1182,13 +1182,18 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 			b.raw("sync_count = sync_count + 1")
 		}
 		if patch.MarkProcessed && patch.RequestID != nil {
-			clause, args := inClause(ids)
-			args = append([]any{*patch.RequestID}, args...)
-			args = append(args, *patch.RequestID)
-			if _, err := tx.ExecContext(ctx, `UPDATE media_assets
-				SET sync_count = sync_count + 1, last_processed_request = ?
-				WHERE id `+clause+` AND (last_processed_request IS NULL OR last_processed_request <> ?)`, args...); err != nil {
+			fresh, err := registerProcessed(ctx, tx, *patch.RequestID, ids)
+			if err != nil {
 				return err
+			}
+			if fresh {
+				clause, args := inClause(ids)
+				args = append(args, *patch.RequestID)
+				if _, err := tx.ExecContext(ctx, `UPDATE media_assets
+					SET sync_count = sync_count + 1
+					WHERE id `+clause+` AND (last_processed_request IS NULL OR last_processed_request <> ?)`, args...); err != nil {
+					return err
+				}
 			}
 		}
 		if err := update(ids, b); err != nil {

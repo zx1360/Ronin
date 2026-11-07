@@ -60,15 +60,14 @@ type Task struct {
 
 // Spec 描述一次任务如何执行。
 type Spec struct {
-	Name  string
-	Exe   string
-	Args  []string
-	Dir   string      // 工作目录，留空则沿用服务进程的当前目录
-	Env   []string    // 追加到当前进程环境之上的变量（KEY=VALUE）
-	Guard *sync.Mutex // 共用资源的子进程依次执行；等待期间不启动进程。
-	// StreamStdout 为 true 时把 stdout 逐行写入任务日志；无论真假，stdout 都被
-	// 完整捕获供 Parse 使用（comix 的 stdout 是单行大 JSON，写进日志只会刷屏）。
-	StreamStdout bool
+	Name         string
+	Exe          string
+	Args         []string
+	Dir          string      // 工作目录，留空则沿用服务进程的当前目录
+	Env          []string    // 追加到当前进程环境之上的变量（KEY=VALUE）
+	Guard        *sync.Mutex // 共用资源的子进程依次执行；等待期间不启动进程。
+	StreamStdout bool        // 将 stdout 逐行写入任务日志
+	AfterExit    func()      // 已启动的进程退出后调用
 	// Parse 把子进程输出解析为结构化结果；返回的错误视为任务失败。
 	// 为 nil 时按退出码判定成败，Result 保持为空。
 	Parse func(stdout, stderr string, exitCode int, runErr error) (any, error)
@@ -178,6 +177,9 @@ func (m *Manager) run(task *Task, spec Spec) {
 		m.finish(task, StatusFailed, nil, 0, fmt.Errorf("启动进程失败: %v", err))
 		return
 	}
+	if spec.AfterExit != nil {
+		defer spec.AfterExit()
+	}
 
 	// stdout 完整读取后交给 Parse；stderr 逐行追加为进度日志（同时保留尾部用于错误上报）。
 	var stdoutBuf strings.Builder
@@ -185,7 +187,11 @@ func (m *Manager) run(task *Task, spec Spec) {
 	go func() {
 		defer close(stdoutDone)
 		if spec.StreamStdout {
-			m.streamLines(task, stdoutPipe, "stdout", &stdoutBuf)
+			var sink *strings.Builder
+			if spec.Parse != nil {
+				sink = &stdoutBuf
+			}
+			m.streamLines(task, stdoutPipe, "stdout", sink)
 			return
 		}
 		if _, err := io.Copy(&stdoutBuf, stdoutPipe); err != nil {

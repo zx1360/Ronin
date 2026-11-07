@@ -44,7 +44,7 @@ export function useUserData(module) {
     try { await pull(); } catch (e) { if (!disposed) error.value = e.message; }
     finally { loading.value = false; }
   }
-  async function save(changes, files = new Map()) {
+  async function save(changes, files = new Map(), { checkLabels = true } = {}) {
     if (busy.value || loading.value) return false;
     busy.value = true;
     error.value = '';
@@ -56,9 +56,22 @@ export function useUserData(module) {
         body.append('jsonData', JSON.stringify(payload));
         for (const [name, file] of files) body.append('files', file, name);
       }
-      await api.post(`/API/user-data/sync/${module}`, body);
+      const essays = changes.essays || [];
+      const response = await api.post(`/API/user-data/sync/${module}${essays.length ? '?receipt=1' : ''}`, body);
       await pull();
-      const accepted = names.every((name) => (changes[name] || []).every((row) => data.value[name].some((current) => current.id === row.id && Date.parse(current.updated_at) === Date.parse(row.updated_at))))
+      if (essays.length) {
+        const receipts = response?.essay_receipts;
+        const results = essays.map((row) => Array.isArray(receipts) && receipts.find((item) => item?.id === row.id));
+        if (results.some((item) => typeof item?.content_saved !== 'boolean' || typeof item?.labels_saved !== 'boolean')) {
+          throw new Error('服务器未确认随笔合并结果，请更新后端并核对草稿');
+        }
+        if (results.some((item) => !item.content_saved || (checkLabels && !item.labels_saved))) {
+          const contentSaved = results.every((item) => item.content_saved);
+          toast(contentSaved ? '正文已保存，标签有冲突，草稿已保留' : '正文有冲突，请核对另一端的版本', 'warning');
+          return false;
+        }
+      }
+      const accepted = names.filter((name) => name !== 'essays').every((name) => (changes[name] || []).every((row) => data.value[name].some((current) => current.id === row.id && Date.parse(current.updated_at) === Date.parse(row.updated_at))))
         && (changes.tombstones || []).every((item) => !data.value[item.collection].some((row) => row.id === item.id));
       if (!accepted) toast('另一端已有更新版本，请刷新编辑内容后重试', 'warning');
       return accepted;

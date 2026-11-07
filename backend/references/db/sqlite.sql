@@ -50,6 +50,16 @@ CREATE INDEX IF NOT EXISTS idx_media_assets_updated_at    ON media_assets (updat
 CREATE INDEX IF NOT EXISTS idx_media_assets_group_id      ON media_assets (group_id);
 CREATE INDEX IF NOT EXISTS idx_media_assets_mime_type     ON media_assets (mime_type);
 
+CREATE TABLE IF NOT EXISTS gallery_library (
+    slot INTEGER PRIMARY KEY CHECK (slot = 1),
+    id TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS gallery_processed_requests (
+    request_id TEXT PRIMARY KEY,
+    media_ids_hash BLOB NOT NULL
+) WITHOUT ROWID;
+
 -- 标签表（树状结构）；full_path 与子孙级联由 Go 侧维护（见 gallery_repo）
 CREATE TABLE IF NOT EXISTS tags (
     id          TEXT PRIMARY KEY,

@@ -15,7 +15,7 @@
 
 - 连接配置唯一真源是 `providers/network_config/`，`ApiClientManager` 监听派生客户端，页面不手动推送。
 - 网络错误统一走 `ApiClient.mapError`；证书由 `CertTrust` 加载，mDNS 发现 HTTPS 端口。
-- Gallery 的标签/标注最终权威在服务端；`GalleryWriteBuffer` 将操作与本地工作副本事务落盘，失败保留，批次回传校验后清理。在线相册仍走 `retryServerWrite`。
+- Gallery 工作副本与操作队列绑定服务端图库 ID，旧缓存由用户确认归属。`GalleryWriteBuffer` 同事务落盘，回传校验后清理。在线相册写入走 `retryServerWrite`。
 - 单条标注经 `MediaAssetList` 更新内存与排队；页面不可自行拼 `updateMediaAsset + queuePatch`。清本机缓存走 `GalleryLocalDataController`。
 - 标签树复用 `models/tag_tree.dart`；AI 标签与人工标签隔离。AI 503 时入口/结果块降级，错误文案走 `aiFriendlyError`，模型与能力名来自服务端。
 - 全应用竖屏，媒体旋转由页面处理；标签浮层的命中用 `globalToLocal`，构建尺寸用 `LayoutBuilder`，不可在布局前读取 RenderBox.size。
