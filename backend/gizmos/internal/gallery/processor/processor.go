@@ -24,7 +24,7 @@ import (
 	"github.com/disintegration/imaging"
 	_ "golang.org/x/image/webp" // WebP 解码支持
 
-	"gizmos/internal/gallery/model"
+	"monarch/gizmos/internal/gallery/model"
 )
 
 const (
@@ -66,7 +66,7 @@ type ProcessResult struct {
 
 // Process 为媒体文件生成缩略图与预览图，返回相对 thumbsDir/previewDir 的路径。
 func (p *Processor) Process(fileInfo *model.FileInfo, mediaPath, yearMonth string) (*ProcessResult, error) {
-	baseName := strings.TrimSuffix(filepath.Base(fileInfo.FileName), fileInfo.Extension)
+	baseName := strings.TrimSuffix(filepath.Base(fileInfo.FileName), filepath.Ext(fileInfo.FileName))
 
 	// 统一输出 jpg；动态 GIF 保持 gif 以保留动画
 	ext := ".jpg"

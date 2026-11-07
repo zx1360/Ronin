@@ -24,8 +24,9 @@ const (
 	reconcileIdleInterval = 10 * time.Minute
 	// reconcileBatch 单次补充入队的上限（每个能力）。
 	reconcileBatch = 5000
-	// workerIdleInterval 无任务时的轮询间隔。
+	// 保持索引回收频率，空队列按退避间隔检查。
 	workerIdleInterval = 5 * time.Second
+	workerMaxInterval  = time.Minute
 	// vlmBatchMax VLM 单图耗时长，缩小批次以降低超时损失。
 	vlmBatchMax = 4
 )
@@ -43,15 +44,16 @@ var capabilityPriority = map[string]int{
 
 // reconcileLoop 周期性补齐无任务行的媒体，不重排已有结果。
 func (e *Engine) reconcileLoop(ctx context.Context) {
-	next := reconcileInitialDelay
+	timer := time.NewTimer(reconcileInitialDelay)
+	defer timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(next):
+		case <-e.reconcileWake:
+		case <-timer.C:
 		}
-
-		next = e.reconcileOnce()
+		timer.Reset(e.reconcileOnce())
 	}
 }
 
@@ -85,17 +87,27 @@ func (e *Engine) reconcileOnce() time.Duration {
 
 // workerLoop 主调度循环：有任务就连续处理，空闲则定期轮询。
 func (e *Engine) workerLoop(ctx context.Context) {
+	ticker := time.NewTicker(workerIdleInterval)
+	defer ticker.Stop()
+	var next time.Time
+	interval := workerIdleInterval
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-e.wake:
-		case <-time.After(workerIdleInterval):
+			next = time.Time{}
+			interval = workerIdleInterval
+		case <-ticker.C:
 		}
 		if e.index.ReleaseIdle(e.Config().IdleTimeout) {
 			// 大索引回收时归还堆页，不在每次空闲轮询中触发 GC。
 			debug.FreeOSMemory()
 		}
+		if e.paused.Load() || time.Now().Before(next) {
+			continue
+		}
+		workedAny := false
 		for ctx.Err() == nil {
 			worked, err := e.runOneBatch(ctx)
 			if err != nil {
@@ -105,7 +117,13 @@ func (e *Engine) workerLoop(ctx context.Context) {
 			if !worked {
 				break
 			}
+			workedAny = true
 		}
+		if workedAny {
+			interval = workerIdleInterval
+		}
+		next = time.Now().Add(interval)
+		interval = min(interval*2, workerMaxInterval)
 	}
 }
 

@@ -21,6 +21,7 @@ GalleryWriteBuffer galleryWriteBuffer(GalleryWriteBufferRef ref) {
   );
   ref.listen(apiClientManagerProvider, (_, __) => buffer.retry());
   ref.onDispose(buffer.dispose);
+  buffer.retry();
   return buffer;
 }
 

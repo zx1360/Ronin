@@ -7,6 +7,8 @@ require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/hashicorp/mdns v1.0.6
 	github.com/joho/godotenv v1.5.1
+	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
+	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8
 	golang.org/x/sys v0.42.0
 	modernc.org/sqlite v1.46.2
 )
@@ -16,7 +18,6 @@ require (
 	github.com/miekg/dns v1.1.55 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

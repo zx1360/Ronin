@@ -70,8 +70,8 @@ pwsh -File .\references\scripts\generate_refs.ps1 -Check
 Gallery CLI：
 
 ```powershell
-cd D:\products\Ronin\backend\gizmos
-go build ./cmd/gallery
+cd D:\products\Ronin\backend
+go build -o gizmos/gallery.exe ./gizmos/cmd/gallery
 ```
 
 Android：

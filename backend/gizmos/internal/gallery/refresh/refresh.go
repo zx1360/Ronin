@@ -15,9 +15,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"gizmos/internal/gallery/model"
-	"gizmos/internal/gallery/processor"
-	"gizmos/internal/gallery/repository"
+	"monarch/gizmos/internal/gallery/model"
+	"monarch/gizmos/internal/gallery/processor"
+	"monarch/gizmos/internal/gallery/repository"
 )
 
 var (

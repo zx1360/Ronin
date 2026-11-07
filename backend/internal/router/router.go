@@ -95,8 +95,9 @@ func SetupRouter() *gin.Engine {
 		}
 
 		// 媒体浏览相关
-		galleryGroup := api.Group("/gallery")
+		galleryGroup := api.Group("/gallery", gallery_handler.CheckLibrary)
 		{
+			galleryGroup.GET("/library", gallery_handler.FetchLibrary)
 			// 标签树与标签写操作（服务端权威）
 			galleryGroup.GET("/tags", gallery_handler.FetchAllTags)
 			galleryGroup.POST("/tags", gallery_handler.CreateTag)

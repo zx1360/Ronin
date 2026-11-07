@@ -108,7 +108,7 @@ export function useEssayBoard() {
     if (!message.value.trim() || !detail.value) return;
     const row = clone(detail.value);
     row.messages.push({ timestamp: new Date().toISOString(), content: message.value.trim() }); row.updated_at = stamp(row);
-    if (await save({ essays: [row] })) { message.value = ''; toast('留言已添加', 'success'); }
+    if (await save({ essays: [row] }, undefined, { checkLabels: false })) { message.value = ''; toast('留言已添加', 'success'); }
   }
   function toggleLabel(id) {
     const selected = editor.value.labels;

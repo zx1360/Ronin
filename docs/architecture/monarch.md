@@ -95,7 +95,7 @@ erDiagram
 
 两个消费者：
 
-1. [Gallery service](../../backend/internal/service/gallery/cli.go)：`ingest`、`execute`、`refresh`；同一时间只允许一个任务，因为它们都可能改写媒体文件和数据库。
+1. [Gallery service](../../backend/internal/service/gallery/cli.go)：`ingest`、`execute`、`refresh`。CLI 与 Monarch 共用 Go 模块和 SQLite 连接配置，每个图库同一时间只允许运行一个任务。入库先落盘并提交数据库，再清理 Raw。
 2. [comix service](../../backend/internal/service/comix/tasks.go)：调用 `python -m comix.cli --json`；stdout 是单行 JSON，进度主要来自 stderr。
 
 comix 本身是无状态 CLI；数据库/文件协议见 [comix AGENTS](../../backend/gizmos/comix/AGENTS.md)。
@@ -105,8 +105,8 @@ comix 本身是无状态 CLI；数据库/文件协议见 [comix AGENTS](../../ba
 [ai.Engine](../../backend/internal/service/ai/engine.go) 是后台 AI 门面：
 
 ```text
-reconcile：发现无任务行的媒体 -> jobs 幂等入队
-worker：事务认领 jobs -> 准备图源 -> 执行能力 -> 保存产物
+reconcile：托管入库结束触发，定期补扫手动入库 -> jobs 幂等入队
+worker：入队唤醒，空队列退避 -> 事务认领 jobs -> 执行并保存产物
 sidecar：embed / face / ocr Python 进程，空闲回收
 ollama：VLM 进程/服务监管，按需使用
 index：int8 向量加载到 Go 内存做精确扫描

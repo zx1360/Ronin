@@ -22,7 +22,7 @@ final favoriteTagsProvider = AutoDisposeProvider<List<Tag>>.internal(
 );
 
 typedef FavoriteTagsRef = AutoDisposeProviderRef<List<Tag>>;
-String _$tagTreeHash() => r'37b772cdcf5b63dfa96eda6aa50269469e81000a';
+String _$tagTreeHash() => r'83659a5badc142d89dcebdf49285ff81927b0751';
 
 /// 标签树 Provider
 ///

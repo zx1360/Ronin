@@ -20,6 +20,7 @@ import (
 	_ "image/png"
 
 	"monarch/internal/config"
+	"monarch/internal/galleryfs"
 	"monarch/internal/model"
 	"monarch/internal/service/media_probe"
 )
@@ -109,7 +110,7 @@ func ensureAIImage(paths mediaPaths, mediaID uuid.UUID) (string, bool) {
 func aiDerivedPath(paths mediaPaths) string {
 	// 预览根目录：传入的可能是相对路径（媒体表里的形式），也可能是绝对路径
 	// （测试或调用方自行拼接），统一按预览根目录折算，避免把盘符当成目录名。
-	previewRoot := filepath.Join(config.AppConf.GalleryDir, "Preview")
+	previewRoot := filepath.Join(config.AppConf.GalleryDir, galleryfs.Preview)
 	base := ""
 	for _, candidate := range []string{paths.Preview, paths.Thumb} {
 		if candidate == "" {

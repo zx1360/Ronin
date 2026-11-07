@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	"monarch/internal/config"
+	"monarch/internal/galleryfs"
 	"monarch/internal/model"
 	"monarch/internal/repository/gallery_repo"
 	"monarch/internal/service/media_probe"
@@ -116,26 +117,26 @@ func FetchMediaAsset(c *gin.Context) {
 
 	switch typeStr := c.Param("type"); typeStr {
 	case "file":
-		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath))
+		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, galleryfs.Media, asset.FilePath))
 	case "thumb":
 		if asset.ThumbPath == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "缩略图不存在"})
 			return
 		}
-		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, "Thumbs", *asset.ThumbPath))
+		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, galleryfs.Thumbs, *asset.ThumbPath))
 	case "preview":
 		if asset.PreviewPath == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "预览图不存在"})
 			return
 		}
-		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, "Preview", *asset.PreviewPath))
+		downloadFile(c, filepath.Join(config.AppConf.GalleryDir, galleryfs.Preview, *asset.PreviewPath))
 	case "frame":
 		if !isVideoAsset(asset) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "非视频资产"})
 			return
 		}
 		sec, _ := strconv.ParseFloat(c.Query("sec"), 64)
-		srcPath := filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
+		srcPath := filepath.Join(config.AppConf.GalleryDir, galleryfs.Media, asset.FilePath)
 		data, err := media_probe.ExtractFrameContext(c.Request.Context(), id, srcPath, sec)
 		if err != nil {
 			log.Printf("gallery 取帧失败 [%s @%.1fs]: %v", asset.FilePath, sec, err)
@@ -149,7 +150,7 @@ func FetchMediaAsset(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "非视频资产"})
 			return
 		}
-		srcPath := filepath.Join(config.AppConf.GalleryDir, "Media", asset.FilePath)
+		srcPath := filepath.Join(config.AppConf.GalleryDir, galleryfs.Media, asset.FilePath)
 		info, err := media_probe.ProbeVideo(id, srcPath)
 		if err != nil {
 			log.Printf("gallery 探测视频信息失败 [%s]: %v", asset.FilePath, err)
@@ -191,7 +192,8 @@ func respondRepoError(c *gin.Context, err error) {
 	case errors.Is(err, gallery_repo.ErrTagNotFound),
 		errors.Is(err, gallery_repo.ErrMediaNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-	case errors.Is(err, gallery_repo.ErrTagNameConflict), errors.Is(err, gallery_repo.ErrTagIDConflict):
+	case errors.Is(err, gallery_repo.ErrTagNameConflict), errors.Is(err, gallery_repo.ErrTagIDConflict),
+		errors.Is(err, gallery_repo.ErrProcessedRequestMismatch):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, gallery_repo.ErrTagParentNotFound),
 		errors.Is(err, gallery_repo.ErrTagCycle),

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"monarch/internal/config"
+	"monarch/internal/galleryfs"
 	"monarch/internal/model"
 	"monarch/internal/repository/ai_repo"
 )
@@ -51,10 +52,11 @@ type Engine struct {
 	// arbiter 串行化本地模型（同一时刻只跑一个，见 models.go）
 	arbiter modelArbiter
 
-	wake     chan struct{}
-	cancel   context.CancelFunc
-	stopOnce sync.Once
-	loops    sync.WaitGroup
+	wake          chan struct{}
+	reconcileWake chan struct{}
+	cancel        context.CancelFunc
+	stopOnce      sync.Once
+	loops         sync.WaitGroup
 
 	// 最近一次批次执行信息（供 /status 展示）
 	runMu       sync.RWMutex
@@ -94,9 +96,10 @@ func New(store *config.ConfigStore, cfg config.AiConfig) *Engine {
 		}
 	}
 	e := &Engine{
-		rt:    rt,
-		wake:  make(chan struct{}, 1),
-		index: NewIndex(cfg.EmbedModel),
+		rt:            rt,
+		wake:          make(chan struct{}, 1),
+		reconcileWake: make(chan struct{}, 1),
+		index:         NewIndex(cfg.EmbedModel),
 	}
 	e.embed = NewSidecar("embed", cfg, e.Config)
 	e.text = NewSidecar("embed_text", cfg, e.Config)
@@ -213,6 +216,13 @@ func (e *Engine) Wake() {
 	}
 }
 
+func (e *Engine) NotifyMediaImported() {
+	select {
+	case e.reconcileWake <- struct{}{}:
+	default:
+	}
+}
+
 func (e *Engine) sidecars() []*Sidecar {
 	return []*Sidecar{e.embed, e.text, e.face, e.ocr}
 }
@@ -223,7 +233,7 @@ func (e *Engine) sidecars() []*Sidecar {
 
 // MediaAbsPath 返回原始媒体文件的绝对路径。
 func MediaAbsPath(filePath string) string {
-	return filepath.Join(config.AppConf.GalleryDir, "Media", filepath.FromSlash(filePath))
+	return filepath.Join(config.AppConf.GalleryDir, galleryfs.Media, filepath.FromSlash(filePath))
 }
 
 // PreviewAbsPath 返回预览图绝对路径（无预览图时返回空串）。
@@ -231,7 +241,7 @@ func PreviewAbsPath(previewPath *string) string {
 	if previewPath == nil || strings.TrimSpace(*previewPath) == "" {
 		return ""
 	}
-	return filepath.Join(config.AppConf.GalleryDir, "Preview", filepath.FromSlash(*previewPath))
+	return filepath.Join(config.AppConf.GalleryDir, galleryfs.Preview, filepath.FromSlash(*previewPath))
 }
 
 // ThumbAbsPath 返回缩略图绝对路径（无缩略图时返回空串）。
@@ -239,7 +249,7 @@ func ThumbAbsPath(thumbPath *string) string {
 	if thumbPath == nil || strings.TrimSpace(*thumbPath) == "" {
 		return ""
 	}
-	return filepath.Join(config.AppConf.GalleryDir, "Thumbs", filepath.FromSlash(*thumbPath))
+	return filepath.Join(config.AppConf.GalleryDir, galleryfs.Thumbs, filepath.FromSlash(*thumbPath))
 }
 
 // resolveItems 按能力档位把媒体 ID 解析为可推理的文件项，并跳过无图源的媒体。

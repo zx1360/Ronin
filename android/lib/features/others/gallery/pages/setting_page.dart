@@ -715,7 +715,9 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   /// 处理下载
   Future<void> _handleDownload() async {
     final limit = int.tryParse(_downloadLimitController.text) ?? 200;
-    await ref.read(gallerySyncServiceProvider.notifier).downloadBatch(limit: limit);
+    await ref
+        .read(gallerySyncServiceProvider.notifier)
+        .downloadBatch(limit: limit, confirmLegacy: _confirmLegacyLibrary);
     
     // 刷新统计数据
     ref.invalidate(galleryDbStatsProvider);
@@ -734,7 +736,9 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     );
 
     if (confirmed) {
-      await ref.read(gallerySyncServiceProvider.notifier).markProcessedAndClean();
+      await ref
+          .read(gallerySyncServiceProvider.notifier)
+          .markProcessedAndClean(confirmLegacy: _confirmLegacyLibrary);
 
       // 刷新统计数据（异步，不阻塞 UI）
       ref.invalidate(galleryDbStatsProvider);
@@ -743,6 +747,16 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       unawaited(ref.read(galleryCachedStorageStatsProvider.notifier).refresh()
           .catchError((_) {}));
     }
+  }
+
+  Future<bool> _confirmLegacyLibrary(String address) {
+    if (!mounted) return Future.value(false);
+    return _showConfirmDialog(
+      title: '关联旧版画廊缓存',
+      content:
+          '旧版缓存没有记录所属图库。请确认 $address 是此前下载这批媒体的服务器。'
+          '确认后，待回传的修改将发往这座图库。',
+    );
   }
 
   /// 处理清空数据库

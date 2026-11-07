@@ -41,7 +41,7 @@ type ComixConfig struct {
 	StorageRoot string // 漫画图片存储根目录（COMIC_STORAGE_ROOT）
 }
 
-// GalleryConfig gallery CLI（gizmos 模块）集成配置
+// GalleryConfig Gallery CLI 集成配置
 type GalleryConfig struct {
 	Exe string // gallery CLI 可执行文件（相对路径按 backend/ 解析）
 }
@@ -109,7 +109,7 @@ func Load() error {
 	ComixConf.Root = os.Getenv("COMIX_ROOT")
 	ComixConf.StorageRoot = envAbs("COMIC_STORAGE_ROOT")
 
-	// gallery CLI：默认取 gizmos 模块的构建产物（backend/gizmos/gallery.exe）
+	// gallery CLI：默认使用独立可执行文件（backend/gizmos/gallery.exe）
 	GalleryConf.Exe = envAbsOr("GALLERY_CLI", filepath.Join("gizmos", "gallery.exe"))
 
 	// 网页运维端静态资源目录（源码在 ops/web/，由后端内置 HTTP 服务托管）

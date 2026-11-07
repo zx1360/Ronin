@@ -1,4 +1,4 @@
-// Package gallery 提供 gallery CLI（本仓库 gizmos 模块构建的 gallery.exe）的集成调用。
+// Package gallery 托管 Gallery CLI 任务。
 package gallery
 
 import (
@@ -58,7 +58,7 @@ func Available() (bool, string) {
 	exe := ExecutablePath()
 	info, err := os.Stat(exe)
 	if err != nil {
-		return false, fmt.Sprintf("gallery CLI 不可用（%s）：请在 backend/gizmos 下执行 go build ./cmd/gallery", exe)
+		return false, fmt.Sprintf("gallery CLI 不可用（%s）：请在 backend 下执行 go build -o gizmos/gallery.exe ./gizmos/cmd/gallery", exe)
 	}
 	if info.IsDir() {
 		return false, fmt.Sprintf("gallery CLI 路径是目录: %s", exe)
@@ -139,7 +139,7 @@ func BuildArgs(opt Options) []string {
 //
 // 同一时刻只允许一个 gallery 任务：ingest/execute/refresh 会同时改写媒体库文件
 // 与数据库记录，并发执行没有意义且容易互相干扰。
-func Start(opt Options) (*taskengine.Task, error) {
+func Start(opt Options, afterExit func()) (*taskengine.Task, error) {
 	startMu.Lock()
 	defer startMu.Unlock()
 	if ok, msg := Available(); !ok {
@@ -164,5 +164,6 @@ func Start(opt Options) (*taskengine.Task, error) {
 		Dir:          filepath.Dir(exe),
 		Env:          []string{"DB_FILE=" + dbFile},
 		StreamStdout: true, // CLI 的统计与进度都打在 stdout
+		AfterExit:    afterExit,
 	})
 }
