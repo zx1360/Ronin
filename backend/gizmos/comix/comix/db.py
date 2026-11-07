@@ -410,16 +410,18 @@ def list_chapters(comic_id: int) -> list[dict]:
         ).fetchall()
 
 
-def update_chapter_status(chapter_id: int, status: str, page_count: int = 0, error: str = "") -> None:
+def chapters_to_download(comic_id: int) -> list[dict]:
     with connect() as conn:
-        conn.execute(
-            f"""
-            UPDATE comic_chapters
-            SET status = ?, page_count = ?, error = ?, updated_at = {_NOW}
-            WHERE id = ?
+        return conn.execute(
+            """
+            SELECT ch.* FROM comic_chapters AS ch
+            WHERE comic_id = ? AND (status <> 'done' OR NOT EXISTS (
+                SELECT 1 FROM comic_images AS img WHERE img.chapter_id = ch.id
+            ))
+            ORDER BY chapter_no
             """,
-            (status, page_count, error, chapter_id),
-        )
+            (comic_id,),
+        ).fetchall()
 
 
 # ---------------------------------------------------------------------------
@@ -433,21 +435,39 @@ def start_task(comic_id: int, chapter_id: int) -> None:
             INSERT INTO comic_download_tasks (comic_id, chapter_id, status, started_at)
             VALUES (?, ?, 'running', {_NOW})
             ON CONFLICT (chapter_id) DO UPDATE
-            SET status = 'running', error = '', started_at = {_NOW}
+            SET status = 'running', image_count = 0, error = '', started_at = {_NOW}, finished_at = NULL
             """,
             (comic_id, chapter_id),
         )
 
 
-def finish_task(chapter_id: int, status: str, image_count: int = 0, error: str = "") -> None:
-    with connect() as conn:
+def finish_download(chapter_id: int, images: list[dict] | None, error: str = "") -> None:
+    status = "done" if images else "failed"
+    count = len(images) if images else 0
+    with transaction() as conn:
+        if images:
+            conn.execute("DELETE FROM comic_images WHERE chapter_id = ?", (chapter_id,))
+            conn.executemany(
+                """
+                INSERT INTO comic_images (chapter_id, sort_num, file_name, width, height)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                [(chapter_id, img["sort_num"], img["file_name"], img["width"], img["height"]) for img in images],
+            )
+        conn.execute(
+            f"""
+            UPDATE comic_chapters SET status = ?, page_count = ?, error = ?, updated_at = {_NOW}
+            WHERE id = ?
+            """,
+            (status, count, error, chapter_id),
+        )
         conn.execute(
             f"""
             UPDATE comic_download_tasks
             SET status = ?, image_count = ?, error = ?, finished_at = {_NOW}
             WHERE chapter_id = ?
             """,
-            (status, image_count, error, chapter_id),
+            (status, count, error, chapter_id),
         )
 
 
@@ -473,26 +493,6 @@ def recover_running_tasks(comic_id: int | None = None) -> int:
 # ---------------------------------------------------------------------------
 # 图片记录（供 Go/Flutter 系统读取图片路径与宽高）
 # ---------------------------------------------------------------------------
-
-
-def replace_images(chapter_id: int, images: Iterable[dict]) -> int:
-    """清理并重建章节的图片记录（单事务，避免中途失败留下空记录）。"""
-    rows = [
-        (chapter_id, img["sort_num"], img["file_name"], img["width"], img["height"])
-        for img in images
-    ]
-    with transaction() as conn:
-        conn.execute("DELETE FROM comic_images WHERE chapter_id = ?", (chapter_id,))
-        if not rows:
-            return 0
-        cur = conn.executemany(
-            """
-            INSERT INTO comic_images (chapter_id, sort_num, file_name, width, height)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
-        return cur.rowcount
 
 
 def set_cover_image(comic_id: int, cover_path: str) -> None:

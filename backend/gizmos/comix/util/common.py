@@ -1,21 +1,26 @@
+import ipaddress
 import os
 import random
 import re
 import shutil
+import socket
+import sys
 import threading
 import time
-import warnings
 from functools import cache
-from typing import Callable, Iterable
-from urllib.parse import urljoin, urlparse
+from pathlib import Path
+from typing import Callable
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from fake_useragent import UserAgent
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# 安静模式：为 True 时抑制下载进度打印（--json 输出时由 CLI 开启）
-QUIET = False
+from .image_size import ImageSizeError, get_image_info, get_image_size
+
+MAX_IMAGE_BYTES = 64 * 1024 * 1024
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".webp", ".gif", ".bmp"}
 
 
 def run_with_timeout(fn: Callable[[], object], timeout_sec: float) -> object:
@@ -43,48 +48,6 @@ def run_with_timeout(fn: Callable[[], object], timeout_sec: float) -> object:
     return box.get("value")
 
 
-def scan_images(save_dir: str) -> list[dict]:
-    """扫描章节目录下的图片文件，返回图片记录列表。
-
-    每条: {"sort_num", "file_name", "width", "height"}
-    - sort_num 取文件名前导数字（005.webp → 5），对应 comic_images.sort_num；
-      文件名非数字开头时按排序位置递补。
-    - 宽高用纯 Python 解析文件头（JPEG/PNG/WebP/GIF/BMP），解析失败记 0。
-    """
-    from .image_size import ImageSizeError, get_image_size
-
-    entries: list[tuple[int, str, str]] = []
-    for name in os.listdir(save_dir):
-        full = os.path.join(save_dir, name)
-        if not os.path.isfile(full):
-            continue
-        m = re.match(r"(\d+)", name)
-        sort_num = int(m.group(1)) if m else 10**9
-        entries.append((sort_num, name, full))
-    entries.sort(key=lambda e: e[0])
-
-    results: list[dict] = []
-    last = 0
-    for i, (sort_num, name, full) in enumerate(entries, start=1):
-        if sort_num == 10**9:
-            sort_num = i
-        if sort_num <= last:  # 重复/倒序序号递补，保证 sort_num 唯一且有序
-            sort_num = last + 1
-        last = sort_num
-        try:
-            w, h = get_image_size(full)
-        except ImageSizeError:
-            w, h = 0, 0
-        results.append({"sort_num": sort_num, "file_name": name, "width": w, "height": h})
-    return results
-
-
-def init_requests_warnings() -> None:
-    """关闭 requests 相关告警。"""
-    warnings.filterwarnings("ignore")
-    requests.packages.urllib3.disable_warnings()
-
-
 def random_sleep(base: float, jitter: float) -> None:
     """随机等待，降低短时间高频请求特征。"""
     time.sleep(base + jitter * random.random())
@@ -108,196 +71,165 @@ def get_random_headers() -> dict:
     }
 
 
-def create_http_session(
-    retry_total: int = 3,
-    backoff_factor: float = 0.8,
-    status_forcelist: Iterable[int] = (429, 500, 502, 503, 504),
-    allowed_methods: Iterable[str] = ("GET",),
-    pool_connections: int = 20,
-    pool_maxsize: int = 20,
-) -> requests.Session:
-    """创建带重试策略的会话。"""
+def require_public_url(url: str) -> None:
+    parsed = urlsplit(url)
+    host = parsed.hostname
+    if (parsed.scheme not in ("http", "https") or not host or parsed.username is not None
+            or parsed.port not in (None, 80, 443)):
+        raise requests.exceptions.InvalidURL("只允许访问公开 HTTP(S) 地址")
+    try:
+        addresses = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise requests.exceptions.ConnectionError(f"域名解析失败: {host}") from exc
+    for address in addresses:
+        ip = ipaddress.ip_address(address[4][0])
+        if not ip.is_global or ip.is_multicast:
+            raise requests.exceptions.InvalidURL(f"拒绝访问非公开地址: {host}")
+
+
+class PublicHTTPAdapter(HTTPAdapter):
+    def send(self, request, **kwargs):
+        require_public_url(request.url)
+        return super().send(request, **kwargs)
+
+
+def create_http_session(proxy: str | None) -> requests.Session:
     session = requests.Session()
+    session.trust_env = False
+    session.verify = os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("CURL_CA_BUNDLE") or True
+    session.max_redirects = 5
+    if proxy:
+        session.proxies = {"http": proxy, "https": proxy}
     retry = Retry(
-        total=retry_total,
-        connect=retry_total,
-        read=retry_total,
-        backoff_factor=backoff_factor,
-        status_forcelist=list(status_forcelist),
-        allowed_methods=list(allowed_methods),
+        total=2,
+        backoff_factor=0.8,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=("GET",),
+        respect_retry_after_header=False,
     )
-    adapter = HTTPAdapter(max_retries=retry, pool_connections=pool_connections, pool_maxsize=pool_maxsize)
+    adapter = PublicHTTPAdapter(max_retries=retry)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
 
 
-def ensure_dir(path: str) -> None:
-    """确保目录存在。"""
-    os.makedirs(path, exist_ok=True)
+def scan_images(save_dir: Path) -> list[dict]:
+    """校验已落盘的章节，供中断后补写图片索引。"""
+    entries: list[tuple[int, Path]] = []
+    for path in save_dir.iterdir():
+        if not path.is_file() or path.name.startswith(".") or path.name.lower() == "thumbs.db":
+            continue
+        if path.suffix.lower() not in IMAGE_EXTENSIONS or path.stat().st_size > MAX_IMAGE_BYTES:
+            raise ImageSizeError(f"章节目录含无效图片: {path.name}")
+        number = re.match(r"(\d+)", path.name)
+        entries.append((int(number.group(1)) if number else 10**9, path))
+    entries.sort(key=lambda item: (item[0], item[1].name))
 
-
-def normalize_image_url(image_url: str, chapter_url: str, base_url: str | None = None) -> str:
-    """补全相对链接为绝对链接。"""
-    if not image_url:
-        return image_url
-    if image_url.startswith("//"):
-        if base_url:
-            parsed = urlparse(base_url)
-            scheme = parsed.scheme or "https"
-            return f"{scheme}:{image_url}"
-        return f"https:{image_url}"
-    parsed = urlparse(image_url)
-    if parsed.scheme:
-        return image_url
-    base = chapter_url or base_url or ""
-    return urljoin(base, image_url)
+    images: list[dict] = []
+    last = 0
+    for i, (number, path) in enumerate(entries, 1):
+        number = max(last + 1, i if number == 10**9 else number)
+        width, height = get_image_size(path)
+        images.append({"sort_num": number, "file_name": path.name, "width": width, "height": height})
+        last = number
+    return images
 
 
 def download_image_with_retry(
     session: requests.Session,
     image_url: str,
-    save_path: str,
+    page_path: Path,
     chapter_url: str,
-    img_timeout_sec: int,
-    image_retry_times: int,
-    base_url: str | None = None,
-) -> None:
-    """下载单张图片并在失败时重试。"""
+    timeout: int,
+    retries: int,
+) -> tuple[str, int, int]:
+    resolved_url = urljoin(chapter_url, image_url)
+    partial = page_path.with_suffix(".part")
+    headers = get_random_headers()
+    headers.update({"Referer": chapter_url, "Accept": "image/webp,image/png,image/jpeg,image/gif,image/bmp"})
     last_error = None
-    resolved_url = normalize_image_url(image_url, chapter_url, base_url)
-
-    for attempt in range(1, image_retry_times + 1):
+    for attempt in range(retries):
         try:
-            resp = session.get(
-                resolved_url,
-                headers={**get_random_headers(), "Referer": chapter_url},
-                timeout=img_timeout_sec,
-                verify=False,
-            )
-            resp.raise_for_status()
-            if not resp.content:
-                raise RuntimeError("空响应体")
-
-            with open(save_path, "wb") as f:
-                f.write(resp.content)
-            return
+            deadline = time.monotonic() + timeout
+            with session.get(resolved_url, headers=headers, timeout=timeout, stream=True) as response:
+                response.raise_for_status()
+                with partial.open("wb") as file:
+                    size = 0
+                    for chunk in response.iter_content(64 * 1024):
+                        size += len(chunk)
+                        if size > MAX_IMAGE_BYTES:
+                            raise RuntimeError("图片超过 64 MiB")
+                        if time.monotonic() > deadline:
+                            raise RuntimeError("图片下载超时")
+                        file.write(chunk)
+            ext, width, height = get_image_info(partial)
+            target = page_path.with_suffix(ext)
+            partial.replace(target)
+            return target.name, width, height
         except Exception as exc:
             last_error = exc
-            if os.path.exists(save_path):
-                os.remove(save_path)
-            random_sleep(0.8 * attempt, 0.5)
-
-    raise RuntimeError(f"图片下载失败: {resolved_url}, 错误: {last_error}")
-
-
-def _handle_remove_readonly(func, path, _exc_info) -> None:
-    try:
-        os.chmod(path, 0o666)
-        func(path)
-    except Exception:
-        return
+            partial.unlink(missing_ok=True)
+            if attempt + 1 < retries:
+                random_sleep(0.8 * (attempt + 1), 0.5)
+    raise RuntimeError(f"第 {int(page_path.name)} 页图片下载失败: {last_error}") from last_error
 
 
-def remove_dir_safely(path: str, retry_times: int = 3) -> None:
-    """删除目录并处理 Windows 下的占用与只读问题。"""
-    if not os.path.isdir(path):
-        return
-
-    last_error = None
-    for attempt in range(1, retry_times + 1):
+def finalize_chapter_dir(temp_dir: Path, final_dir: Path) -> None:
+    for attempt in range(3):
         try:
-            shutil.rmtree(path, onerror=_handle_remove_readonly)
-            if not os.path.exists(path):
-                return
-        except Exception as exc:
-            last_error = exc
-        time.sleep(0.4 * attempt)
-
-    if last_error:
-        raise last_error
-
-
-def finalize_chapter_dir(temp_dir: str, final_dir: str, retry_times: int = 3) -> None:
-    """提交章节目录，处理 Windows 临时占用导致的失败。"""
-    last_error = None
-    for attempt in range(1, retry_times + 1):
-        try:
-            remove_dir_safely(final_dir, retry_times=retry_times)
-            os.replace(temp_dir, final_dir)
+            if final_dir.is_dir():
+                final_dir.rmdir()
+            temp_dir.replace(final_dir)
             return
-        except PermissionError as exc:
-            last_error = exc
-            if attempt == retry_times:
+        except PermissionError:
+            if attempt == 2:
                 raise
-            time.sleep(0.5 * attempt)
-
-    if last_error:
-        raise last_error
+            time.sleep(0.5 * (attempt + 1))
 
 
 def download_pages_atomic(
     save_dir: str,
     chapter_url: str,
     fetch_image_urls: Callable[[str], tuple[list[str], int]],
+    session: requests.Session,
     img_timeout_sec: int,
     image_retry_times: int,
-    strict_expected_total: bool = True,
-    base_url: str | None = None,
-) -> tuple[bool, int, str]:
-    """原子化下载单章：save_dir/001.jpg、002.jpg ...
+    strict_expected_total: bool,
+) -> list[dict]:
+    final_dir = Path(save_dir)
+    if final_dir.is_dir() and (existing := scan_images(final_dir)):
+        return existing
 
-    全部图片下载成功才保留目录（失败时清理），返回 (ok, page_count, error)。
-    页码固定三位补齐（超过 999 张时自然扩展为四位）。
-    """
-    temp_dir = f"{save_dir}.downloading"
-    # 幂等：目录已存在且含图片则视为已下载（原子提交保证目录完整性）
-    if os.path.isdir(save_dir):
-        existing = [
-            f for f in os.listdir(save_dir)
-            if os.path.isfile(os.path.join(save_dir, f))
-        ]
-        if existing:
-            return True, len(existing), "已存在，跳过"
-    if os.path.isdir(temp_dir):
-        shutil.rmtree(temp_dir, ignore_errors=True)
-    ensure_dir(temp_dir)
-
+    temp_dir = final_dir.with_name(final_dir.name + ".downloading")
+    if temp_dir.is_dir():
+        shutil.rmtree(temp_dir)
     try:
-        img_urls, expected_total = fetch_image_urls(chapter_url)
-        if expected_total > 0 and len(img_urls) < expected_total:
-            message = (
-                f"预期图片{expected_total}张，实际提取到{len(img_urls)}张"
-            )
-            if strict_expected_total:
-                raise RuntimeError(message)
-            if not QUIET:
-                print(f"警告: {message}，继续下载...")
-
-        with create_http_session() as session:
-            total_for_pad = expected_total if expected_total > 0 else len(img_urls)
-            pad_width = max(3, len(str(total_for_pad)))
-            for i, img_url in enumerate(img_urls, start=1):
-                resolved_url = normalize_image_url(img_url, chapter_url, base_url)
-                ext = os.path.splitext(urlparse(resolved_url).path)[1].lower() or ".jpg"
-                if len(ext) > 6:
-                    ext = ".jpg"
-                save_path = os.path.join(temp_dir, f"{i:0{pad_width}d}{ext}")
-                download_image_with_retry(
-                    session,
-                    resolved_url,
-                    save_path,
-                    chapter_url,
-                    img_timeout_sec,
-                    image_retry_times,
-                    base_url,
-                )
-                if i % 20 == 0:
-                    if not QUIET:
-                        print(f"图片 {i}__Done!")
-                random_sleep(0.3, 0.4)
-        finalize_chapter_dir(temp_dir, save_dir)
-        return True, len(img_urls), ""
+        image_urls, expected = fetch_image_urls(chapter_url)
     except Exception as exc:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        return False, 0, str(exc)
+        raise RuntimeError(f"章节图片链接解析失败: {exc}") from exc
+    if not image_urls:
+        raise RuntimeError("章节未解析到图片链接")
+    if len(image_urls) < expected:
+        message = f"预期 {expected} 页，解析到 {len(image_urls)} 页"
+        if strict_expected_total:
+            raise RuntimeError(message)
+        print(message, file=sys.stderr, flush=True)
+
+    temp_dir.mkdir(parents=True)
+    try:
+        images = []
+        pad = max(3, len(str(max(expected, len(image_urls)))))
+        for i, image_url in enumerate(image_urls, 1):
+            name, width, height = download_image_with_retry(
+                session, image_url, temp_dir / f"{i:0{pad}d}", chapter_url,
+                img_timeout_sec, image_retry_times,
+            )
+            images.append({"sort_num": i, "file_name": name, "width": width, "height": height})
+            if i % 20 == 0:
+                print(f"已下载 {i}/{len(image_urls)} 页", file=sys.stderr, flush=True)
+            random_sleep(0.3, 0.4)
+        finalize_chapter_dir(temp_dir, final_dir)
+        return images
+    finally:
+        if temp_dir.is_dir():
+            shutil.rmtree(temp_dir, ignore_errors=True)

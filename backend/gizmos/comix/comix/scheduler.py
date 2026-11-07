@@ -15,7 +15,6 @@ from typing import Optional
 from . import config, db
 from .adapters import all_adapters, get_adapter
 from .models import ChapterInfo
-from util.common import QUIET, scan_images
 
 
 def _storage_path(rel_dir: str) -> str:
@@ -273,7 +272,7 @@ def download_comic(
     chapter_ids: Optional[list[int]] = None,
     sync_site: bool = True,
 ) -> dict:
-    """增量下载漫画：只下载未完成的章节（done 跳过）。
+    """增量下载未完成的章节，并补齐已落盘但未写入的图片索引。
 
     range_spec 限定章节号；latest_n 只取最新 N 个待下载章节；
     chapter_ids 直接指定章节行 id（update-check 精确下载新登记章节时使用，
@@ -284,6 +283,8 @@ def download_comic(
     if not comic:
         raise NotFound(f"漫画 {comic_id} 不存在")
     adapter = get_adapter(comic["site_code"])
+    if adapter is None:
+        raise NotFound(f"站点 {comic['site_code']} 不支持下载")
 
     # 孤儿回收：上次进程中断残留的 running 任务与 .downloading 临时目录
     recovered_tasks = db.recover_running_tasks(comic_id)
@@ -301,16 +302,12 @@ def download_comic(
         "site_total": 0, "registered": 0, "added": 0, "renumbered": 0, "error": "",
     }
 
-    all_chapters = db.list_chapters(comic_id)
-    want = {ch["id"]: ch for ch in all_chapters if ch["status"] != "done"}
+    want = {ch["id"]: ch for ch in db.chapters_to_download(comic_id)}
     if chapter_ids is not None:
         allow = set(chapter_ids)
         want = {i: ch for i, ch in want.items() if i in allow}
-    if retry_failed:
-        # failed 状态可重试；pending 默认下载
-        pass
-    else:
-        want = {ch["id"]: ch for ch in want.values() if ch["status"] == "pending"}
+    if not retry_failed:
+        want = {i: ch for i, ch in want.items() if ch["status"] != "failed"}
 
     no_range = _parse_range(range_spec)
     if no_range is not None:
@@ -336,30 +333,19 @@ def download_comic(
 
     def _download(ch: dict) -> dict:
         chapter = ChapterInfo(chapter_no=ch["chapter_no"], title=ch["title"], url=ch["url"])
-        # rel_dir 为存储根相对路径（comics/{comic_id}/{chapter_id}）
-        save_dir = _storage_path(ch["rel_dir"])
         db.start_task(comic_id, ch["id"])
         try:
-            ok, pages, error = adapter.download_chapter(chapter, save_dir)
-        except Exception as exc:  # 适配器内部未捕获的异常兜底
-            ok, pages, error = False, 0, f"{type(exc).__name__}: {exc}"
-        if ok:
-            db.update_chapter_status(ch["id"], "done", pages)
-            db.finish_task(ch["id"], "done", pages)
-            # 回填图片记录（comic_images，供 Go/Flutter 读取路径与宽高）
-            try:
-                db.replace_images(ch["id"], scan_images(save_dir))
-            except Exception as exc:
-                if not QUIET:
-                    print(f"警告: 图片记录回填失败(章节{ch['chapter_no']}): {exc}")
+            images = adapter.download_chapter(chapter, _storage_path(ch["rel_dir"]))
+            db.finish_download(ch["id"], images)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            db.finish_download(ch["id"], None, error)
             return {"chapter_id": ch["id"], "chapter_no": ch["chapter_no"],
-                    "title": ch["title"], "ok": True, "pages": pages,
-                    "rel_dir": ch["rel_dir"], "error": ""}
-        db.update_chapter_status(ch["id"], "failed", 0, error)
-        db.finish_task(ch["id"], "failed", 0, error)
+                    "title": ch["title"], "ok": False, "pages": 0,
+                    "rel_dir": ch["rel_dir"], "error": error}
         return {"chapter_id": ch["id"], "chapter_no": ch["chapter_no"],
-                "title": ch["title"], "ok": False, "pages": 0,
-                "rel_dir": ch["rel_dir"], "error": error}
+                "title": ch["title"], "ok": True, "pages": len(images),
+                "rel_dir": ch["rel_dir"], "error": ""}
 
     # 失败章节整章重试一轮（沿用原脚本的稳定性策略）
     # 注意：每轮失败收集到 round_failures，避免在重试轮被清空导致

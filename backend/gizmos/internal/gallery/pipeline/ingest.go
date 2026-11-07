@@ -19,6 +19,7 @@ import (
 
 	"monarch/gizmos/internal/gallery/model"
 	"monarch/gizmos/internal/gallery/processor"
+	"monarch/internal/galleryfs"
 )
 
 type ingestion struct {
@@ -197,7 +198,7 @@ func (p *ingestion) resume(record string, hash []byte) (string, error) {
 	if !filepath.IsLocal(rel) || filepath.Dir(rel) == "." {
 		return "", fmt.Errorf("无效的摄入记录: %s", record)
 	}
-	current, err := calculateFileHash(filepath.Join(p.config.MediaDir, rel))
+	current, err := galleryfs.HashFile(filepath.Join(p.config.MediaDir, rel))
 	if os.IsNotExist(err) {
 		return "", nil
 	}

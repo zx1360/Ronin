@@ -3,10 +3,13 @@ package router
 import (
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -33,7 +36,7 @@ func SetupRouter() *gin.Engine {
 
 	r.Use(selectiveAuth(filepath.Join(config.AppConf.DataDir, "logs.txt")))
 
-	r.Static("/static/comics", filepath.Join(config.AppConf.StaticDir, "comics"))
+	r.Group("/static", comicImagesOnly).Static("/comics", filepath.Join(config.AppConf.StaticDir, "comics"))
 	for _, module := range []string{"booklet", "essay", "preferences"} {
 		r.Static("/static/img_storage/"+module, filepath.Join(config.AppConf.DataDir, "img_storage", module))
 	}
@@ -185,6 +188,18 @@ func SetupRouter() *gin.Engine {
 	}
 
 	return r
+}
+
+func comicImagesOnly(c *gin.Context) {
+	contentType := mime.TypeByExtension(strings.ToLower(path.Ext(c.Request.URL.Path)))
+	if !strings.HasPrefix(contentType, "image/") || strings.HasPrefix(contentType, "image/svg+xml") {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	c.Header("Content-Type", contentType)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "sandbox")
+	c.Next()
 }
 
 // setupOpsWeb 托管网页运维端静态资源（/ops/），并重定向到目录形式的首页。

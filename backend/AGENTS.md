@@ -30,6 +30,6 @@ Go + Gin + `modernc.org/sqlite`；启动入口 `cmd/main.go`，路由真源 `int
 ## 验收
 
 在 `backend/` 运行 `go build ./...`、`go vet ./...`、`go test ./...`。
-运行主服务用 `go build ./cmd` 后启动 `cmd.exe`，避免 `go run` 触发防火墙确认。
+同步构建 `go build ./cmd` 和 `go build -o gizmos/gallery.exe ./gizmos/cmd/gallery`。运行主服务直接启动 `cmd.exe`。
 网页冒烟：`python tools/smoke_ops_web.py`（`OPS_SMOKE_BASE` 可指向隔离实例）。
 AI 安装与依赖见 `tools/ai/README.md`。

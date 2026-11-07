@@ -11,7 +11,7 @@ import { formatTime, formatDuration } from '../utils.js';
 const MODES = [
   { value: 'ingest', label: 'ingest · 摄入 Raw 到媒体库', hint: '扫描 Raw 目录，生成缩略图/预览图并入库。' },
   { value: 'execute', label: 'execute · 执行删除', hint: '把标记为软删除的媒体移入 Deleted 目录。' },
-  { value: 'refresh', label: 'refresh · 刷新修复', hint: '校验库内记录与文件，清理无效源记录并可重建缩略图/预览图。' },
+  { value: 'refresh', label: 'refresh · 刷新修复', hint: '补齐或重建缩略图和预览图。原件缺失时在日志中报告并保留记录。' },
 ];
 
 export default {

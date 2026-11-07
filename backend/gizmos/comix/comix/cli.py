@@ -28,7 +28,6 @@ from datetime import date, datetime
 from . import db, scheduler
 from .scheduler import CandidateChoiceRequired, NotFound
 
-import util.common as _common  # 控制安静模式
 
 
 # ---------------------------------------------------------------------------
@@ -296,9 +295,6 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
-
-    if args.json:
-        _common.QUIET = True  # 抑制下载进度打印，保证 stdout 只有 JSON
 
     try:
         args.func(args)

@@ -12,10 +12,9 @@ from urllib.parse import quote, urljoin
 
 from lxml import etree
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
 
 from ..models import ChapterInfo, ComicDetail, ComicInfo
-from .base import PLAYWRIGHT_OPTIONS, BaseAdapter
+from .base import BaseAdapter
 from util.common import run_with_timeout
 
 PAGE_TIMEOUT_MS = 60000
@@ -205,46 +204,41 @@ class NicemhAdapter(BaseAdapter):
         实测会挂死（进程永不退出），超时后立即失败并跳过重试（环境性故障）。
         """
         def _attempt() -> Tuple[List[str], int]:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(**PLAYWRIGHT_OPTIONS)
-                page = browser.new_page()
-                try:
-                    page.goto(chapter_url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
-                    self.sleep()
+            with self.reader(chapter_url, PAGE_TIMEOUT_MS) as page:
+                self.sleep()
 
-                    params_data = None
-                    for _ in range(30):
-                        try:
-                            params_data = page.evaluate(
-                                "() => { const o = window.params;"
-                                " if (!o || !Array.isArray(o.chapter_images)) return null;"
-                                " return {list: o.chapter_images.slice(), domain: o.images_hosts}; }"
-                            )
-                        except Exception:
-                            params_data = None
-                        if params_data and params_data.get("list"):
-                            break
-                        time.sleep(0.5)
-
+                params_data = None
+                for _ in range(30):
+                    try:
+                        params_data = page.evaluate(
+                            "() => { const o = window.params;"
+                            " if (!o || !Array.isArray(o.chapter_images)) return null;"
+                            " return {list: o.chapter_images.slice(), domain: o.images_hosts}; }"
+                        )
+                    except Exception:
+                        params_data = None
                     if params_data and params_data.get("list"):
-                        domain_val = params_data.get("domain")
-                        if isinstance(domain_val, list):
-                            domain_val = domain_val[0] if domain_val else ""
-                        domain = (domain_val or "https://s2.bzcdn.net").rstrip("/")
-                        urls = [
-                            u if u.startswith("http") else f"{domain}/{u.lstrip('/')}"
-                            for u in params_data["list"]
-                            if isinstance(u, str) and u.strip()
-                        ]
-                        if urls:
-                            return urls, len(urls)
+                        break
+                    time.sleep(0.5)
 
-                    img_urls, expected_total = self._collect_image_urls(page)
-                    if not img_urls:
-                        raise RuntimeError("未提取到任何图片链接")
-                    return img_urls, expected_total
-                finally:
-                    browser.close()
+                if params_data and params_data.get("list"):
+                    domain_val = params_data.get("domain")
+                    if isinstance(domain_val, list):
+                        domain_val = domain_val[0] if domain_val else ""
+                    domain = (domain_val or "https://s2.bzcdn.net").rstrip("/")
+                    urls = [
+                        u if u.startswith("http") else f"{domain}/{u.lstrip('/')}"
+                        for u in params_data["list"]
+                        if isinstance(u, str) and u.strip()
+                    ]
+                    if urls:
+                        return urls, len(urls)
+
+                img_urls, expected_total = self._collect_image_urls(page)
+                if not img_urls:
+                    raise RuntimeError("未提取到任何图片链接")
+                return img_urls, expected_total
+
 
         last_error = None
         for _ in range(self.chapter_retry_times):

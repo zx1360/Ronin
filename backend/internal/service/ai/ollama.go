@@ -41,6 +41,7 @@ type Ollama struct {
 	mu       sync.Mutex
 	proc     *exec.Cmd // 仅当我们自己拉起了 ollama serve 时非空
 	lastUsed time.Time
+	active   int
 	// keepAlive 最近一次对话请求要求的模型驻留时长，用于放宽自拉服务的空闲回收
 	keepAlive time.Duration
 	closed    bool
@@ -260,6 +261,8 @@ func (o *Ollama) resolveExe() string {
 // EnsureReady 确保 Ollama 可用：已运行则直接复用（不接管用户自启的实例），
 // 未运行且能找到可执行文件时按需拉起，并在空闲后由 supervise 回收。
 func (o *Ollama) EnsureReady(ctx context.Context, model string) error {
+	o.beginRequest()
+	defer o.endRequest()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -399,11 +402,11 @@ func SupportsThinking(model string) bool {
 
 // Generate 对单张图片执行一次 VLM 标注。
 func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmResult, error) {
+	o.beginRequest()
+	defer o.endRequest()
 	if err := o.EnsureReady(ctx, model); err != nil {
 		return nil, err
 	}
-	// 推理可能要几分钟：开始就刷新时间戳，避免空闲回收在推理过程中把服务杀掉
-	o.touch()
 
 	raw, err := os.ReadFile(imagePath)
 	if err != nil {
@@ -482,7 +485,6 @@ func (o *Ollama) Generate(ctx context.Context, model, imagePath string) (*vlmRes
 	}
 	result.Tags = cleaned
 
-	o.touch()
 	return &result, nil
 }
 
@@ -524,12 +526,15 @@ const defaultTemperature = 0.7
 //
 // 流式而非一次性返回：思考链与回答都要逐字出现，否则首字节要等几十秒。
 func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage, opt ChatOptions, onEvent func(ChatEvent) error) error {
+	o.beginRequest()
+	defer o.endRequest()
 	if err := o.EnsureReady(ctx, model); err != nil {
 		return err
 	}
-	// 推理可能要几分钟：开始就刷新时间戳，避免空闲回收在推理过程中把服务杀掉
-	o.touch()
-	o.setKeepAlive(opt.KeepAliveSeconds)
+	keepAlive := o.keepAliveSeconds(opt.KeepAliveSeconds)
+	o.mu.Lock()
+	o.keepAlive = time.Duration(keepAlive) * time.Second
+	o.mu.Unlock()
 
 	cfg := o.currentConfig()
 	numCtx := opt.NumCtx
@@ -547,7 +552,7 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 		"messages":   messages,
 		"stream":     true,
 		"think":      opt.Think,
-		"keep_alive": o.keepAliveSeconds(opt.KeepAliveSeconds),
+		"keep_alive": keepAlive,
 		"options":    options,
 	}
 	if opt.JSON {
@@ -601,7 +606,6 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 			_ = emit(ChatEvent{Type: "error", Error: chunk.Error})
 			return errors.New(chunk.Error)
 		}
-		o.touch()
 		if chunk.Message.Thinking != "" {
 			if err := emit(ChatEvent{Type: "thinking", Content: chunk.Message.Thinking}); err != nil {
 				return err
@@ -622,16 +626,6 @@ func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage,
 	}
 }
 
-// setKeepAlive 记录本次请求要求的模型驻留时长（忽略非正值）。
-func (o *Ollama) setKeepAlive(seconds int) {
-	if seconds <= 0 {
-		return
-	}
-	o.mu.Lock()
-	o.keepAlive = time.Duration(seconds) * time.Second
-	o.mu.Unlock()
-}
-
 // keepAliveSeconds 返回本次请求下发的 keep_alive（秒）。
 //
 // 0 是合法值（回答完立即卸载），因此只有负数才回落到服务端默认值。
@@ -640,18 +634,6 @@ func (o *Ollama) keepAliveSeconds(override int) int {
 		return override
 	}
 	return int(o.currentConfig().OllamaKeepAlive.Seconds())
-}
-
-// idleLimit 返回自拉 ollama serve 的回收阈值：不小于配置值，且覆盖用户要求的驻留时长
-// （否则用户把驻留调到 30 分钟，服务却在 6 分钟时被回收，设置形同虚设）。
-func (o *Ollama) idleLimit(base time.Duration) time.Duration {
-	o.mu.Lock()
-	keepAlive := o.keepAlive
-	o.mu.Unlock()
-	if keepAlive > base {
-		return keepAlive
-	}
-	return base
 }
 
 // extractJSONObject 从模型输出中截取第一个完整的 JSON 对象。
@@ -664,8 +646,15 @@ func extractJSONObject(raw string) string {
 	return raw[start : end+1]
 }
 
-func (o *Ollama) touch() {
+func (o *Ollama) beginRequest() {
 	o.mu.Lock()
+	o.active++
+	o.mu.Unlock()
+}
+
+func (o *Ollama) endRequest() {
+	o.mu.Lock()
+	o.active--
 	o.lastUsed = time.Now()
 	o.mu.Unlock()
 }
@@ -685,34 +674,34 @@ func (o *Ollama) supervise(ctx context.Context) {
 			if idle <= 0 {
 				idle = 120 * time.Second
 			}
-			o.mu.Lock()
-			owned := o.proc != nil
-			lastUsed := o.lastUsed
-			o.mu.Unlock()
-			if !owned || lastUsed.IsZero() {
-				// 未记录使用时间时按"刚刚用过"处理：绝不能当成"空闲了 292 年"
-				// 而把刚拉起的进程立刻回收。
-				continue
-			}
-			idleFor := time.Since(lastUsed)
-			if idleFor < o.idleLimit(idle) {
-				continue
-			}
-			log.Printf("[AI:ollama] 空闲 %s，回收按需拉起的 ollama serve", idleFor.Truncate(time.Second))
-			o.StopServer()
+			o.reapIdle(idle)
 		}
+	}
+}
+
+func (o *Ollama) reapIdle(idle time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	idleFor := time.Since(o.lastUsed)
+	if o.proc != nil && o.active == 0 && idleFor >= max(idle, o.keepAlive) {
+		log.Printf("[AI:ollama] 空闲 %s，回收按需拉起的 ollama serve", idleFor.Truncate(time.Second))
+		o.stopLocked()
 	}
 }
 
 // StopServer 停止由本服务拉起的 ollama serve（用户自启的实例不受影响）。
 func (o *Ollama) StopServer() {
 	o.mu.Lock()
-	proc := o.proc
-	o.proc = nil
-	o.mu.Unlock()
-	if proc != nil {
-		killProcessTree(proc)
-		_ = proc.Wait()
+	defer o.mu.Unlock()
+	o.stopLocked()
+}
+
+func (o *Ollama) stopLocked() {
+	if o.proc != nil {
+		killProcessTree(o.proc)
+		_ = o.proc.Wait()
+		o.proc = nil
+		o.keepAlive = 0
 	}
 }
 

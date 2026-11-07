@@ -186,37 +186,35 @@ class XmanhuaAdapter(BaseAdapter):
             params=params,
             headers={**self.headers(), "Referer": chapter_url, "X-Requested-With": "XMLHttpRequest"},
             timeout=self.img_timeout_sec,
-            verify=False,
         )
         resp.raise_for_status()
         return self._parse_ashx_response(resp.text)
 
     def _fetch_chapter_image_urls(self, chapter_url: str) -> Tuple[List[str], int]:
-        session = self.session()
-        html = session.get(
-            chapter_url, headers=self.headers(), timeout=self.img_timeout_sec, verify=False
-        ).text
-
-        cid = self._extract_js_var(html, "XMANHUA_CID")
-        mid = self._extract_js_var(html, "XMANHUA_MID")
-        image_count = int(self._extract_js_var(html, "XMANHUA_IMAGE_COUNT"))
-        sign = self._extract_js_var(html, "XMANHUA_VIEWSIGN")
-        dt = self._extract_js_var(html, "XMANHUA_VIEWSIGN_DT")
-
-        # 接口按页返回滑动窗口，"试看版"章节顺序会错乱，按文件名页码收集去重
         urls_map: dict[int, str] = {}
-        for page in range(1, image_count + 1):
-            for url in self._fetch_ashx_page(session, chapter_url, cid, mid, page, sign, dt):
-                matched = re.search(r"/(\d+)_", url)
-                if not matched:
-                    continue
-                page_no = int(matched.group(1))
-                if 1 <= page_no <= image_count:
-                    urls_map.setdefault(page_no, url)
-            if len(urls_map) >= image_count:
-                break
-            if page % 10 == 0:
-                self.sleep()
+        with self.session() as session:
+            response = session.get(chapter_url, headers=self.headers(), timeout=self.img_timeout_sec)
+            response.raise_for_status()
+            html = response.text
+            cid = self._extract_js_var(html, "XMANHUA_CID")
+            mid = self._extract_js_var(html, "XMANHUA_MID")
+            image_count = int(self._extract_js_var(html, "XMANHUA_IMAGE_COUNT"))
+            sign = self._extract_js_var(html, "XMANHUA_VIEWSIGN")
+            dt = self._extract_js_var(html, "XMANHUA_VIEWSIGN_DT")
+
+            # 接口按页返回滑动窗口，按文件名页码收集去重。
+            for page in range(1, image_count + 1):
+                for url in self._fetch_ashx_page(session, chapter_url, cid, mid, page, sign, dt):
+                    matched = re.search(r"/(\d+)_", url)
+                    if not matched:
+                        continue
+                    page_no = int(matched.group(1))
+                    if 1 <= page_no <= image_count:
+                        urls_map.setdefault(page_no, url)
+                if len(urls_map) >= image_count:
+                    break
+                if page % 10 == 0:
+                    self.sleep()
 
         if len(urls_map) < image_count:
             missing = [i for i in range(1, image_count + 1) if i not in urls_map]

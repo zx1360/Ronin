@@ -112,13 +112,21 @@ func RunSync(ctx context.Context, cmd string, rest ...string) (*Result, error) {
 	return parseOutput(stdout.String(), stderr.String(), exitCode, runErr)
 }
 
-// parseOutput 解析 CLI 输出。
-// 无论退出码如何，只要 stdout 可解析为 JSON 即返回该结果（业务错误同样携带）；
-// 否则按退出码与 stderr 构造错误。
+// parseOutput 保留退出码 2 的业务结果，意外退出按任务失败处理。
 func parseOutput(stdout, stderr string, exitCode int, runErr error) (*Result, error) {
 	result := &Result{ExitCode: exitCode, Stderr: strings.TrimSpace(stderr)}
 	parseErr := json.Unmarshal([]byte(stdout), result)
 	if parseErr == nil {
+		if runErr != nil && (exitCode != 2 || result.OK) {
+			detail := result.Error
+			if detail == "" {
+				detail = strings.TrimSpace(stderr)
+			}
+			if detail == "" {
+				detail = runErr.Error()
+			}
+			return nil, fmt.Errorf("comix 命令执行失败(exit %d): %s", exitCode, detail)
+		}
 		return result, nil
 	}
 	if runErr != nil {
