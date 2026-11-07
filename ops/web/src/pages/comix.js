@@ -4,12 +4,12 @@
 // 纯逻辑（输入校验/任务摘要/状态映射）在 comix/helpers.js。
 
 import { ref } from '../vue.js';
-import { Card, Placeholder, TaskStatusBadge } from '../ui.js';
-import { FILTERS, TABS } from './comix/helpers.js';
+import { Card, Placeholder, Badge } from '../ui.js';
+import { FILTERS, TABS, comixStatusText, comixStatusKind } from './comix/helpers.js';
 import { useComixBoard } from './comix/board.js';
 
 export default {
-  components: { Card, Placeholder, TaskStatusBadge },
+  components: { Card, Placeholder, Badge },
   setup() {
     const board = useComixBoard();
     const tab = ref('url');
@@ -20,7 +20,7 @@ export default {
       board.onTabChange(name);
     };
 
-    return { ...board, tab, selectTab, TABS, FILTERS };
+    return { ...board, tab, selectTab, TABS, FILTERS, comixStatusText, comixStatusKind };
   },
   template: `
     <div>
@@ -33,45 +33,9 @@ export default {
 
       <!-- ============ 网址下载 ============ -->
       <template v-if="tab === 'url'">
-        <Card title="comix 集成">
-          <template #actions>
-            <span class="badge" :class="comixAvailable ? 'success' : 'error'">
-              {{ comixAvailable ? '可用' : '不可用' }}
-            </span>
-            <button class="ghost sm" :disabled="initRunning" @click="runInit()">
-              {{ initRunning ? '初始化中…' : '初始化（建表并注册站点）' }}
-            </button>
-          </template>
-          <Placeholder v-if="configError" :error="'获取 comix 配置失败: ' + configError" />
-          <div class="col" v-else>
-            <div class="small" style="color: var(--warning)" v-if="!comixAvailable">
-              comix 不可用{{ comixMessage ? '：' + comixMessage : '：请检查服务端 COMIX_PYTHON / COMIX_ROOT 配置' }}
-            </div>
-            <div class="small muted" v-else>comix 已就绪{{ comixMessage ? '：' + comixMessage : '' }}</div>
-            <div class="small muted">
-              Python: <span class="mono">{{ comixPython }}</span>
-              · 根目录: <span class="mono">{{ comixRoot }}</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card title="支持站点">
-          <template #actions>
-            <button class="ghost sm" @click="loadSites()">刷新</button>
-          </template>
-          <Placeholder v-if="sitesError"
-                       :error="'站点列表不可用: ' + sitesError + '（comix 表可能尚未初始化，可执行上方「初始化」）'" />
-          <Placeholder v-else-if="!sites.length" text="暂无已注册站点" />
-          <div class="row" v-else>
-            <span v-for="site in sites" :key="site.code" class="badge" :class="site.enabled ? 'info' : ''">
-              {{ site.name }} ({{ site.code }}){{ site.enabled ? '' : ' · 已停用' }}
-            </span>
-          </div>
-        </Card>
-
         <Card title="网址下载">
           <div class="col">
-            <div class="small muted">粘贴漫画详情页网址，自动识别站点并下载（每行一个，多个任务并发进行）</div>
+            <div class="small muted">粘贴漫画详情页网址，自动识别站点并下载（每行一个，按提交顺序排队下载）</div>
             <textarea v-model="urlInput" rows="6" placeholder="https://www.xmanhua.net/m27836/"></textarea>
             <div class="row">
               <label class="field" style="width: 220px">
@@ -114,6 +78,44 @@ export default {
             </table>
           </div>
         </Card>
+        <details :open="!comixAvailable || !!configError">
+          <summary>运行环境与支持站点</summary>
+          <Card title="comix 集成">
+            <template #actions>
+              <span class="badge" :class="comixAvailable ? 'success' : 'error'">
+                {{ comixAvailable ? '可用' : '不可用' }}
+              </span>
+              <button class="ghost sm" :disabled="initRunning" @click="runInit()">
+                {{ initRunning ? '初始化中…' : '初始化（建表并注册站点）' }}
+              </button>
+            </template>
+            <Placeholder v-if="configError" :error="'获取 comix 配置失败: ' + configError" />
+            <div class="col" v-else>
+              <div class="small" style="color: var(--warning)" v-if="!comixAvailable">
+                comix 不可用{{ comixMessage ? '：' + comixMessage : '：请检查服务端 COMIX_PYTHON / COMIX_ROOT 配置' }}
+              </div>
+              <div class="small muted" v-else>comix 已就绪{{ comixMessage ? '：' + comixMessage : '' }}</div>
+              <div class="small muted">
+                Python: <span class="mono">{{ comixPython }}</span>
+                · 根目录: <span class="mono">{{ comixRoot }}</span>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="支持站点">
+            <template #actions>
+              <button class="ghost sm" @click="loadSites()">刷新</button>
+            </template>
+            <Placeholder v-if="sitesError"
+                         :error="'站点列表不可用: ' + sitesError + '（comix 表可能尚未初始化，可执行上方「初始化」）'" />
+            <Placeholder v-else-if="!sites.length" text="暂无已注册站点" />
+            <div class="row" v-else>
+              <span v-for="site in sites" :key="site.code" class="badge" :class="site.enabled ? 'info' : ''">
+                {{ site.name }} ({{ site.code }}){{ site.enabled ? '' : ' · 已停用' }}
+              </span>
+            </div>
+          </Card>
+        </details>
       </template>
 
       <!-- ============ 漫画库 ============ -->
@@ -286,7 +288,7 @@ export default {
                     业务错误（ok=false）
                   </div>
                 </td>
-                <td><TaskStatusBadge :status="task.status" /></td>
+                <td><Badge :kind="comixStatusKind(task)">{{ comixStatusText(task) }}</Badge></td>
                 <td class="small mono">{{ task.command }}</td>
                 <td>{{ task.pid || '—' }}</td>
                 <td class="small">{{ formatTime(task.started_at, false) }}</td>

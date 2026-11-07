@@ -60,12 +60,6 @@ export default {
   },
   template: `
     <div>
-      <div class="quick-actions">
-        <a href="#/tasks"><strong>管理任务</strong><span>导入媒体、修复预览、检查执行结果</span></a>
-        <a href="#/ai"><strong>AI 与检索</strong><span>处理队列、人物整理、相似与重复检索</span></a>
-        <a href="#/comix"><strong>管理漫画</strong><span>搜索下载、追更、检查章节完整性</span></a>
-        <a href="#/essay"><strong>写一篇随笔</strong><span>继续本机草稿，或浏览正式随笔</span></a>
-      </div>
       <div class="row between">
         <div class="row">
           <span class="muted small" v-if="updatedAt">更新于 {{ formatTime(updatedAt) }}</span>
@@ -73,7 +67,7 @@ export default {
         </div>
       </div>
 
-      <Placeholder v-if="error" :error="'获取 /API/ops/overview 失败: ' + error" />
+      <Placeholder v-if="error" :error="'无法获取服务状态：' + error" />
 
       <template v-if="overview">
         <div class="grid cols-3">

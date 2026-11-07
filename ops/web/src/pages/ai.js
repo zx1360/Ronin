@@ -157,12 +157,7 @@ export default {
   },
   template: `
     <div>
-      <div class="row between">
-        <div class="row">
-          <span class="small muted" v-if="loading">刷新中…</span>
-          <span class="small muted" v-if="!active && status && !disabled">无排队任务，已停止轮询</span>
-        </div>
-      </div>
+      <p class="small muted" v-if="loading">刷新中…</p>
 
       <div class="tabs">
         <button

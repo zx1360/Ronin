@@ -59,10 +59,17 @@ export default {
       if (newStyle.value.tasks.length < 5) newStyle.value.tasks.push({ id: crypto.randomUUID(), title: '', description: '', image: '' });
     }
     function createStyle() {
+      if (creating.value) return;
+      if (dirty.value) { toast('请先保存打卡或撤销修改，再新建样式', 'warning'); return; }
       styleCursor = board.snapshotCursor();
       files.clear();
       newStyle.value = { id: crypto.randomUUID(), start_date: day(), valid_check_in: 0, fully_done: 0, longest_streak: 0, longest_fully_streak: 0, tasks: [] };
       addTask(); creating.value = true;
+    }
+    async function cancelStyle() {
+      const filled = newStyle.value.tasks.some((task) => task.title.trim() || task.description.trim() || task.image);
+      if (filled && !await confirmAction('放弃尚未启用的新样式？已填写的内容将丢弃。', { danger: true })) return;
+      creating.value = false; newStyle.value = null; files.clear();
     }
     async function saveStyle() {
       const row = clone(newStyle.value);
@@ -117,21 +124,26 @@ export default {
       input.value = date.value;
     }
     const refresh = async () => { await board.refresh(); if (!dirty.value) loadRecord(); };
-    return { ...board, refresh, tab, date, today: day(), form, dirty, styles, recordStyle, progress, loadRecord, saveRecord,
-      selectedId, selected, related, stats, creating, newStyle, files, createStyle, addTask, saveStyle, removeStyle,
+    async function discardRecord() {
+      if (!dirty.value || !await confirmAction('撤销尚未保存的打卡修改，恢复已保存的内容？', { danger: true })) return;
+      await board.refresh();
+      if (!board.error.value) loadRecord();
+    }
+    return { ...board, refresh, tab, date, today: day(), form, dirty, styles, recordStyle, progress, discardRecord, saveRecord,
+      selectedId, selected, related, stats, creating, newStyle, files, createStyle, cancelStyle, addTask, saveStyle, removeStyle,
       month, moveMonth, taskFilter, calendar, historyQuery, historyStyle, history, visibleHistory, limit, styleName, doneCount, openDay, changeDate, imageUrl, moodText };
   },
   template: `
     <div class="user-page">
       <div class="row between user-toolbar">
         <span class="muted">把日常的小事，积成看得见的变化。</span>
-        <div class="row">
+        <div class="row" v-if="!creating">
           <button :disabled="loading || busy" @click="refresh">刷新</button>
           <button class="primary" :disabled="loading || busy" @click="createStyle">新建样式</button>
         </div>
       </div>
       <Placeholder v-if="error" :error="error" />
-      <div class="tabs">
+      <div class="tabs" v-if="!creating">
         <button :class="{active:tab==='today'}" @click="tab='today'">每日打卡</button>
         <button :class="{active:tab==='overview'}" @click="tab='overview'">样式与日历</button>
         <button :class="{active:tab==='history'}" @click="tab='history'">历史记录</button>
@@ -158,12 +170,12 @@ export default {
           <div class="row">
             <button type="button" :disabled="newStyle.tasks.length>=5" @click="addTask">添加任务</button>
             <span class="spacer"></span>
-            <button type="button" :disabled="busy" @click="creating=false">取消</button>
+            <button type="button" :disabled="busy" @click="cancelStyle">取消</button>
             <button class="primary" :disabled="busy">{{busy?'保存中…':'启用样式'}}</button>
           </div>
         </form>
       </Card>
-      <template v-if="tab==='today'">
+      <template v-else-if="tab==='today'">
         <Card title="每日打卡">
           <template #actions>
             <input type="date" aria-label="打卡日期" :value="date" :max="today" @change="changeDate" />
@@ -193,7 +205,7 @@ export default {
               <MoodSelect v-model="form.mood" />
               <span class="spacer"></span>
               <span class="small muted" v-if="dirty">有未保存的修改</span>
-              <button type="button" :disabled="busy" @click="loadRecord">重置</button>
+              <button type="button" :disabled="!dirty || busy || loading" @click="discardRecord">撤销修改</button>
               <button class="primary" :disabled="busy || loading">{{busy?'保存中…':'保存打卡'}}</button>
             </div>
           </form>
