@@ -13,6 +13,53 @@ import (
 	"monarch/internal/service/db"
 )
 
+func TestOnlineSyncRejectsStaleSnapshotAtomically(t *testing.T) {
+	const id = "00000000-0000-4000-8000-999999999991"
+	t.Cleanup(func() {
+		ctx, cancel := db.GetDefaultCtx()
+		defer cancel()
+		for _, query := range []string{"DELETE FROM essay_labels WHERE id=?", "DELETE FROM user_data_changes WHERE row_id=?"} {
+			if _, err := db.Exec(ctx, query, id); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	read := func() map[string]any {
+		t.Helper()
+		data, err := data_repo.ReadSync("essay", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	before := read()
+	base := before["cursor"].(int64)
+	var row model.EssayLabel
+	if err := json.Unmarshal([]byte(`{"id":"`+id+`","name":"在线版本","updated_at":"2026-01-01T00:00:00Z"}`), &row); err != nil {
+		t.Fatal(err)
+	}
+	data := data_repo.SyncData{SyncVersion: 2, BaseCursor: &base, Labels: []model.EssayLabel{row}}
+	if err := data_repo.MergeSync("essay", data); err != nil {
+		t.Fatal(err)
+	}
+	accepted := read()
+	row.Name = "过期页面的新输入"
+	row.UpdatedAt = model.FlexTime(time.Now())
+	data.Labels = []model.EssayLabel{row}
+	data.Tombstones = []data_repo.Tombstone{{Collection: "labels", ID: id, UpdatedAt: model.FlexTime(time.Now().Add(time.Second))}}
+	if err := data_repo.MergeSync("essay", data); !errors.Is(err, data_repo.ErrSyncConflict) {
+		t.Fatalf("过期快照没有被拒绝: %v", err)
+	}
+	if !reflect.DeepEqual(accepted, read()) {
+		t.Fatal("冲突后数据、删除标记或游标发生变化")
+	}
+	// 旧客户端不携带快照前提，仍能使用既有逐行合并协议。
+	data.BaseCursor, data.Tombstones = nil, nil
+	if err := data_repo.MergeSync("essay", data); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestUserDataContract(t *testing.T) {
 	raw, err := os.ReadFile("../../../contracts/user_data.json")
 	if err != nil {

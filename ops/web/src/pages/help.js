@@ -1,48 +1,39 @@
-// 帮助：访问方式、本机能力边界、与旧桌面端的差异。
-
 import { state } from '../store.js';
 import { Card } from '../ui.js';
 
 export default {
   components: { Card },
-  setup() {
-    return { state, origin: window.location.origin };
-  },
+  setup: () => ({ state }),
   template: `
     <div>
-      <Card title="积微与随笔">
-        <div class="col small"><div>手机与网页都可编辑，手动同步按更新时间合并，删除也会同步到另一端。</div><div>首次升级请先用新版 Android 同步一次，再开始网页编辑；设备时间应保持准确。</div><div>网页随笔草稿及草稿图片仅保存在当前浏览器，正式保存后才上传；清理浏览器数据会移除本机草稿。</div></div>
-      </Card>
-      <Card title="本机能力由后端代理">
-        <div class="col small">
-          <div>页面本身没有本机权限，下列操作经 <span class="mono">/API/ops/local/*</span> 交由 Monarch 在本机执行：</div>
-          <table class="data">
-            <thead><tr><th>能力</th><th>接口</th><th>说明</th></tr></thead>
-            <tbody>
-              <tr><td>引导信息</td><td class="mono">GET /bootstrap</td><td>密钥、偏好、路径、组件可用性</td></tr>
-              <tr><td>偏好读写</td><td class="mono">PUT /settings</td><td>写 static/data/ops_web.json</td></tr>
-              <tr><td>资源管理器定位</td><td class="mono">POST /reveal</td><td>按绝对路径或库内相对路径打开并选中</td></tr>
-              <tr><td>Gallery 任务</td><td class="mono">GET/POST /tasks</td><td>启停内置 gallery CLI，查看状态与日志</td></tr>
-            </tbody>
-          </table>
+      <Card title="从哪里开始">
+        <div class="col">
+          <p>「工作台」查看服务是否可用；「任务中心」统一查看媒体与漫画任务的状态、结果和日志，也可提交媒体导入与修复。</p>
+          <p>「AI 与检索」管理模型与处理队列；「漫画管理」负责搜索、下载、追更与漫画库整理。任务完成前可离开页面，Monarch 会继续处理。</p>
         </div>
       </Card>
-
-      <Card title="gallery CLI">
-        <div class="col small">
-          <div>在 <span class="mono">backend/</span> 执行 <code>go build -o gizmos/gallery.exe ./gizmos/cmd/gallery</code>。</div>
-          <div>产物即 <span class="mono">backend/gizmos/gallery.exe</span>；如需换位置，在 <span class="mono">backend/.env</span> 里设 <span class="mono">GALLERY_CLI</span>。</div>
-          <div>任务由 Monarch 的任务引擎托管：同一时刻只允许一个 gallery 任务，中断会连同子进程一起结束。</div>
+      <Card title="手机与电脑共同编辑">
+        <div class="col">
+          <p>正式随笔、标签、打卡样式和记录由后端保存。手机支持离线编辑，连接后手动同步；网页直接在线编辑。</p>
+          <p>网页提交时若另一端已有更新，本次修改会被拒绝。先保留输入、刷新并核对最新版本，再决定如何保存。随笔冲突时可保留本机草稿，或另存为新随笔。</p>
+          <p>手机离线数据按更新时间合并，同一条记录较新的版本生效，删除也会传播。请保持设备时钟准确；在另一端继续编辑前先同步手机。</p>
+          <p>网页随笔草稿与草稿图片只存在当前浏览器，手机草稿与对话只存在手机。清理浏览器数据或卸载应用前，请先保存需要保留的内容。</p>
         </div>
       </Card>
-
-      <Card title="数据文件位置">
-        <div class="col small">
-          <div>运维端偏好：<span class="mono">static/data/ops_web.json</span></div>
-          <div>AI 运行时配置：<span class="mono">static/data/ai_config.json</span></div>
+      <Card title="任务与资源">
+        <div class="col">
+          <p>媒体库同一时间只执行一个维护任务。漫画写任务按提交顺序排队，排队时可直接取消。重启服务会清空这些任务的历史与日志，库内数据会保留。</p>
+          <p>AI 队列保存在数据库中，暂停后保留待办；继续处理时从队列接续。模型按需加载并在空闲后释放。</p>
+          <p>媒体导入完成后会清理对应 Raw 文件；执行媒体变更会应用编辑并将软删除文件移入 Deleted。操作前请核对说明和目标目录。</p>
+        </div>
+      </Card>
+      <Card title="备份与迁移">
+        <div class="col">
+          <p>迁移前停止 Monarch 和相关下载任务，完整备份数据库、媒体库、用户附件与配置。单独复制数据库无法保留图片和漫画原件。</p>
           <div>数据库：<span class="mono">{{ state.paths.dbFile }}</span></div>
           <div>媒体库：<span class="mono">{{ state.paths.galleryDir }}</span></div>
-          <div class="muted">全部随应用目录一起迁移/备份，不写用户目录。</div>
+          <div>用户附件与配置：<span class="mono">{{ state.settingsPath }}</span> 所在目录</div>
+          <p class="muted">完整路径与组件状态可在「设置与连接」核对。本页面仅供本机访问。</p>
         </div>
       </Card>
     </div>`,

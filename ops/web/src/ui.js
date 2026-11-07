@@ -1,7 +1,7 @@
 // 共享 UI 组件与轮询工具。
 
 import { onUnmounted } from './vue.js';
-import { state, resolveDialog } from './store.js';
+import { state, resolveDialog, confirmAction, setLeaveGuard } from './store.js';
 import { taskStatusKind, taskStatusText } from './utils.js';
 
 /** 状态徽标。 */
@@ -88,6 +88,13 @@ export const ConfirmHost = {
     return { state, resolveDialog };
   },
 };
+
+export function useLeaveGuard(dirty) {
+  const clear = setLeaveGuard(() => !dirty() || confirmAction('当前有未保存的修改，离开将丢弃这些输入。继续吗？', { danger: true }));
+  const warn = (event) => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } };
+  window.addEventListener('beforeunload', warn);
+  onUnmounted(() => { clear(); window.removeEventListener('beforeunload', warn); });
+}
 
 // 显式刷新可在空闲时执行；执行中的多次刷新合并为下一轮。
 export function usePolling(callback, { interval, enabled }) {

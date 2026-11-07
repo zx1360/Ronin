@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,8 +22,7 @@ const (
 	// reconcileIdleInterval 队列已排空后的长间隔（降低空转开销）。
 	reconcileIdleInterval = 10 * time.Minute
 	// reconcileBatch 单次补充入队的上限（每个能力）。
-	reconcileBatch = 5000
-	// 保持索引回收频率，空队列按退避间隔检查。
+	reconcileBatch     = 5000
 	workerIdleInterval = 5 * time.Second
 	workerMaxInterval  = time.Minute
 	// vlmBatchMax VLM 单图耗时长，缩小批次以降低超时损失。
@@ -87,24 +85,19 @@ func (e *Engine) reconcileOnce() time.Duration {
 
 // workerLoop 主调度循环：有任务就连续处理，空闲则定期轮询。
 func (e *Engine) workerLoop(ctx context.Context) {
-	ticker := time.NewTicker(workerIdleInterval)
-	defer ticker.Stop()
-	var next time.Time
+	timer := time.NewTimer(workerIdleInterval)
+	defer timer.Stop()
 	interval := workerIdleInterval
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-e.wake:
-			next = time.Time{}
+			timer.Stop()
 			interval = workerIdleInterval
-		case <-ticker.C:
+		case <-timer.C:
 		}
-		if e.index.ReleaseIdle(e.Config().IdleTimeout) {
-			// 大索引回收时归还堆页，不在每次空闲轮询中触发 GC。
-			debug.FreeOSMemory()
-		}
-		if e.paused.Load() || time.Now().Before(next) {
+		if e.paused.Load() {
 			continue
 		}
 		workedAny := false
@@ -122,7 +115,7 @@ func (e *Engine) workerLoop(ctx context.Context) {
 		if workedAny {
 			interval = workerIdleInterval
 		}
-		next = time.Now().Add(interval)
+		timer.Reset(interval)
 		interval = min(interval*2, workerMaxInterval)
 	}
 }

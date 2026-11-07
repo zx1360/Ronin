@@ -25,13 +25,92 @@ func waitFor(t *testing.T, m *Manager, id string, timeout time.Duration) *Task {
 		if err != nil {
 			t.Fatalf("获取任务失败: %v", err)
 		}
-		if task.Status != StatusRunning {
+		if !active(task.Status) {
 			return task
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("任务 %s 在 %s 内未结束", id, timeout)
 	return nil
+}
+
+func TestQueuedCancellationAndFIFO(t *testing.T) {
+	requireWindows(t)
+	m := NewManager(20, 5)
+	defer m.Close()
+	gate := &Gate{}
+	if !gate.TryLock() {
+		t.Fatal("新门禁不可用")
+	}
+	var order []string
+	var tasks []*Task
+	for _, name := range []string{"first", "cancel", "last"} {
+		name := name
+		task, err := m.Start(Spec{
+			Name: name, Guard: gate, Exe: "cmd.exe", Args: []string{"/c", "echo " + name},
+			Parse: func(stdout, stderr string, code int, err error) (any, error) {
+				order = append(order, strings.TrimSpace(stdout))
+				return nil, err
+			},
+		})
+		if err != nil || task.Status != StatusQueued || task.PID != 0 {
+			t.Fatalf("等待任务状态错误: %+v / %v", task, err)
+		}
+		tasks = append(tasks, task)
+	}
+	if err := m.Stop(tasks[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	if canceled := waitFor(t, m, tasks[1].ID, time.Second); canceled.Status != StatusKilled || canceled.PID != 0 {
+		t.Fatalf("排队任务没有立即取消: %+v", canceled)
+	}
+	gate.Unlock()
+	for _, task := range []*Task{tasks[0], tasks[2]} {
+		if result := waitFor(t, m, task.ID, 10*time.Second); result.Status != StatusFinished {
+			t.Fatalf("任务没有完成: %+v", result)
+		}
+	}
+	if strings.Join(order, ",") != "first,last" {
+		t.Fatalf("没有按提交顺序执行: %v", order)
+	}
+}
+
+func TestCloseCancelsWaitingTasksAndPrunesWithoutList(t *testing.T) {
+	m := NewManager(20, 2)
+	gate := &Gate{}
+	gate.TryLock()
+	defer gate.Unlock()
+	for range 5 {
+		if _, err := m.Start(Spec{Exe: "not-started", Guard: gate}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	closed := make(chan struct{})
+	go func() { m.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("关闭仍在等待共用资源")
+	}
+	if len(m.tasks) != 2 {
+		t.Fatalf("未查询列表时历史没有裁剪: %d", len(m.tasks))
+	}
+}
+
+func TestTaskOutputMemoryIsBounded(t *testing.T) {
+	m := NewManager(2000, 2)
+	task := &Task{}
+	for range 100 {
+		m.appendLog(task, "stdout", strings.Repeat("x", 16*1024))
+	}
+	if task.logBytes > maxLogBytes || len(task.Logs) != maxLogBytes/(16*1024) {
+		t.Fatalf("日志超过字节上限: %d / %d", task.logBytes, len(task.Logs))
+	}
+	var output resultWriter
+	raw := []byte(strings.Repeat("x", maxResultSize+1))
+	if n, err := output.Write(raw); err != nil || n != len(raw) || !output.overflow || output.Len() != maxResultSize {
+		t.Fatalf("结果输出没有限流并排空管道: %d / %v", n, err)
+	}
 }
 
 func TestStartStreamsOutputAndFinishes(t *testing.T) {
@@ -128,8 +207,8 @@ func TestStopKillsRunningTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("启动失败: %v", err)
 	}
-	if m.RunningCount() != 1 {
-		t.Fatalf("运行中任务数应为 1，实际 %d", m.RunningCount())
+	if m.ActiveCount() != 1 {
+		t.Fatalf("运行中任务数应为 1，实际 %d", m.ActiveCount())
 	}
 
 	if err := m.Stop(task.ID); err != nil {
@@ -140,8 +219,8 @@ func TestStopKillsRunningTask(t *testing.T) {
 	if finished.Status != StatusKilled {
 		t.Fatalf("状态应为 killed，实际 %s", finished.Status)
 	}
-	if m.RunningCount() != 0 {
-		t.Fatalf("中断后运行中任务数应为 0，实际 %d", m.RunningCount())
+	if m.ActiveCount() != 0 {
+		t.Fatalf("中断后运行中任务数应为 0，实际 %d", m.ActiveCount())
 	}
 }
 
@@ -169,7 +248,7 @@ func TestCloseWaitsAndRejectsNewTasks(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	m.Close()
-	if m.RunningCount() != 0 {
+	if m.ActiveCount() != 0 {
 		t.Fatal("关闭后仍有运行中的任务")
 	}
 	if _, err := m.Start(Spec{Exe: "cmd.exe"}); err == nil {

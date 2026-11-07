@@ -271,7 +271,7 @@ export default {
             <thead>
               <tr>
                 <th>任务</th><th>状态</th><th>命令</th><th>PID</th>
-                <th>开始</th><th>耗时</th><th>退出码</th><th></th>
+                <th>提交时间</th><th>耗时</th><th>退出码</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -293,7 +293,7 @@ export default {
                 <td class="small">{{ taskDuration(task) }}</td>
                 <td>{{ task.exit_code === null || task.exit_code === undefined ? '—' : task.exit_code }}</td>
                 <td>
-                  <button class="danger sm" v-if="task.status === 'running'" @click.stop="stopTask(task)">中断</button>
+                  <button class="danger sm" v-if="taskActive(task.status)" @click.stop="stopTask(task)">{{ task.status === 'queued' ? '取消排队' : '中断' }}</button>
                 </td>
               </tr>
             </tbody>

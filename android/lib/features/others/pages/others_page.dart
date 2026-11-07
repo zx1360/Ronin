@@ -9,18 +9,18 @@ class OthersPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('其他功能'),
-      ),
+      appBar: AppBar(title: const Text('媒体')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: GridView.count(
-          // 每行显示2个项目
-          crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          // 子项宽高比
-          childAspectRatio: 1.2,
+        child: GridView.extent(
+          maxCrossAxisExtent: MediaQuery.textScalerOf(context).scale(14) > 20
+              ? 500
+              : 260,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: MediaQuery.textScalerOf(context).scale(14) > 20
+              ? 220
+              : 160,
           children: OtherPagesData.pages
               .map((page) => PageEntryButton(pageItem: page))
               .toList(),

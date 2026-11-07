@@ -24,8 +24,9 @@ import (
 type Status string
 
 const (
+	StatusQueued   Status = "queued"   // 等待共用资源
 	StatusRunning  Status = "running"  // 子进程运行中
-	StatusFinished Status = "finished" // 正常结束（含业务错误）
+	StatusFinished Status = "finished" // 正常结束
 	StatusFailed   Status = "failed"   // 启动失败 / 意外异常 / 输出解析失败
 	StatusKilled   Status = "killed"   // 被用户中断
 )
@@ -44,7 +45,7 @@ type Task struct {
 	Command    string     `json:"command"` // 展示用完整命令行
 	Status     Status     `json:"status"`
 	PID        int        `json:"pid"`
-	StartedAt  time.Time  `json:"started_at"`
+	StartedAt  time.Time  `json:"started_at"` // 提交时间，包含排队等待。
 	FinishedAt *time.Time `json:"finished_at"`
 	ExitCode   *int       `json:"exit_code"`
 	Result     any        `json:"result,omitempty"`
@@ -52,10 +53,12 @@ type Task struct {
 	Logs       []LogEntry `json:"logs"`
 
 	killed atomic.Bool
+	stop   chan struct{}
 	proc   *exec.Cmd // 由 run 设置，Stop 读取（经 manager 锁保护）
 	// stderrTail 保留 stderr 末尾若干字节，用于失败时给出可读原因
 	// （CLI 的 traceback/错误信息都走 stderr）。不加 json tag 且非导出，不参与序列化。
 	stderrTail strings.Builder
+	logBytes   int
 }
 
 // Spec 描述一次任务如何执行。
@@ -63,18 +66,22 @@ type Spec struct {
 	Name         string
 	Exe          string
 	Args         []string
-	Dir          string      // 工作目录，留空则沿用服务进程的当前目录
-	Env          []string    // 追加到当前进程环境之上的变量（KEY=VALUE）
-	Guard        *sync.Mutex // 共用资源的子进程依次执行；等待期间不启动进程。
-	StreamStdout bool        // 将 stdout 逐行写入任务日志
-	AfterExit    func()      // 已启动的进程退出后调用
+	Dir          string   // 工作目录，留空则沿用服务进程的当前目录
+	Env          []string // 追加到当前进程环境之上的变量（KEY=VALUE）
+	Guard        *Gate    // 共用资源按提交顺序分配；等待期间不启动进程。
+	StreamStdout bool     // 将 stdout 逐行写入任务日志
+	AfterExit    func()   // 已启动的进程退出后调用
 	// Parse 把子进程输出解析为结构化结果；返回的错误视为任务失败。
 	// 为 nil 时按退出码判定成败，Result 保持为空。
 	Parse func(stdout, stderr string, exitCode int, runErr error) (any, error)
 }
 
 // maxStderrTail 错误上报保留的 stderr 尾部长度上限。
-const maxStderrTail = 4 * 1024
+const (
+	maxStderrTail = 4 * 1024
+	maxLogBytes   = 512 * 1024
+	maxResultSize = 16 * 1024 * 1024
+)
 
 // Manager 维护全部任务的内存注册表。
 type Manager struct {
@@ -115,15 +122,20 @@ func (m *Manager) Start(spec Spec) (*Task, error) {
 		ID:        taskID,
 		Name:      spec.Name,
 		Command:   commandLine(spec),
-		Status:    StatusRunning,
+		Status:    StatusQueued,
 		StartedAt: time.Now(),
+		stop:      make(chan struct{}),
+	}
+	var reservation *ticket
+	if spec.Guard != nil {
+		reservation = spec.Guard.reserve()
 	}
 	m.tasks[taskID] = task
 	m.wg.Add(1)
 	snapshot := snapshotTask(task)
 	m.mu.Unlock()
 
-	go m.run(task, spec)
+	go m.run(task, spec, reservation)
 	return snapshot, nil
 }
 
@@ -134,11 +146,16 @@ func commandLine(spec Spec) string {
 }
 
 // run 在子协程中执行命令并更新任务状态。
-func (m *Manager) run(task *Task, spec Spec) {
+func (m *Manager) run(task *Task, spec Spec, reservation *ticket) {
 	defer m.wg.Done()
 	if spec.Guard != nil {
-		spec.Guard.Lock()
-		defer spec.Guard.Unlock()
+		defer spec.Guard.release(reservation)
+		select {
+		case <-reservation.ready:
+		case <-task.stop:
+			m.finish(task, StatusKilled, nil, 0, errors.New("已取消排队任务"))
+			return
+		}
 	}
 	process := exec.Command(spec.Exe, spec.Args...)
 	if spec.Dir != "" {
@@ -148,7 +165,7 @@ func (m *Manager) run(task *Task, spec Spec) {
 		process.Env = append(os.Environ(), spec.Env...)
 	}
 
-	var stdoutBuf strings.Builder
+	var stdoutBuf resultWriter
 	stdout := &logWriter{emit: func(line string) { m.appendLog(task, "stdout", line) }}
 	stderr := &logWriter{emit: func(line string) {
 		m.appendLog(task, "stderr", line)
@@ -173,6 +190,7 @@ func (m *Manager) run(task *Task, spec Spec) {
 	}
 	err := process.Start()
 	if err == nil {
+		task.Status = StatusRunning
 		task.PID = process.Process.Pid
 		task.proc = process
 	}
@@ -207,9 +225,13 @@ func (m *Manager) run(task *Task, spec Spec) {
 	}
 
 	if spec.Parse != nil {
+		if stdoutBuf.overflow {
+			m.finish(task, StatusFailed, nil, exitCode, errors.New("任务结果超过 16 MiB 上限，请缩小批次后重试"))
+			return
+		}
 		result, parseErr := spec.Parse(stdoutBuf.String(), m.stderrTailOf(task), exitCode, waitErr)
 		if parseErr != nil {
-			m.finish(task, StatusFailed, nil, exitCode, parseErr)
+			m.finish(task, StatusFailed, result, exitCode, parseErr)
 			return
 		}
 		m.finish(task, StatusFinished, result, exitCode, nil)
@@ -221,6 +243,18 @@ func (m *Manager) run(task *Task, spec Spec) {
 		return
 	}
 	m.finish(task, StatusFinished, nil, exitCode, nil)
+}
+
+type resultWriter struct {
+	strings.Builder
+	overflow bool
+}
+
+func (w *resultWriter) Write(p []byte) (int, error) {
+	n := min(len(p), maxResultSize-w.Len())
+	_, _ = w.Builder.Write(p[:n])
+	w.overflow = w.overflow || n < len(p)
+	return len(p), nil
 }
 
 type logWriter struct {
@@ -303,16 +337,23 @@ func (m *Manager) Stop(taskID string) error {
 		m.mu.Unlock()
 		return fmt.Errorf("任务 %s 不存在", taskID)
 	}
-	if task.Status != StatusRunning {
+	if !active(task.Status) {
 		status := task.Status
 		m.mu.Unlock()
 		return fmt.Errorf("任务 %s 当前状态为 %s，无法中断", taskID, status)
 	}
 
-	task.killed.Store(true)
+	if task.killed.CompareAndSwap(false, true) {
+		close(task.stop)
+	}
 	process := task.proc
+	queued := task.Status == StatusQueued
 	m.mu.Unlock()
-	m.appendLog(task, "system", "正在中断任务（kill 进程树）...")
+	if queued {
+		m.appendLog(task, "system", "正在取消排队任务...")
+	} else {
+		m.appendLog(task, "system", "正在中断任务...")
+	}
 
 	// 尽力清理进程树（权限允许时）
 	if process != nil && process.Process != nil {
@@ -355,7 +396,9 @@ func snapshotTask(task *Task) *Task {
 	return copy
 }
 
-// List 返回不含日志的任务列表（新建在前），裁剪超限的已完成任务。
+func active(status Status) bool { return status == StatusQueued || status == StatusRunning }
+
+// List 返回不含日志的任务列表（新建在前）。
 func (m *Manager) List() []*Task {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -368,31 +411,16 @@ func (m *Manager) List() []*Task {
 		return all[i].StartedAt.After(all[j].StartedAt)
 	})
 
-	// 裁剪：仅保留最近 maxDone 个已完成任务，运行中任务始终保留。
-	doneCount := 0
-	keep := make([]*Task, 0, len(all))
-	for _, t := range all {
-		if t.Status == StatusRunning {
-			keep = append(keep, t)
-			continue
-		}
-		if doneCount < m.maxDone {
-			keep = append(keep, t)
-			doneCount++
-		} else {
-			delete(m.tasks, t.ID)
-		}
-	}
-	return keep
+	return all
 }
 
-// RunningCount 返回运行中的任务数（供调用方做互斥判断）。
-func (m *Manager) RunningCount() int {
+// ActiveCount 返回排队及运行任务数，供调用方做互斥判断。
+func (m *Manager) ActiveCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	count := 0
 	for _, t := range m.tasks {
-		if t.Status == StatusRunning {
+		if active(t.Status) {
 			count++
 		}
 	}
@@ -405,8 +433,7 @@ func (m *Manager) Close() {
 	m.closed = true
 	var running []*Task
 	for _, t := range m.tasks {
-		if t.Status == StatusRunning {
-			t.killed.Store(true)
+		if active(t.Status) {
 			running = append(running, t)
 		}
 	}
@@ -422,9 +449,16 @@ func (m *Manager) Close() {
 func (m *Manager) appendLog(task *Task, stream, text string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	task.Logs = append(task.Logs, LogEntry{Time: time.Now(), Stream: stream, Text: text})
-	if len(task.Logs) > m.maxLogs {
-		task.Logs = task.Logs[len(task.Logs)-m.maxLogs:]
+	m.logLocked(task, LogEntry{Time: time.Now(), Stream: stream, Text: text})
+}
+
+func (m *Manager) logLocked(task *Task, entry LogEntry) {
+	task.Logs = append(task.Logs, entry)
+	task.logBytes += len(entry.Text)
+	for len(task.Logs) > m.maxLogs || task.logBytes > maxLogBytes {
+		task.logBytes -= len(task.Logs[0].Text)
+		task.Logs[0] = LogEntry{}
+		task.Logs = task.Logs[1:]
 	}
 }
 
@@ -443,6 +477,20 @@ func (m *Manager) finish(task *Task, status Status, result any, exitCode int, er
 	}
 	if err != nil {
 		task.Error = err.Error()
-		task.Logs = append(task.Logs, LogEntry{Time: now, Stream: "system", Text: err.Error()})
+		if len(task.Error) > maxStderrTail {
+			task.Error = task.Error[:maxStderrTail/2] + " …（已截断）… " + task.Error[len(task.Error)-maxStderrTail/2:]
+		}
+		m.logLocked(task, LogEntry{Time: now, Stream: "system", Text: task.Error})
+	}
+	// 终态及时裁剪；无人打开运维页时也保持固定内存上限。
+	done := make([]*Task, 0, m.maxDone+1)
+	for _, item := range m.tasks {
+		if !active(item.Status) {
+			done = append(done, item)
+		}
+	}
+	sort.Slice(done, func(i, j int) bool { return done[i].FinishedAt.After(*done[j].FinishedAt) })
+	for _, item := range done[min(m.maxDone, len(done)):] {
+		delete(m.tasks, item.ID)
 	}
 }

@@ -43,11 +43,14 @@ export function formatDuration(ms) {
 }
 
 const TASK_STATUS_TEXT = {
+  queued: '排队中',
   running: '运行中',
   finished: '已完成',
   failed: '失败',
   killed: '已中断',
 };
+
+export const taskActive = (status) => status === 'queued' || status === 'running';
 
 /** 任务状态文案。 */
 export function taskStatusText(status) {
@@ -56,6 +59,7 @@ export function taskStatusText(status) {
 
 /** 任务状态对应的徽标样式。 */
 export function taskStatusKind(status) {
+  if (status === 'queued') return 'warning';
   if (status === 'running') return 'info';
   if (status === 'finished') return 'success';
   if (status === 'failed') return 'error';

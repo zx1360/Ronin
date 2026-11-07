@@ -6,8 +6,16 @@
 import { reactive } from './vue.js';
 import { api, setApiKey } from './api.js';
 
+let leaveGuard;
+export function setLeaveGuard(guard) {
+  leaveGuard = guard;
+  return () => { if (leaveGuard === guard) leaveGuard = undefined; };
+}
+export const canLeave = () => leaveGuard ? leaveGuard() : true;
+
 export const state = reactive({
   ready: false,
+  connecting: false,
   bootError: '',
   apiKey: '',
   // 字段名与服务端 ops_web.json 一致（snake_case），不要另起一套命名
@@ -34,7 +42,7 @@ export const state = reactive({
 export function parseRoute() {
   const raw = window.location.hash.replace(/^#/, '');
   const path = raw.split('?')[0].trim();
-  return path || '/dashboard';
+  return path === '/logs' ? '/tasks' : path || '/dashboard';
 }
 
 /** 切换页面（写入 hash，由 hashchange 统一驱动视图）。 */
@@ -45,6 +53,8 @@ export function navigate(path) {
 
 /** 从服务端取回网页端引导信息；失败时页面显示明确原因而不是空白。 */
 export async function bootstrap() {
+  if (state.connecting) return;
+  state.connecting = true;
   try {
     const data = await api.get('/API/ops/local/bootstrap');
     state.apiKey = data.apiKey || '';
@@ -58,8 +68,10 @@ export async function bootstrap() {
     state.ready = true;
     state.bootError = '';
   } catch (error) {
-    state.ready = false;
     state.bootError = `无法连接 Monarch 本机接口：${error.message}`;
+    if (state.ready) toast(state.bootError, 'error');
+  } finally {
+    state.connecting = false;
   }
 }
 
@@ -86,6 +98,7 @@ export function toast(message, kind = 'info') {
  */
 export function confirmAction(message, { title = '请确认', danger = false } = {}) {
   if (!state.settings.confirm_destructive) return Promise.resolve(true);
+  if (state.dialog) resolveDialog(false);
   return new Promise((resolve) => {
     state.dialog = { title, message, danger, resolve };
   });

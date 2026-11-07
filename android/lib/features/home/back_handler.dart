@@ -4,12 +4,10 @@ import 'package:flutter/services.dart';
 
 class BackHandler extends StatefulWidget {
   final Widget child;
+  final bool Function()? onBack;
 
-  const BackHandler({
-    super.key,
-    required this.child,
-  });
-  
+  const BackHandler({super.key, required this.child, this.onBack});
+
   static const _exitTimeout = Duration(seconds: 2);
 
   @override
@@ -28,9 +26,14 @@ class _BackHandlerState extends State<BackHandler> {
         // 如果已经完成了弹出，则不需要处理
         if (didPop) return;
 
+        if (widget.onBack?.call() ?? false) {
+          _lastPressedTime = null;
+          return;
+        }
+
         // 第二次点击，退出应用
         final now = DateTime.now();
-        if (_lastPressedTime != null && 
+        if (_lastPressedTime != null &&
             now.difference(_lastPressedTime!) <= BackHandler._exitTimeout) {
           await SystemChannels.platform.invokeMethod('SystemNavigator.pop');
           return;

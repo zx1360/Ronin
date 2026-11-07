@@ -1,8 +1,4 @@
 // 漫画页的纯逻辑：任务结果摘要、失败判定、输入校验、状态映射。
-//
-// 与 Vue 无关，字段口径对照 Dart 端 comix_models.dart 与 comix_widgets.dart：
-// 后端把退出码 2 的 ok=false 记为 finished，直接把 finished 画成"完成"会把
-// 业务失败伪装成成功，因此失败语义必须显式判定。
 
 import { taskStatusKind, taskStatusText } from '../../utils.js';
 

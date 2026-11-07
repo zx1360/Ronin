@@ -155,6 +155,20 @@ body {
   color: var(--primary);
 }
 
+.nav-section { padding: 16px 12px 5px; font-size: 11px; color: var(--on-surface-variant); letter-spacing: 1px; }
+.topbar h1 { display: flex; align-items: baseline; gap: 14px; margin: 0; font-size: 17px; }
+.topbar h1 small { font-size: 12px; font-weight: 400; }
+.quick-actions { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 12px; margin-bottom: 20px; }
+.quick-actions a { display: flex; flex-direction: column; gap: 8px; padding: 20px; border: 1px solid var(--surface-variant); border-radius: var(--radius); background: var(--surface); color: var(--on-surface); text-decoration: none; }
+.quick-actions a:hover { border-color: var(--primary); background: var(--primary-soft); }
+.quick-actions strong { color: var(--primary); font-size: 16px; }
+.quick-actions span { color: var(--on-surface-variant); font-size: 12px; }
+.selected-row { background: var(--primary-soft); }
+summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+details[open] > summary { margin-bottom: 16px; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (max-width: 1000px) { .topbar h1 small { display: none; } }
+
 .main {
   flex: 1;
   min-width: 0;
@@ -430,7 +444,7 @@ table.data tr:hover td {
 }
 
 .log-view .stderr {
-  color: var(--error);
+  color: var(--on-surface-variant);
 }
 
 .log-view .system {

@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -128,7 +129,7 @@ func (e *Engine) Start(parent context.Context) {
 	}
 	ctx, cancel := context.WithCancel(parent)
 	e.cancel = cancel
-	e.startLoop(ctx, e.ollama.supervise)
+	e.startLoop(ctx, e.reapLoop)
 	if !ai_repo.SchemaReady(context.Background()) {
 		log.Println("[AI] ai schema 未初始化，AI 能力停用（执行 references/db/sqlite.sql 后重启）")
 		return
@@ -157,9 +158,6 @@ func (e *Engine) Start(parent context.Context) {
 
 	e.startLoop(ctx, e.reconcileLoop)
 	e.startLoop(ctx, e.workerLoop)
-	for _, s := range e.sidecars() {
-		e.startLoop(ctx, s.supervise)
-	}
 
 	log.Printf("[AI] 处理层已启动（worker=%d 批大小=%d 侧车空闲退出=%s ollama 空闲回收=%s 配置=%s）",
 		cfg.Workers, cfg.BatchSize, cfg.IdleTimeout, cfg.OllamaIdle, e.ConfigPath())
@@ -171,6 +169,30 @@ func (e *Engine) startLoop(ctx context.Context, run func(context.Context)) {
 		defer e.loops.Done()
 		run(ctx)
 	}()
+}
+
+// 一个轻量循环回收全部按需资源，不查询数据库或探测外部依赖。
+func (e *Engine) reapLoop(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			for _, sidecar := range e.sidecars() {
+				sidecar.reapIdle()
+			}
+			idle := e.Config().OllamaIdle
+			if idle <= 0 {
+				idle = 120 * time.Second
+			}
+			e.ollama.reapIdle(idle)
+			if e.index.ReleaseIdle(e.Config().IdleTimeout) {
+				debug.FreeOSMemory()
+			}
+		}
+	}
 }
 
 // Stop 停止全部后台循环并回收外部进程（服务退出时调用）。

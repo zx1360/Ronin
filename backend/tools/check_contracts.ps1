@@ -6,7 +6,7 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 if ($Scope -in @('all', 'backend')) {
     Push-Location (Join-Path $root 'backend')
     try {
-        go test ./cmd ./internal/repository ./internal/service/ai ./internal/service/server ./internal/service/taskengine -run 'Test(UserDataContract|ProgressDoesNotProbe|EnsureReadyChecksCachedModelServer|ServeShutdown|CloseWaitsAndRejectsNewTasks|StartupFailureClosesDatabase)$'
+        go test ./cmd ./internal/repository ./internal/service/ai ./internal/service/server ./internal/service/taskengine -run 'Test(UserDataContract|OnlineSyncRejectsStaleSnapshotAtomically|ProgressDoesNotProbe|EnsureReadyChecksCachedModelServer|ServeShutdown|CloseWaitsAndRejectsNewTasks|QueuedCancellationAndFIFO|CloseCancelsWaitingTasksAndPrunesWithoutList|TaskOutputMemoryIsBounded|StartupFailureClosesDatabase)$'
         if ($LASTEXITCODE -ne 0) { throw 'Go 契约或生命周期检查失败' }
     }
     finally { Pop-Location }
