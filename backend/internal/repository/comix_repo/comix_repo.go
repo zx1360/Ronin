@@ -82,8 +82,12 @@ func withDB[T any](fn func(ctx context.Context, conn *sql.DB) (T, error)) (T, er
 // 比较时忽略协议与 "www." 前缀；匹配失败返回不支持站点的明确错误。
 func MatchSiteByURL(rawURL string, sites []Site) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || parsed.Host == "" {
+	if err != nil || parsed.Hostname() == "" || parsed.User != nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return "", fmt.Errorf("URL 无效: %s", rawURL)
+	}
+	if port := parsed.Port(); port != "" && port != "80" && port != "443" {
+		return "", fmt.Errorf("不支持的漫画站点端口: %s", port)
 	}
 	host := normalizeHost(parsed.Host)
 	for _, site := range sites {

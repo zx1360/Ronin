@@ -14,86 +14,71 @@ class ImageSizeError(Exception):
 
 
 def get_image_size(path: str | Path) -> tuple[int, int]:
-    """返回 (width, height)。无法识别时抛 ImageSizeError。"""
+    _, width, height = get_image_info(path)
+    return width, height
+
+
+def get_image_info(path: str | Path) -> tuple[str, int, int]:
     p = Path(path)
     with open(p, "rb") as f:
         head = f.read(64)
-    if not head:
-        raise ImageSizeError(f"空文件: {p.name}")
 
-    # ---- PNG ----
     if head[:8] == b"\x89PNG\r\n\x1a\n":
         if head[12:16] != b"IHDR" or len(head) < 24:
             raise ImageSizeError(f"PNG 头不完整: {p.name}")
+        ext = ".png"
         w, h = struct.unpack(">II", head[16:24])
-        return w, h
-
-    # ---- GIF ----
-    if head[:6] in (b"GIF87a", b"GIF89a"):
+    elif len(head) >= 10 and head[:6] in (b"GIF87a", b"GIF89a"):
+        ext = ".gif"
         w, h = struct.unpack("<HH", head[6:10])
-        return w, h
-
-    # ---- BMP ----
-    if head[:2] == b"BM":
+    elif len(head) >= 26 and head[:2] == b"BM":
+        ext = ".bmp"
         w, h = struct.unpack("<ii", head[18:26])
-        return w, abs(h)
+        h = abs(h)
+    elif head[:2] == b"\xff\xd8":
+        ext = ".jpg"
+        w, h = _jpeg_size(p)
+    elif head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        ext = ".webp"
+        w, h = _webp_size(p)
+    else:
+        raise ImageSizeError(f"不支持的图片格式: {p.name}")
+    if w <= 0 or h <= 0:
+        raise ImageSizeError(f"无效图片尺寸: {p.name}")
+    return ext, w, h
 
-    # ---- JPEG ----
-    if head[:2] == b"\xff\xd8":
-        return _jpeg_size(p, head)
 
-    # ---- WebP ----
-    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
-        return _webp_size(p, head)
-
-    raise ImageSizeError(f"不支持的图片格式: {p.name} (头: {head[:8].hex()})")
-
-
-def _jpeg_size(p: Path, head: bytes) -> tuple[int, int]:
+def _jpeg_size(p: Path) -> tuple[int, int]:
     with open(p, "rb") as f:
-        data = head
-        pos = 2  # 跳过 SOI
-        while pos < len(data) or pos < 0xFFFF:
-            if pos + 4 > len(data):
-                chunk = f.read(0x4000)
-                if not chunk:
-                    break
-                data += chunk
-                if pos + 4 > len(data):
-                    break
-            marker = data[pos]
-            if marker != 0xFF:  # 填充字节
-                pos += 1
-                continue
-            code = data[pos + 1]
-            if code in (0xD8, 0xD9) or 0xD0 <= code <= 0xD7:  # SOI/EOI/RST
-                pos += 2
-                continue
-            length = struct.unpack(">H", data[pos + 2:pos + 4])[0]
-            # SOF0-SOF15（排除 DHT(C4)/DAC(CC)/DQT(DB)/COM(FE)/APP 等）
+        f.seek(2)
+        while f.read(1) == b"\xff":
+            marker = f.read(1)
+            while marker == b"\xff":
+                marker = f.read(1)
+            if not marker or marker in (b"\xd9", b"\xda"):
+                break
+            code = marker[0]
+            length = int.from_bytes(f.read(2), "big")
+            if length < 2:
+                break
             if 0xC0 <= code <= 0xCF and code not in (0xC4, 0xC8, 0xCC):
-                if pos + 9 > len(data):
-                    chunk = f.read(0x4000)
-                    if not chunk:
-                        break
-                    data += chunk
-                h, w = struct.unpack(">HH", data[pos + 5:pos + 9])
-                return w, h
-            pos += 2 + length
+                data = f.read(5)
+                if len(data) == 5 and length >= 7:
+                    h, w = struct.unpack(">HH", data[1:])
+                    return w, h
+                break
+            f.seek(length - 2, 1)
     raise ImageSizeError(f"JPEG SOF 未找到: {p.name}")
 
 
-def _webp_size(p: Path, head: bytes) -> tuple[int, int]:
+def _webp_size(p: Path) -> tuple[int, int]:
     with open(p, "rb") as f:
-        data = head
-        pos = 12  # RIFF 头后
-        while pos + 8 <= len(data):
-            fourcc = data[pos:pos + 4]
-            size = struct.unpack("<I", data[pos + 4:pos + 8])[0]
-            chunk = data[pos + 8:pos + 8 + size]
-            if len(chunk) < size:  # 头 64 字节可能不够，读补齐
-                f.seek(pos + 8)
-                chunk = f.read(size)
+        f.seek(12)
+        while len(header := f.read(8)) == 8:
+            fourcc = header[:4]
+            size = int.from_bytes(header[4:], "little")
+            next_chunk = f.tell() + size + (size & 1)
+            chunk = f.read(min(size, 10))
             if fourcc == b"VP8 " and len(chunk) >= 10:
                 w = struct.unpack("<H", chunk[6:8])[0] & 0x3FFF
                 h = struct.unpack("<H", chunk[8:10])[0] & 0x3FFF
@@ -110,5 +95,5 @@ def _webp_size(p: Path, head: bytes) -> tuple[int, int]:
                 w = 1 + (b4 | (b5 << 8) | (b6 << 16))
                 h = 1 + (b7 | (b8 << 8) | (b9 << 16))
                 return w, h
-            pos += 8 + size + (size & 1)  # 分块 2 字节对齐
+            f.seek(next_chunk)
         raise ImageSizeError(f"WebP 块未识别: {p.name}")

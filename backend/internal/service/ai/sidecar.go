@@ -258,6 +258,9 @@ func drainStderr(capability string, reader io.Reader) {
 			log.Printf("[AI:%s] %s", capability, line)
 		}
 	}
+	if scanner.Err() != nil {
+		_, _ = io.Copy(io.Discard, reader)
+	}
 }
 
 // RunBatch 执行一个批次：确保进程存活 → 写入请求 → 读满响应。
@@ -313,15 +316,16 @@ func (s *Sidecar) RunBatch(ctx context.Context, params map[string]any, items []S
 				batchErr = fmt.Errorf("%s 侧车响应格式错误: %w (原文: %.200s)", s.capability, err, trimmed)
 				return
 			}
+			if len(items) == 0 && !resp.Ready {
+				batchErr = fmt.Errorf("%s 侧车预热失败: %s", s.capability, resp.Error)
+				return
+			}
 			results = append(results, BatchResult{
 				ID:     resp.ID,
 				OK:     resp.OK || resp.Ready,
 				Error:  resp.Error,
 				Result: resp.Result,
 			})
-			if resp.Ready {
-				return // ping 只回一条
-			}
 		}
 	}()
 

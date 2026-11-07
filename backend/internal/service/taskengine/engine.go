@@ -6,7 +6,7 @@
 package taskengine
 
 import (
-	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -148,18 +148,22 @@ func (m *Manager) run(task *Task, spec Spec) {
 		process.Env = append(os.Environ(), spec.Env...)
 	}
 
-	stdoutPipe, err := process.StdoutPipe()
-	if err != nil {
-		m.finish(task, StatusFailed, nil, 0, fmt.Errorf("创建 stdout 管道失败: %v", err))
-		return
+	var stdoutBuf strings.Builder
+	stdout := &logWriter{emit: func(line string) { m.appendLog(task, "stdout", line) }}
+	stderr := &logWriter{emit: func(line string) {
+		m.appendLog(task, "stderr", line)
+		m.appendStderrTail(task, line)
+	}}
+	process.Stderr = stderr
+	switch {
+	case spec.StreamStdout && spec.Parse != nil:
+		process.Stdout = io.MultiWriter(stdout, &stdoutBuf)
+	case spec.StreamStdout:
+		process.Stdout = stdout
+	case spec.Parse != nil:
+		process.Stdout = &stdoutBuf
 	}
-	defer stdoutPipe.Close()
-	stderrPipe, err := process.StderrPipe()
-	if err != nil {
-		m.finish(task, StatusFailed, nil, 0, fmt.Errorf("创建 stderr 管道失败: %v", err))
-		return
-	}
-	defer stderrPipe.Close()
+	process.WaitDelay = 3 * time.Second
 
 	m.mu.Lock()
 	if task.killed.Load() {
@@ -167,7 +171,7 @@ func (m *Manager) run(task *Task, spec Spec) {
 		m.finish(task, StatusKilled, nil, 0, errors.New("任务已被中断"))
 		return
 	}
-	err = process.Start()
+	err := process.Start()
 	if err == nil {
 		task.PID = process.Process.Pid
 		task.proc = process
@@ -181,33 +185,12 @@ func (m *Manager) run(task *Task, spec Spec) {
 		defer spec.AfterExit()
 	}
 
-	// stdout 完整读取后交给 Parse；stderr 逐行追加为进度日志（同时保留尾部用于错误上报）。
-	var stdoutBuf strings.Builder
-	stdoutDone := make(chan struct{})
-	go func() {
-		defer close(stdoutDone)
-		if spec.StreamStdout {
-			var sink *strings.Builder
-			if spec.Parse != nil {
-				sink = &stdoutBuf
-			}
-			m.streamLines(task, stdoutPipe, "stdout", sink)
-			return
-		}
-		if _, err := io.Copy(&stdoutBuf, stdoutPipe); err != nil {
-			m.appendLog(task, "system", fmt.Sprintf("读取 stdout 失败: %v", err))
-		}
-	}()
-	stderrDone := make(chan struct{})
-	go func() {
-		defer close(stderrDone)
-		m.streamLines(task, stderrPipe, "stderr", nil)
-	}()
-
 	waitErr := process.Wait()
-	<-stdoutDone
-	// 等 stderr 读完：既保证日志完整，也保证失败时能拿到错误原因
-	<-stderrDone
+	m.mu.Lock()
+	task.proc = nil
+	m.mu.Unlock()
+	stdout.flush()
+	stderr.flush()
 
 	if task.killed.Load() {
 		m.finish(task, StatusKilled, nil, 0, errors.New("任务已被中断"))
@@ -217,6 +200,10 @@ func (m *Manager) run(task *Task, spec Spec) {
 	exitCode := 0
 	if process.ProcessState != nil {
 		exitCode = process.ProcessState.ExitCode()
+	}
+	if errors.Is(waitErr, exec.ErrWaitDelay) {
+		m.finish(task, StatusFailed, nil, exitCode, errors.New("子进程退出后输出管道未关闭"))
+		return
 	}
 
 	if spec.Parse != nil {
@@ -236,21 +223,38 @@ func (m *Manager) run(task *Task, spec Spec) {
 	m.finish(task, StatusFinished, nil, exitCode, nil)
 }
 
-// streamLines 逐行读取子进程输出：追加到任务日志，必要时同步写入汇总缓冲区。
-func (m *Manager) streamLines(task *Task, reader io.Reader, stream string, sink *strings.Builder) {
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		m.appendLog(task, stream, line)
-		if stream == "stderr" {
-			m.appendStderrTail(task, line)
+type logWriter struct {
+	emit      func(string)
+	line      []byte
+	truncated bool
+}
+
+func (w *logWriter) Write(p []byte) (int, error) {
+	const maxLine = 16 * 1024
+	size := len(p)
+	for len(p) > 0 {
+		part, rest, end := bytes.Cut(p, []byte{'\n'})
+		n := min(len(part), maxLine-len(w.line))
+		w.line = append(w.line, part[:n]...)
+		w.truncated = w.truncated || n < len(part)
+		if end {
+			w.flush()
 		}
-		if sink != nil {
-			sink.WriteString(line)
-			sink.WriteByte('\n')
-		}
+		p = rest
 	}
+	return size, nil
+}
+
+func (w *logWriter) flush() {
+	if len(w.line) > 0 {
+		line := strings.TrimSuffix(string(w.line), "\r")
+		if w.truncated {
+			line += " …（已截断）"
+		}
+		w.emit(line)
+	}
+	w.line = w.line[:0]
+	w.truncated = false
 }
 
 // failureReason 依据退出码与 stderr 尾部给出可读的失败原因。
@@ -306,16 +310,15 @@ func (m *Manager) Stop(taskID string) error {
 	}
 
 	task.killed.Store(true)
-	pid, process := task.PID, task.proc
+	process := task.proc
 	m.mu.Unlock()
 	m.appendLog(task, "system", "正在中断任务（kill 进程树）...")
 
 	// 尽力清理进程树（权限允许时）
-	if pid > 0 {
-		_ = exec.Command("taskkill", "/PID", fmt.Sprint(pid), "/T", "/F").Run()
-	}
-
 	if process != nil && process.Process != nil {
+		if os.PathSeparator == '\\' {
+			_ = exec.Command("taskkill", "/PID", fmt.Sprint(process.Process.Pid), "/T", "/F").Run()
+		}
 		// 主进程 TerminateProcess（幂等；进程已退出时返回错误可忽略）
 		_ = process.Process.Kill()
 	}

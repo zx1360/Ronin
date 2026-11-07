@@ -117,12 +117,6 @@ func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([
 	return queryAssets(ctx, `SELECT `+assetColumns+` FROM media_assets WHERE group_id = ?`, groupID)
 }
 
-// DeleteAssetRecord 物理删除数据库记录
-func (r *Repository) DeleteAssetRecord(ctx context.Context, id uuid.UUID) error {
-	_, err := db.Exec(ctx, `DELETE FROM media_assets WHERE id = ?`, id)
-	return err
-}
-
 // BatchDeleteAssetRecords 批量删除数据库记录
 func (r *Repository) BatchDeleteAssetRecords(ctx context.Context, ids []uuid.UUID) error {
 	if len(ids) == 0 {
@@ -144,40 +138,13 @@ func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, 
 	return queryAssets(ctx, `SELECT `+assetColumns+` FROM media_assets WHERE is_deleted = 0 ORDER BY file_path, id`)
 }
 
-// UpdateMediaAssetFull 显式更新媒体资产所有字段
-func (r *Repository) UpdateMediaAssetFull(ctx context.Context, asset *model.MediaAsset) error {
+func (r *Repository) UpdateDerivatives(ctx context.Context, asset *model.MediaAsset) error {
 	_, err := db.Exec(ctx, `
 		UPDATE media_assets SET
-			created_at   = ?,
-			updated_at   = ?,
-			captured_at  = ?,
-			file_path    = ?,
 			thumb_path   = ?,
-			preview_path = ?,
-			hash         = ?,
-			size_bytes   = ?,
-			mime_type    = ?,
-			is_deleted   = ?,
-			sync_count   = ?,
-			group_id     = ?,
-			edit_params  = ?
-		WHERE id = ?
-	`,
-		dbutil.TS(asset.CreatedAt),
-		dbutil.TS(asset.UpdatedAt),
-		dbutil.TS(asset.CapturedAt),
-		asset.FilePath,
-		asset.ThumbPath,
-		asset.PreviewPath,
-		asset.Hash,
-		asset.SizeBytes,
-		asset.MimeType,
-		asset.IsDeleted,
-		asset.SyncCount,
-		asset.GroupID,
-		asset.EditParams,
-		asset.ID,
-	)
+			preview_path = ?
+		WHERE id = ? AND file_path = ?
+	`, asset.ThumbPath, asset.PreviewPath, asset.ID, asset.FilePath)
 	return err
 }
 
