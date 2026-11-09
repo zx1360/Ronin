@@ -4,6 +4,7 @@
 library;
 
 import 'package:hive/hive.dart';
+import 'package:torrid/core/services/storage/box_replace.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:torrid/core/services/storage/hive_service.dart';
@@ -34,15 +35,8 @@ Stream<Essay?> essayById(EssayByIdRef ref, String id) async* {
 
 /// 随笔数据的响应式流
 @riverpod
-Stream<List<Essay>> essayStream(EssayStreamRef ref) async* {
-  final box = ref.read(essayBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
+Stream<List<Essay>> essayStream(EssayStreamRef ref) =>
+    watchBoxValues(ref.read(essayBoxProvider));
 
 /// 标签数据的 Hive Box
 @riverpod
@@ -52,12 +46,5 @@ Box<Label> labelBox(LabelBoxRef ref) {
 
 /// 标签数据的响应式流
 @riverpod
-Stream<List<Label>> labelStream(LabelStreamRef ref) async* {
-  final box = ref.read(labelBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
+Stream<List<Label>> labelStream(LabelStreamRef ref) =>
+    watchBoxValues(ref.read(labelBoxProvider));

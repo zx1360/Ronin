@@ -60,8 +60,11 @@ class ChatConversation {
   }
 
   /// 会话内是否只有一份系统提示以外的空内容（用于剔除"开了没说话"的空会话）。
-  bool get isEmpty =>
-      messages.every((m) => m.role == 'system' || m.content.trim().isEmpty);
+  bool get isEmpty => messages.every(
+    (m) =>
+        m.role == 'system' ||
+        (m.content.trim().isEmpty && m.attachments.isEmpty),
+  );
 }
 
 /// 消息角色。
@@ -110,20 +113,20 @@ class ChatMessage {
   });
 
   ChatMessage.user({required this.content, required this.attachments})
-      : id = generateId(),
-        role = ChatRole.user,
-        thinking = '',
-        createdAt = DateTime.now(),
-        error = null,
-        interrupted = false;
+    : id = generateId(),
+      role = ChatRole.user,
+      thinking = '',
+      createdAt = DateTime.now(),
+      error = null,
+      interrupted = false;
 
   ChatMessage.assistant({this.content = '', this.thinking = ''})
-      : id = generateId(),
-        role = ChatRole.assistant,
-        createdAt = DateTime.now(),
-        attachments = const [],
-        error = null,
-        interrupted = false;
+    : id = generateId(),
+      role = ChatRole.assistant,
+      createdAt = DateTime.now(),
+      attachments = const [],
+      error = null,
+      interrupted = false;
 
   ChatMessage copyWith({
     String? content,
@@ -149,7 +152,27 @@ class ChatMessage {
 
   /// 是否可用于后续上下文（失败、被中断或空回复都不参与）。
   bool get usable =>
-      error == null && !interrupted && content.trim().isNotEmpty;
+      error == null &&
+      !interrupted &&
+      (content.trim().isNotEmpty || attachments.isNotEmpty);
+}
+
+/// 本地保留全部历史，请求按近期轮次和粗估字符预算截取，给回答留出空间。
+List<ChatMessage> chatContext(List<ChatMessage> messages, {int numCtx = 0}) {
+  final usable = messages.where((message) => message.usable).toList();
+  final budget = (numCtx > 0 ? numCtx : 16384) * 3 ~/ 4;
+  var start = usable.length;
+  var characters = 0;
+  while (start > 0 && usable.length - start < 99) {
+    final length = usable[start - 1].content.length;
+    if (start < usable.length && characters + length > budget) break;
+    characters += length;
+    start--;
+  }
+  while (start < usable.length - 1 && !usable[start].isUser) {
+    start++;
+  }
+  return usable.sublist(start);
 }
 
 /// 消息携带的图片：库内媒体（mediaId）或本地图片（imagePath，IoService 相对路径）。

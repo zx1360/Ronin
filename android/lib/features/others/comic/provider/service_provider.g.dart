@@ -6,13 +6,9 @@ part of 'service_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$allInfosHash() => r'12b6a99eae618ea0206d4381de20cd8abac4f63a';
+String _$allInfosHash() => r'5b8bf53e0447442dc33a16a076d981e59b656e1c';
 
-/// 扫描漫画目录获取所有漫画和章节元数据
-///
-/// 遍历 `comics` 目录下的所有子目录，生成 [ComicInfo] 和 [ChapterInfo]。
-///
-/// Copied from [allInfos].
+/// See also [allInfos].
 @ProviderFor(allInfos)
 final allInfosProvider =
     AutoDisposeFutureProvider<Map<String, dynamic>>.internal(

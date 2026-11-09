@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:torrid/core/services/storage/box_replace.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:torrid/core/services/storage/hive_service.dart';
@@ -18,26 +19,12 @@ Box<Record> recordBox(RecordBoxRef ref) {
 }
 
 @riverpod
-Stream<List<Style>> styleStream(StyleStreamRef ref) async* {
-  final box = ref.read(styleBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
+Stream<List<Style>> styleStream(StyleStreamRef ref) =>
+    watchBoxValues(ref.read(styleBoxProvider));
 
 @riverpod
-Stream<List<Record>> recordStream(RecordStreamRef ref) async* {
-  final box = ref.read(recordBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
+Stream<List<Record>> recordStream(RecordStreamRef ref) =>
+    watchBoxValues(ref.read(recordBoxProvider));
 
 @riverpod
 List<Style> allStyles(AllStylesRef ref) {

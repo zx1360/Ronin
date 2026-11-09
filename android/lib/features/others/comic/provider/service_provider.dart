@@ -1,119 +1,61 @@
-/// Comic 模块的文件系统扫描服务
-///
-/// 提供本地漫画目录的扫描和元数据生成功能。
-library;
-
-import 'dart:io';
-
+import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/comic/services/comic_servic.dart';
-import 'package:torrid/features/others/comic/services/io_comic_service.dart';
-import 'package:torrid/features/others/comic/services/io_image_service.dart';
+import 'package:torrid/features/others/comic/provider/box_provider.dart';
+import 'package:torrid/features/others/comic/services/comic_storage.dart';
 import 'package:torrid/providers/progress/progress.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
-import 'package:torrid/core/services/io/io_service.dart';
 
 part 'service_provider.g.dart';
 
-/// 扫描漫画目录获取所有漫画和章节元数据
-///
-/// 遍历 `comics` 目录下的所有子目录，生成 [ComicInfo] 和 [ChapterInfo]。
 @riverpod
 Future<Map<String, dynamic>> allInfos(AllInfosRef ref) async {
-  final comicInfos = <ComicInfo>[];
-  final chapterInfos = <ChapterInfo>[];
-
-  final comicsDir = await IoService.offlineDirectory('comics');
-  final comicsFolders = await comicsDir
-      .list()
-      .where((entity) => entity is Directory)
-      .toList();
-
-  final progressNotifier = ref.read(progressServiceProvider.notifier);
-  progressNotifier.setProgress(
+  final directories = await localComicDirectories();
+  final existing = ref.read(comicInfoBoxProvider).values.toList();
+  final chapters = ref.read(chapterInfoBoxProvider).values.toList();
+  final found = <String, ({ComicInfo comic, List<ChapterInfo> chapters})>{};
+  final progress = ref.read(progressServiceProvider.notifier);
+  progress.setProgress(
     Progress(
       current: 0,
-      total: comicsFolders.length,
-      currentMessage: "",
-      message: "正在初始化漫画文件元数据...",
+      total: directories.length,
+      currentMessage: '',
+      message: '正在扫描漫画文件...',
     ),
   );
-
-  int counter = 0;
-  for (final folder in comicsFolders) {
-    final comicDir = folder as Directory;
-    final comicName = comicDir.path.split(Platform.pathSeparator).last;
-    progressNotifier.increaseProgress(
-      current: counter,
-      currentMessage: comicName,
-    );
-    counter++;
-
-    // 生成漫画信息
-    final comicInfo = await _buildComicInfo(comicDir, comicName);
-    comicInfos.add(comicInfo);
-
-    // 生成章节信息
-    final chapters = await _buildChapterInfos(comicDir, comicInfo.id);
-    chapterInfos.addAll(chapters);
+  try {
+    for (var i = 0; i < directories.length; i++) {
+      final directory = directories[i];
+      final name = p.basename(directory.path);
+      final downloaded = p.basename(directory.parent.path) == '.downloads';
+      final matches = existing
+          .where(
+            (comic) => downloaded ? comic.id == name : comic.comicName == name,
+          )
+          .toList();
+      for (final comic in matches.isEmpty ? <ComicInfo?>[null] : matches) {
+        final data = await scanLocalComic(
+          directory,
+          existing: comic,
+          existingChapters: chapters
+              .where((chapter) => chapter.comicId == comic?.id)
+              .toList(),
+        );
+        found[data.comic.id] = data;
+      }
+      progress.increaseProgress(current: i + 1, currentMessage: name);
+    }
+    return {
+      'comicInfos': {
+        for (final data in found.values) data.comic.id: data.comic,
+      },
+      'chapterInfos': {
+        for (final data in found.values)
+          for (final chapter in data.chapters) chapter.id: chapter,
+      },
+    };
+  } finally {
+    progress.resetStatus();
   }
-
-  ref.read(progressServiceProvider.notifier).resetStatus();
-
-  return {
-    "comicInfos": {for (final info in comicInfos) info.id: info},
-    "chapterInfos": {for (final info in chapterInfos) info.id: info},
-  };
-}
-
-/// 从目录构建漫画信息
-Future<ComicInfo> _buildComicInfo(Directory comicDir, String comicName) async {
-  final coverImage = await findFirstImage(comicDir);
-  final stats = await countComicStats(comicDir);
-  final chapterCount = stats.chapterCount;
-  final imageCount = stats.imageCount;
-
-  return ComicInfo.newOne(
-    comicName: comicName,
-    coverImage: coverImage,
-    chapterCount: chapterCount,
-    imageCount: imageCount,
-  );
-}
-
-/// 从目录构建章节信息列表
-Future<List<ChapterInfo>> _buildChapterInfos(
-  Directory comicDir,
-  String comicId,
-) async {
-  final chapterInfos = <ChapterInfo>[];
-
-  final chapterDirs = await comicDir
-      .list()
-      .where((entity) => entity is Directory)
-      .toList();
-
-  chapterDirs.sort((a, b) {
-    final aName = (a as Directory).path.split(Platform.pathSeparator).last;
-    final bName = (b as Directory).path.split(Platform.pathSeparator).last;
-    return getChapterIndex(aName).compareTo(getChapterIndex(bName));
-  });
-
-  for (final dir in chapterDirs) {
-    final chapterDir = dir as Directory;
-    final chapterName = chapterDir.path.split(Platform.pathSeparator).last;
-    final imagesInChapter = await scanImages(chapterDir);
-
-    final chapterInfo = ChapterInfo.newOne(
-      comicId: comicId,
-      chapterIndex: getChapterIndex(chapterName),
-      dirName: chapterName,
-      images: imagesInChapter,
-    );
-    chapterInfos.add(chapterInfo);
-  }
-
-  return chapterInfos;
 }

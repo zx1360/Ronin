@@ -81,6 +81,7 @@ class ChatState {
 @Riverpod(keepAlive: true)
 class ChatController extends _$ChatController {
   CancelToken? _cancelToken;
+  String? _runningConversationId;
 
   @override
   ChatState build() {
@@ -128,6 +129,12 @@ class ChatController extends _$ChatController {
 
   /// 删除会话（连同其本地图片）。
   Future<void> deleteConversation(String id) async {
+    if (_runningConversationId == id) {
+      _cancelToken?.cancel();
+      _cancelToken = null;
+      _runningConversationId = null;
+      state = state.copyWith(streaming: false);
+    }
     final target = _conversationById(id);
     await _box.delete(id);
     await _deleteAttachmentFiles(target);
@@ -146,6 +153,9 @@ class ChatController extends _$ChatController {
 
   /// 清空全部会话（连同本地图片）。
   Future<void> clearAll() async {
+    _cancelToken?.cancel();
+    _cancelToken = null;
+    _runningConversationId = null;
     for (final conversation in state.conversations) {
       await _deleteAttachmentFiles(conversation);
     }
@@ -207,15 +217,24 @@ class ChatController extends _$ChatController {
   /// 中断当前回复。
   void stop() {
     _cancelToken?.cancel();
-    _cancelToken = null;
   }
 
   /// 清除一次性提示（页面展示后调用）。
   void clearNotice() => state = state.copyWith(clearNotice: true);
 
+  bool isGenerating(String id) =>
+      state.streaming && _runningConversationId == id;
+
   // ---------- 内部 ----------
 
-  Future<void> _runTurn(String conversationId, String assistantMessageId) async {
+  Future<void> _runTurn(
+    String conversationId,
+    String assistantMessageId,
+  ) async {
+    if (_runningConversationId != conversationId ||
+        _conversationById(conversationId) == null) {
+      return;
+    }
     final options = ref.read(chatOptionsControllerProvider);
     final cancelToken = CancelToken();
     _cancelToken = cancelToken;
@@ -224,20 +243,27 @@ class ChatController extends _$ChatController {
       final messages = await _buildRequestMessages(
         _conversationById(conversationId)?.messages ?? const [],
       );
-      final stream = ref.read(chatApiProvider).chat(
-            messages: messages,
-            options: options,
-            cancelToken: cancelToken,
-          );
+      if (cancelToken.isCancelled) throw cancelToken.cancelError!;
+      final stream = ref
+          .read(chatApiProvider)
+          .chat(messages: messages, options: options, cancelToken: cancelToken);
 
       await for (final event in stream) {
+        if (!identical(_cancelToken, cancelToken)) return;
+        if (cancelToken.isCancelled) throw cancelToken.cancelError!;
         switch (event.type) {
           case 'thinking':
-            _patchAssistant(conversationId, assistantMessageId,
-                thinking: event.content);
+            _patchAssistant(
+              conversationId,
+              assistantMessageId,
+              thinking: event.content,
+            );
           case 'delta':
-            _patchAssistant(conversationId, assistantMessageId,
-                content: event.content);
+            _patchAssistant(
+              conversationId,
+              assistantMessageId,
+              content: event.content,
+            );
           case 'notice':
             // 服务端告知"抢占了谁"，属于提示而非错误
             state = state.copyWith(notice: event.content);
@@ -256,8 +282,12 @@ class ChatController extends _$ChatController {
             break;
         }
       }
-      _finishAssistant(conversationId, assistantMessageId);
+      if (cancelToken.isCancelled) throw cancelToken.cancelError!;
+      if (identical(_cancelToken, cancelToken)) {
+        _finishAssistant(conversationId, assistantMessageId);
+      }
     } catch (e) {
+      if (!identical(_cancelToken, cancelToken)) return;
       final cancelled = e is DioException && e.type == DioExceptionType.cancel;
       _patchAssistant(
         conversationId,
@@ -270,9 +300,12 @@ class ChatController extends _$ChatController {
         clearError: cancelled,
       );
     } finally {
-      _cancelToken = null;
-      state = state.copyWith(streaming: false);
-      await _persistActive();
+      if (identical(_cancelToken, cancelToken)) {
+        _cancelToken = null;
+        _runningConversationId = null;
+        state = state.copyWith(streaming: false);
+        await _persistConversation(conversationId);
+      }
     }
   }
 
@@ -282,16 +315,26 @@ class ChatController extends _$ChatController {
   Future<List<Map<String, dynamic>>> _buildRequestMessages(
     List<ChatMessage> messages,
   ) async {
-    final usable = messages.where((message) => message.usable).toList();
+    final usable = chatContext(
+      messages,
+      numCtx: ref.read(chatOptionsControllerProvider).numCtx,
+    );
     final keepFrom = _imageKeepIndex(usable);
 
     final payloads = <Map<String, dynamic>>[];
     for (var i = 0; i < usable.length; i++) {
       final message = usable[i];
+      if (message.content.runes.length > 32000) {
+        throw const FormatException('单条消息最多支持 32000 字，请缩短后发送');
+      }
+      final attachments = i >= keepFrom
+          ? await _attachmentPayload(message.attachments)
+          : <String, List<String>>{};
+      if (message.content.trim().isEmpty && attachments.isEmpty) continue;
       payloads.add({
         'role': message.role,
         'content': message.content,
-        if (i >= keepFrom) ...await _attachmentPayload(message.attachments),
+        ...attachments,
       });
     }
     return payloads;
@@ -317,7 +360,8 @@ class ChatController extends _$ChatController {
         mediaIds.add(item.mediaId!);
       } else if (item.isLocal) {
         final base64 = await readLocalImage(item.imagePath!);
-        if (base64 != null) images.add(base64);
+        if (base64 == null) throw const FormatException('图片无法读取，请重新添加');
+        images.add(base64);
       }
     }
     return {
@@ -411,6 +455,7 @@ class ChatController extends _$ChatController {
     ChatConversation conversation, {
     required bool streaming,
   }) async {
+    if (streaming) _runningConversationId = conversation.id;
     state = state.copyWith(
       conversations: _replaceConversation(conversation),
       activeId: conversation.id,
@@ -420,9 +465,13 @@ class ChatController extends _$ChatController {
     await _box.put(conversation.id, conversation);
   }
 
-  /// 把当前会话落库（一轮结束后调用一次）。
   Future<void> _persistActive() async {
-    final conversation = state.active;
+    final id = state.active?.id;
+    if (id != null) await _persistConversation(id);
+  }
+
+  Future<void> _persistConversation(String id) async {
+    final conversation = _conversationById(id);
     if (conversation == null || conversation.isEmpty) return;
     await _box.put(conversation.id, conversation);
   }

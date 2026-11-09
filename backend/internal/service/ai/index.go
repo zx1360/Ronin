@@ -380,7 +380,7 @@ func (ix *Index) DuplicateGroups(maxDistance, minGroupSize int) ([]model.Duplica
 	ix.mu.RLock()
 	hashes := make(map[uuid.UUID]int64, len(ix.phashes))
 	for id, h := range ix.phashes {
-		if h < 0 { // 跳过无法解码的占位值
+		if h == PHashUnavailable {
 			continue
 		}
 		if _, ignored := ix.ignores[id]; ignored {

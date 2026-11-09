@@ -228,6 +228,8 @@ class ReviewDraftController extends _$ReviewDraftController {
           );
 
       await for (final event in stream) {
+        if (!identical(_cancelToken, cancelToken)) return;
+        if (cancelToken.isCancelled) throw cancelToken.cancelError!;
         switch (event.type) {
           case 'stats':
             stats = event.content;
@@ -248,6 +250,8 @@ class ReviewDraftController extends _$ReviewDraftController {
         }
       }
 
+      if (!identical(_cancelToken, cancelToken)) return;
+      if (cancelToken.isCancelled) throw cancelToken.cancelError!;
       final content = buffer.toString().trim();
       if (content.isEmpty) {
         state = state.copyWith(streaming: false, error: '模型没有返回内容');
@@ -265,13 +269,14 @@ class ReviewDraftController extends _$ReviewDraftController {
             ),
           );
     } catch (e) {
+      if (!identical(_cancelToken, cancelToken)) return;
       final cancelled = e is DioException && e.type == DioExceptionType.cancel;
       state = state.copyWith(
         streaming: false,
         error: cancelled ? null : e.toString(),
       );
     } finally {
-      _cancelToken = null;
+      if (identical(_cancelToken, cancelToken)) _cancelToken = null;
     }
   }
 
@@ -279,12 +284,14 @@ class ReviewDraftController extends _$ReviewDraftController {
   void stop() {
     _cancelToken?.cancel();
     _cancelToken = null;
+    state = state.copyWith(streaming: false);
   }
 
   void clearNotice() => state = state.copyWith(clearNotice: true);
 
   /// 把一条历史回顾载入当前视图。
   void show(ReviewRecord record) {
+    stop();
     state = ReviewDraftState(content: record.content, stats: record.stats);
   }
 }
