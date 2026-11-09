@@ -9,6 +9,7 @@ Future<void> showLabelEditor(
   BuildContext context,
   WidgetRef ref, {
   Label? label,
+  String? parentId,
 }) async {
   final labels = ref.read(labelsProvider);
   final excluded = label == null
@@ -20,7 +21,7 @@ Future<void> showLabelEditor(
   ];
   final paths = ref.read(idMapProvider);
   var name = label?.name ?? '';
-  String? parent = label?.parentId;
+  String? parent = label?.parentId ?? parentId;
   String? error;
   var busy = false;
   await showDialog<void>(

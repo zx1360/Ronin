@@ -25,7 +25,7 @@ final immichFilterNotifierProvider =
 );
 
 typedef _$ImmichFilterNotifier = AutoDisposeNotifier<ImmichFilter>;
-String _$immichMediaHash() => r'5e563d24771d06ced37ef24c20898dace7c23d23';
+String _$immichMediaHash() => r'be23e919382b968d76ffc2f8bf46d920ed28e333';
 
 /// 媒体列表（按当前筛选条件分页拉取, 并把服务端结果写回本地缓存）
 ///
@@ -60,7 +60,7 @@ final immichSelectionProvider =
 );
 
 typedef _$ImmichSelection = AutoDisposeNotifier<Set<String>>;
-String _$immichActionsHash() => r'1d76ba369c56a5a128c444f5cad34a0455b16256';
+String _$immichActionsHash() => r'9c0ef44f0261ebda2b8d128c3e93f60ebe17f1e7';
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 ///

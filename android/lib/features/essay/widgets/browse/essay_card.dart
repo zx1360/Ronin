@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
+import 'package:torrid/features/essay/widgets/label_style.dart';
 import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 
@@ -16,148 +17,144 @@ class EssayCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final idMap = ref.watch(idMapProvider);
 
-    final dateFormat = DateFormat('MM月dd日');
-    final labelNames = essay.labels.map((l) => idMap[l] ?? "").toList();
-
-    // 内容预览（最多显示3行）
-    String previewText = essay.content.replaceAll('\n', ' ');
-    if (previewText.length > 100) {
-      previewText = '${previewText.substring(0, 100)}...';
-    }
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12.0),
-      child: Container(
-        padding: const EdgeInsets.all(16.0),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(12.0),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(8),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 日期和标签
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                Text(
-                  dateFormat.format(essay.date),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                ),
-                for (final label in labelNames)
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final labelPaths = essay.labels
+        .map((id) => idMap[id])
+        .whereType<String>()
+        .toList();
+    final preview = essay.content
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim()
+        .characters
+        .take(160)
+        .toString();
+    return Material(
+      color: colors.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today_outlined,
+                    size: 13,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
                   Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).primaryColor,
+                    DateFormat('MM月dd日').format(essay.date),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            if (essay.title.trim().isNotEmpty) ...[
-              Text(
-                essay.title,
-                style: Theme.of(context).textTheme.titleMedium,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                  const Spacer(),
+                  if (essay.mood != null)
+                    MoodDisplay(mood: essay.mood, iconSize: 16),
+                ],
               ),
-              const SizedBox(height: 8),
-            ],
-            // 内容预览
-            Text(
-              previewText,
-              style: Theme.of(context).textTheme.bodyMedium,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-
-            const SizedBox(height: 12),
-
-            // 图片预览
-            if (essay.imgs.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Row(
+              if (essay.title.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  essay.title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              if (preview.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  preview,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              if (essay.imgs.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    ...essay.imgs
-                        .take(3)
-                        .map(
-                          (i) => ClipRRect(
-                            borderRadius: BorderRadius.circular(8.0),
-                            child: FileImageBuilder(relativeImagePath: i),
-                          ),
-                        ),
-                    if (essay.imgs.length > 3)
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(8.0),
-                          border: Border.all(
-                            color: Theme.of(context).cardColor,
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '+${essay.imgs.length - 3}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                    for (var i = 0; i < essay.imgs.length && i < 3; i++)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Stack(
+                          children: [
+                            FileImageBuilder(
+                              relativeImagePath: essay.imgs[i],
+                              size: 64,
                             ),
-                          ),
+                            if (i == 2 && essay.imgs.length > 3)
+                              Positioned.fill(
+                                child: ColoredBox(
+                                  color: Colors.black54,
+                                  child: Center(
+                                    child: Text(
+                                      '+${essay.imgs.length - 3}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                   ],
                 ),
-              ),
-
-            const SizedBox(height: 12),
-
-            // 底部信息
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+              ],
+              if (labelPaths.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
-                    Text(
-                      essay.wordCountText,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
-                    ),
-                    // 心情显示
-                    if (essay.mood != null) ...[
-                      const SizedBox(width: 12),
-                      MoodDisplay(mood: essay.mood, iconSize: 16),
-                    ],
+                    for (final path in labelPaths) EssayLabelChip(path: path),
                   ],
                 ),
-                if (essay.messages.isNotEmpty)
-                  Text(
-                    '${essay.messages.length} 条留言',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
-                  ),
               ],
-            ),
-          ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text(
+                    essay.wordCountText,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (essay.messages.isNotEmpty) ...[
+                    Icon(
+                      Icons.chat_bubble_outline,
+                      size: 13,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${essay.messages.length}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

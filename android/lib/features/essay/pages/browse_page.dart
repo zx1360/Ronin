@@ -10,7 +10,7 @@ import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/pages/browse_body.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
-import 'package:torrid/features/essay/widgets/browse/expandable_fab.dart';
+import 'package:torrid/features/essay/providers/setting_provider.dart';
 
 import 'package:torrid/features/essay/widgets/browse/setting_widget.dart';
 
@@ -22,7 +22,6 @@ class EssayBrowsePage extends ConsumerStatefulWidget {
 }
 
 class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
-  final GlobalKey<BrowseBodyState> _browseBodyKey = GlobalKey();
   final _rereadPicker = EssayRereadPicker();
   bool _opening = false;
 
@@ -59,6 +58,7 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(browseManagerProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('随笔'),
@@ -88,7 +88,11 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.settings),
+            tooltip: '浏览设置',
+            icon: Badge(
+              isLabelVisible: settings.hasFilters,
+              child: const Icon(Icons.tune),
+            ),
             onPressed: () => _showBrowseSettings(context),
           ),
         ],
@@ -121,30 +125,40 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
               ],
             ),
           ),
-          Expanded(child: BrowseBody(key: _browseBodyKey)),
+          if (settings.hasFilters)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      [
+                        if (settings.selectedLabels.isNotEmpty)
+                          '${settings.selectedLabels.length} 个标签筛选',
+                        if (settings.showHidden) '含隐藏随笔',
+                      ].join(' · '),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: ref
+                        .read(browseManagerProvider.notifier)
+                        .clearFilters,
+                    child: const Text('重置'),
+                  ),
+                ],
+              ),
+            ),
+          const Expanded(child: BrowseBody()),
         ],
       ),
-      floatingActionButton: ExpandableFab(
-        distance: 70,
-        actions: [
-          FabAction(
-            icon: Icons.vertical_align_top,
-            label: '回到顶部',
-            onPressed: () {
-              _browseBodyKey.currentState?.scrollToTop();
-            },
-          ),
-          FabAction(
-            icon: Icons.edit,
-            label: '写随笔',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const EssayWritePage()),
-              );
-            },
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.edit_outlined),
+        label: const Text('写随笔'),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const EssayWritePage()),
+        ),
       ),
     );
   }
@@ -152,11 +166,19 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
   void _showBrowseSettings(BuildContext context) {
     showModalBottomSheet(
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => SettingWidget(),
+      builder: (context) => AnimatedPadding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        duration: const Duration(milliseconds: 180),
+        child: const SettingWidget(),
+      ),
     );
   }
 }

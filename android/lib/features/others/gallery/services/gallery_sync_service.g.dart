@@ -27,7 +27,7 @@ final galleryProcessedStatsProvider =
 typedef GalleryProcessedStatsRef
     = AutoDisposeFutureProviderRef<({int mediaCount, int deletedCount})>;
 String _$gallerySyncServiceHash() =>
-    r'9b5e144a2c9cd4f04efa0d3f7210762f7e95430f';
+    r'16738d8298dcbdfe472d2904b2fba6a1dced4cdb';
 
 /// Gallery 同步服务 Provider
 ///

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/core/utils/serialization.dart';
+import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
 import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
@@ -195,6 +196,42 @@ class GalleryApiService {
   }
 
   // 媒体查询与操作
+
+  /// 本机缓存不对应某个筛选结果的连续前段，按当前查询顺序跳过已有 ID。
+  Future<BatchData> fetchUncachedBatch({
+    required int limit,
+    required Set<String> cachedIds,
+    required Map<String, dynamic> filters,
+    CancelToken? cancelToken,
+  }) async {
+    final count = limit.clamp(1, 10000);
+    final pageSize = count.clamp(200, 1000);
+    final assets = <String, MediaAsset>{};
+    final links = <MediaTagLink>[];
+    var tags = <Tag>[];
+    var offset = 0;
+    while (assets.length < count) {
+      final response = await _client.get(
+        path('/API/gallery/batch'),
+        queryParams: {...filters, 'limit': pageSize, 'offset': offset},
+        cancelToken: cancelToken,
+      );
+      final page = BatchData.fromJson(response.data as Map<String, dynamic>);
+      tags = page.tags;
+      final selected = <String>{};
+      for (final asset in page.medias) {
+        if (assets.length == count) break;
+        if (!cachedIds.contains(asset.id) && !assets.containsKey(asset.id)) {
+          assets[asset.id] = asset;
+          selected.add(asset.id);
+        }
+      }
+      links.addAll(page.links.where((link) => selected.contains(link.mediaId)));
+      offset += page.medias.length;
+      if (page.medias.length < pageSize) break;
+    }
+    return BatchData(medias: assets.values.toList(), tags: tags, links: links);
+  }
 
   /// 按标签/类型/删除状态查询媒体及其标签关联
   ///

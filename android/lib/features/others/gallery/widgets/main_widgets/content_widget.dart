@@ -47,8 +47,8 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final assetsAsync = ref.watch(mediaAssetListProvider);
-    final currentIndex = ref.watch(galleryCurrentIndexProvider);
+    final assetsAsync = ref.watch(galleryBrowsingAssetsProvider);
+    final currentIndex = ref.watch(galleryBrowsingIndexProvider);
 
     return assetsAsync.when(
       loading: () => _buildCentered(const CircularProgressIndicator(color: Colors.white)),
@@ -101,7 +101,7 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     if (currentIndex < 0 || currentIndex >= assets.length) {
       final safe = currentIndex.clamp(0, assets.length - 1);
       WidgetsBinding.instance.addPostFrameCallback(
-          (_) => ref.read(galleryCurrentIndexProvider.notifier).update(safe));
+          (_) => ref.read(currentMediaAssetProvider.notifier).jumpTo(safe));
       return _buildCentered(const CircularProgressIndicator(color: Colors.white));
     }
 
@@ -136,19 +136,34 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
       });
     }
 
+    if (currentAsset.isVideo) {
+      final safe = MediaQuery.paddingOf(context);
+      return Padding(
+        padding: EdgeInsets.only(
+          top: widget.topExcludeHeight > 0 ? widget.topExcludeHeight : safe.top,
+          bottom: widget.bottomExcludeHeight > 0
+              ? widget.bottomExcludeHeight
+              : safe.bottom,
+        ),
+        child: Column(
+          children: [
+            _buildVideoControls(assets, currentIndex),
+            Expanded(child: _buildMedia(currentAsset)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: _ProgressBar(current: currentIndex + 1, total: assets.length),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       color: Colors.black,
       child: Stack(
         children: [
           // 主内容
-          Positioned.fill(
-            child: MediaItemView(
-              key: ValueKey(currentAsset.id),
-              asset: currentAsset,
-              rotationQuarterTurns: widget.rotationQuarterTurns,
-              onAspectRatio: (ratio) => widget.onAspectRatio?.call(currentAsset.id, ratio),
-            ),
-          ),
+          Positioned.fill(child: _buildMedia(currentAsset)),
           // 底部进度
           Positioned(
             bottom: widget.bottomExcludeHeight > 0 ? widget.bottomExcludeHeight + 8 : 8,
@@ -160,14 +175,19 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
           ),
           // 手势/控制层
           Positioned.fill(
-            child: currentAsset.isVideo
-                ? _buildVideoControls(assets, currentIndex)
-                : _buildImageGestures(assets, currentIndex),
+            child: _buildImageGestures(assets, currentIndex),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildMedia(MediaAsset asset) => MediaItemView(
+    key: ValueKey(asset.id),
+    asset: asset,
+    rotationQuarterTurns: widget.rotationQuarterTurns,
+    onAspectRatio: (ratio) => widget.onAspectRatio?.call(asset.id, ratio),
+  );
 
   // 图片手势
 
@@ -238,21 +258,21 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     final hasPrev = _hasLiveBefore(assets, currentIndex);
     final hasNext = _hasLiveAfter(assets, currentIndex);
 
-    return Stack(
-      children: [
-        Positioned(left: 12, bottom: 60,
-          child: _FloatingBtn(icon: Icons.skip_previous_rounded, tooltip: '上一个',
-              enabled: hasPrev, onTap: widget.onPrevious)),
-        Positioned(right: 12, bottom: 60,
-          child: _FloatingBtn(icon: Icons.skip_next_rounded, tooltip: '下一个',
-              enabled: hasNext, onTap: widget.onNext)),
-        Positioned(right: 12, top: 60,
-          child: _FloatingBtn(icon: Icons.rotate_right_rounded, tooltip: '旋转',
-              enabled: true, onTap: widget.onRotate)),
-        Positioned(left: 12, top: 60,
-          child: _FloatingBtn(icon: Icons.visibility_rounded, tooltip: '显示/隐藏工具栏',
-              enabled: true, onTap: widget.onToggleBars)),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _FloatingBtn(icon: Icons.visibility_rounded, tooltip: '显示/隐藏工具栏',
+              onTap: widget.onToggleBars),
+          _FloatingBtn(icon: Icons.skip_previous_rounded, tooltip: '上一个',
+              enabled: hasPrev, onTap: widget.onPrevious),
+          _FloatingBtn(icon: Icons.skip_next_rounded, tooltip: '下一个',
+              enabled: hasNext, onTap: widget.onNext),
+          _FloatingBtn(icon: Icons.rotate_right_rounded, tooltip: '旋转',
+              onTap: widget.onRotate),
+        ],
+      ),
     );
   }
 
@@ -358,7 +378,7 @@ class _FloatingBtnState extends State<_FloatingBtn> {
         onTapDown: ok ? (_) => setState(() => _pressed = true) : null,
         onTapUp: ok ? (_) => setState(() => _pressed = false) : null,
         onTapCancel: ok ? () => setState(() => _pressed = false) : null,
-        onTap: widget.onTap,
+        onTap: ok ? widget.onTap : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           width: 44, height: 44,

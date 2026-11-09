@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
@@ -7,6 +8,35 @@ import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
 import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
 
 part 'media_providers.g.dart';
+
+// 组内位置仅在浏览期间保留，批次游标仍按主列表计算。
+final galleryActiveGroupProvider = StateProvider.autoDispose<String?>(
+  (ref) => null,
+);
+final galleryGroupIndexProvider = StateProvider.autoDispose<int>((ref) => 0);
+
+final galleryGroupAssetsProvider = FutureProvider.autoDispose
+    .family<List<MediaAsset>, String>((ref, leadId) async {
+      final db = ref.watch(galleryDatabaseProvider);
+      await ref.watch(mediaAssetListProvider.future);
+      final lead = await db.getMediaAssetById(leadId);
+      final members = await db.getGroupMembers(leadId);
+      return [if (lead != null) lead, ...members];
+    });
+
+final galleryBrowsingAssetsProvider =
+    Provider.autoDispose<AsyncValue<List<MediaAsset>>>((ref) {
+      final group = ref.watch(galleryActiveGroupProvider);
+      return group == null
+          ? ref.watch(mediaAssetListProvider)
+          : ref.watch(galleryGroupAssetsProvider(group));
+    });
+
+final galleryBrowsingIndexProvider = Provider.autoDispose<int>((ref) {
+  return ref.watch(galleryActiveGroupProvider) == null
+      ? ref.watch(galleryCurrentIndexProvider)
+      : ref.watch(galleryGroupIndexProvider);
+});
 
 final mediaGroupSizesProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
@@ -132,7 +162,13 @@ class MediaAssetList extends _$MediaAssetList {
   /// 更新 modified_count（批次处理游标）
   Future<void> bumpModifiedCount(String mediaId) async {
     final assets = state.valueOrNull ?? [];
-    final index = assets.indexWhere((a) => a.id == mediaId);
+    var index = assets.indexWhere((a) => a.id == mediaId);
+    if (index < 0) {
+      final member = await ref
+          .read(galleryDatabaseProvider)
+          .getMediaAssetById(mediaId);
+      index = assets.indexWhere((a) => a.id == member?.groupId);
+    }
     if (index < 0) return;
     final currentModified = ref.read(galleryModifiedCountProvider);
     if (index > currentModified) {
@@ -147,8 +183,8 @@ class MediaAssetList extends _$MediaAssetList {
 class CurrentMediaAsset extends _$CurrentMediaAsset {
   @override
   MediaAsset? build() {
-    final assets = ref.watch(mediaAssetListProvider).valueOrNull ?? [];
-    final index = ref.watch(galleryCurrentIndexProvider);
+    final assets = ref.watch(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final index = ref.watch(galleryBrowsingIndexProvider);
 
     if (assets.isEmpty || index < 0 || index >= assets.length) {
       return null;
@@ -156,15 +192,39 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     return assets[index];
   }
 
+  Future<void> _updateIndex(int index) async {
+    if (ref.read(galleryActiveGroupProvider) == null) {
+      await ref.read(galleryCurrentIndexProvider.notifier).update(index);
+    } else {
+      ref.read(galleryGroupIndexProvider.notifier).state = index;
+    }
+  }
+
+  Future<void> browseGroup(MediaAsset asset) async {
+    final leadId = asset.groupId ?? asset.id;
+    final db = ref.read(galleryDatabaseProvider);
+    final lead = await db.getMediaAssetById(leadId);
+    final members = await db.getGroupMembers(leadId);
+    if (members.isEmpty) return;
+    final group = [if (lead != null) lead, ...members];
+    final index = group.indexWhere((a) => a.id == asset.id);
+    ref.read(galleryGroupIndexProvider.notifier).state = index < 0 ? 0 : index;
+    ref.read(galleryActiveGroupProvider.notifier).state = leadId;
+  }
+
+  void closeGroup() {
+    ref.read(galleryActiveGroupProvider.notifier).state = null;
+  }
+
   /// 前进到下一个未删除的文件
   Future<bool> next() async {
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    final assets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final currentIndex = ref.read(galleryBrowsingIndexProvider);
 
     for (int i = currentIndex + 1; i < assets.length; i++) {
       if (!assets[i].isDeleted) {
         await _inheritTagsToTarget(currentIndex, i, assets);
-        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        await _updateIndex(i);
         return true;
       }
     }
@@ -173,13 +233,13 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
 
   /// 返回上一个未删除的文件
   Future<bool> previous() async {
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    final assets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final currentIndex = ref.read(galleryBrowsingIndexProvider);
 
     for (int i = currentIndex - 1; i >= 0; i--) {
       if (!assets[i].isDeleted) {
         await _inheritTagsToTarget(currentIndex, i, assets);
-        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        await _updateIndex(i);
         return true;
       }
     }
@@ -188,20 +248,20 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
 
   /// 跳转到指定位置（直接跳转，不检查删除状态）
   Future<void> jumpTo(int index) async {
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
+    final assets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
     if (index < 0 || index >= assets.length) return;
 
-    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    final currentIndex = ref.read(galleryBrowsingIndexProvider);
     if (index == currentIndex) return;
 
     await _inheritTagsToTarget(currentIndex, index, assets);
-    await ref.read(galleryCurrentIndexProvider.notifier).update(index);
+    await _updateIndex(index);
   }
 
   /// 跳转到下一个未删除的文件（从当前位置开始查找）
   Future<void> skipToNextNonDeleted() async {
-    final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-    final currentIndex = ref.read(galleryCurrentIndexProvider);
+    final assets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final currentIndex = ref.read(galleryBrowsingIndexProvider);
 
     if (assets.isEmpty) return;
 
@@ -210,14 +270,14 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
         if (i != currentIndex) {
           await _inheritTagsToTarget(currentIndex, i, assets);
         }
-        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        await _updateIndex(i);
         return;
       }
     }
     for (int i = currentIndex - 1; i >= 0; i--) {
       if (!assets[i].isDeleted) {
         await _inheritTagsToTarget(currentIndex, i, assets);
-        await ref.read(galleryCurrentIndexProvider.notifier).update(i);
+        await _updateIndex(i);
         return;
       }
     }
@@ -230,6 +290,7 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     int toIndex,
     List<MediaAsset> assets,
   ) async {
+    if (ref.read(galleryActiveGroupProvider) != null) return;
     if (!ref.read(galleryTagAutoApplyEnabledProvider)) return;
 
     if (fromIndex < 0 || fromIndex >= assets.length) return;
@@ -259,8 +320,8 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
 /// 如果不存在下一个文件，返回 null
 @riverpod
 MediaAsset? nextMediaAsset(NextMediaAssetRef ref) {
-  final assets = ref.watch(mediaAssetListProvider).valueOrNull ?? [];
-  final currentIndex = ref.watch(galleryCurrentIndexProvider);
+  final assets = ref.watch(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+  final currentIndex = ref.watch(galleryBrowsingIndexProvider);
 
   if (assets.isEmpty || currentIndex < 0) {
     return null;

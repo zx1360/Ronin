@@ -320,10 +320,14 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                     spacing: 12,
                     runSpacing: 2,
                     children: [
-                      _statChip("最小同步", "${overview.syncStats.minSyncCount}"),
-                      _statChip("最大同步", "${overview.syncStats.maxSyncCount}"),
-                      _statChip("平均同步", overview.syncStats.avgSyncCount.toStringAsFixed(1)),
+                      _statChip("最少处理次数", "${overview.syncStats.minSyncCount}"),
+                      _statChip("最多处理次数", "${overview.syncStats.maxSyncCount}"),
+                      _statChip("平均处理次数", overview.syncStats.avgSyncCount.toStringAsFixed(1)),
                     ],
+                  ),
+                  const Text(
+                    '统计未删除媒体；每次「标记已处理」增加 1 次',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                   // 年份分布
                   if (overview.yearStats.isNotEmpty) ...[
@@ -643,8 +647,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                   style: TextStyle(color: color),
                 ),
               ),
-              if (progress.status == SyncStatus.downloading ||
-                  progress.status == SyncStatus.uploading)
+              if (progress.status == SyncStatus.downloading)
                 TextButton(
                   onPressed: () {
                     ref.read(gallerySyncServiceProvider.notifier).cancel();

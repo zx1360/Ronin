@@ -31,7 +31,8 @@ class EssayDetailPage extends ConsumerWidget {
         title: const Text('随笔详情'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            tooltip: '编辑标签',
+            icon: const Icon(Icons.label_outline),
             onPressed: essay.valueOrNull == null
                 ? null
                 : () => _showModify(context),
@@ -61,11 +62,19 @@ class EssayDetailPage extends ConsumerWidget {
   void _showModify(BuildContext context) {
     showModalBottomSheet(
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => RetagWidget(essayId: essayId),
+      builder: (context) => AnimatedPadding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        duration: const Duration(milliseconds: 180),
+        child: RetagWidget(essayId: essayId),
+      ),
     );
   }
 }

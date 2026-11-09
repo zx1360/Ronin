@@ -76,7 +76,7 @@ class GalleryDbStats {
 }
 
 /// 服务端画廊总览 Provider
-@Riverpod(keepAlive: true)
+@riverpod
 Future<GalleryOverview> galleryServerOverview(
   GalleryServerOverviewRef ref,
 ) async {
