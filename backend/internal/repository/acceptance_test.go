@@ -704,13 +704,13 @@ func TestComicRepo(t *testing.T) {
 		t.Fatalf("图片投影不符: %+v", images[0])
 	}
 
-	chapterMap, imageMap, err := comic_repo.GetComicAllChaptersAndImages(withChapters.ID)
-	if err != nil || len(chapterMap) != len(chapters) {
-		t.Fatalf("整本漫画查询不符: %d/%d err=%v", len(chapterMap), len(chapters), err)
+	manifest, err := comic_repo.GetComicAllChaptersAndImages(withChapters.ID)
+	if err != nil || len(manifest) != len(chapters) {
+		t.Fatalf("整本漫画查询不符: %d/%d err=%v", len(manifest), len(chapters), err)
 	}
-	for id, list := range imageMap {
-		if ch, ok := chapterMap[id]; ok && ch.ImageCount != len(list) {
-			t.Fatalf("章节 %s 图片数不一致: %d/%d", id, ch.ImageCount, len(list))
+	for i, chapter := range manifest {
+		if chapter.ID != chapters[i].ID || chapter.ImageCount != len(chapter.Images) {
+			t.Fatalf("章节顺序或图片数不一致: %+v", chapter)
 		}
 	}
 

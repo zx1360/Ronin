@@ -70,14 +70,14 @@ class GalleryStorageService {
   Future<File?> getThumbFile(String serverPath) async {
     final localPath = await getLocalThumbPath(serverPath);
     final file = File(localPath);
-    return await file.exists() ? file : null;
+    return await file.exists() && await file.length() > 0 ? file : null;
   }
 
   /// 获取本地预览图文件 (如果存在)
   Future<File?> getPreviewFile(String serverPath) async {
     final localPath = await getLocalPreviewPath(serverPath);
     final file = File(localPath);
-    return await file.exists() ? file : null;
+    return await file.exists() && await file.length() > 0 ? file : null;
   }
 
   // 统计信息

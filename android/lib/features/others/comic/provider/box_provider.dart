@@ -4,6 +4,7 @@
 library;
 
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:torrid/core/services/storage/box_replace.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
@@ -26,15 +27,8 @@ Box<ComicInfo> comicInfoBox(ComicInfoBoxRef ref) {
 
 /// 漫画信息的响应式流
 @riverpod
-Stream<List<ComicInfo>> comicInfoStream(ComicInfoStreamRef ref) async* {
-  final box = ref.read(comicInfoBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
+Stream<List<ComicInfo>> comicInfoStream(ComicInfoStreamRef ref) =>
+    watchBoxValues(ref.watch(comicInfoBoxProvider));
 
 /// 章节信息的 Hive Box
 @riverpod
@@ -44,12 +38,5 @@ Box<ChapterInfo> chapterInfoBox(ChapterInfoBoxRef ref) {
 
 /// 章节信息的响应式流
 @riverpod
-Stream<List<ChapterInfo>> chapterInfoStream(ChapterInfoStreamRef ref) async* {
-  final box = ref.watch(chapterInfoBoxProvider);
-  yield box.values.toList();
-  await for (final event in box.watch()) {
-    if (event.deleted || event.value != null) {
-      yield box.values.toList();
-    }
-  }
-}
+Stream<List<ChapterInfo>> chapterInfoStream(ChapterInfoStreamRef ref) =>
+    watchBoxValues(ref.watch(chapterInfoBoxProvider));

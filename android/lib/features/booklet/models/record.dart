@@ -60,7 +60,7 @@ class Record {
       styleId: styleId ?? this.styleId,
       date: date ?? this.date,
       message: message ?? this.message,
-      taskCompletion: taskCompletion ?? this.taskCompletion,
+      taskCompletion: Map.of(taskCompletion ?? this.taskCompletion),
       mood: clearMood ? null : (mood ?? this.mood),
     );
   }

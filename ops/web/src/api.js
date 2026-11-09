@@ -79,6 +79,12 @@ export async function request(method, path, options = {}) {
     throw new ApiError(`HTTP ${response.status}${detail}${hint}`, response.status, payload);
   }
 
+  if (payload === null || typeof payload !== 'object') {
+    throw new ApiError('服务器未返回有效 JSON 数据', response.status, payload);
+  }
+  if (payload.ok === false) {
+    throw new ApiError(payload.error || '操作失败', response.status, payload);
+  }
   return payload;
 }
 

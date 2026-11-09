@@ -25,9 +25,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   /// "问问AI"带过来的附件：首次发送后即失效，避免切换会话时反复预置。
-  late List<ChatAttachment> _launchAttachments = [
-    ...?widget.args?.attachments,
-  ];
+  late List<ChatAttachment> _launchAttachments = [...?widget.args?.attachments];
 
   /// 是否自动贴住最新内容：用户向上翻阅历史时置为 false，回到底部再置回。
   bool _stickToBottom = true;
@@ -64,7 +62,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _onScroll(ScrollNotification notification) {
     if (notification.depth != 0) return false;
     final position = notification.metrics;
-    final atBottom = position.maxScrollExtent - position.pixels <= _bottomTolerance;
+    final atBottom =
+        position.maxScrollExtent - position.pixels <= _bottomTolerance;
     if (atBottom != _stickToBottom) {
       setState(() => _stickToBottom = atBottom);
     }
@@ -84,8 +83,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     });
 
     // 服务端提示（如模型被抢占）用 SnackBar 呈现一次
-    ref.listen(chatControllerProvider.select((value) => value.notice),
-        (previous, next) {
+    ref.listen(chatControllerProvider.select((value) => value.notice), (
+      previous,
+      next,
+    ) {
       if (next == null || next == previous) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(next), duration: const Duration(seconds: 3)),
@@ -189,9 +190,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return ChatMessageBubble(
           key: ValueKey(message.id),
           message: message,
-          streaming: state.streaming && message.id == lastId && !message.isUser,
-          onRetry: isLast &&
-                  (message.error != null || message.interrupted)
+          streaming:
+              ref
+                  .read(chatControllerProvider.notifier)
+                  .isGenerating(conversation!.id) &&
+              message.id == lastId &&
+              !message.isUser,
+          onRetry: isLast && (message.error != null || message.interrupted)
               ? () => ref.read(chatControllerProvider.notifier).retry()
               : null,
         );
@@ -240,8 +245,11 @@ class _EmptyHint extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_awesome,
-              size: 42, color: AppTheme.primary.withAlpha(150)),
+          Icon(
+            Icons.auto_awesome,
+            size: 42,
+            color: AppTheme.primary.withAlpha(150),
+          ),
           const SizedBox(height: 12),
           const Text(
             '本地 Qwen 对话',

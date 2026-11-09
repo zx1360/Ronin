@@ -34,7 +34,7 @@ final recordBoxProvider = AutoDisposeProvider<Box<Record>>.internal(
 );
 
 typedef RecordBoxRef = AutoDisposeProviderRef<Box<Record>>;
-String _$styleStreamHash() => r'8c12abed6b715ce0d3190f03b2b5d78aa26c471e';
+String _$styleStreamHash() => r'3c77e5bba902f807adcdf95f6cd696da0a675c09';
 
 /// See also [styleStream].
 @ProviderFor(styleStream)
@@ -48,7 +48,7 @@ final styleStreamProvider = AutoDisposeStreamProvider<List<Style>>.internal(
 );
 
 typedef StyleStreamRef = AutoDisposeStreamProviderRef<List<Style>>;
-String _$recordStreamHash() => r'761cd6e30b071492298fd15c2a689b34ed9447f5';
+String _$recordStreamHash() => r'ab3e6ce18b3e0017c15a1ced5f6ccd907581267d';
 
 /// See also [recordStream].
 @ProviderFor(recordStream)

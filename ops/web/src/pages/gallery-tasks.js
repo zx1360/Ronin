@@ -22,7 +22,6 @@ export default {
     const load = async (signal) => {
       try {
         const data = await api.get('/API/ops/local/tasks', { signal });
-        if (data?.ok === false) throw new Error(data.error || '无法读取任务');
         tasks.value = data?.data?.tasks || [];
         error.value = '';
       } catch (err) {
@@ -58,7 +57,7 @@ export default {
           payload.resizeThumb = form.resizeThumb;
         }
         const data = await api.post('/API/ops/local/tasks', payload, { timeoutMs: 20000 });
-        if (data?.ok === false || !data?.data?.task_id) throw new Error(data?.error || '未收到任务编号');
+        if (!data?.data?.task_id) throw new Error(data?.error || '未收到任务编号');
         toast(`任务已启动: ${data?.data?.task_id || ''}`, 'success');
         navigate(`/tasks?task=gallery:${encodeURIComponent(data?.data?.task_id || '')}`);
       } catch (err) {

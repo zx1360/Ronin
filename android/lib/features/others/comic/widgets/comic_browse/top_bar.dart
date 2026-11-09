@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:torrid/features/others/comic/services/comic_servic.dart';
+import 'package:torrid/features/others/comic/services/comic_storage.dart';
 
 class TopControllBar extends StatelessWidget {
   final String comicName;

@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -87,27 +86,7 @@ func UpdateSettings(c *gin.Context) {
 
 // ListTasks 列出 gallery CLI 任务（不含日志，日志走详情接口）。
 func ListTasks(c *gin.Context) {
-	tasks := gallery.Manager.List()
-	type summary struct {
-		ID         string            `json:"id"`
-		Name       string            `json:"name"`
-		Command    string            `json:"command"`
-		Status     taskengine.Status `json:"status"`
-		PID        int               `json:"pid"`
-		StartedAt  time.Time         `json:"started_at"`
-		FinishedAt *time.Time        `json:"finished_at"`
-		ExitCode   *int              `json:"exit_code"`
-		Error      string            `json:"error"`
-	}
-	out := make([]summary, 0, len(tasks))
-	for _, t := range tasks {
-		out = append(out, summary{
-			ID: t.ID, Name: t.Name, Command: t.Command, Status: t.Status,
-			PID: t.PID, StartedAt: t.StartedAt, FinishedAt: t.FinishedAt,
-			ExitCode: t.ExitCode, Error: t.Error,
-		})
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"tasks": out}})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"tasks": gallery.Manager.List()}})
 }
 
 // StartTask 启动一次 gallery CLI 任务（同一时刻只允许一个）。
