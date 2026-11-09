@@ -172,14 +172,18 @@ class GalleryDatabaseService {
         for (final row in await txn.query('media_assets', columns: ['id']))
           row['id'] as String,
       };
+      final available = {...existing, ...assets.map((asset) => asset.id)};
       final batch = txn.batch();
       for (final asset in assets) {
+        final values = asset.toDbMap();
+        // 主文件未下载时，成员独立浏览。
+        if (!available.contains(asset.groupId)) values['group_id'] = null;
         if (existing.add(asset.id)) {
-          batch.insert('media_assets', asset.toDbMap());
+          batch.insert('media_assets', values);
         } else {
           batch.update(
             'media_assets',
-            asset.toDbMap(),
+            values,
             where: 'id = ?',
             whereArgs: [asset.id],
           );
@@ -204,7 +208,7 @@ class GalleryDatabaseService {
         ? ''
         : 'WHERE ${conditions.join(' AND ')}';
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
-      SELECT * FROM media_assets $where ORDER BY captured_at ASC
+      SELECT * FROM media_assets $where ORDER BY captured_at ASC, id ASC
     ''');
     return maps.map((m) => MediaAsset.fromDbMap(m)).toList();
   }
@@ -217,6 +221,11 @@ class GalleryDatabaseService {
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }
+
+  Future<Set<String>> getMediaAssetIds() async => {
+    for (final row in await (await database).query('media_assets', columns: ['id']))
+      row['id'] as String,
+  };
 
   Future<MediaAsset?> getMediaAssetById(String id) async {
     final db = await database;
@@ -650,7 +659,7 @@ class GalleryDatabaseService {
       SELECT COUNT(*) AS media_count, COALESCE(SUM(is_deleted), 0) AS deleted_count
       FROM (
         SELECT is_deleted FROM media_assets
-        WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?
+        WHERE group_id IS NULL ORDER BY captured_at ASC, id ASC LIMIT ?
       )
     ''',
       [upperIndex + 1],
@@ -711,7 +720,7 @@ class GalleryDatabaseService {
     final mainMaps = await db.rawQuery(
       '''
       SELECT * FROM media_assets
-      WHERE group_id IS NULL ORDER BY captured_at ASC LIMIT ?
+      WHERE group_id IS NULL ORDER BY captured_at ASC, id ASC LIMIT ?
     ''',
       [upperIndex + 1],
     );

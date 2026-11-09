@@ -93,16 +93,70 @@ class BrowseBodyState extends ConsumerState<BrowseBody> {
       });
     }
 
-    return PageView(
-      controller: _controller,
+    return Column(
       children: [
-        // "-1页"：全部年份汇总
-        BrowseAllYears(key: _allYearsKey, yearSummaries: yearSummaries),
-        // 各年份页面
-        ...pages.asMap().entries.map(
-          (entry) => BrowsePart(
-            key: _getPartKey(entry.key + 1),
-            yearSummary: entry.value,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          child: Row(
+            children: [
+              TextButton.icon(
+                icon: const Icon(Icons.dashboard_outlined, size: 18),
+                label: const Text('总览'),
+                onPressed: () => _controller.animateToPage(
+                  0,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButton<int>(
+                  value: _currentPage > 0 && _currentPage <= pages.length
+                      ? _currentPage
+                      : null,
+                  hint: const Text('选择年份'),
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  items: [
+                    for (var i = 0; i < pages.length; i++)
+                      DropdownMenuItem(
+                        value: i + 1,
+                        child: Text('${pages[i].year} 年'),
+                      ),
+                  ],
+                  onChanged: (page) {
+                    if (page != null) {
+                      _controller.animateToPage(
+                        page,
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                      );
+                    }
+                  },
+                ),
+              ),
+              IconButton(
+                tooltip: '回到顶部',
+                icon: const Icon(Icons.vertical_align_top, size: 20),
+                onPressed: scrollToTop,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: PageView(
+            controller: _controller,
+            children: [
+              // "-1页"：全部年份汇总
+              BrowseAllYears(key: _allYearsKey, yearSummaries: yearSummaries),
+              // 各年份页面
+              ...pages.asMap().entries.map(
+                (entry) => BrowsePart(
+                  key: _getPartKey(entry.key + 1),
+                  yearSummary: entry.value,
+                ),
+              ),
+            ],
           ),
         ),
       ],

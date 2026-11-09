@@ -248,6 +248,11 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
                 ),
               ),
               TextButton.icon(
+                onPressed: () => Navigator.pop(context, _currentAsset),
+                icon: const Icon(Icons.layers_outlined, size: 16),
+                label: const Text('浏览分组'),
+              ),
+              TextButton.icon(
                 onPressed: _isGroupUpdating || _isSaving
                     ? null
                     : _removeCurrentFromGroup,

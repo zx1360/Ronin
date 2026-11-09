@@ -184,7 +184,8 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
     final tags = ref.read(tagTreeProvider).valueOrNull ?? const <Tag>[];
     if (tagId != null &&
         !_expandedIds.contains(tagId) &&
-        tags.any((t) => t.parentId == tagId)) {
+        (groupTagsByParent(tags, hideFavorites: true)[tagId]?.isNotEmpty ??
+            false)) {
       _expandTimer = Timer(const Duration(milliseconds: 280), () {
         if (!mounted || !_visible || _pinned || _hoveredTagId != tagId) return;
         setState(() => _expandedIds.add(tagId));
@@ -262,7 +263,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
             .map((t) => t.id)
             .toSet();
     final favorites = ref.watch(favoriteTagsProvider);
-    final children = groupTagsByParent(tags);
+    final children = groupTagsByParent(tags, hideFavorites: true);
     final nodes = flattenTagTree(children, expanded: _expandedIds);
     final turns = widget.quarterTurns % 4;
     final safeTop = MediaQuery.paddingOf(context).top + 8;
@@ -316,7 +317,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
                                 child: nodes.isEmpty
                                     ? const Center(
                                         child: Text(
-                                          '暂无标签',
+                                          '暂无普通标签',
                                           style: TextStyle(
                                             color: Colors.white54,
                                           ),
@@ -438,10 +439,9 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
   }
 
   Widget _header(List<Tag> tags, int count) {
-    final parents = {
-      for (final t in tags)
-        if (t.parentId != null) t.parentId!,
-    };
+    final parents = groupTagsByParent(tags, hideFavorites: true).keys
+        .where((id) => id.isNotEmpty)
+        .toSet();
     final allExpanded = parents.isNotEmpty && _expandedIds.containsAll(parents);
     return SizedBox(
       height: 44,

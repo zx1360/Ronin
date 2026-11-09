@@ -73,10 +73,10 @@ func NewPipeline(config Config) *Pipeline {
 // RunExecution 运行执行流水线
 // Phase A: 处理软删除 → 文件移入 trash → 物理删除 DB 记录
 // Phase B: 处理编辑 → 应用编辑 → 原文件移入 trash → 新文件写回 → 重建缩略图/预览图 → DB UPDATE
-func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (*Stats, error) {
+func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (stats *Stats, err error) {
 	log.Println("========== 开始执行流水线 ==========")
 
-	stats := &Stats{}
+	stats = &Stats{}
 
 	// 确保目录存在
 	if err := os.MkdirAll(p.config.DeletedDir, 0755); err != nil {
@@ -96,7 +96,13 @@ func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (*Stats,
 
 	log.Printf("找到 %d 个待删除的资产", len(deletedAssets))
 
-	var deleteIDs []uuid.UUID
+	var deleting []*model.MediaAsset
+	deleteCommitted := false
+	defer func() {
+		if !deleteCommitted && err != nil {
+			err = errors.Join(err, p.restoreDeletedAssets(deleting))
+		}
+	}()
 	moved := make(map[uuid.UUID]bool)
 	move := func(asset *model.MediaAsset) bool {
 		if moved[asset.ID] {
@@ -108,7 +114,7 @@ func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (*Stats,
 			return false
 		}
 		moved[asset.ID] = true
-		deleteIDs = append(deleteIDs, asset.ID)
+		deleting = append(deleting, asset)
 		return true
 	}
 	for _, asset := range deletedAssets {
@@ -135,10 +141,14 @@ func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (*Stats,
 		}
 	}
 
-	if err := p.repository.BatchDeleteAssetRecords(dbCtx, deleteIDs); err != nil {
+	if err := p.repository.BatchDeleteAssetRecords(dbCtx, deleting); err != nil {
 		return stats, fmt.Errorf("删除数据库记录失败，可重试: %w", err)
 	}
-	stats.DeletedFiles = int64(len(deleteIDs))
+	deleteCommitted = true
+	stats.DeletedFiles = int64(len(deleting))
+	for _, asset := range deleting {
+		p.removeAssetDerivatives(asset)
+	}
 
 	// ========== Phase B: 处理编辑 ==========
 	log.Println("--- Phase B: 处理编辑 ---")
@@ -196,7 +206,11 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	}
 
 	// 源文件路径
-	srcPath := filepath.Join(p.config.MediaDir, asset.FilePath)
+	relative, ok := galleryfs.RelativePath(asset.FilePath)
+	if !ok {
+		return fmt.Errorf("原件路径无效: %q", asset.FilePath)
+	}
+	srcPath := filepath.Join(p.config.MediaDir, relative)
 
 	// 生成临时文件路径
 	ext := filepath.Ext(asset.FilePath)
@@ -209,7 +223,7 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	case "image":
 		editErr = processor.ApplyImageEdit(srcPath, tmpPath, *asset.EditParams)
 	case "video":
-		editErr = processor.ApplyVideoEdit(srcPath, tmpPath, *asset.EditParams)
+		editErr = processor.ApplyVideoEdit(ctx, srcPath, tmpPath, *asset.EditParams)
 	default:
 		return fmt.Errorf("未知编辑类型: %s", editType.Type)
 	}
@@ -219,7 +233,7 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 		log.Printf("编辑参数为无操作，清除 edit_params: %s", asset.FilePath)
 		dbCtx, dbCancel := db.GetDefaultCtx()
 		defer dbCancel()
-		if err := p.repository.ClearEditParams(dbCtx, asset.ID); err != nil {
+		if err := p.repository.ClearEditParams(dbCtx, asset); err != nil {
 			return fmt.Errorf("清除 edit_params 失败: %w", err)
 		}
 		return nil
@@ -254,10 +268,16 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 			err = errors.Join(err, fmt.Errorf("原文件恢复失败，备份在 %s: %w", trashPath, restoreErr))
 			return
 		}
-		_, restoreErr := p.processor.Process(&model.FileInfo{
-			FileName: filepath.Base(asset.FilePath), Extension: strings.ToLower(ext),
-			IsVideo: model.IsVideo(strings.ToLower(ext)), IsAnimated: model.IsAnimatedImage(strings.ToLower(ext)),
-		}, srcPath, yearMonth)
+		var thumb, preview string
+		if asset.ThumbPath != nil {
+			thumb = filepath.Join(p.config.ThumbsDir, *asset.ThumbPath)
+		}
+		if asset.PreviewPath != nil {
+			preview = filepath.Join(p.config.PreviewDir, *asset.PreviewPath)
+		}
+		restoreErr := processor.Generate(srcPath, thumb, preview, processor.GenerateRequest{
+			NeedThumb: thumb != "", NeedPreview: preview != "",
+		}, model.IsVideo(strings.ToLower(ext)), strings.EqualFold(ext, ".gif"))
 		if restoreErr != nil {
 			err = errors.Join(err, fmt.Errorf("原图已恢复，派生图重建失败: %w", restoreErr))
 		}
@@ -330,14 +350,14 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	dbCtx, dbCancel := db.GetDefaultCtx()
 	defer dbCancel()
 
-	if err := p.repository.UpdateAssetAfterEdit(dbCtx, asset); err != nil {
+	if err := p.repository.UpdateAssetAfterEdit(dbCtx, asset, &original); err != nil {
 		return fmt.Errorf("更新数据库失败: %w", err)
 	}
 
 	return nil
 }
 
-// moveAssetToDeleted 移动资产文件到删除目录，删除缩略图和预览图
+// moveAssetToDeleted 先保留派生图，数据库删除成功后再清理。
 func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset, pruneMissing bool) error {
 	relative, ok := galleryfs.RelativePath(asset.FilePath)
 	if !ok {
@@ -373,6 +393,33 @@ func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset, pruneMissing bool
 		}
 	}
 
+	return nil
+}
+
+func (p *Pipeline) restoreDeletedAssets(assets []*model.MediaAsset) (err error) {
+	for _, asset := range assets {
+		relative, ok := galleryfs.RelativePath(asset.FilePath)
+		if !ok {
+			continue
+		}
+		src := filepath.Join(p.config.MediaDir, relative)
+		if _, statErr := os.Stat(src); !os.IsNotExist(statErr) {
+			continue
+		}
+		yearMonth := filepath.Dir(relative)
+		if yearMonth == "." {
+			yearMonth = "unknown"
+		}
+		trash := filepath.Join(p.config.DeletedDir, "trash", yearMonth, asset.ID.String(), filepath.Base(relative))
+		if _, statErr := os.Stat(trash); os.IsNotExist(statErr) {
+			continue
+		}
+		err = errors.Join(err, copyFileData(trash, src))
+	}
+	return err
+}
+
+func (p *Pipeline) removeAssetDerivatives(asset *model.MediaAsset) {
 	for _, derived := range []struct {
 		dir  string
 		path *string
@@ -388,8 +435,6 @@ func (p *Pipeline) moveAssetToDeleted(asset *model.MediaAsset, pruneMissing bool
 			log.Printf("删除派生图失败: %v", err)
 		}
 	}
-
-	return nil
 }
 
 // moveToDeleted 移动文件到删除目录（处理重名）

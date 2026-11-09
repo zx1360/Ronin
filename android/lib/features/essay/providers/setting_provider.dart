@@ -86,6 +86,12 @@ class BrowseManager extends _$BrowseManager {
     state = state.copyWith(selectedLabels: selected);
   }
 
+  void removeLabel(String labelId) {
+    state = state.copyWith(
+      selectedLabels: Map.of(state.selectedLabels)..remove(labelId),
+    );
+  }
+
   /// 清除所有筛选条件
   void clearFilters() {
     state = const BrowseSettings();

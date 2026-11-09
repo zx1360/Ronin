@@ -76,7 +76,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       appBar: AppBar(
         title: Text(_selectMode ? '选择标签' : '标签管理'),
         actions: [
-          if (_selectMode) _buildAutoApplyToggle(),
+          if (_selectMode && ref.watch(galleryActiveGroupProvider) == null)
+            _buildAutoApplyToggle(),
           IconButton(
             icon: Icon(allExpanded ? Icons.unfold_less : Icons.unfold_more),
             tooltip: allExpanded ? '全部收起' : '全部展开',

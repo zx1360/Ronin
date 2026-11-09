@@ -6,7 +6,7 @@ part of 'media_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$nextMediaAssetHash() => r'acdb3ec4201686aefa772a53c6440c68b4f6e22e';
+String _$nextMediaAssetHash() => r'6fb007e93e6f936e3d20933e34d66c7cd6955664';
 
 /// 下一个未删除的媒体文件 Provider（用于预览小窗）
 /// 如果不存在下一个文件，返回 null
@@ -24,7 +24,7 @@ final nextMediaAssetProvider = AutoDisposeProvider<MediaAsset?>.internal(
 );
 
 typedef NextMediaAssetRef = AutoDisposeProviderRef<MediaAsset?>;
-String _$mediaAssetListHash() => r'364320c58b9163fd6fddf2b72528d986997377b8';
+String _$mediaAssetListHash() => r'f05dd832400c76173f8cace6240a9cc2de87cae7';
 
 /// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
 ///
@@ -44,7 +44,7 @@ final mediaAssetListProvider =
 );
 
 typedef _$MediaAssetList = AutoDisposeAsyncNotifier<List<MediaAsset>>;
-String _$currentMediaAssetHash() => r'2b20fe63102969b4b3dce7d2efccba21da68582e';
+String _$currentMediaAssetHash() => r'2a1fc259afdb37606c8df51d7ea94c7f39ec088f';
 
 /// 当前媒体文件 Provider
 /// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）

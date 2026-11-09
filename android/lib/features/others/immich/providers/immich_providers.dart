@@ -125,15 +125,17 @@ class ImmichMediaPage {
   final Map<String, List<String>> tagIdsByMedia;
   final int total;
   final bool loadingMore;
+  final int nextOffset;
 
-  const ImmichMediaPage({
+  ImmichMediaPage({
     required this.assets,
     required this.tagIdsByMedia,
     required this.total,
     this.loadingMore = false,
-  });
+    int? nextOffset,
+  }) : nextOffset = nextOffset ?? assets.length;
 
-  bool get hasMore => assets.length < total;
+  bool get hasMore => nextOffset < total;
 
   ImmichMediaPage copyWith({
     List<MediaAsset>? assets,
@@ -146,6 +148,7 @@ class ImmichMediaPage {
       tagIdsByMedia: tagIdsByMedia ?? this.tagIdsByMedia,
       total: total ?? this.total,
       loadingMore: loadingMore ?? this.loadingMore,
+      nextOffset: nextOffset,
     );
   }
 }
@@ -194,7 +197,7 @@ class ImmichMedia extends _$ImmichMedia {
     try {
       final next = await _fetch(
         ref.read(immichFilterNotifierProvider),
-        current.assets.length,
+        current.nextOffset,
         token,
         previous: current,
       );
@@ -274,11 +277,17 @@ class ImmichMedia extends _$ImmichMedia {
       );
     }
 
-    final assets = [...?previous?.assets, ...result.mediaAssets];
+    final assets = {
+      for (final asset in [...?previous?.assets, ...result.mediaAssets])
+        asset.id: asset,
+    }.values.toList();
     return ImmichMediaPage(
       assets: assets,
       tagIdsByMedia: {...?previous?.tagIdsByMedia, ...pageTags},
       total: result.total,
+      nextOffset: result.mediaAssets.isEmpty
+          ? result.total
+          : offset + result.mediaAssets.length,
     );
   }
 }
@@ -327,6 +336,7 @@ class ImmichActions extends _$ImmichActions {
           .read(galleryWriteBufferProvider)
           .writeOnline(action);
       ref.invalidate(mediaAssetListProvider);
+      ref.invalidate(galleryServerOverviewProvider);
       try {
         final photos = ref.read(immichMediaProvider.notifier);
         if (updated == null) {

@@ -41,9 +41,15 @@ class RetagWidget extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '重选标签',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Text('随笔标签', style: Theme.of(context).textTheme.titleLarge),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('完成'),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
 

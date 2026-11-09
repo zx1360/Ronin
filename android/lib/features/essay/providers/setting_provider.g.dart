@@ -6,7 +6,7 @@ part of 'setting_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$browseManagerHash() => r'2bf7e6a3723c841bd2874e9a565dfb3a5cbb0293';
+String _$browseManagerHash() => r'2c201471d7c6feaaed6c8a1c83919b9a8ced9fa2';
 
 /// 浏览设置管理器
 ///

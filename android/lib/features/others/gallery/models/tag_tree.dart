@@ -39,11 +39,21 @@ class TagNode {
 Map<String, List<Tag>> groupTagsByParent(
   List<Tag> tags, {
   int Function(Tag, Tag) compare = compareTagsByMediaCount,
+  bool hideFavorites = false,
 }) {
   final byId = {for (final tag in tags) tag.id: tag};
   final map = <String, List<Tag>>{};
   for (final tag in tags) {
-    final parentId = tag.parentId;
+    if (hideFavorites && tag.isFavorite) continue;
+    var parentId = tag.parentId;
+    final seen = {tag.id};
+    while (hideFavorites && byId[parentId]?.isFavorite == true) {
+      if (!seen.add(parentId!)) {
+        parentId = null;
+        break;
+      }
+      parentId = byId[parentId]?.parentId;
+    }
     final key = (parentId != null && byId.containsKey(parentId))
         ? parentId
         : '';

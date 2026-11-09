@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 服务端缩略图 (始终在线, 直连局域网后端并附带 API Key)
@@ -22,7 +23,7 @@ class ImmichThumb extends ConsumerWidget {
       );
     }
     return CachedNetworkImage(
-      imageUrl: '${api.baseUrl}/API/gallery/${asset.id}/thumb',
+      imageUrl: galleryMediaUrl(api.baseUrl, asset, type: 'thumb'),
       httpHeaders: api.headers,
       fit: fit,
       placeholder: (context, url) => const ColoredBox(color: Colors.black12),
