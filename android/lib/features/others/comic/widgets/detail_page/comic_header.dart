@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
-import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
-import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/widgets/image_widget/common_image_widget.dart';
 import 'package:torrid/core/modals/confirm_modal.dart';
 
@@ -64,12 +62,9 @@ class ComicHeader extends ConsumerWidget {
                                 confirmFunc: () {},
                               );
                               if (confirm == null || confirm == false) return;
-                              await IoService.deleteOfflineDirectory(
-                                "comics/${info.comicName}",
-                              );
                               await ref
-                                  .read(comicServiceProvider.notifier)
-                                  .refreshChanged();
+                                  .read(comicDownloadTasksProvider.notifier)
+                                  .deleteLocalComic(info);
                               if (context.mounted) {
                                 context.pop();
                               }

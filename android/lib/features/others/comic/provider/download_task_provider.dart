@@ -17,6 +17,7 @@ import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_download_task.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/box_provider.dart';
+import 'package:torrid/features/others/comic/services/comic_storage.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 final comicDownloadTasksProvider =
@@ -40,6 +41,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   bool _isScheduling = false;
 
   final Set<String> _runningTaskIds = <String>{};
+  final Map<String, Future<void>> _runningTasks = {};
   final Map<String, List<CancelToken>> _taskCancelTokens = {};
 
   Timer? _retryTimer;
@@ -173,11 +175,32 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     );
 
     if (deleteLocalFiles) {
-      await IoService.deleteOfflineDirectory(
-        path.posix.join('comics', task.comicName),
+      await deleteLocalComic(
+        _ref.read(comicInfoBoxProvider).get(task.comicId) ??
+            ComicInfo(
+              id: task.comicId,
+              comicName: task.comicName,
+              coverImage: '',
+              chapterCount: 0,
+              imageCount: 0,
+            ),
       );
-      await _removeComicMeta(task.comicId);
     }
+  }
+
+  Future<void> deleteLocalComic(ComicInfo comic) async {
+    await initialize();
+    final tasks = state.where((task) => task.comicId == comic.id).toList();
+    for (final task in tasks) {
+      await cancelTask(task.taskId);
+      await _runningTasks[task.taskId];
+    }
+    await deleteComicFiles(
+      comic,
+      _ref.read(comicInfoBoxProvider).values,
+      _ref.read(chapterInfoBoxProvider).values,
+    );
+    await _removeComicMeta(comic.id);
   }
 
   Future<void> removeTask(String taskId) async {
@@ -216,7 +239,11 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
               updatedAtMs: _nowMs,
             ),
           );
-          unawaited(_runTask(next.taskId));
+          final running = _runTask(next.taskId);
+          _runningTasks[next.taskId] = running;
+          unawaited(
+            running.whenComplete(() => _runningTasks.remove(next.taskId)),
+          );
         }
       } finally {
         _isScheduling = false;
@@ -339,8 +366,8 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     }
     chapters.sort((a, b) => a.chapterIndex.compareTo(b.chapterIndex));
 
-    final comicRootRelative = path.posix.join('comics', task.comicName);
-    await IoService.offlineDirectory(comicRootRelative);
+    final comicRootRelative = comicDownloadPath(task.comicId);
+    final comicDirectory = await IoService.offlineDirectory(comicRootRelative);
 
     final pendingJobs = <_ImageDownloadJob>[];
     final chapterRemaining = <String, int>{};
@@ -351,10 +378,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
     for (final chapter in chapters) {
       _assertTaskRunning(taskId);
-      final chapterDirRelative = path.posix.join(
-        comicRootRelative,
-        chapter.dirName,
-      );
+      final chapterDirRelative = path.posix.join(comicRootRelative, chapter.id);
       await IoService.offlineDirectory(chapterDirRelative);
 
       int missingInChapter = 0;
@@ -475,6 +499,28 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
         chapter.id: chapter.copyWith(imageCount: chapter.images.length),
     };
 
+    final comic =
+        (_ref.read(comicInfoBoxProvider).get(task.comicId) ??
+                ComicInfo(
+                  id: task.comicId,
+                  comicName: task.comicName,
+                  coverImage: task.coverImage,
+                  chapterCount: 0,
+                  imageCount: 0,
+                ))
+            .copyWith(
+              comicName: task.comicName,
+              chapterCount: chapters.length,
+              imageCount: totalImages,
+              coverImage:
+                  chapters
+                          .expand((chapter) => chapter.images)
+                          .firstOrNull?['path']
+                      as String?,
+            );
+    await writeComicIndex(comicDirectory, comic, chapters);
+    _assertTaskRunning(taskId);
+
     final newChapterIds = chapterMap.keys.toSet();
     final deleteChapterIds = oldChapterIds
         .where((chapterId) => !newChapterIds.contains(chapterId))
@@ -487,22 +533,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
       await chapterBox.putAll(chapterMap);
     }
 
-    var coverImage = task.coverImage;
-    if (chapters.isNotEmpty && chapters.first.images.isNotEmpty) {
-      coverImage =
-          chapters.first.images.first['path']?.toString() ?? coverImage;
-    }
-
-    await comicBox.put(
-      task.comicId,
-      ComicInfo(
-        id: task.comicId,
-        comicName: task.comicName,
-        coverImage: coverImage,
-        chapterCount: chapters.length,
-        imageCount: totalImages,
-      ),
-    );
+    await comicBox.put(task.comicId, comic);
 
     _updateTask(
       taskId,

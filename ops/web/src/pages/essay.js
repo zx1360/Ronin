@@ -33,7 +33,7 @@ export default {
           <MarkdownText v-if="preview" :text="editor.content" />
           <label v-else class="field">
             正文
-            <textarea class="essay-writing" v-model="editor.content" rows="14" placeholder="写下今天，支持 Markdown…" required></textarea>
+            <textarea class="essay-writing" v-model="editor.content" rows="14" placeholder="写下今天，支持 Markdown…"></textarea>
           </label>
           <fieldset class="user-label-picker">
             <legend>标签（1 至 4 个）</legend>

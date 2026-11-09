@@ -73,7 +73,7 @@ export function useEssayBoard() {
     if (publishing.value || busy.value || board.loading.value) return;
     publishing.value = true;
     try {
-      if (!editor.value.content.trim() || !editor.value.labels.length || editor.value.labels.length > 4) { toast('正文不能为空，请选择 1 至 4 个标签', 'error'); return; }
+      if ((!editor.value.content.trim() && !editor.value.imgs.length) || !editor.value.labels.length || editor.value.labels.length > 4) { toast('请填写正文或添加图片，并选择 1 至 4 个标签', 'error'); return; }
       if (!await persist()) return;
       await board.refresh();
       if (board.error.value) return;

@@ -167,6 +167,10 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                 ],
               ),
               const SizedBox(height: 6),
+              const Text(
+                '长对话会自动使用最近内容作为上下文，完整历史仍保存在本机。',
+                style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
+              ),
               Text(
                 options.numCtx == 0
                     ? '跟随后端默认${server != null ? '（${server.numCtx}）' : ''}；'

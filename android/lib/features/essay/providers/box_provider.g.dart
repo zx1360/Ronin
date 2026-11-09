@@ -186,7 +186,7 @@ class _EssayByIdProviderElement extends AutoDisposeStreamProviderElement<Essay?>
   String get id => (origin as EssayByIdProvider).id;
 }
 
-String _$essayStreamHash() => r'f3ec87b2c434c806c378da17b5fd9dceb4b6631e';
+String _$essayStreamHash() => r'a5c3dd7139bd2e74f038f5384fbc9adcd1fe6146';
 
 /// 随笔数据的响应式流
 ///
@@ -218,7 +218,7 @@ final labelBoxProvider = AutoDisposeProvider<Box<Label>>.internal(
 );
 
 typedef LabelBoxRef = AutoDisposeProviderRef<Box<Label>>;
-String _$labelStreamHash() => r'08feaadbca6daacf039c17048c856f1e4b0b4499';
+String _$labelStreamHash() => r'e6038c42564d4761c700ae70b0d47fed29f9bae5';
 
 /// 标签数据的响应式流
 ///

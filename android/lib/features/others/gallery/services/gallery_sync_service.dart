@@ -117,7 +117,8 @@ class GallerySyncService extends _$GallerySyncService {
       if ((await db.operations()).any((op) => op.kind == 'processed')) {
         throw StateError('请先重试完成上次的标记已处理');
       }
-      final cachedIds = await db.getMediaAssetIds();
+      final cached = await db.getMediaAssets(includeGroupMembers: true);
+      final cachedIds = cached.map((asset) => asset.id).toSet();
 
       // 2. 请求 batch 数据（携带筛选/排序参数）
       final mimeFilter = ref.read(galleryDownloadMimeFilterProvider);
@@ -150,109 +151,91 @@ class GallerySyncService extends _$GallerySyncService {
       final links = batchData.links;
       if (_cancelToken?.isCancelled == true) throw _cancelToken!.cancelError!;
 
-      if (assets.isEmpty) {
-        state = const SyncProgress(
-          status: SyncStatus.success,
-          message: '没有新的媒体文件',
-        );
-        return true;
-      }
-
-      // 3. 保存数据到数据库
-      state = state.copyWith(message: '正在保存数据...');
-
-      await db.upsertMediaAssets(assets);
-      // 标签以服务端为权威, 整表镜像到本地缓存
-      await db.syncTagsCache(tags);
-      final tagsByMedia = <String, List<String>>{
-        for (final asset in assets) asset.id: [],
-      };
-      for (final link in links) {
-        tagsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
-      }
-      await db.replaceTagsForMediaBatch(tagsByMedia);
-
-      // 4. 下载媒体文件 (仅缩略图和预览图，原图通过网络实时加载)
-      final totalFiles = assets.length * 2; // 每个 asset 有2个文件 (缩略图+预览图)
-      int downloadedFiles = 0;
-
-      state = state.copyWith(message: '正在下载文件...', total: totalFiles);
-
-      // 并发下载控制
-      const maxConcurrent = 4;
-      final downloadTasks = <Future>[];
-
-      for (final asset in assets) {
-        if (_cancelToken?.isCancelled ?? false) {
-          throw Exception('下载已取消');
+      if (assets.isNotEmpty) {
+        await db.upsertMediaAssets(assets);
+        await db.syncTagsCache(tags);
+        final tagsByMedia = <String, List<String>>{
+          for (final asset in assets) asset.id: [],
+        };
+        for (final link in links) {
+          tagsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
         }
-
-        // 只下缩略图与预览图；原图实时请求，由 cached_network_image 缓存
-
-        // 下载缩略图
-        if (asset.thumbPath != null) {
-          downloadTasks.add(
-            _downloadFile(
-              apiClient: apiClient,
-              path: api.path('/API/gallery/${asset.id}/thumb'),
-              saveFn: (bytes) => storage.saveThumbFile(
-                serverPath: asset.thumbPath!,
-                bytes: bytes,
-              ),
-              onComplete: () {
-                downloadedFiles++;
-                state = state.copyWith(current: downloadedFiles);
-              },
-            ),
-          );
-        } else {
-          downloadedFiles++;
-        }
-
-        // 下载预览图
-        if (asset.previewPath != null) {
-          downloadTasks.add(
-            _downloadFile(
-              apiClient: apiClient,
-              path: api.path('/API/gallery/${asset.id}/preview'),
-              saveFn: (bytes) => storage.savePreviewFile(
-                serverPath: asset.previewPath!,
-                bytes: bytes,
-              ),
-              onComplete: () {
-                downloadedFiles++;
-                state = state.copyWith(current: downloadedFiles);
-              },
-            ),
-          );
-        } else {
-          downloadedFiles++;
-        }
-
-        // 控制并发数
-        if (downloadTasks.length >= maxConcurrent) {
-          await Future.wait(downloadTasks);
-          downloadTasks.clear();
-        }
+        await db.replaceTagsForMediaBatch(tagsByMedia);
       }
-
-      // 等待剩余任务完成
-      if (downloadTasks.isNotEmpty) {
-        await Future.wait(downloadTasks);
-      }
-      if (_cancelToken?.isCancelled == true) throw _cancelToken!.cancelError!;
-
-      // 5. 刷新数据
       ref.invalidate(mediaAssetListProvider);
       ref.invalidate(tagTreeProvider);
       ref.invalidate(mediaIdsWithTagsProvider);
       ref.invalidate(galleryDbStatsProvider);
 
+      // 重试只补缺失文件，不覆盖已有工作副本及标注。
+      final files = <({String route, String path, bool thumb})>[];
+      for (final asset in [...cached, ...assets]) {
+        if (_cancelToken!.isCancelled) throw _cancelToken!.cancelError!;
+        if (asset.isDeleted) continue;
+        if (asset.thumbPath != null &&
+            await storage.getThumbFile(asset.thumbPath!) == null) {
+          files.add((
+            route: '/API/gallery/${asset.id}/thumb',
+            path: asset.thumbPath!,
+            thumb: true,
+          ));
+        }
+        if (asset.previewPath != null &&
+            await storage.getPreviewFile(asset.previewPath!) == null) {
+          files.add((
+            route: '/API/gallery/${asset.id}/preview',
+            path: asset.previewPath!,
+            thumb: false,
+          ));
+        }
+      }
+      var completed = 0;
+      var failed = 0;
+      state = state.copyWith(message: '正在补齐缓存文件...', total: files.length);
+      for (var start = 0; start < files.length; start += 4) {
+        if (_cancelToken!.isCancelled) throw _cancelToken!.cancelError!;
+        final results = await Future.wait(
+          files
+              .skip(start)
+              .take(4)
+              .map(
+                (file) => _downloadFile(
+                  apiClient: apiClient,
+                  path: api.path(file.route),
+                  saveFn: (bytes) => file.thumb
+                      ? storage.saveThumbFile(
+                          serverPath: file.path,
+                          bytes: bytes,
+                        )
+                      : storage.savePreviewFile(
+                          serverPath: file.path,
+                          bytes: bytes,
+                        ),
+                  onComplete: () =>
+                      state = state.copyWith(current: ++completed),
+                ),
+              ),
+        );
+        failed += results.where((success) => !success).length;
+      }
+      if (_cancelToken!.isCancelled) throw _cancelToken!.cancelError!;
+      ref.invalidate(mediaAssetListProvider);
+      if (failed > 0) {
+        state = SyncProgress(
+          status: SyncStatus.error,
+          error: '$failed 个文件下载失败，请重试下载以补齐缓存',
+          current: completed,
+          total: files.length,
+        );
+        return false;
+      }
       state = SyncProgress(
         status: SyncStatus.success,
-        message: '成功下载 ${assets.length} 个文件',
-        current: totalFiles,
-        total: totalFiles,
+        message: assets.isEmpty && files.isEmpty
+            ? '没有新的媒体文件，缓存已完整'
+            : '新增 ${assets.length} 条媒体，补齐 ${files.length} 个缓存文件',
+        current: completed,
+        total: files.length,
       );
 
       AppLogger().info('Gallery 下载完成: ${assets.length} 个文件');
@@ -276,7 +259,7 @@ class GallerySyncService extends _$GallerySyncService {
   }
 
   /// 下载单个文件
-  Future<void> _downloadFile({
+  Future<bool> _downloadFile({
     required ApiClient apiClient,
     required String path,
     required Future<dynamic> Function(List<int> bytes) saveFn,
@@ -288,12 +271,14 @@ class GallerySyncService extends _$GallerySyncService {
         cancelToken: _cancelToken,
       );
 
-      if (response.data != null) {
-        await saveFn(response.data!);
+      if (response.data?.isNotEmpty != true) {
+        throw const FormatException('文件内容为空');
       }
+      await saveFn(response.data!);
+      return true;
     } catch (e) {
       AppLogger().error('下载文件失败 $path: $e');
-      // 单个文件失败不影响整体
+      return false;
     } finally {
       onComplete();
     }
