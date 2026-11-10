@@ -20,10 +20,10 @@
 
 ### 只改 Ops
 
-1. 保持无构建、同源；草稿存 IndexedDB，密钥仅存内存，偏好由服务端持有。
+1. 保持 SFC + Vite 构建、Monarch 同源托管；草稿存 IndexedDB，密钥仅存内存，偏好由服务端持有。
 2. 页面请求集中经过 `src/api.js`。
 3. 页面操作捕获异常并提示；破坏性操作使用 `confirmAction`，轮询使用 `usePolling`。
-4. `python tools/smoke_ops_web.py`。
+4. `pwsh -File verify.ps1 -Scope ops -OpsBase http://127.0.0.1:<隔离端口>`。
 
 ## 2. 关键契约陷阱
 
@@ -56,39 +56,19 @@
 
 ## 4. 验证命令
 
-跨端协议与生命周期：在仓库根运行 `pwsh -File backend/tools/check_contracts.ps1`，共享样例见 `contracts/README.md`。
-
-后端：
+仓库根使用 PowerShell 7，显式选择范围：
 
 ```powershell
-cd D:\products\Ronin\backend
-go build ./...
-go vet ./...
-go test ./...
-pwsh -File .\references\scripts\generate_refs.ps1 -Check
+pwsh -File verify.ps1 -Scope backend
+pwsh -File verify.ps1 -Scope android
+pwsh -File verify.ps1 -Scope contracts
+pwsh -File verify.ps1 -Scope ops -OpsBase http://127.0.0.1:17275
+pwsh -File verify.ps1 -Scope all -OpsBase http://127.0.0.1:17275
 ```
 
-Gallery CLI：
+地址必须是已运行的隔离 Monarch 实例。入口不启动服务、不写生产库；省略 OpsBase 只构建/静态检查/测试并明确提示跳过浏览器。失败返回非零退出码。backend 复用 Go build/vet/test、主程序和 Gallery 构建、快照 -Check；android 复用 analyze/test；contracts 复用 backend/tools/check_contracts.ps1。共享样例见 contracts/README.md。
 
-```powershell
-cd D:\products\Ronin\backend
-go build -o gizmos/gallery.exe ./gizmos/cmd/gallery
-```
-
-Android：
-
-```powershell
-cd D:\products\Ronin\android
-flutter analyze
-flutter test
-```
-
-Ops：
-
-```powershell
-cd D:\products\Ronin\backend
-python tools/smoke_ops_web.py
-```
+Ops 使用 npm ci/build 与原契约测试，浏览器验收用 Python Playwright（复用 comix 的依赖）。开发监听构建在 ops/web 下运行 npm run watch，仍访问 Go 托管产物。
 
 ## 5. 当前架构的已知取舍
 

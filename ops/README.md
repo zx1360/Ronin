@@ -1,7 +1,10 @@
 # Northstar
 
 Ronin 的本机个人数据与运维端：随笔、积微打卡和 Monarch 网页管理面板。源码在 `web/`，
-由 Monarch 内置的 HTTP 服务直接托管，没有构建步骤或独立服务。
+执行 `npm.cmd ci --prefix ops/web`、`npm.cmd run build --prefix ops/web`（仓库根目录）后，
+由 Monarch 托管 `ops/web/dist/`。已有 `OPS_WEB_DIR` 配置需指向该目录；正式使用无需 Node。
+开发使用 `npm run watch` 监听构建，再在 Monarch 页面刷新，无独立开发服务器。
+统一验收：`pwsh -File verify.ps1 -Scope ops -OpsBase http://127.0.0.1:<隔离端口>`。
 
 访问方式（仅本机可打开，两个端口接口一致）：
 

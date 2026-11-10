@@ -1,6 +1,6 @@
 """SQLite 数据访问层（标准库 sqlite3）。
 
-建表引用后端 references/db/sqlite.sql；连接按调用关闭，多步写入使用
+建表引用后端 references/db/comix.sql；连接按调用关闭，多步写入使用
 transaction()（BEGIN IMMEDIATE），单条语句自动提交；结果为可序列化 dict。
 """
 from __future__ import annotations
@@ -63,11 +63,16 @@ def transaction() -> Iterator[sqlite3.Connection]:
 
 
 def init_db() -> None:
-    """幂等应用建表脚本（与 Monarch 同一份 SQL）。"""
+    """只初始化漫画域；与 Monarch 共用 comix.sql，不修改其他域。"""
     with open(config.SCHEMA_FILE, "r", encoding="utf-8") as f:
         script = f.read()
     with connect() as conn:
-        conn.executescript(script)
+        try:
+            conn.executescript("BEGIN IMMEDIATE;\n" + script + "\nCOMMIT;")
+        except BaseException:
+            if conn.in_transaction:
+                conn.rollback()
+            raise
 
 
 def normalize_title(title: str) -> str:

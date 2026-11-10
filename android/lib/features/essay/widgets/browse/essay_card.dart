@@ -10,8 +10,14 @@ import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 class EssayCard extends ConsumerWidget {
   final Essay essay;
   final VoidCallback onTap;
+  final bool showYear;
 
-  const EssayCard({super.key, required this.essay, required this.onTap});
+  const EssayCard({
+    super.key,
+    required this.essay,
+    required this.onTap,
+    this.showYear = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,7 +58,9 @@ class EssayCard extends ConsumerWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    DateFormat('MM月dd日').format(essay.date),
+                    DateFormat(
+                      showYear ? 'yyyy年MM月dd日' : 'MM月dd日',
+                    ).format(essay.date),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),

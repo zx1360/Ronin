@@ -7,14 +7,12 @@ class WritingStatsCard extends StatelessWidget {
   final bool isAllYears;
   final YearSummary summary;
   final List<Essay> essays;
-  final Map<String, dynamic> stats;
 
   const WritingStatsCard({
     super.key,
     required this.isAllYears,
     required this.summary,
     required this.essays,
-    required this.stats,
   });
 
   @override

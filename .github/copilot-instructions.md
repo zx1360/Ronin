@@ -10,3 +10,5 @@
 - 生产数据不得用于写入试验；验收使用临时库或只读源库的副本，完成后清理。配置/密钥读取 `.env`，不得提交。
 - 个人自用，优先可读性与简单实现；后端空闲应低负荷静默运行。命令使用 PowerShell 7（`pwsh`）。
 - 结构或开发流程变化时才更新涉及的 agent 说明，只保留关键约束，不记录改动历史。
+
+- Ops 使用 Vue SFC + Vite，Monarch 托管 `ops/web/dist/`；数据库 schema/迁移责任见 `backend/AGENTS_DB.md`。统一验收在根目录运行 `pwsh -File verify.ps1 -Scope backend|android|ops|contracts|all`，浏览器需 `-OpsBase` 显式指定隔离地址。

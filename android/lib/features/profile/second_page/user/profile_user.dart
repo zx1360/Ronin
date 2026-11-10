@@ -1,3 +1,4 @@
+import 'package:torrid/core/modals/text_input_dialog.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -11,7 +12,8 @@ import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 import 'package:torrid/features/booklet/providers/providers.dart';
-import 'package:torrid/features/essay/providers/status_provider.dart' as essay_status;
+import 'package:torrid/features/essay/providers/status_provider.dart'
+    as essay_status;
 
 /// 用户信息编辑页面
 class ProfileUser extends ConsumerStatefulWidget {
@@ -31,9 +33,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     final settings = ref.watch(appSettingsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('个人资料'),
-      ),
+      appBar: AppBar(title: const Text('个人资料')),
       body: Stack(
         children: [
           SingleChildScrollView(
@@ -70,9 +70,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
           if (_isLoading)
             Container(
               color: Colors.black26,
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: const Center(child: CircularProgressIndicator()),
             ),
         ],
       ),
@@ -105,9 +103,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
                     ),
                   ],
                 ),
-                child: ClipOval(
-                  child: _buildAvatarImage(avatarPath),
-                ),
+                child: ClipOval(child: _buildAvatarImage(avatarPath)),
               ),
               // 编辑按钮
               Positioned(
@@ -133,10 +129,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
         const SizedBox(height: AppSpacing.sm),
         Text(
           '点击更换头像',
-          style: TextStyle(
-            color: AppTheme.onSurfaceVariant,
-            fontSize: 13,
-          ),
+          style: TextStyle(color: AppTheme.onSurfaceVariant, fontSize: 13),
         ),
       ],
     );
@@ -169,11 +162,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => Container(
         color: AppTheme.primaryContainer,
-        child: Icon(
-          Icons.person,
-          size: 60,
-          color: AppTheme.primary,
-        ),
+        child: Icon(Icons.person, size: 60, color: AppTheme.primary),
       ),
     );
   }
@@ -190,15 +179,9 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
         leading: Icon(icon, color: AppTheme.primary),
         title: Text(
           label,
-          style: TextStyle(
-            fontSize: 13,
-            color: AppTheme.onSurfaceVariant,
-          ),
+          style: TextStyle(fontSize: 13, color: AppTheme.onSurfaceVariant),
         ),
-        subtitle: Text(
-          value,
-          style: const TextStyle(fontSize: 16),
-        ),
+        subtitle: Text(value, style: const TextStyle(fontSize: 16)),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
@@ -211,13 +194,19 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     final latestStyle = ref.watch(latestStyleProvider);
     final allStyles = ref.watch(allStylesProvider);
     final allRecords = ref.watch(allRecordsProvider);
-    
+
     // 随笔数据
     final yearSummaries = ref.watch(essay_status.summariesProvider);
-    
-    final totalEssayCount = yearSummaries.fold<int>(0, (sum, y) => sum + y.essayCount);
-    final totalWordCount = yearSummaries.fold<int>(0, (sum, y) => sum + y.wordCount);
-    
+
+    final totalEssayCount = yearSummaries.fold<int>(
+      0,
+      (sum, y) => sum + y.essayCount,
+    );
+    final totalWordCount = yearSummaries.fold<int>(
+      0,
+      (sum, y) => sum + y.wordCount,
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -239,7 +228,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
               ],
             ),
             const Divider(height: 24),
-            
+
             // 打卡模块统计
             _buildSectionLabel(Icons.check_circle_outline, '打卡'),
             const SizedBox(height: 8),
@@ -270,9 +259,9 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // 随笔模块统计
             _buildSectionLabel(Icons.edit_note, '随笔'),
             const SizedBox(height: 8),
@@ -306,7 +295,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
       ),
     );
   }
-  
+
   Widget _buildSectionLabel(IconData icon, String label) {
     return Row(
       children: [
@@ -323,7 +312,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
       ],
     );
   }
-  
+
   Widget _buildStatTile(String label, String value, IconData icon) {
     return Column(
       children: [
@@ -340,15 +329,12 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 11,
-            color: AppTheme.onSurfaceVariant,
-          ),
+          style: TextStyle(fontSize: 11, color: AppTheme.onSurfaceVariant),
         ),
       ],
     );
   }
-  
+
   String _formatNumber(int number) {
     if (number >= 10000) {
       return '${(number / 10000).toStringAsFixed(1)}万';
@@ -375,7 +361,10 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
             if (hasCustomAvatar)
               ListTile(
                 leading: const Icon(Icons.restore, color: Colors.red),
-                title: const Text('恢复默认头像', style: TextStyle(color: Colors.red)),
+                title: const Text(
+                  '恢复默认头像',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () => Navigator.pop(context, 'reset'),
               ),
             ListTile(
@@ -388,6 +377,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
       ),
     );
 
+    if (!mounted) return;
     if (result == 'gallery') {
       await _pickAvatar();
     } else if (result == 'reset') {
@@ -405,7 +395,7 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
         imageQuality: 85,
       );
 
-      if (picked == null) return;
+      if (picked == null || !mounted) return;
 
       setState(() => _isLoading = true);
 
@@ -419,16 +409,16 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
 
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(success ? '头像更新成功' : '头像更新失败')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(success ? '头像更新成功' : '头像更新失败')));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('操作失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('操作失败: $e')));
       }
     }
   }
@@ -453,105 +443,58 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && mounted) {
       await ref.read(appSettingsProvider.notifier).clearAvatar();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已恢复默认头像')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已恢复默认头像')));
       }
     }
   }
 
   /// 编辑昵称
   Future<void> _editNickname(String currentNickname) async {
-    final controller = TextEditingController(text: currentNickname);
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('修改昵称'),
-        content: TextField(
-          controller: controller,
-          maxLength: 20,
-          decoration: const InputDecoration(
-            hintText: '输入昵称',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+    final savedResult = await showTextInputDialog(
+      context,
+      title: '修改昵称',
+      initial: currentNickname,
+      hint: '输入昵称',
+      maxLength: 20,
+      maxLines: 1,
+      confirmText: '保存',
     );
-
-    // 保存结果后再 dispose，延迟足够时间确保对话框完全关闭
-    final savedResult = result;
-    Future.delayed(const Duration(milliseconds: 500), () {
-      controller.dispose();
-    });
+    if (!mounted) return;
 
     if (savedResult != null) {
       await ref.read(appSettingsProvider.notifier).updateNickname(savedResult);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('昵称已更新')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('昵称已更新')));
       }
     }
   }
 
   /// 编辑签名
   Future<void> _editSignature(String currentSignature) async {
-    final controller = TextEditingController(text: currentSignature);
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('修改签名'),
-        content: TextField(
-          controller: controller,
-          maxLength: 50,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            hintText: '输入个性签名',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+    final savedResult = await showTextInputDialog(
+      context,
+      title: '修改签名',
+      initial: currentSignature,
+      hint: '输入个性签名',
+      maxLength: 50,
+      maxLines: 2,
+      confirmText: '保存',
     );
-
-    // 保存结果后再 dispose，延迟足够时间确保对话框完全关闭
-    final savedResult = result;
-    Future.delayed(const Duration(milliseconds: 500), () {
-      controller.dispose();
-    });
+    if (!mounted) return;
 
     if (savedResult != null) {
       await ref.read(appSettingsProvider.notifier).updateSignature(savedResult);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('签名已更新')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('签名已更新')));
       }
     }
   }
