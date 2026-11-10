@@ -1,3 +1,4 @@
+import 'package:torrid/core/modals/text_input_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -555,7 +556,7 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
   }
 
   Future<void> _editMessage(MediaAsset asset) async {
-    final text = await showImmichTextDialog(
+    final text = await showTextInputDialog(
       context,
       title: '编辑备注',
       initial: asset.message ?? '',

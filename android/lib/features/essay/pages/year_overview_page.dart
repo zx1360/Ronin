@@ -9,7 +9,7 @@ import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/overview/label_distribution_chart.dart';
 import 'package:torrid/features/essay/widgets/overview/mood_distribution_chart.dart';
-import 'package:torrid/features/essay/widgets/overview/monthly_trend_chart.dart';
+import 'package:torrid/features/essay/widgets/overview/writing_trend_chart.dart';
 import 'package:torrid/features/essay/widgets/overview/writing_stats_card.dart';
 
 /// 年度/全部概览页面
@@ -65,17 +65,7 @@ class YearOverviewPage extends ConsumerWidget {
 
     // 计算统计数据
     final stats = _calculateStats(essays);
-    final visibleSummary = isAllYears
-        ? YearSummary(
-            year: '-1',
-            essayCount: essays.length,
-            wordCount: essays.fold(0, (sum, e) => sum + e.totalWordCount),
-            monthSummaries: [
-              for (final year in essays.map((e) => e.year).toSet())
-                MonthSummary(month: year.toString()),
-            ],
-          )
-        : YearSummary.fromEssays(summary.year, essays);
+    final visibleSummary = YearSummary.fromEssays(summary.year, essays);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -87,26 +77,22 @@ class YearOverviewPage extends ConsumerWidget {
             isAllYears: isAllYears,
             summary: visibleSummary,
             essays: essays,
-            stats: stats,
           ),
 
           const SizedBox(height: 20),
 
-          // 月度趋势图（仅单年份显示）
-          if (!isAllYears) ...[
-            _buildSectionTitle(context, '月度写作趋势'),
-            const SizedBox(height: 12),
-            MonthlyTrendChart(monthSummaries: visibleSummary.monthSummaries),
-            const SizedBox(height: 20),
-          ],
-
-          // 全部年份显示年度趋势
-          if (isAllYears) ...[
-            _buildSectionTitle(context, '年度写作趋势'),
-            const SizedBox(height: 12),
-            _buildYearlyTrendChart(context, essays),
-            const SizedBox(height: 20),
-          ],
+          _buildSectionTitle(context, isAllYears ? '年度写作趋势（字数）' : '月度写作趋势（字数）'),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: WritingTrendChart(
+                periods: visibleSummary.monthSummaries,
+                yearly: isAllYears,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
 
           // 标签分布
           _buildSectionTitle(context, '标签分布'),
@@ -154,95 +140,6 @@ class YearOverviewPage extends ConsumerWidget {
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
       ],
-    );
-  }
-
-  Widget _buildYearlyTrendChart(BuildContext context, List<Essay> essays) {
-    final yearSummaries = YearSummary.groupByYear(essays).values.toList()
-      ..sort((a, b) => int.parse(a.year).compareTo(int.parse(b.year)));
-
-    if (yearSummaries.isEmpty) {
-      return const Center(child: Text('暂无数据'));
-    }
-
-    final maxWordCount = yearSummaries.fold(
-      0,
-      (max, s) => s.wordCount > max ? s.wordCount : max,
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(26),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: SizedBox(
-        height: 160,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: yearSummaries.map((s) {
-            final heightRatio = maxWordCount > 0
-                ? s.wordCount / maxWordCount
-                : 0.0;
-
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // 字数
-                    Text(
-                      _formatNumber(s.wordCount),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 9,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // 柱状图
-                    Container(
-                      width: double.infinity,
-                      height: heightRatio * 100,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Theme.of(context).primaryColor.withAlpha(178),
-                            Theme.of(context).primaryColor.withAlpha(102),
-                          ],
-                        ),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(4),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // 年份标签
-                    Text(
-                      s.year,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
     );
   }
 
@@ -387,12 +284,5 @@ class YearOverviewPage extends ConsumerWidget {
   String _weekdayName(int weekday) {
     const names = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
     return names[weekday];
-  }
-
-  String _formatNumber(int number) {
-    if (number >= 10000) {
-      return '${(number / 10000).toStringAsFixed(1)}万';
-    }
-    return number.toString();
   }
 }

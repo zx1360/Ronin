@@ -1,6 +1,7 @@
+import { useSelection } from '../../selection.js';
 // 人物分组：改名、合并、删除、查看人脸、人工纠正与增量/重新聚类。
 
-import { ref, computed, onMounted } from '../../vue.js';
+import { ref, computed, onMounted, onUnmounted } from '../../vue.js';
 import { api } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
 import { Card, Placeholder, MediaTile } from '../../ui.js';
@@ -19,7 +20,7 @@ export default {
     const error = ref('');
     const loading = ref(false);
     const busy = ref(false);
-    const selected = ref([]);
+    const { selected, ids: selectedIds, toggle, retain } = useSelection();
     const mergeTarget = ref('');
     const editingId = ref('');
     const editName = ref('');
@@ -28,7 +29,9 @@ export default {
     const faceTotal = ref(0);
     const faceError = ref('');
     const faceLoading = ref(false);
-    const faceSelected = ref([]);
+    const { selected: faceSelected, toggle: toggleFace, isSelected: isFaceSelected } = useSelection();
+    let faceRequest;
+    onUnmounted(() => faceRequest?.abort());
     const moveTarget = ref('');
 
     const load = async () => {
@@ -37,8 +40,7 @@ export default {
         const data = await api.get('/API/ai/persons');
         persons.value = Array.isArray(data && data.persons) ? data.persons : [];
         error.value = '';
-        const alive = new Set(persons.value.map((item) => item.id));
-        selected.value = selected.value.filter((id) => alive.has(id));
+        retain(persons.value.map((item) => item.id));
       } catch (err) {
         error.value = err.message;
       } finally {
@@ -60,7 +62,6 @@ export default {
     })));
 
     const visibleCards = computed(() => cards.value.slice(0, shown.value));
-    const selectedIds = computed(() => new Set(selected.value));
     const selectedCards = computed(() => cards.value.filter((item) => selectedIds.value.has(item.id)));
     const mergeOptions = computed(() => selectedCards.value.map((item) => ({
       id: item.id,
@@ -80,15 +81,11 @@ export default {
       thumb: thumbUrl(face.media_id),
       caption: face.id ? String(face.id).slice(0, 8) : '',
       detail: '质量 ' + num(face.quality).toFixed(2) + ' · 检测 ' + num(face.det_score).toFixed(2),
-      selected: faceSelected.value.indexOf(face.id) >= 0,
+      selected: isFaceSelected(face.id),
     })));
 
     const toggleSelect = (id) => {
-      const next = selected.value.slice();
-      const position = next.indexOf(id);
-      if (position >= 0) next.splice(position, 1);
-      else next.push(id);
-      selected.value = next;
+      toggle(id);
       if (mergeOptions.value.length && mergeOptions.value.every((item) => item.id !== mergeTarget.value)) {
         mergeTarget.value = mergeOptions.value[0].id;
       }
@@ -195,6 +192,8 @@ export default {
     };
 
     const loadFaces = async (card) => {
+      faceRequest?.abort();
+      const request = faceRequest = new AbortController();
       facesOf.value = card.id;
       faces.value = [];
       faceTotal.value = 0;
@@ -203,30 +202,25 @@ export default {
       faceError.value = '';
       faceLoading.value = true;
       try {
-        const data = await api.get('/API/ai/persons/' + card.id + '/faces?limit=200&offset=0');
+        const data = await api.get('/API/ai/persons/' + card.id + '/faces?limit=200&offset=0', { signal: request.signal });
+        if (request.signal.aborted) return;
         faces.value = Array.isArray(data && data.faces) ? data.faces : [];
         faceTotal.value = num(data && data.total);
       } catch (err) {
-        faceError.value = err.message;
+        if (!request.signal.aborted) faceError.value = err.message;
       } finally {
-        faceLoading.value = false;
+        if (!request.signal.aborted) faceLoading.value = false;
       }
     };
 
     const closeFaces = () => {
+      faceRequest?.abort();
+      faceLoading.value = false;
       facesOf.value = '';
       faces.value = [];
       faceSelected.value = [];
       moveTarget.value = '';
       faceError.value = '';
-    };
-
-    const toggleFace = (id) => {
-      const next = faceSelected.value.slice();
-      const position = next.indexOf(id);
-      if (position >= 0) next.splice(position, 1);
-      else next.push(id);
-      faceSelected.value = next;
     };
 
     /** 人工纠正：把选中人脸移到另一分组，或移出分组（person_id = null）。 */

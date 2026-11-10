@@ -1,3 +1,4 @@
+import 'package:torrid/core/modals/text_input_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/app/theme/theme_book.dart';
@@ -609,7 +610,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
     final assets = _assetsByIds(ids, ref.read(immichMediaProvider).valueOrNull);
     final first = assets.isEmpty ? null : assets.first.message;
     final same = assets.every((a) => (a.message ?? '') == (first ?? ''));
-    final text = await showImmichTextDialog(
+    final text = await showTextInputDialog(
       context,
       title: '编辑备注 (${ids.length} 项)',
       initial: same ? (first ?? '') : '',

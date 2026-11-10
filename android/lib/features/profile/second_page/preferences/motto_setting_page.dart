@@ -1,3 +1,4 @@
+import 'package:torrid/core/modals/text_input_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,9 +31,7 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
           ),
         ],
       ),
-      body: mottos.isEmpty
-          ? _buildEmptyState()
-          : _buildMottoList(mottos),
+      body: mottos.isEmpty ? _buildEmptyState() : _buildMottoList(mottos),
     );
   }
 
@@ -42,18 +41,11 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.format_quote_outlined,
-            size: 80,
-            color: AppTheme.outline,
-          ),
+          Icon(Icons.format_quote_outlined, size: 80, color: AppTheme.outline),
           const SizedBox(height: AppSpacing.md),
           Text(
             '暂无座右铭',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppTheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 16, color: AppTheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.lg),
           OutlinedButton.icon(
@@ -92,11 +84,7 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 引号图标
-              Icon(
-                Icons.format_quote,
-                color: AppTheme.primary,
-                size: 24,
-              ),
+              Icon(Icons.format_quote, color: AppTheme.primary, size: 24),
               const SizedBox(width: AppSpacing.sm),
               // 座右铭文本
               Expanded(
@@ -105,10 +93,7 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
                   children: [
                     Text(
                       motto,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        height: 1.5,
-                      ),
+                      style: const TextStyle(fontSize: 16, height: 1.5),
                     ),
                     if (total > 1) ...[
                       const SizedBox(height: AppSpacing.sm),
@@ -174,104 +159,52 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
 
   /// 显示添加对话框
   Future<void> _showAddDialog() async {
-    final controller = TextEditingController();
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('添加座右铭'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          maxLength: 100,
-          decoration: const InputDecoration(
-            hintText: '输入你的座右铭...',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) {
-                Navigator.pop(dialogContext, text);
-              }
-            },
-            child: const Text('添加'),
-          ),
-        ],
-      ),
+    final savedResult = await showTextInputDialog(
+      context,
+      title: '添加座右铭',
+      initial: '',
+      hint: '输入你的座右铭...',
+      maxLength: 100,
+      maxLines: 3,
+      allowEmpty: false,
+      confirmText: '添加',
     );
-
-    // 延迟 dispose，确保对话框完全关闭
-    final savedResult = result;
-    Future.delayed(const Duration(milliseconds: 500), () {
-      controller.dispose();
-    });
+    if (!mounted) return;
 
     if (savedResult != null && savedResult.isNotEmpty) {
       await ref.read(appSettingsProvider.notifier).addMotto(savedResult);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('座右铭添加成功')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('座右铭添加成功')));
       }
     }
   }
 
   /// 显示编辑对话框
   Future<void> _showEditDialog(int index, String currentMotto) async {
-    final controller = TextEditingController(text: currentMotto);
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('编辑座右铭'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          maxLength: 100,
-          decoration: const InputDecoration(
-            hintText: '输入你的座右铭...',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) {
-                Navigator.pop(dialogContext, text);
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+    final savedResult = await showTextInputDialog(
+      context,
+      title: '编辑座右铭',
+      initial: currentMotto,
+      hint: '输入你的座右铭...',
+      maxLength: 100,
+      maxLines: 3,
+      allowEmpty: false,
+      confirmText: '保存',
     );
+    if (!mounted) return;
 
-    // 延迟 dispose，确保对话框完全关闭
-    final savedResult = result;
-    Future.delayed(const Duration(milliseconds: 500), () {
-      controller.dispose();
-    });
-
-    if (savedResult != null && savedResult.isNotEmpty && savedResult != currentMotto) {
-      await ref.read(appSettingsProvider.notifier).updateMotto(index, savedResult);
+    if (savedResult != null &&
+        savedResult.isNotEmpty &&
+        savedResult != currentMotto) {
+      await ref
+          .read(appSettingsProvider.notifier)
+          .updateMotto(index, savedResult);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('座右铭更新成功')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('座右铭更新成功')));
       }
     }
   }
@@ -279,9 +212,9 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
   /// 确认删除
   Future<void> _confirmDelete(int index, bool isOnlyOne) async {
     if (isOnlyOne) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('至少需要保留一条座右铭')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('至少需要保留一条座右铭')));
       return;
     }
 
@@ -304,12 +237,12 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && mounted) {
       await ref.read(appSettingsProvider.notifier).removeMotto(index);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('删除成功')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('删除成功')));
       }
     }
   }

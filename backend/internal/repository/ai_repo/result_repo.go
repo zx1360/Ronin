@@ -515,6 +515,24 @@ func AssignFaces(faceIDs []uuid.UUID, personID *uuid.UUID) error {
 	return nil
 }
 
+// ReassignFaces 人工纠正时同事务更新两侧统计并清理空分组。
+func ReassignFaces(faceIDs []uuid.UUID, personID *uuid.UUID) error {
+	ctx, cancel := db.GetDefaultCtx()
+	defer cancel()
+	return db.Tx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE faces SET person_id = ? WHERE id IN (`+placeholders(len(faceIDs))+`)`,
+			append([]any{personID}, uuidArgs(faceIDs)...)...); err != nil {
+			return fmt.Errorf("分配人脸失败: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, refreshPersonStatsSQL); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM persons WHERE face_count = 0`)
+		return err
+	})
+}
+
 // RenamePerson 设置或清空人物名称。
 func RenamePerson(personID uuid.UUID, name *string) error {
 	ctx, cancel := db.GetDefaultCtx()
@@ -586,8 +604,7 @@ func RefreshAllPersonStats() error {
 	return nil
 }
 
-// refreshPersonStatsSQL 以相关子查询重算人脸数与封面；SQLite 无 UPDATE ... FROM，
-// 但人物数很小（十级），逐行子查询代价可忽略。
+// 人物数很小，按人物索引重算人脸数与封面。
 const refreshPersonStatsSQL = `
 	UPDATE persons SET
 		face_count = (SELECT COUNT(*) FROM faces f WHERE f.person_id = persons.id),

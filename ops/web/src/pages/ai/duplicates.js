@@ -1,3 +1,4 @@
+import { useSelection } from '../../selection.js';
 // pHash 近重复：分组展示、组内多选、标记软删除、标记「非重复」与恢复。
 //
 // 分组计算是内存全量扫描，代价不低，因此与桌面端一致：由用户点击触发。
@@ -28,22 +29,12 @@ export default {
     const groups = ref([]);
     const ignoredTotal = ref(0);
     const maxDistance = ref(4);
-    const selected = ref([]);
+    const { selected, toggle, isSelected, retain } = useSelection();
     const showIgnored = ref(false);
     const ignoredItems = ref([]);
     const ignoredError = ref('');
     const ignoredLoading = ref(false);
     const shownGroups = ref(GROUP_BATCH);
-
-    const isSelected = (id) => selected.value.indexOf(id) >= 0;
-
-    const toggle = (id) => {
-      const next = selected.value.slice();
-      const position = next.indexOf(id);
-      if (position >= 0) next.splice(position, 1);
-      else next.push(id);
-      selected.value = next;
-    };
 
     // 组卡里 items 可能只是预览子集，选中态必须按整组算
     const selectedInGroup = (group) => {
@@ -78,9 +69,7 @@ export default {
         });
         ignoredTotal.value = num(data && data.ignored_total);
         shownGroups.value = GROUP_BATCH;
-        selected.value = selected.value.filter((id) => groups.value.some(
-          (group) => group.items.some((item) => item.id === id),
-        ));
+        retain(groups.value.flatMap((group) => group.items.map((item) => item.id)));
       } catch (err) {
         error.value = err.message;
         groups.value = [];

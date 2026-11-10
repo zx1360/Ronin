@@ -1,3 +1,4 @@
+import 'package:torrid/core/modals/text_input_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
@@ -71,8 +72,10 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                           },
                         ),
                   isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
                   border: const OutlineInputBorder(),
                 ),
                 onChanged: (value) =>
@@ -87,8 +90,10 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                     child: OutlinedButton.icon(
                       onPressed: () => _showAddDialog(null),
                       icon: const Icon(Icons.add, size: 18),
-                      label: const Text('新建根标签',
-                          style: TextStyle(fontSize: 13)),
+                      label: const Text(
+                        '新建根标签',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       style: OutlinedButton.styleFrom(
                         visualDensity: VisualDensity.compact,
                       ),
@@ -98,8 +103,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                   TextButton(
                     onPressed: () =>
                         ref.read(immichFilterNotifierProvider.notifier).reset(),
-                    child: const Text('清除筛选',
-                        style: TextStyle(fontSize: 13)),
+                    child: const Text('清除筛选', style: TextStyle(fontSize: 13)),
                   ),
                 ],
               ),
@@ -115,9 +119,11 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('标签加载失败: $error',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 12)),
+                        Text(
+                          '标签加载失败: $error',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () => ref.invalidate(tagTreeProvider),
@@ -130,17 +136,23 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                 data: (tags) {
                   if (tags.isEmpty) {
                     return const Center(
-                      child: Text('暂无标签',
-                          style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      child: Text(
+                        '暂无标签',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
                     );
                   }
                   _initExpanded(tags, filter.tagIds);
                   final searching = _query.isNotEmpty;
-                  final visible = searching ? matchedTagIds(tags, _query) : null;
+                  final visible = searching
+                      ? matchedTagIds(tags, _query)
+                      : null;
                   if (searching && (visible == null || visible.isEmpty)) {
                     return const Center(
-                      child: Text('未找到匹配的标签',
-                          style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      child: Text(
+                        '未找到匹配的标签',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
                     );
                   }
                   final childrenMap = groupTagsByParent(tags);
@@ -221,7 +233,9 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
     return Container(
       margin: EdgeInsets.only(left: node.depth * 16.0, right: 4),
       decoration: BoxDecoration(
-        color: selected ? scheme.primaryContainer.withValues(alpha: 0.45) : null,
+        color: selected
+            ? scheme.primaryContainer.withValues(alpha: 0.45)
+            : null,
         borderRadius: BorderRadius.circular(8),
       ),
       child: InkWell(
@@ -303,8 +317,10 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                   PopupMenuItem(
                     value: 'delete',
                     height: 40,
-                    child: Text('删除',
-                        style: TextStyle(fontSize: 13, color: Colors.red)),
+                    child: Text(
+                      '删除',
+                      style: TextStyle(fontSize: 13, color: Colors.red),
+                    ),
                   ),
                 ],
               ),
@@ -355,7 +371,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
   }
 
   Future<void> _showAddDialog(String? parentId) async {
-    final name = await showImmichTextDialog(
+    final name = await showTextInputDialog(
       context,
       title: parentId == null ? '新建根标签' : '新建子标签',
       label: '标签名称',
@@ -375,7 +391,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
   }
 
   Future<void> _showRenameDialog(Tag tag) async {
-    final name = await showImmichTextDialog(
+    final name = await showTextInputDialog(
       context,
       title: '重命名标签',
       initial: tag.name,

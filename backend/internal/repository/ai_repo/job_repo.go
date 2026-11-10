@@ -573,17 +573,31 @@ func ListJobs(capability, status string, limit, offset int) ([]model.AiJob, int,
 	return jobs, total, rows.Err()
 }
 
-func HasPending(ctx context.Context, capability string) (bool, error) {
+// 每种能力只做一次索引存在性检查，不扫描历史任务或探测模型。
+func PendingCapabilities(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	var pending bool
-	err := db.Read().QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM jobs WHERE capability = ? AND status = 'pending')`,
-		capability).Scan(&pending)
-	if err != nil {
-		return false, fmt.Errorf("检查待处理任务失败: %w", err)
+	parts := make([]string, len(model.AllCapabilities))
+	args := make([]any, len(parts))
+	for i, capability := range model.AllCapabilities {
+		parts[i], args[i] = "(?)", capability
 	}
-	return pending, nil
+	rows, err := db.Read().QueryContext(ctx, `WITH capabilities(name) AS (VALUES `+
+		strings.Join(parts, ",")+`) SELECT name FROM capabilities WHERE EXISTS
+		(SELECT 1 FROM jobs WHERE capability = name AND status = 'pending')`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("检查待处理任务失败: %w", err)
+	}
+	defer rows.Close()
+	var pending []string
+	for rows.Next() {
+		var capability string
+		if err := rows.Scan(&capability); err != nil {
+			return nil, err
+		}
+		pending = append(pending, capability)
+	}
+	return pending, rows.Err()
 }
 
 // int64Args 把 int64 列表转为 SQL 参数。

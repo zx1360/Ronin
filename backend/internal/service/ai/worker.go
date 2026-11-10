@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -127,15 +128,15 @@ func (e *Engine) runOneBatch(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
+	pending, err := ai_repo.PendingCapabilities(ctx)
+	if err != nil {
+		return false, err
+	}
 	for _, capability := range model.AllCapabilities {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
-		pending, err := ai_repo.HasPending(ctx, capability)
-		if err != nil {
-			return false, err
-		}
-		if !pending {
+		if !slices.Contains(pending, capability) {
 			continue
 		}
 		if ready, _ := e.CapabilityReady(ctx, capability); !ready {
