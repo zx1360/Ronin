@@ -57,7 +57,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
         DialogOption(
           text: "仅变动更新",
           onPressed: () async {
-            await ref.read(comicServiceProvider.notifier).refreshChanged();
+            await ref.read(comicServiceProvider.notifier).refreshInfosAll();
           },
         ),
       ],

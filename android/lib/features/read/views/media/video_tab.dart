@@ -8,6 +8,7 @@ import 'package:torrid/core/utils/file_relates.dart';
 import 'package:torrid/features/read/models/random_media_api.dart';
 import 'package:torrid/features/read/services/media_error_helper.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/features/read/widgets/media_source_picker.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
@@ -67,15 +68,23 @@ class _VideoTabState extends ConsumerState<VideoTab>
         children: [
           const SectionTitle(title: '随机视频', icon: Icons.videocam_outlined),
           const SizedBox(height: AppSpacing.sm),
-          // 仅在有多个分组时显示选择器
-          if (kVideoGroups.length > 1) ...[
-            _buildGroupSelector(),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-          if (_group.sources.length > 1) ...[
-            _buildSourceSelector(),
-            const SizedBox(height: AppSpacing.sm),
-          ],
+          MediaSourcePicker(
+            groups: kVideoGroups,
+            groupIndex: _groupIndex,
+            sourceIndex: _sourceIndex,
+            onChanged: _loading
+                ? null
+                : (group, source) {
+                    _disposePlayer();
+                    setState(() {
+                      _groupIndex = group;
+                      _sourceIndex = source;
+                      _videoUrl = null;
+                      _error = null;
+                      _playerError = null;
+                    });
+                  },
+          ),
           _buildActionButtons(),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -85,68 +94,6 @@ class _VideoTabState extends ConsumerState<VideoTab>
           _buildVideoDisplay(),
         ],
       ),
-    );
-  }
-
-  Widget _buildGroupSelector() {
-    return DropdownButtonFormField<int>(
-      initialValue: _groupIndex,
-      decoration: const InputDecoration(
-        labelText: 'API 提供方',
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      ),
-      isExpanded: true,
-      items: List.generate(kVideoGroups.length, (i) {
-        return DropdownMenuItem(
-          value: i,
-          child: Text(kVideoGroups[i].name, overflow: TextOverflow.ellipsis),
-        );
-      }),
-      onChanged: _loading
-          ? null
-          : (v) {
-              if (v == null) return;
-              _disposePlayer();
-              setState(() {
-                _groupIndex = v;
-                _sourceIndex = 0;
-                _videoUrl = null;
-                _error = null;
-                _playerError = null;
-              });
-            },
-    );
-  }
-
-  Widget _buildSourceSelector() {
-    return DropdownButtonFormField<int>(
-      key: ValueKey('vsrc_$_groupIndex'),
-      initialValue: _sourceIndex,
-      decoration: const InputDecoration(
-        labelText: '分类',
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      ),
-      isExpanded: true,
-      items: List.generate(_group.sources.length, (i) {
-        return DropdownMenuItem(
-          value: i,
-          child: Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
-        );
-      }),
-      onChanged: _loading
-          ? null
-          : (v) {
-              if (v == null) return;
-              _disposePlayer();
-              setState(() {
-                _sourceIndex = v;
-                _videoUrl = null;
-                _error = null;
-                _playerError = null;
-              });
-            },
     );
   }
 

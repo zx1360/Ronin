@@ -5,7 +5,6 @@ import 'package:path/path.dart' as p;
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/comic/services/comic_servic.dart';
 import 'package:torrid/features/others/comic/services/io_image_service.dart';
 
 String comicDownloadPath(String id) => 'comics/.downloads/$id';
@@ -133,3 +132,7 @@ Future<void> deleteComicFiles(
     await legacy.delete(recursive: true);
   }
 }
+
+int getChapterIndex(String name) => int.tryParse(name.split('_').first) ?? 0;
+
+String getChapterTitle(String name) => name.substring(name.indexOf('_') + 1);

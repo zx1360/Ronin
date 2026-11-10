@@ -7,6 +7,7 @@ package comic_repo
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -15,6 +16,8 @@ import (
 	"monarch/internal/model"
 	"monarch/internal/service/db"
 )
+
+var ErrInvalidID = errors.New("漫画或章节 ID 必须为正整数")
 
 // withDB 以默认超时的上下文执行查询。
 func withDB[T any](fn func(ctx context.Context, conn *sql.DB) (T, error)) (T, error) {
@@ -42,7 +45,7 @@ func GetAllComicInfos() ([]model.ComicInfo, error) {
 		}
 		defer rows.Close()
 
-		var infos []model.ComicInfo
+		infos := make([]model.ComicInfo, 0)
 		for rows.Next() {
 			var info model.ComicInfo
 			if err := rows.Scan(&info.ID, &info.Title, &info.CoverImage,
@@ -81,7 +84,7 @@ func GetChaptersWithComicId(comicId string) ([]model.ChapterInfo, error) {
 		}
 		defer rows.Close()
 
-		var chapters []model.ChapterInfo
+		chapters := make([]model.ChapterInfo, 0)
 		for rows.Next() {
 			var chapter model.ChapterInfo
 			if err := rows.Scan(&chapter.ID, &chapter.ComicID, &chapter.DirName,
@@ -114,7 +117,7 @@ func GetImagesWithChapterId(chapterId string) ([]model.ImageInfo, error) {
 		}
 		defer rows.Close()
 
-		var images []model.ImageInfo
+		images := make([]model.ImageInfo, 0)
 		for rows.Next() {
 			var img model.ImageInfo
 			if err := rows.Scan(&img.Path, &img.Width, &img.Height); err != nil {
@@ -130,33 +133,26 @@ func GetImagesWithChapterId(chapterId string) ([]model.ImageInfo, error) {
 }
 
 // GetComicAllChaptersAndImages 获取整部漫画的章节与图片（按章节号、图片序号升序）。
-func GetComicAllChaptersAndImages(comicId string) (map[string]model.ChapterInfo, map[string][]model.ImageInfo, error) {
+func GetComicAllChaptersAndImages(comicId string) ([]model.ChapterInfo, error) {
 	id, err := parseComicID(comicId)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	type result struct {
-		chapters map[string]model.ChapterInfo
-		images   map[string][]model.ImageInfo
-	}
-	out, err := withDB(func(ctx context.Context, conn *sql.DB) (*result, error) {
+	return withDB(func(ctx context.Context, conn *sql.DB) ([]model.ChapterInfo, error) {
 		rows, err := conn.QueryContext(ctx, `
 			SELECT CAST(c.id AS TEXT), CAST(c.comic_id AS TEXT), c.chapter_no, c.title,
 			       i.file_name, i.width, i.height, c.rel_dir
 			FROM comic_chapters c
 			LEFT JOIN comic_images i ON c.id = i.chapter_id
 			WHERE c.comic_id = ?
-			ORDER BY c.chapter_no ASC, i.sort_num ASC
+			ORDER BY c.chapter_no ASC, c.id ASC, i.sort_num ASC
 		`, id)
 		if err != nil {
 			return nil, fmt.Errorf("关联查询章节和图片失败: %w", err)
 		}
 		defer rows.Close()
 
-		res := &result{
-			chapters: make(map[string]model.ChapterInfo),
-			images:   make(map[string][]model.ImageInfo),
-		}
+		chapters := make([]model.ChapterInfo, 0)
 		for rows.Next() {
 			var (
 				chapterID     string
@@ -173,16 +169,18 @@ func GetComicAllChaptersAndImages(comicId string) (map[string]model.ChapterInfo,
 				return nil, fmt.Errorf("扫描章节图片数据失败: %w", err)
 			}
 
-			if _, exists := res.chapters[chapterID]; !exists {
-				res.chapters[chapterID] = model.ChapterInfo{
+			if len(chapters) == 0 || chapters[len(chapters)-1].ID != chapterID {
+				chapters = append(chapters, model.ChapterInfo{
 					ID:           chapterID,
 					ComicID:      comicID,
 					DirName:      fmt.Sprintf("%03d_%s", chapterNo, chapterTitle),
 					ChapterIndex: chapterNo,
-				}
+				})
 			}
 			if fileName.Valid {
-				res.images[chapterID] = append(res.images[chapterID], model.ImageInfo{
+				chapter := &chapters[len(chapters)-1]
+				chapter.ImageCount++
+				chapter.Images = append(chapter.Images, model.ImageInfo{
 					Path:   filepath.ToSlash(chapterRelDir + "/" + fileName.String),
 					Width:  int32(width.Int64),
 					Height: int32(height.Int64),
@@ -193,16 +191,8 @@ func GetComicAllChaptersAndImages(comicId string) (map[string]model.ChapterInfo,
 			return nil, fmt.Errorf("迭代章节图片结果集失败: %w", err)
 		}
 
-		for chapterID, chapter := range res.chapters {
-			chapter.ImageCount = len(res.images[chapterID])
-			res.chapters[chapterID] = chapter
-		}
-		return res, nil
+		return chapters, nil
 	})
-	if err != nil {
-		return nil, nil, err
-	}
-	return out.chapters, out.images, nil
 }
 
 // UpdateComicMeta 更新漫画的 is_public / readed / cover_image（缺省字段表示不修改）。
@@ -233,9 +223,15 @@ func UpdateComicMeta(comicId string, req model.UpdateComicRequest) error {
 	}
 
 	args = append(args, id)
-	if _, err := db.Exec(ctx,
-		"UPDATE comics SET "+strings.Join(sets, ", ")+" WHERE id = ?", args...); err != nil {
+	result, err := db.Exec(ctx,
+		"UPDATE comics SET "+strings.Join(sets, ", ")+" WHERE id = ?", args...)
+	if err != nil {
 		return fmt.Errorf("更新漫画元数据失败: %w", err)
+	}
+	if count, err := result.RowsAffected(); err != nil {
+		return err
+	} else if count == 0 {
+		return sql.ErrNoRows
 	}
 	return nil
 }
@@ -243,8 +239,8 @@ func UpdateComicMeta(comicId string, req model.UpdateComicRequest) error {
 // parseComicID 把客户端传来的漫画/章节 ID（字符串）解析为整数主键。
 func parseComicID(raw string) (int64, error) {
 	id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("漫画 ID 非法: %s", raw)
+	if err != nil || id <= 0 {
+		return 0, ErrInvalidID
 	}
 	return id, nil
 }

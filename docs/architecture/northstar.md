@@ -58,7 +58,7 @@ bootstrap 本身依赖回环限制，不需要先有 API key；服务端下发�
 | `#/settings` | 设置 | 界面偏好、连接信息与服务路径 |
 | `#/help` | 使用说明 | 操作入口、数据归属、同步与备份 |
 
-`main.js` 的 `routes` 数组是导航顺序和 hash 路由真源，不使用 Vue Router。
+`main.js` 的 `routes` 数组是导航顺序和 hash 路由真源，不使用 Vue Router。漫画页只保留下载和书库，任务结果与日志统一进入任务中心。
 
 ## 5. 状态与轮询
 
@@ -67,7 +67,7 @@ bootstrap 本身依赖回环限制，不需要先有 API key；服务端下发�
 - `bootstrap()` 用服务端值覆盖默认 settings、paths、cli、deps。
 - `saveSettings()` 以 snake_case 局部更新，成功后同步内存镜像。
 - `confirmAction()` 由 `confirm_destructive` 控制破坏性操作二次确认。
-- 页面操作捕获异常并提示 toast；AI 页通过自身的 `run()` 同时管理忙状态与刷新。
+- `api.js` 统一拒绝 HTTP 错误、无效 JSON 和顶层 `ok:false`；页面捕获异常并提示 toast；AI 页通过自身的 `run()` 同时管理忙状态与刷新。
 
 任务、日志与 AI 页在有活动时轮询；任务/日志通常 2 秒，AI 使用偏好间隔。仪表盘在页面可见时按偏好刷新。组件卸载后不得续期轮询。
 

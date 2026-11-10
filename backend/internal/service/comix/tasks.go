@@ -14,18 +14,18 @@ import (
 
 // taskManager comix 专用的任务管理器（单例）。
 type taskManager struct {
-	engine *taskengine.Manager
+	*taskengine.Manager
 }
 
 // Manager 全局任务管理器。
-var Manager = &taskManager{engine: taskengine.NewManager(500, 30)}
+var Manager = &taskManager{Manager: taskengine.NewManager(500, 30)}
 
 // Start 启动一个 comix 命令任务并立即返回（异步执行）。
 func (m *taskManager) Start(name, cmd string, rest ...string) (*taskengine.Task, error) {
 	if ok, msg := Available(); !ok {
 		return nil, errors.New(msg)
 	}
-	return m.engine.Start(taskengine.Spec{
+	return m.Manager.Start(taskengine.Spec{
 		Guard:        &MutationMu,
 		Name:         name,
 		Exe:          PythonExecutable(),
@@ -36,18 +36,6 @@ func (m *taskManager) Start(name, cmd string, rest ...string) (*taskengine.Task,
 		Parse:        parseTaskResult,
 	})
 }
-
-// Get 获取任务详情。
-func (m *taskManager) Get(taskID string) (*taskengine.Task, error) { return m.engine.Get(taskID) }
-
-// List 返回任务列表（新建在前）。
-func (m *taskManager) List() []*taskengine.Task { return m.engine.List() }
-
-// Stop 中断运行中的任务。
-func (m *taskManager) Stop(taskID string) error { return m.engine.Stop(taskID) }
-
-// Close 中断全部任务并等待退出。
-func (m *taskManager) Close() { m.engine.Close() }
 
 // parseTaskResult 适配 taskengine 的解析钩子。
 func parseTaskResult(stdout, stderr string, exitCode int, runErr error) (any, error) {
