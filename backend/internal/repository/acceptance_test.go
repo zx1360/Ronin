@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -292,8 +293,8 @@ func TestAiJobQueue(t *testing.T) {
 	if n, err := ai_repo.Enqueue(model.CapVLM, mediaIDs, "ai1024|ollama:test"); err != nil || n != 0 {
 		t.Fatalf("重复入队应幂等: n=%d err=%v", n, err)
 	}
-	pending, err := ai_repo.HasPending(context.Background(), model.CapVLM)
-	if err != nil || !pending {
+	pending, err := ai_repo.PendingCapabilities(context.Background())
+	if err != nil || !slices.Contains(pending, model.CapVLM) {
 		t.Fatalf("入队后应有待处理任务: pending=%v err=%v", pending, err)
 	}
 

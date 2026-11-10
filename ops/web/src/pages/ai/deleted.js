@@ -1,3 +1,4 @@
+import { useSelection } from '../../selection.js';
 // 已软删除：清单与取消软删除。
 //
 // 本页只改数据库标记，不碰任何文件——真正的删除仍由 Gallery CLI 的 execute 执行。
@@ -24,7 +25,7 @@ export default {
     const loading = ref(false);
     const busy = ref(false);
     const error = ref('');
-    const selected = ref([]);
+    const { selected, toggle, isSelected, selectAll: select, clear: clearSelection, retain } = useSelection();
 
     const hasMore = computed(() => items.value.length < total.value);
     const allSelected = computed(() => items.value.length > 0 && selected.value.length === items.value.length);
@@ -55,8 +56,7 @@ export default {
         }));
         items.value = more ? items.value.concat(page) : page;
         total.value = num(data && data.total);
-        const alive = items.value.map((item) => item.id);
-        selected.value = selected.value.filter((id) => alive.indexOf(id) >= 0);
+        retain(items.value.map((item) => item.id));
       } catch (err) {
         error.value = err.message;
       } finally {
@@ -64,24 +64,7 @@ export default {
       }
     };
 
-    const toggle = (id) => {
-      const next = selected.value.slice();
-      const position = next.indexOf(id);
-      if (position >= 0) next.splice(position, 1);
-      else next.push(id);
-      selected.value = next;
-    };
-
-    const isSelected = (id) => selected.value.indexOf(id) >= 0;
-
-    const clearSelection = () => {
-      selected.value = [];
-    };
-
-    /** 只作用于已加载的条目：未加载的还没进 DOM，不替用户做看不见的选择。 */
-    const selectAll = () => {
-      selected.value = items.value.map((item) => item.id);
-    };
+    const selectAll = () => select(items.value.map((item) => item.id));
 
     /** 取消软删除（恢复）：本页只改标记，不涉及文件。 */
     const restore = async (ids) => {

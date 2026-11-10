@@ -1,3 +1,4 @@
+import { useSelection } from '../../selection.js';
 import { ref, computed, onMounted, onUnmounted } from '../../vue.js';
 import { api } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
@@ -22,7 +23,8 @@ export default {
     const failureTotal = ref(0);
     const failureError = ref('');
     const failureLoading = ref(false);
-    const failureSelected = ref([]);
+    const { selected: failureSelected, toggle: toggleFailure, isSelected: isFailureSelected,
+      selectAll: select, clear: clearFailureSelection, retain } = useSelection();
 
     const failureHasMore = computed(() => failures.value.length < failureTotal.value);
 
@@ -55,8 +57,7 @@ export default {
         }));
         failures.value = more ? failures.value.concat(page) : page;
         failureTotal.value = num(data && data.total);
-        const alive = failures.value.map((item) => item.mediaId);
-        failureSelected.value = failureSelected.value.filter((id) => alive.indexOf(id) >= 0);
+        retain(failures.value.map((item) => item.mediaId));
       } catch (err) {
         if (!controller.signal.aborted) failureError.value = err.message;
       } finally {
@@ -64,29 +65,12 @@ export default {
       }
     };
 
-    const toggleFailure = (id) => {
-      const next = failureSelected.value.slice();
-      const position = next.indexOf(id);
-      if (position >= 0) next.splice(position, 1);
-      else next.push(id);
-      failureSelected.value = next;
-    };
-
-    const isFailureSelected = (id) => failureSelected.value.indexOf(id) >= 0;
-
     /** 缩略图加载失败（媒体没有缩略图或源文件已缺失）：退回文字占位，别留破图。 */
     const markThumbMissing = (item) => {
       item.thumbFailed = true;
     };
 
-    /** 只作用于已加载的条目：没进 DOM 的不替用户做看不见的选择。 */
-    const selectAllFailures = () => {
-      failureSelected.value = failures.value.map((item) => item.mediaId);
-    };
-
-    const clearFailureSelection = () => {
-      failureSelected.value = [];
-    };
+    const selectAllFailures = () => select(failures.value.map((item) => item.mediaId));
 
     /**
      * 标记软删除：复用 gallery 的软删除标记，磁盘文件不动。
