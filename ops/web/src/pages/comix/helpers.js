@@ -2,11 +2,10 @@
 
 import { taskStatusKind, taskStatusText } from '../../utils.js';
 
-/** 页面 Tab（与桌面端一致）。 */
+/** 漫画页标签。 */
 export const TABS = [
   { value: 'url', label: '网址下载' },
   { value: 'library', label: '漫画库' },
-  { value: 'tasks', label: '任务面板' },
 ];
 
 /** 漫画库前端过滤项（接口只按库内字段返回，没有服务端过滤参数）。 */

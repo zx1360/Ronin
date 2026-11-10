@@ -38,7 +38,7 @@ final comicInfoBoxProvider = AutoDisposeProvider<Box<ComicInfo>>.internal(
 );
 
 typedef ComicInfoBoxRef = AutoDisposeProviderRef<Box<ComicInfo>>;
-String _$comicInfoStreamHash() => r'd1886fce50cfd6fabbe7a8ed83be682342aaa2d4';
+String _$comicInfoStreamHash() => r'6df43fe6dbf95e5d42c8fa52c145a84e59c43ce5';
 
 /// 漫画信息的响应式流
 ///
@@ -73,7 +73,7 @@ final chapterInfoBoxProvider = AutoDisposeProvider<Box<ChapterInfo>>.internal(
 );
 
 typedef ChapterInfoBoxRef = AutoDisposeProviderRef<Box<ChapterInfo>>;
-String _$chapterInfoStreamHash() => r'ddc2ca7ba80abee38a6146970e12d1763d3b856d';
+String _$chapterInfoStreamHash() => r'c0c2783f149e2531bf47934e3de1fd828ec00b81';
 
 /// 章节信息的响应式流
 ///

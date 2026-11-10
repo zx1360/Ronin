@@ -49,8 +49,8 @@ type Task struct {
 	FinishedAt *time.Time `json:"finished_at"`
 	ExitCode   *int       `json:"exit_code"`
 	Result     any        `json:"result,omitempty"`
-	Error      string     `json:"error,omitempty"`
-	Logs       []LogEntry `json:"logs"`
+	Error      string     `json:"error"`
+	Logs       []LogEntry `json:"logs,omitempty"`
 
 	killed atomic.Bool
 	stop   chan struct{}

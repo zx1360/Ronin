@@ -4,9 +4,9 @@
 package comic_handler
 
 import (
-	"fmt"
+	"database/sql"
+	"errors"
 	"net/http"
-	"sort"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,7 +18,7 @@ import (
 func FetchAllComicInfos(c *gin.Context) {
 	comicInfos, err := comic_repo.GetAllComicInfos()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, comicInfos)
@@ -28,7 +28,7 @@ func FetchAllComicInfos(c *gin.Context) {
 func FetchChaptersWithComicId(c *gin.Context) {
 	chapters, err := comic_repo.GetChaptersWithComicId(c.Param("comic-id"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, chapters)
@@ -38,7 +38,7 @@ func FetchChaptersWithComicId(c *gin.Context) {
 func FetchImagesWithChapterId(c *gin.Context) {
 	chapterInfo, err := comic_repo.GetImagesWithChapterId(c.Param("chapter-id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("FetchChapterInfo出错: %v", err)})
+		respondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, chapterInfo)
@@ -46,25 +46,11 @@ func FetchImagesWithChapterId(c *gin.Context) {
 
 // DownloadComic 返回整部漫画的章节+图片清单（客户端据此离线下载）。
 func DownloadComic(c *gin.Context) {
-	chapterMap, imageMap, err := comic_repo.GetComicAllChaptersAndImages(c.Param("comic-id"))
+	manifest, err := comic_repo.GetComicAllChaptersAndImages(c.Param("comic-id"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, err)
 		return
 	}
-	manifest := make([]model.ChapterInfo, 0, len(chapterMap))
-	for _, chapter := range chapterMap {
-		manifest = append(manifest, model.ChapterInfo{
-			ID:           chapter.ID,
-			ComicID:      chapter.ComicID,
-			DirName:      chapter.DirName,
-			ChapterIndex: chapter.ChapterIndex,
-			ImageCount:   chapter.ImageCount,
-			Images:       imageMap[chapter.ID],
-		})
-	}
-	sort.Slice(manifest, func(i, j int) bool {
-		return manifest[i].ChapterIndex < manifest[j].ChapterIndex
-	})
 
 	c.JSON(http.StatusOK, manifest)
 }
@@ -77,8 +63,18 @@ func UpdateComic(c *gin.Context) {
 		return
 	}
 	if err := comic_repo.UpdateComicMeta(c.Param("comic-id"), req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func respondError(c *gin.Context, err error) {
+	status := http.StatusInternalServerError
+	if errors.Is(err, comic_repo.ErrInvalidID) {
+		status = http.StatusBadRequest
+	} else if errors.Is(err, sql.ErrNoRows) {
+		status = http.StatusNotFound
+	}
+	c.JSON(status, gin.H{"error": err.Error()})
 }

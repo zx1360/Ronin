@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:torrid/features/others/comic/provider/status_provider.dart';
-import 'package:torrid/features/others/comic/services/comic_servic.dart';
+import 'package:torrid/features/others/comic/services/comic_storage.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/comic_header.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/continue_read_btn.dart';
 import 'package:torrid/features/others/comic/widgets/detail_page/row_info_widget.dart';

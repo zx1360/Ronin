@@ -80,6 +80,7 @@ Android：
 ```powershell
 cd D:\products\Ronin\android
 flutter analyze
+flutter test
 ```
 
 Ops：

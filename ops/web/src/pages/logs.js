@@ -29,7 +29,6 @@ export default {
     const collect = async (signal) => {
       const results = await Promise.allSettled(Object.entries(SOURCES).map(async ([source, { path }]) => {
         const response = await api.get(path, { signal });
-        if (response?.ok === false) throw new Error(response.error || '无法读取任务');
         return (response?.data?.tasks || []).map((task) => ({ ...task, source, key: `${source}:${task.id}` }));
       }));
       if (signal.aborted) return;
@@ -55,7 +54,6 @@ export default {
       }
       try {
         const data = await api.get(`${SOURCES[task.source].path}/${encodeURIComponent(task.id)}`, { signal });
-        if (data?.ok === false) throw new Error(data.error || '无法读取任务详情');
         if (signal.aborted || task.key !== selectedKey.value) return;
         detail.value = data?.data || null;
       } catch (err) {
@@ -99,8 +97,7 @@ export default {
       if (!task || stopping.value || !await confirmAction(`取消或中断「${task.name}」？`, { danger: true })) return;
       stopping.value = true;
       try {
-        const response = await api.post(`${SOURCES[task.source].path}/${encodeURIComponent(task.id)}/stop`);
-        if (response?.ok === false) throw new Error(response.error || '取消任务失败');
+        await api.post(`${SOURCES[task.source].path}/${encodeURIComponent(task.id)}/stop`);
         await refresh();
         toast('已发送取消或中断请求', 'success');
       } catch (error) { toast(error.message, 'error'); }

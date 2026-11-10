@@ -186,7 +186,10 @@ Stream<ChatStreamEvent> streamNdjsonEvents(
 
   if (response.statusCode != 200) {
     final text = await _readAll(stream);
-    throw ApiException(_errorMessage(text, response.statusCode, failureLabel));
+    throw ApiException(
+      _errorMessage(text, response.statusCode, failureLabel),
+      statusCode: response.statusCode,
+    );
   }
 
   yield* stream
@@ -209,13 +212,10 @@ ChatStreamEvent _decodeEvent(String line) {
   return const ChatStreamEvent(type: 'ignore');
 }
 
-Future<String> _readAll(Stream<List<int>> stream) async {
-  final bytes = <int>[];
-  await for (final chunk in stream) {
-    bytes.addAll(chunk);
-  }
-  return utf8.decode(bytes, allowMalformed: true);
-}
+Future<String> _readAll(Stream<List<int>> stream) => stream
+    .cast<List<int>>()
+    .transform(const Utf8Decoder(allowMalformed: true))
+    .join();
 
 String _errorMessage(String body, int? statusCode, String failureLabel) {
   try {

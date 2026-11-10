@@ -13,7 +13,7 @@ import 'package:torrid/features/others/comic/provider/box_provider.dart';
 part 'status_provider.g.dart';
 
 /// 所有本地漫画信息（按拼音升序排列）
-/// 
+///
 /// 对于含有中文的漫画名，按拼音首字母排序。
 @riverpod
 List<ComicInfo> comicInfos(ComicInfosRef ref) {
@@ -22,7 +22,7 @@ List<ComicInfo> comicInfos(ComicInfosRef ref) {
     throw asyncVal.error!;
   }
   final data = asyncVal.asData?.value ?? [];
-  return data..sort((a, b) {
+  return List<ComicInfo>.of(data)..sort((a, b) {
     final pinyinA = PinyinHelper.getPinyin(a.comicName).toLowerCase();
     final pinyinB = PinyinHelper.getPinyin(b.comicName).toLowerCase();
     return pinyinA.compareTo(pinyinB);
@@ -30,7 +30,7 @@ List<ComicInfo> comicInfos(ComicInfosRef ref) {
 }
 
 /// 获取指定漫画的阅读偏好
-/// 
+///
 /// 如果不存在则返回默认偏好（从第0章开始）。
 @riverpod
 ComicPreference comicPrefWithComicId(
@@ -42,7 +42,7 @@ ComicPreference comicPrefWithComicId(
 }
 
 /// 获取指定漫画的所有章节信息
-/// 
+///
 /// 按章节索引升序排列。
 @riverpod
 Future<List<ChapterInfo>> chaptersWithComicId(
@@ -50,8 +50,6 @@ Future<List<ChapterInfo>> chaptersWithComicId(
   required String comicId,
 }) async {
   final chapters = await ref.watch(chapterInfoStreamProvider.future);
-  return chapters
-      .where((chapter) => chapter.comicId == comicId)
-      .toList()
+  return chapters.where((chapter) => chapter.comicId == comicId).toList()
     ..sort((a, b) => a.chapterIndex.compareTo(b.chapterIndex));
 }

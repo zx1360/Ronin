@@ -29,15 +29,15 @@ const syncTimeout = 90 * time.Second
 type DownloadRequest struct {
 	ComicID       int    `json:"comic_id"`
 	Range         string `json:"range,omitempty"`
-	Latest        *int   `json:"latest,omitempty"`
+	Latest        *int   `json:"latest,omitempty" binding:"omitempty,gt=0"`
 	NoRetryFailed bool   `json:"no_retry_failed,omitempty"`
 }
 
 type UpdateCheckRequest struct {
-	ComicID  *int `json:"comic_id,omitempty"`
+	ComicID  *int `json:"comic_id,omitempty" binding:"omitempty,gt=0"`
 	All      bool `json:"all,omitempty"`
 	Download bool `json:"download,omitempty"`
-	Latest   *int `json:"latest,omitempty"`
+	Latest   *int `json:"latest,omitempty" binding:"omitempty,gt=0"`
 }
 
 type DeleteRequest struct {
@@ -115,7 +115,7 @@ func Chapters(c *gin.Context) {
 func Delete(c *gin.Context) {
 	var req DeleteRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.ComicID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少 comic_id"})
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "comic_id 必须为正整数"})
 		return
 	}
 	result, err := comix_repo.DeleteComic(req.ComicID, req.KeepFiles)
@@ -140,10 +140,10 @@ func Delete(c *gin.Context) {
 func DownloadURL(c *gin.Context) {
 	var req struct {
 		URLs   []string `json:"urls"`
-		Latest *int     `json:"latest,omitempty"`
+		Latest *int     `json:"latest,omitempty" binding:"omitempty,gt=0"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.URLs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少 urls 列表"})
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "urls 列表不能为空，latest 必须为正整数"})
 		return
 	}
 
@@ -165,6 +165,7 @@ func DownloadURL(c *gin.Context) {
 	for _, raw := range req.URLs {
 		raw = strings.TrimSpace(raw)
 		if raw == "" {
+			tasks = append(tasks, urlTask{URL: raw, Error: "网址不能为空"})
 			continue
 		}
 		siteCode, matchErr := comix_repo.MatchSiteByURL(raw, sites)
@@ -193,7 +194,11 @@ func DownloadURL(c *gin.Context) {
 func Download(c *gin.Context) {
 	var req DownloadRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.ComicID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "缺少 comic_id"})
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "comic_id 和 latest（如提供）必须为正整数"})
+		return
+	}
+	if strings.TrimSpace(req.Range) != "" && req.Latest != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "range 与 latest 不能同时指定"})
 		return
 	}
 	args := []string{strconv.Itoa(req.ComicID)}
@@ -216,11 +221,11 @@ func UpdateCheck(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "请求体无效"})
 		return
 	}
-	// 既不指定漫画也不要求全站时，明确报错.
-	if req.ComicID == nil && !req.All {
+	// 指定漫画与全站检查必须二选一。
+	if (req.ComicID != nil) == req.All {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"ok":    false,
-			"error": "需要指定 comic_id 或 all（否则不会检查任何漫画）",
+			"error": "必须且只能指定 comic_id 或 all",
 		})
 		return
 	}
@@ -252,32 +257,9 @@ func Clean(c *gin.Context) {
 
 // ---- 任务生命周期 ----
 
-// ListTasks 列出任务（含运行中与最近完成的）。
-//
-// summary 里带上 result：桌面端只在任务"运行中"时才拉详情，
+// ListTasks 返回不含日志的摘要，结果用于提交页更新状态。
 func ListTasks(c *gin.Context) {
-	tasks := comix.Manager.List()
-	type summary struct {
-		ID         string            `json:"id"`
-		Name       string            `json:"name"`
-		Command    string            `json:"command"`
-		Status     taskengine.Status `json:"status"`
-		PID        int               `json:"pid"`
-		StartedAt  time.Time         `json:"started_at"`
-		FinishedAt *time.Time        `json:"finished_at"`
-		ExitCode   *int              `json:"exit_code"`
-		Error      string            `json:"error"`
-		Result     any               `json:"result,omitempty"`
-	}
-	out := make([]summary, 0, len(tasks))
-	for _, t := range tasks {
-		out = append(out, summary{
-			ID: t.ID, Name: t.Name, Command: t.Command, Status: t.Status,
-			PID: t.PID, StartedAt: t.StartedAt, FinishedAt: t.FinishedAt,
-			ExitCode: t.ExitCode, Error: t.Error, Result: t.Result,
-		})
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"tasks": out}})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"tasks": comix.Manager.List()}})
 }
 
 // GetTask 获取任务详情（状态/日志/结果）。

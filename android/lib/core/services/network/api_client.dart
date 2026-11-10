@@ -40,17 +40,7 @@ class ApiClient {
     _dio.options.receiveTimeout = const Duration(seconds: 15);
     // 配置 Dio 信任自签证书
     _dio.httpClientAdapter = CertTrust.createAdapter();
-    // 添加拦截器以在每个请求中添加 X-API-Key 头
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          if (apiKey != null && apiKey!.isNotEmpty) {
-            options.headers['X-API-Key'] = apiKey;
-          }
-          handler.next(options);
-        },
-      ),
-    );
+    _dio.options.headers.addAll(headers);
     // 统一请求生命周期：幂等 GET 请求在连接类错误时自动重试
     if (retryConnections) _dio.interceptors.add(_RetryInterceptor(_dio));
   }
@@ -267,7 +257,7 @@ class ApiClient {
 /// 仅对幂等的 GET 请求在连接类错误（超时/连接失败）时自动重试，
 /// 不重试业务错误（4xx/5xx）与主动取消，避免产生副作用或重复请求。
 class _RetryInterceptor extends Interceptor {
-  static const int _maxAttempts = 2; // 首次请求 + 1 次重试
+  static const int _maxRetries = 1;
   static const String _retryCountKey = '__retryCount';
 
   final Dio _dio;
@@ -284,7 +274,8 @@ class _RetryInterceptor extends Interceptor {
     final canRetry =
         options.method == 'GET' &&
         _isConnectionError(err.type) &&
-        _attempts(options) < _maxAttempts;
+        (options.cancelToken?.isCancelled != true) &&
+        _attempts(options) < _maxRetries;
 
     if (!canRetry) {
       handler.next(err);

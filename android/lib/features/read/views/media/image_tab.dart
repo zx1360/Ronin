@@ -6,6 +6,7 @@ import 'package:torrid/core/utils/file_relates.dart';
 import 'package:torrid/features/read/models/random_media_api.dart';
 import 'package:torrid/features/read/services/media_error_helper.dart';
 import 'package:torrid/features/read/widgets/common.dart';
+import 'package:torrid/features/read/widgets/media_source_picker.dart';
 import 'package:torrid/features/read/widgets/image_preview.dart';
 import 'package:torrid/core/constants/spacing.dart';
 
@@ -43,25 +44,6 @@ class _ImageTabState extends ConsumerState<ImageTab>
     _paramValues = {for (final p in _source.params) p.key: p.defaultValue};
   }
 
-  void _onGroupChanged(int index) {
-    setState(() {
-      _groupIndex = index;
-      _sourceIndex = 0;
-      _imageUrl = null;
-      _error = null;
-      _initParamValues();
-    });
-  }
-
-  void _onSourceChanged(int index) {
-    setState(() {
-      _sourceIndex = index;
-      _imageUrl = null;
-      _error = null;
-      _initParamValues();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -73,11 +55,22 @@ class _ImageTabState extends ConsumerState<ImageTab>
         children: [
           const SectionTitle(title: '随机图片', icon: Icons.image_outlined),
           const SizedBox(height: AppSpacing.sm),
-          _buildGroupSelector(),
-          if (_group.sources.length > 1) ...[
-            const SizedBox(height: AppSpacing.sm),
-            _buildSourceSelector(),
-          ],
+          MediaSourcePicker(
+            groups: kImageGroups,
+            groupIndex: _groupIndex,
+            sourceIndex: _sourceIndex,
+            onChanged: _loading
+                ? null
+                : (group, source) {
+                    setState(() {
+                      _groupIndex = group;
+                      _sourceIndex = source;
+                      _imageUrl = null;
+                      _error = null;
+                      _initParamValues();
+                    });
+                  },
+          ),
           ..._source.params.map(
             (p) => Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
@@ -98,53 +91,6 @@ class _ImageTabState extends ConsumerState<ImageTab>
   }
 
   // ──────── 选择器 ────────
-
-  Widget _buildGroupSelector() {
-    return DropdownButtonFormField<int>(
-      initialValue: _groupIndex,
-      decoration: const InputDecoration(
-        labelText: 'API 提供方',
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      ),
-      isExpanded: true,
-      items: List.generate(kImageGroups.length, (i) {
-        return DropdownMenuItem(
-          value: i,
-          child: Text(kImageGroups[i].name, overflow: TextOverflow.ellipsis),
-        );
-      }),
-      onChanged: _loading
-          ? null
-          : (v) {
-              if (v != null) _onGroupChanged(v);
-            },
-    );
-  }
-
-  Widget _buildSourceSelector() {
-    return DropdownButtonFormField<int>(
-      key: ValueKey('src_$_groupIndex'),
-      initialValue: _sourceIndex,
-      decoration: const InputDecoration(
-        labelText: '分类',
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      ),
-      isExpanded: true,
-      items: List.generate(_group.sources.length, (i) {
-        return DropdownMenuItem(
-          value: i,
-          child: Text(_group.sources[i].label, overflow: TextOverflow.ellipsis),
-        );
-      }),
-      onChanged: _loading
-          ? null
-          : (v) {
-              if (v != null) _onSourceChanged(v);
-            },
-    );
-  }
 
   Widget _buildParamWidget(ApiParam param) {
     final widgetKey = ValueKey('p_${_groupIndex}_${_sourceIndex}_${param.key}');

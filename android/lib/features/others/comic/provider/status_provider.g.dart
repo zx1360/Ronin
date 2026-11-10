@@ -6,7 +6,7 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicInfosHash() => r'82eae5d4f68dce760a3bab7fb67555f403732655';
+String _$comicInfosHash() => r'62db4fa2d58005abb20a21ce511897ffa23edbab';
 
 /// 所有本地漫画信息（按拼音升序排列）
 ///

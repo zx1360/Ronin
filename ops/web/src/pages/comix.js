@@ -1,26 +1,21 @@
-// 漫画资源：网址下载 / 漫画库 / 任务面板。
-//
-// 本文件只负责 Tab 结构与呈现；状态与接口调用在 comix/board.js，
-// 纯逻辑（输入校验/任务摘要/状态映射）在 comix/helpers.js。
-
 import { ref } from '../vue.js';
-import { Card, Placeholder, Badge } from '../ui.js';
-import { FILTERS, TABS, comixStatusText, comixStatusKind } from './comix/helpers.js';
+import { navigate } from '../store.js';
+import { Card, Placeholder } from '../ui.js';
+import { FILTERS, TABS } from './comix/helpers.js';
 import { useComixBoard } from './comix/board.js';
 
 export default {
-  components: { Card, Placeholder, Badge },
+  components: { Card, Placeholder },
   setup() {
     const board = useComixBoard();
     const tab = ref('url');
 
     const selectTab = (name) => {
       tab.value = name;
-      // 任务面板刷新一次；漫画库重取（下载进度由服务端聚合，本地改写会漂移）
       board.onTabChange(name);
     };
 
-    return { ...board, tab, selectTab, TABS, FILTERS, comixStatusText, comixStatusKind };
+    return { ...board, navigate, tab, selectTab, TABS, FILTERS };
   },
   template: `
     <div>
@@ -29,6 +24,7 @@ export default {
                 :class="{ active: tab === item.value }" @click="selectTab(item.value)">
           {{ item.label }}
         </button>
+        <button @click="navigate('/tasks')">任务与日志 ↗</button>
       </div>
 
       <!-- ============ 网址下载 ============ -->
@@ -56,6 +52,7 @@ export default {
             </div>
           </div>
 
+          <Placeholder v-if="tasksError" :error="tasksError" />
           <div v-if="submitResults.length" style="margin-top: 16px">
             <h2 class="section-title">提交结果</h2>
             <table class="data">
@@ -66,7 +63,7 @@ export default {
                 <tr v-for="(item, index) in submitResults" :key="index">
                   <td class="mono">{{ item.url }}</td>
                   <td>{{ item.site || '—' }}</td>
-                  <td class="mono">{{ item.taskId || '—' }}</td>
+                  <td><button v-if="item.taskId" class="ghost sm" @click="navigate('/tasks?task=' + encodeURIComponent('comix:' + item.taskId))">{{ item.taskId }} ↗</button><span v-else>—</span></td>
                   <td><span class="badge" :class="item.kind">{{ item.text }}</span></td>
                   <td class="small">
                     <div v-if="item.reason" style="color: var(--error)">{{ item.reason }}</div>
@@ -257,100 +254,5 @@ export default {
         </Card>
       </template>
 
-      <!-- ============ 任务面板 ============ -->
-      <template v-else>
-        <Card title="任务面板">
-          <template #actions>
-            <span class="small muted">{{ runningCount }} 运行中 / {{ tasks.length }} 总</span>
-            <button class="ghost sm" @click="refreshTasks()">刷新</button>
-          </template>
-          <div class="small muted" style="margin-bottom: 8px">
-            任务记录由 Monarch 内存维护，重启服务后清空。
-          </div>
-          <Placeholder v-if="tasksError" :error="'任务列表加载失败: ' + tasksError" />
-          <Placeholder v-else-if="!tasks.length" text="暂无任务" />
-          <table class="data" v-else>
-            <thead>
-              <tr>
-                <th>任务</th><th>状态</th><th>命令</th><th>PID</th>
-                <th>提交时间</th><th>耗时</th><th>退出码</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="task in tasks" :key="task.id" style="cursor: pointer"
-                  :style="task.id === selectedTaskId ? 'background: rgba(221, 155, 73, 0.12)' : ''"
-                  @click="selectTask(task)">
-                <td>
-                  {{ task.name || task.id }}
-                  <div class="small muted mono">{{ task.id }}</div>
-                  <div class="small" style="color: var(--error)" v-if="task.error">{{ task.error }}</div>
-                  <div class="small" style="color: var(--error)" v-if="isBusinessError(task)">
-                    业务错误（ok=false）
-                  </div>
-                </td>
-                <td><Badge :kind="comixStatusKind(task)">{{ comixStatusText(task) }}</Badge></td>
-                <td class="small mono">{{ task.command }}</td>
-                <td>{{ task.pid || '—' }}</td>
-                <td class="small">{{ formatTime(task.started_at, false) }}</td>
-                <td class="small">{{ taskDuration(task) }}</td>
-                <td>{{ task.exit_code === null || task.exit_code === undefined ? '—' : task.exit_code }}</td>
-                <td>
-                  <button class="danger sm" v-if="taskActive(task.status)" @click.stop="stopTask(task)">{{ task.status === 'queued' ? '取消排队' : '中断' }}</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </Card>
-
-        <Card title="任务详情与日志">
-          <template #actions>
-            <button class="danger sm" v-if="selectedInfo && selectedInfo.running"
-                    @click="stopTask({ id: selectedInfo.id, name: selectedInfo.name })">中断</button>
-          </template>
-          <Placeholder v-if="!selectedTaskId" text="请点击上方任务查看实时日志" />
-          <Placeholder v-else-if="!selectedInfo"
-                       :error="detailError ? '获取任务详情失败: ' + detailError : '任务已不在列表快照中'" />
-          <template v-else>
-            <div class="col">
-              <div>
-                <strong>{{ selectedInfo.name }}</strong>
-                <span class="mono muted" style="margin-left: 8px">{{ selectedInfo.id }}</span>
-              </div>
-              <div class="small muted">命令: <span class="mono">{{ selectedInfo.command }}</span></div>
-              <div class="small muted">
-                PID {{ selectedInfo.pid }} · 开始 {{ selectedInfo.started }} · 结束 {{ selectedInfo.finished }}
-                · 退出码 {{ selectedInfo.exit }}
-              </div>
-              <div class="small" style="color: var(--error)" v-if="selectedInfo.failureReason">
-                {{ selectedInfo.failureReason }}
-              </div>
-              <div class="small muted" v-if="selectedInfo.summary">{{ selectedInfo.summary }}</div>
-              <div class="small" style="color: var(--warning)" v-if="detailError">
-                {{ '详情刷新失败: ' + detailError }}
-              </div>
-            </div>
-            <div class="row" style="margin: 12px 0">
-              <label class="field" style="flex: 1; min-width: 200px">
-                关键字过滤
-                <input v-model="logKeyword" placeholder="只显示包含该关键字的行" />
-              </label>
-              <label class="row small muted" style="gap: 6px; padding-top: 16px">
-                <input type="checkbox" v-model="autoScroll" /> 自动滚动到底部
-              </label>
-              <span class="small muted" v-if="logKeyword">
-                过滤后 {{ logLines.length }} 行
-              </span>
-            </div>
-            <div class="log-view" ref="viewRef" style="height: calc(100vh - 480px); min-height: 220px">
-              <div v-if="!logLines.length" class="muted">
-                暂无日志（Monarch 重启会清空任务日志，或该命令未产生进度输出）
-              </div>
-              <div v-for="(item, index) in logLines" :key="index" :class="item.stream">
-                [{{ formatClock(item.time) }}][{{ item.stream }}] {{ item.text }}
-              </div>
-            </div>
-          </template>
-        </Card>
-      </template>
     </div>`,
 };
