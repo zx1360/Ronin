@@ -1,15 +1,18 @@
+<script>
 // 概览：能力就绪/输入档位/进度、按能力重试与重生成、模型进程启停、
 // 运行时信息、VLM 标注模型切换与运行时可调配置。
 //
 // 能力名称、说明、档位、执行者与候选全部来自服务端（status / capabilities），
 // 端上只渲染列表，不硬编码能力语义。
 
-import { ref, computed } from '../../vue.js';
-import { api } from '../../api.js';
+import { ref, computed } from 'vue';
+import { useApi } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
-import { Card, Placeholder, Badge } from '../../ui.js';
-import OverviewFailures from './overview-failures.js';
-import OverviewSettings from './overview-settings.js';
+import Card from '../../components/Card.vue';
+import Placeholder from '../../components/Placeholder.vue';
+import Badge from '../../components/Badge.vue';
+import OverviewFailures from './overview-failures.vue';
+import OverviewSettings from './overview-settings.vue';
 import {
   capabilityLabel, doneCount, num, progressPercent,
 } from './shared.js';
@@ -29,6 +32,7 @@ export default {
     refresh: { type: Function, default: null },
   },
   setup(props) {
+    const api = useApi();
     /** 统一走服务端的「操作 + 提示 + 刷新状态」通道；失败不吞异常。 */
     const act = async (notice, action) => {
       if (typeof props.run === 'function') return props.run(notice, action);
@@ -37,6 +41,7 @@ export default {
         if (notice) toast(notice, 'success');
         return true;
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('操作失败: ' + err.message, 'error');
         return false;
       }
@@ -307,209 +312,212 @@ export default {
       failureCap, act, doRefresh,
     };
   },
-  template: `
-    <div>
+};
+</script>
+
+<template>
+  <div>
+    <div class="row between">
+      <div class="row" v-if="status">
+        <Badge :kind="header.stateKind">{{ header.stateText }}</Badge>
+        <Badge :kind="header.pending > 0 ? 'info' : ''">待处理 {{ header.pending }}</Badge>
+        <Badge :kind="header.failed > 0 ? 'error' : ''">失败 {{ header.failed }}</Badge>
+        <Badge kind="warning" v-if="header.paused">已暂停</Badge>
+      </div>
+      <div class="row">
+        <button class="ghost sm" v-if="status && !aiDisabled" :disabled="busy" @click="togglePause()">
+          {{ header.paused ? '继续处理' : '暂停处理' }}
+        </button>
+        <button class="ghost sm" v-if="!aiDisabled" :disabled="busy" @click="doRefresh()">刷新</button>
+      </div>
+    </div>
+
+    <div class="small muted" style="margin: 6px 0" v-if="pollError">状态刷新失败：{{ pollError }}</div>
+
+    <Placeholder
+      v-if="aiDisabled"
+      text="AI 处理层已通过 AI_ENABLED=false 关闭：不会处理任何任务，页面也不做轮询。启用请修改服务端 .env 后重启 Monarch。"
+    />
+    <Placeholder
+      v-else-if="schemaMissing"
+      error="AI 数据表尚未初始化，请检查服务启动日志后重启 Monarch。"
+    />
+    <Placeholder v-else-if="!status" :error="error" :text="error ? '' : '正在获取 /API/ai/status…'" />
+    <template v-else>
+      <Card title="当前批次" v-if="lastRun">
+        <div class="row between">
+          <div class="row">
+            <strong>{{ lastRun.label }}</strong>
+            <Badge :kind="lastRun.running ? 'info' : ''">{{ lastRun.running ? '执行中' : '已结束' }}</Badge>
+            <span class="small muted">本批 {{ lastRun.processed }} / {{ lastRun.total }} · 失败 {{ lastRun.failed }}</span>
+          </div>
+        </div>
+        <div class="progress" style="margin-top: 8px"><div :style="{ width: lastRun.percent + '%' }"></div></div>
+      </Card>
+
       <div class="row between">
-        <div class="row" v-if="status">
-          <Badge :kind="header.stateKind">{{ header.stateText }}</Badge>
-          <Badge :kind="header.pending > 0 ? 'info' : ''">待处理 {{ header.pending }}</Badge>
-          <Badge :kind="header.failed > 0 ? 'error' : ''">失败 {{ header.failed }}</Badge>
-          <Badge kind="warning" v-if="header.paused">已暂停</Badge>
-        </div>
-        <div class="row">
-          <button class="ghost sm" v-if="status && !aiDisabled" :disabled="busy" @click="togglePause()">
-            {{ header.paused ? '继续处理' : '暂停处理' }}
-          </button>
-          <button class="ghost sm" v-if="!aiDisabled" :disabled="busy" @click="doRefresh()">刷新</button>
-        </div>
+        <h2 class="section-title" style="margin: 0">处理能力</h2>
+        <span class="small muted">
+          同一张图按能力分档取源：轻量能力用 256 预览档，人脸/文字/描述用长边 1024 的 AI 派生档（缺失时按需生成并缓存）。
+        </span>
       </div>
 
-      <div class="small muted" style="margin: 6px 0" v-if="pollError">状态刷新失败：{{ pollError }}</div>
+      <Card v-for="card in cards" :key="card.name" :title="card.label">
+        <template #actions>
+          <Badge :kind="card.ready ? 'success' : 'error'">{{ card.ready ? '就绪' : '未就绪' }}</Badge>
+          <Badge v-if="card.tier" kind="primary" :title="card.tierNote">{{ card.tier }}</Badge>
+          <Badge
+            v-if="card.stale > 0"
+            kind="warning"
+            title="输入档位或执行者已变更，可按需手动重生成"
+          >待重排 {{ card.stale }}</Badge>
+          <Badge v-if="card.running" kind="info">进程运行中 PID {{ card.pid }}</Badge>
+        </template>
 
-      <Placeholder
-        v-if="aiDisabled"
-        text="AI 处理层已通过 AI_ENABLED=false 关闭：不会处理任何任务，页面也不做轮询。启用请修改服务端 .env 后重启 Monarch。"
-      />
-      <Placeholder
-        v-else-if="schemaMissing"
-        error="AI 数据表尚未初始化，请检查服务启动日志后重启 Monarch。"
-      />
-      <Placeholder v-else-if="!status" :error="error" :text="error ? '' : '正在获取 /API/ai/status…'" />
-      <template v-else>
-        <Card title="当前批次" v-if="lastRun">
-          <div class="row between">
-            <div class="row">
-              <strong>{{ lastRun.label }}</strong>
-              <Badge :kind="lastRun.running ? 'info' : ''">{{ lastRun.running ? '执行中' : '已结束' }}</Badge>
-              <span class="small muted">本批 {{ lastRun.processed }} / {{ lastRun.total }} · 失败 {{ lastRun.failed }}</span>
-            </div>
+        <div class="col">
+          <div class="small muted">{{ card.description }}</div>
+          <div class="small">
+            执行者 <span class="mono">{{ card.executor }}</span>
+            <span class="muted" v-if="card.inputSig"> · 指纹 <span class="mono">{{ card.inputSig }}</span></span>
           </div>
-          <div class="progress" style="margin-top: 8px"><div :style="{ width: lastRun.percent + '%' }"></div></div>
-        </Card>
+          <div class="small" style="color: var(--warning)" v-if="!card.ready && card.reason">{{ card.reason }}</div>
+          <div class="small" style="color: var(--warning)" v-if="card.probeError">侧车探测失败：{{ card.probeError }}</div>
+          <div class="small" style="color: var(--warning)" v-if="card.missingModels.length">
+            缺少模型：{{ card.missingModels.join('、') }}（运行 tools/ai/install.ps1）
+          </div>
 
-        <div class="row between">
-          <h2 class="section-title" style="margin: 0">处理能力</h2>
-          <span class="small muted">
-            同一张图按能力分档取源：轻量能力用 256 预览档，人脸/文字/描述用长边 1024 的 AI 派生档（缺失时按需生成并缓存）。
-          </span>
+          <div class="progress"><div :style="{ width: card.percent + '%' }"></div></div>
+          <div class="small muted">
+            已处理 {{ card.done }} / {{ card.total }} · 排队 {{ card.pending }} · 尚无产物 {{ card.missing }} · 失败 {{ card.failed }}
+            <span v-if="card.idleSeconds > 0"> · 空闲 {{ card.idleSeconds }}s（{{ card.idleTimeout }}s 后自动退出）</span>
+          </div>
+
+          <div class="row">
+            <button
+              class="ghost sm"
+              v-if="card.hasSidecar"
+              :disabled="busy"
+              @click="toggleProcess(card)"
+            >{{ card.running ? '释放模型' : '启动模型' }}</button>
+            <button class="ghost sm" v-if="card.isVlm" :disabled="busy" @click="unloadVlm()">卸载 VLM 模型</button>
+            <button
+              class="ghost sm"
+              :disabled="busy || card.missing === 0"
+              @click="enqueueMissing(card)"
+            >补处理 {{ card.missing }}</button>
+            <button
+              class="ghost sm"
+              :disabled="busy || card.failed === 0"
+              @click="retryFailed(card)"
+            >重试失败项 {{ card.failed }}</button>
+            <button
+              class="ghost sm"
+              :disabled="busy || card.failed === 0"
+              @click="failureCap = failureCap === card.name ? '' : card.name"
+            >{{ failureCap === card.name ? '收起失败项' : '查看失败项 ' + card.failed }}</button>
+            <button class="danger sm" :disabled="busy" @click="regenerate(card)">全量重生成</button>
+          </div>
+
+          <OverviewFailures
+            v-if="failureCap === card.name"
+            :key="card.name"
+            :capability="card.name"
+            :label="card.label"
+            :busy="busy"
+            :run="act"
+            @close="failureCap = ''"
+          />
         </div>
+      </Card>
 
-        <Card v-for="card in cards" :key="card.name" :title="card.label">
-          <template #actions>
-            <Badge :kind="card.ready ? 'success' : 'error'">{{ card.ready ? '就绪' : '未就绪' }}</Badge>
-            <Badge v-if="card.tier" kind="primary" :title="card.tierNote">{{ card.tier }}</Badge>
-            <Badge
-              v-if="card.stale > 0"
-              kind="warning"
-              title="输入档位或执行者已变更，可按需手动重生成"
-            >待重排 {{ card.stale }}</Badge>
-            <Badge v-if="card.running" kind="info">进程运行中 PID {{ card.pid }}</Badge>
-          </template>
+      <Card title="运行时">
+        <template #actions>
+          <button class="ghost sm" :disabled="busy" @click="rebuildIndex()">重建向量索引</button>
+        </template>
+        <table class="data">
+          <tbody>
+            <tr><th style="width: 160px">向量模型</th><td class="mono">{{ index.model || '—' }}</td></tr>
+            <tr>
+              <th>向量索引</th>
+              <td>
+                {{ index.vectors }} 条
+                <span class="muted">{{ index.loaded ? '（已载入内存，约 ' + index.memory + ' MiB）' : '（尚未载入）' }}</span>
+              </td>
+            </tr>
+            <tr>
+              <th>人物分组</th>
+              <td>
+                {{ cluster.persons }} 组（阈值 {{ cluster.threshold }}，至少 {{ cluster.minGroupFaces }} 张成组）
+                <span class="muted">{{ cluster.centroidsLoaded ? '· 质心已载入' : '· 质心未载入' }}</span>
+              </td>
+            </tr>
+            <tr>
+              <th>Ollama</th>
+              <td>
+                <span v-if="!ollama.reachable" style="color: var(--warning)">
+                  不可达（{{ ollama.url || '未配置' }}）{{ ollama.error ? '：' + ollama.error : '' }}
+                </span>
+                <span v-else>
+                  <span class="mono">{{ ollama.model || '—' }}</span>
+                  {{ ollama.modelReady ? '已安装' : '未安装' }}
+                  · 上下文 {{ ollama.numCtx }}
+                  · 已装模型 {{ ollama.modelCount }} 个
+                  <span v-if="ollama.owned"> · 自拉服务 PID {{ ollama.pid }}（空闲 {{ ollama.idleSeconds }}s）</span>
+                </span>
+              </td>
+            </tr>
+            <tr><th>Ollama 模型目录</th><td class="mono small">{{ ollama.modelRoot || '—' }}</td></tr>
+            <tr><th>worker 配置</th><td class="small">{{ workerText }}</td></tr>
+            <tr><th>配置文件</th><td class="mono">{{ configPath || '（未启用）' }}</td></tr>
+          </tbody>
+        </table>
 
-          <div class="col">
-            <div class="small muted">{{ card.description }}</div>
-            <div class="small">
-              执行者 <span class="mono">{{ card.executor }}</span>
-              <span class="muted" v-if="card.inputSig"> · 指纹 <span class="mono">{{ card.inputSig }}</span></span>
-            </div>
-            <div class="small" style="color: var(--warning)" v-if="!card.ready && card.reason">{{ card.reason }}</div>
-            <div class="small" style="color: var(--warning)" v-if="card.probeError">侧车探测失败：{{ card.probeError }}</div>
-            <div class="small" style="color: var(--warning)" v-if="card.missingModels.length">
-              缺少模型：{{ card.missingModels.join('、') }}（运行 tools/ai/install.ps1）
-            </div>
-
-            <div class="progress"><div :style="{ width: card.percent + '%' }"></div></div>
-            <div class="small muted">
-              已处理 {{ card.done }} / {{ card.total }} · 排队 {{ card.pending }} · 尚无产物 {{ card.missing }} · 失败 {{ card.failed }}
-              <span v-if="card.idleSeconds > 0"> · 空闲 {{ card.idleSeconds }}s（{{ card.idleTimeout }}s 后自动退出）</span>
-            </div>
-
-            <div class="row">
-              <button
-                class="ghost sm"
-                v-if="card.hasSidecar"
-                :disabled="busy"
-                @click="toggleProcess(card)"
-              >{{ card.running ? '释放模型' : '启动模型' }}</button>
-              <button class="ghost sm" v-if="card.isVlm" :disabled="busy" @click="unloadVlm()">卸载 VLM 模型</button>
-              <button
-                class="ghost sm"
-                :disabled="busy || card.missing === 0"
-                @click="enqueueMissing(card)"
-              >补处理 {{ card.missing }}</button>
-              <button
-                class="ghost sm"
-                :disabled="busy || card.failed === 0"
-                @click="retryFailed(card)"
-              >重试失败项 {{ card.failed }}</button>
-              <button
-                class="ghost sm"
-                :disabled="busy || card.failed === 0"
-                @click="failureCap = failureCap === card.name ? '' : card.name"
-              >{{ failureCap === card.name ? '收起失败项' : '查看失败项 ' + card.failed }}</button>
-              <button class="danger sm" :disabled="busy" @click="regenerate(card)">全量重生成</button>
-            </div>
-
-            <OverviewFailures
-              v-if="failureCap === card.name"
-              :key="card.name"
-              :capability="card.name"
-              :label="card.label"
-              :busy="busy"
-              :run="act"
-              @close="failureCap = ''"
-            />
+        <div class="col" style="margin-top: 12px">
+          <div class="row">
+            <span class="small">VLM 标注模型</span>
+            <span class="small muted">
+              {{ ollama.activeModel ? '正在推理：' + ollama.activeModel : '当前空闲' }}
+            </span>
           </div>
-        </Card>
-
-        <Card title="运行时">
-          <template #actions>
-            <button class="ghost sm" :disabled="busy" @click="rebuildIndex()">重建向量索引</button>
-          </template>
-          <table class="data">
-            <tbody>
-              <tr><th style="width: 160px">向量模型</th><td class="mono">{{ index.model || '—' }}</td></tr>
-              <tr>
-                <th>向量索引</th>
-                <td>
-                  {{ index.vectors }} 条
-                  <span class="muted">{{ index.loaded ? '（已载入内存，约 ' + index.memory + ' MiB）' : '（尚未载入）' }}</span>
-                </td>
-              </tr>
-              <tr>
-                <th>人物分组</th>
-                <td>
-                  {{ cluster.persons }} 组（阈值 {{ cluster.threshold }}，至少 {{ cluster.minGroupFaces }} 张成组）
-                  <span class="muted">{{ cluster.centroidsLoaded ? '· 质心已载入' : '· 质心未载入' }}</span>
-                </td>
-              </tr>
-              <tr>
-                <th>Ollama</th>
-                <td>
-                  <span v-if="!ollama.reachable" style="color: var(--warning)">
-                    不可达（{{ ollama.url || '未配置' }}）{{ ollama.error ? '：' + ollama.error : '' }}
-                  </span>
-                  <span v-else>
-                    <span class="mono">{{ ollama.model || '—' }}</span>
-                    {{ ollama.modelReady ? '已安装' : '未安装' }}
-                    · 上下文 {{ ollama.numCtx }}
-                    · 已装模型 {{ ollama.modelCount }} 个
-                    <span v-if="ollama.owned"> · 自拉服务 PID {{ ollama.pid }}（空闲 {{ ollama.idleSeconds }}s）</span>
-                  </span>
-                </td>
-              </tr>
-              <tr><th>Ollama 模型目录</th><td class="mono small">{{ ollama.modelRoot || '—' }}</td></tr>
-              <tr><th>worker 配置</th><td class="small">{{ workerText }}</td></tr>
-              <tr><th>配置文件</th><td class="mono">{{ configPath || '（未启用）' }}</td></tr>
-            </tbody>
-          </table>
-
-          <div class="col" style="margin-top: 12px">
-            <div class="row">
-              <span class="small">VLM 标注模型</span>
-              <span class="small muted">
-                {{ ollama.activeModel ? '正在推理：' + ollama.activeModel : '当前空闲' }}
-              </span>
-            </div>
-            <div class="small" style="color: var(--warning)" v-if="ollama.lastSwitch">最近模型切换：{{ ollama.lastSwitch }}</div>
-            <div class="small" style="color: var(--warning)" v-if="!ollama.reachable">
-              本机 Ollama 未运行（或没有已安装模型）：模型清单此刻是空的，点上面的「启动模型」由服务端
-              按需拉起（模型目录 {{ ollama.modelRoot || '默认' }}）。
-            </div>
-            <div class="small muted" v-if="!vlmCandidates.length">当前没有可用模型，因此没有可选清单</div>
-            <div class="row" v-else>
-              <button
-                v-for="candidate in vlmCandidates"
-                :key="candidate.model"
-                class="sm"
-                :class="candidate.current ? 'primary' : 'ghost'"
-                :disabled="busy || candidate.current"
-                :title="candidate.model"
-                @click="switchVlmModel(candidate)"
-              >{{ candidate.model }}{{ candidate.vision ? '' : '（非视觉模型）' }}</button>
-            </div>
-            <div class="small muted">
-              候选实时来自本机 Ollama 的已安装模型（ollama pull/rm 后刷新即可，无需改配置）；
-              切换模型后已有结果保持原样，需要更新时请手动重新生成。
-              标注必须有视觉能力，只有对话模型时请勿切到它。
-            </div>
-
-            <div class="row">
-              <span class="small">入库自动处理</span>
-              <button
-                v-for="option in capabilityOptions"
-                :key="option.name"
-                class="sm"
-                :class="inAuto(option.name) ? 'primary' : 'ghost'"
-                :disabled="busy"
-                @click="toggleAuto(option.name)"
-              >{{ option.label }}</button>
-            </div>
-            <div class="small muted">选中的能力会在媒体入库后自动排队；未选中的需要手动提交。VLM 标注耗时长，默认不自动执行。</div>
+          <div class="small" style="color: var(--warning)" v-if="ollama.lastSwitch">最近模型切换：{{ ollama.lastSwitch }}</div>
+          <div class="small" style="color: var(--warning)" v-if="!ollama.reachable">
+            本机 Ollama 未运行（或没有已安装模型）：模型清单此刻是空的，点上面的「启动模型」由服务端
+            按需拉起（模型目录 {{ ollama.modelRoot || '默认' }}）。
           </div>
-        </Card>
+          <div class="small muted" v-if="!vlmCandidates.length">当前没有可用模型，因此没有可选清单</div>
+          <div class="row" v-else>
+            <button
+              v-for="candidate in vlmCandidates"
+              :key="candidate.model"
+              class="sm"
+              :class="candidate.current ? 'primary' : 'ghost'"
+              :disabled="busy || candidate.current"
+              :title="candidate.model"
+              @click="switchVlmModel(candidate)"
+            >{{ candidate.model }}{{ candidate.vision ? '' : '（非视觉模型）' }}</button>
+          </div>
+          <div class="small muted">
+            候选实时来自本机 Ollama 的已安装模型（ollama pull/rm 后刷新即可，无需改配置）；
+            切换模型后已有结果保持原样，需要更新时请手动重新生成。
+            标注必须有视觉能力，只有对话模型时请勿切到它。
+          </div>
 
-        <OverviewSettings :runtime="runtime" @saved="doRefresh" />
-      </template>
-    </div>`,
-};
+          <div class="row">
+            <span class="small">入库自动处理</span>
+            <button
+              v-for="option in capabilityOptions"
+              :key="option.name"
+              class="sm"
+              :class="inAuto(option.name) ? 'primary' : 'ghost'"
+              :disabled="busy"
+              @click="toggleAuto(option.name)"
+            >{{ option.label }}</button>
+          </div>
+          <div class="small muted">选中的能力会在媒体入库后自动排队；未选中的需要手动提交。VLM 标注耗时长，默认不自动执行。</div>
+        </div>
+      </Card>
+
+      <OverviewSettings :runtime="runtime" @saved="doRefresh" />
+    </template>
+  </div>
+</template>

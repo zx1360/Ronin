@@ -13,6 +13,7 @@ import (
 
 	"monarch/gizmos/internal/gallery/pipeline"
 	"monarch/gizmos/internal/gallery/refresh"
+	"monarch/internal/config"
 	"monarch/internal/galleryfs"
 	"monarch/internal/service/db"
 )
@@ -77,7 +78,7 @@ func main() {
 	fmt.Printf("  - Deleted (已删除): %s\n", paths.deletedDir)
 	fmt.Println("=================================")
 
-	if err := db.OpenExisting(galleryDBFile()); err != nil {
+	if err := db.InitGallery(config.DbConfig{File: galleryDBFile(), SchemaFile: filepath.Join(findBackendRoot(), schemaMarker)}); err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()

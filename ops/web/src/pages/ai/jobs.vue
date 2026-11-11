@@ -1,12 +1,16 @@
+<script>
 // 任务队列：/API/ai/jobs 的列表与进度，按能力/状态过滤，支持一键重试失败项。
 //
 // 能力过滤项来自服务端状态（capabilities），端上不硬编码能力清单。
 // 单页条数由服务端 limit/offset 承担：队列可能有上万条，一次全量渲染既慢又没意义。
 
-import { ref, computed, watch, onMounted } from '../../vue.js';
-import { api } from '../../api.js';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useApi } from '../../api.js';
 import { state, toast } from '../../store.js';
-import { usePolling, Card, Placeholder, Badge } from '../../ui.js';
+import Card from '../../components/Card.vue';
+import Placeholder from '../../components/Placeholder.vue';
+import Badge from '../../components/Badge.vue';
+import { usePolling } from '../../composables.js';
 import { formatTime } from '../../utils.js';
 import { capabilityLabel, jobStatusKind, jobStatusText, num } from './shared.js';
 
@@ -29,6 +33,7 @@ export default {
     active: { type: Boolean, default: false },
   },
   setup(props) {
+    const api = useApi();
     const jobs = ref([]);
     const total = ref(0);
     const capability = ref('');
@@ -72,6 +77,7 @@ export default {
           clamping = false;
         }
       } catch (err) {
+      if (api.signal.aborted) return;
         if (!signal.aborted) error.value = err.message;
       } finally {
         loading.value = false;
@@ -136,6 +142,7 @@ export default {
         toast('已重新排队 ' + num(data && data.retried) + ' 条失败任务', 'success');
         await poller.trigger();
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('重试失败: ' + err.message, 'error');
       } finally {
         retrying.value = false;
@@ -154,76 +161,79 @@ export default {
       capabilityLabel, jobStatusText,
     };
   },
-  template: `
-    <div>
-      <Card title="任务队列">
-        <template #actions>
-          <span class="small muted" v-if="loading">加载中…</span>
-          <button class="ghost sm" :disabled="retrying" @click="retryFailed()">
-            重试失败{{ capability ? '（当前能力）' : '（全部能力）' }}
-          </button>
-          <button class="ghost sm" @click="reload()">刷新</button>
-        </template>
-
-        <div class="small" style="color: var(--warning)" v-if="aiDisabled">
-          AI 处理层已通过 AI_ENABLED=false 关闭，队列不会有新进展。
-        </div>
-
-        <div class="toolbar">
-          <label class="field" style="min-width: 200px">
-            能力
-            <select v-model="capability" @change="applyFilter()">
-              <option value="">全部</option>
-              <option v-for="item in capabilityOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </label>
-          <label class="field" style="min-width: 160px">
-            状态
-            <select v-model="status" @change="applyFilter()">
-              <option v-for="item in STATUS_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </label>
-          <label class="field" style="min-width: 110px">
-            每页
-            <select v-model.number="pageSize" @change="changePageSize()">
-              <option v-for="size in PAGE_SIZES" :key="size" :value="size">{{ size }} 条</option>
-            </select>
-          </label>
-          <span class="grow"></span>
-          <span class="small muted" style="padding-bottom: 8px">{{ rangeText }}</span>
-        </div>
-
-        <Placeholder v-if="error" :error="'获取 /API/ai/jobs 失败: ' + error" />
-        <Placeholder v-else-if="!rows.length" text="没有符合条件的任务" />
-        <template v-else>
-          <table class="data sticky">
-            <thead>
-              <tr>
-                <th>能力</th><th>状态</th><th>媒体</th><th>尝试</th><th>输入指纹</th><th>入队</th><th>最近更新</th><th>最近错误</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in rows" :key="row.id">
-                <td>{{ row.capabilityLabel }}</td>
-                <td><Badge :kind="row.statusKind">{{ row.statusText }}</Badge></td>
-                <td class="mono" :title="row.mediaId">{{ row.mediaShort }}</td>
-                <td>{{ row.attempts }}</td>
-                <td class="mono">{{ row.inputSig || '—' }}</td>
-                <td class="small">{{ row.created }}</td>
-                <td class="small">{{ row.updated }}</td>
-                <td class="small" style="color: var(--warning)">{{ row.lastError }}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="pager">
-            <button class="ghost sm" :disabled="loading || page <= 1" @click="gotoPage(1)">首页</button>
-            <button class="ghost sm" :disabled="loading || page <= 1" @click="gotoPage(page - 1)">上一页</button>
-            <span class="small muted">{{ rangeText }} · 每页 {{ pageSize }} 条 · 本页 {{ rows.length }} 条</span>
-            <button class="ghost sm" :disabled="loading || page >= lastPage" @click="gotoPage(page + 1)">下一页</button>
-            <button class="ghost sm" :disabled="loading || page >= lastPage" @click="gotoPage(lastPage)">末页</button>
-          </div>
-        </template>
-      </Card>
-    </div>`,
 };
+</script>
+
+<template>
+  <div>
+    <Card title="任务队列">
+      <template #actions>
+        <span class="small muted" v-if="loading">加载中…</span>
+        <button class="ghost sm" :disabled="retrying" @click="retryFailed()">
+          重试失败{{ capability ? '（当前能力）' : '（全部能力）' }}
+        </button>
+        <button class="ghost sm" @click="reload()">刷新</button>
+      </template>
+
+      <div class="small" style="color: var(--warning)" v-if="aiDisabled">
+        AI 处理层已通过 AI_ENABLED=false 关闭，队列不会有新进展。
+      </div>
+
+      <div class="toolbar">
+        <label class="field" style="min-width: 200px">
+          能力
+          <select v-model="capability" @change="applyFilter()">
+            <option value="">全部</option>
+            <option v-for="item in capabilityOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <label class="field" style="min-width: 160px">
+          状态
+          <select v-model="status" @change="applyFilter()">
+            <option v-for="item in STATUS_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <label class="field" style="min-width: 110px">
+          每页
+          <select v-model.number="pageSize" @change="changePageSize()">
+            <option v-for="size in PAGE_SIZES" :key="size" :value="size">{{ size }} 条</option>
+          </select>
+        </label>
+        <span class="grow"></span>
+        <span class="small muted" style="padding-bottom: 8px">{{ rangeText }}</span>
+      </div>
+
+      <Placeholder v-if="error" :error="'获取 /API/ai/jobs 失败: ' + error" />
+      <Placeholder v-else-if="!rows.length" text="没有符合条件的任务" />
+      <template v-else>
+        <table class="data sticky">
+          <thead>
+            <tr>
+              <th>能力</th><th>状态</th><th>媒体</th><th>尝试</th><th>输入指纹</th><th>入队</th><th>最近更新</th><th>最近错误</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in rows" :key="row.id">
+              <td>{{ row.capabilityLabel }}</td>
+              <td><Badge :kind="row.statusKind">{{ row.statusText }}</Badge></td>
+              <td class="mono" :title="row.mediaId">{{ row.mediaShort }}</td>
+              <td>{{ row.attempts }}</td>
+              <td class="mono">{{ row.inputSig || '—' }}</td>
+              <td class="small">{{ row.created }}</td>
+              <td class="small">{{ row.updated }}</td>
+              <td class="small" style="color: var(--warning)">{{ row.lastError }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pager">
+          <button class="ghost sm" :disabled="loading || page <= 1" @click="gotoPage(1)">首页</button>
+          <button class="ghost sm" :disabled="loading || page <= 1" @click="gotoPage(page - 1)">上一页</button>
+          <span class="small muted">{{ rangeText }} · 每页 {{ pageSize }} 条 · 本页 {{ rows.length }} 条</span>
+          <button class="ghost sm" :disabled="loading || page >= lastPage" @click="gotoPage(page + 1)">下一页</button>
+          <button class="ghost sm" :disabled="loading || page >= lastPage" @click="gotoPage(lastPage)">末页</button>
+        </div>
+      </template>
+    </Card>
+  </div>
+</template>

@@ -1,7 +1,9 @@
-import { ref, computed, onMounted } from '../vue.js';
-import { api } from '../api.js';
+<script>
+import { ref, computed, onMounted } from 'vue';
+import { useApi } from '../api.js';
 import { state, navigate, toast, confirmAction } from '../store.js';
-import { usePolling, Card } from '../ui.js';
+import Card from '../components/Card.vue';
+import { usePolling } from '../composables.js';
 import { taskActive } from '../utils.js';
 
 const MODES = [
@@ -14,6 +16,7 @@ export default {
   components: { Card },
   props: { form: { type: Object, required: true } },
   setup(props) {
+    const api = useApi();
     const tasks = ref([]);
     const error = ref('');
     const starting = ref(false);
@@ -25,6 +28,7 @@ export default {
         tasks.value = data?.data?.tasks || [];
         error.value = '';
       } catch (err) {
+      if (api.signal.aborted) return;
         if (!signal.aborted) error.value = err.message;
       } finally { loading.value = false; }
     };
@@ -61,6 +65,7 @@ export default {
         toast(`任务已启动: ${data?.data?.task_id || ''}`, 'success');
         navigate(`/tasks?task=gallery:${encodeURIComponent(data?.data?.task_id || '')}`);
       } catch (err) {
+      if (api.signal.aborted) return;
         toast(`启动失败: ${err.message}`, 'error');
       } finally {
         starting.value = false;
@@ -72,62 +77,65 @@ export default {
       start, poller,
     };
   },
-  template: `
-    <div>
-      <Card title="媒体库维护">
-        <template #actions>
-          <span class="badge" :class="state.cli.gallery.available ? 'success' : 'error'">
-            {{ state.cli.gallery.available ? '就绪' : '不可用' }}
-          </span>
-        </template>
-
-        <form class="col" @submit.prevent="start">
-          <div v-if="error" class="row error">{{ error }} <button type="button" class="ghost sm" @click="poller.trigger()">重试</button></div>
-          <div class="small" style="color: var(--warning)" v-if="!state.cli.gallery.available">
-            {{ state.cli.gallery.message }}
-          </div>
-          <div class="small muted">媒体库根目录: <span class="mono">{{ state.paths.galleryDir }}</span></div>
-
-          <label class="field" style="max-width: 480px">
-            运行模式
-            <select v-model="form.mode">
-              <option v-for="item in MODES" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </label>
-          <div class="small muted">{{ currentMode.hint }}</div>
-
-          <details @invalid.capture="$event.currentTarget.open = true">
-            <summary>高级设置</summary>
-            <div class="grid cols-2">
-              <label class="field">
-                并发数 (1-64)
-                <input type="number" min="1" max="64" required v-model.number="form.concurrency" />
-              </label>
-              <label class="field">
-                批量大小 (1-5000)
-                <input type="number" min="1" max="5000" required v-model.number="form.batch" />
-              </label>
-            </div>
-
-            <div class="grid cols-2" v-if="form.mode === 'refresh'" style="margin-top: 12px">
-              <label class="field">
-                预览图最大边（0 = 不重建）
-                <input type="number" min="0" max="16384" required v-model.number="form.resizePreview" />
-              </label>
-              <label class="field">
-                缩略图边长（0 = 不重建）
-                <input type="number" min="0" max="16384" required v-model.number="form.resizeThumb" />
-              </label>
-            </div>
-          </details>
-
-          <div class="row">
-            <button class="primary" :disabled="!canStart">
-              {{ starting ? '启动中…' : currentMode.action }}
-            </button>
-            <span class="small" style="color: var(--warning)" v-if="hasRunning">已有任务在运行</span>
-          </div>
-        </form>
-      </Card>
-    </div>`,
 };
+</script>
+
+<template>
+  <div>
+    <Card title="媒体库维护">
+      <template #actions>
+        <span class="badge" :class="state.cli.gallery.available ? 'success' : 'error'">
+          {{ state.cli.gallery.available ? '就绪' : '不可用' }}
+        </span>
+      </template>
+
+      <form class="col" @submit.prevent="start">
+        <div v-if="error" class="row error">{{ error }} <button type="button" class="ghost sm" @click="poller.trigger()">重试</button></div>
+        <div class="small" style="color: var(--warning)" v-if="!state.cli.gallery.available">
+          {{ state.cli.gallery.message }}
+        </div>
+        <div class="small muted">媒体库根目录: <span class="mono">{{ state.paths.galleryDir }}</span></div>
+
+        <label class="field" style="max-width: 480px">
+          运行模式
+          <select v-model="form.mode">
+            <option v-for="item in MODES" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <div class="small muted">{{ currentMode.hint }}</div>
+
+        <details @invalid.capture="$event.currentTarget.open = true">
+          <summary>高级设置</summary>
+          <div class="grid cols-2">
+            <label class="field">
+              并发数 (1-64)
+              <input type="number" min="1" max="64" required v-model.number="form.concurrency" />
+            </label>
+            <label class="field">
+              批量大小 (1-5000)
+              <input type="number" min="1" max="5000" required v-model.number="form.batch" />
+            </label>
+          </div>
+
+          <div class="grid cols-2" v-if="form.mode === 'refresh'" style="margin-top: 12px">
+            <label class="field">
+              预览图最大边（0 = 不重建）
+              <input type="number" min="0" max="16384" required v-model.number="form.resizePreview" />
+            </label>
+            <label class="field">
+              缩略图边长（0 = 不重建）
+              <input type="number" min="0" max="16384" required v-model.number="form.resizeThumb" />
+            </label>
+          </div>
+        </details>
+
+        <div class="row">
+          <button class="primary" :disabled="!canStart">
+            {{ starting ? '启动中…' : currentMode.action }}
+          </button>
+          <span class="small" style="color: var(--warning)" v-if="hasRunning">已有任务在运行</span>
+        </div>
+      </form>
+    </Card>
+  </div>
+</template>

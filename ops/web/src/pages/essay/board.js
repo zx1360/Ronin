@@ -1,4 +1,4 @@
-import { ref, computed, watch, onMounted, onUnmounted } from '../../vue.js';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { confirmAction, toast } from '../../store.js';
 import { useUserData, clone, day, stamp, labelTree, hiddenLabels, descendants } from '../user-data.js';
 import { draftStore } from './drafts.js';

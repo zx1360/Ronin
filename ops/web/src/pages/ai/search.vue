@@ -1,13 +1,17 @@
+<script>
 // 检索：文本搜图 / 以图搜图（本地上传或库内相似媒体），带结构化筛选与媒体 AI 结果详情。
 //
 // 筛选口径与后端 /API/ai/search 一致：tag_ids 为人工标签、vlm_tags 为 AI 标签
 // （只读，与人工标签物理隔离）、person_ids、mime_type、from/to。
 // 一页 60 条由服务端 limit/offset 分页，命中数可能远多于 60，故结果区自己滚动并支持续取。
 
-import { ref, computed, onUnmounted } from '../../vue.js';
-import { api } from '../../api.js';
+import { ref, computed, onUnmounted } from 'vue';
+import { useApi } from '../../api.js';
 import { toast } from '../../store.js';
-import { Card, Placeholder, Badge, MediaTile } from '../../ui.js';
+import Card from '../../components/Card.vue';
+import Placeholder from '../../components/Placeholder.vue';
+import Badge from '../../components/Badge.vue';
+import MediaTile from '../../components/MediaTile.vue';
 import { formatBytes, formatTime } from '../../utils.js';
 import { baseName, num, revealMedia, thumbUrl } from './shared.js';
 
@@ -37,6 +41,7 @@ export default {
     aiDisabled: { type: Boolean, default: false },
   },
   setup(props) {
+    const api = useApi();
     const query = ref('');
     const mode = ref('auto');
     const filters = ref({
@@ -200,6 +205,7 @@ export default {
         }
         return true;
       } catch (err) {
+      if (api.signal.aborted) return;
         if (id === requestId) failRequest(err, append);
         return false;
       } finally {
@@ -364,6 +370,7 @@ export default {
           faceCount: faces.length,
         };
       } catch (err) {
+      if (api.signal.aborted) return;
         if (id !== requestId || selectedId.value !== card.id) return;
         detailError.value = err.message;
       }
@@ -378,162 +385,165 @@ export default {
       selectHit, baseName, reveal: revealMedia,
     };
   },
-  template: `
-    <div>
-      <Card title="检索">
-        <div class="toolbar">
+};
+</script>
+
+<template>
+  <div>
+    <Card title="检索">
+      <div class="toolbar">
+        <label class="field">
+          检索方式
+          <select v-model="mode">
+            <option v-for="item in MODES" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <label class="field grow">
+          关键词
+          <input
+            v-model="query"
+            :placeholder="mode === 'filename' ? '文件名或扩展名，例如：IMG_2024、.mp4' : '用自然语言描述想要的画面，例如：可爱的猫娘、夜景街道'"
+            @keyup.enter="search()"
+          />
+        </label>
+        <button class="primary sm" :disabled="loading" @click="search()">{{ loading ? '检索中…' : '搜索' }}</button>
+        <button class="ghost sm" @click="clearResult()">清空</button>
+        <button class="ghost sm" :disabled="uploading" @click="pickImage()">
+          {{ uploading ? '上传检索中…' : '以图搜图（本地上传）' }}
+        </button>
+        <button class="ghost sm" @click="toggleFilters()">
+          筛选条件<span v-if="activeFilterCount">（已选 {{ activeFilterCount }} 项）</span>{{ filtersOpen ? ' ▲' : ' ▼' }}
+        </button>
+        <input ref="imageInput" type="file" accept="image/*" style="display: none" @change="onImagePicked" />
+      </div>
+      <div class="small muted">
+        智能模式有文本即走语义检索并把 OCR/描述/关键词命中加权；文字模式只匹配 OCR/描述/AI 关键词；
+        文件名模式匹配文件名及扩展名。以图搜图上传的图片只用于本次查询，不落库。
+        <span v-if="imageName"> 已选文件：<span class="mono">{{ imageName }}</span></span>
+      </div>
+      <div class="small" style="color: var(--warning)" v-if="filterError">{{ filterError }}</div>
+      <div class="small" style="color: var(--warning)" v-if="aiDisabled">
+        AI 处理层已通过 AI_ENABLED=false 关闭，检索接口可能不可用。
+      </div>
+
+      <div v-if="filtersOpen" style="margin-top: 12px">
+        <div v-if="filterLoading" class="small muted">加载筛选条件…</div>
+        <div class="grid cols-3">
           <label class="field">
-            检索方式
-            <select v-model="mode">
-              <option v-for="item in MODES" :key="item.value" :value="item.value">{{ item.label }}</option>
+            人工标签（任一命中，可多选）
+            <select multiple v-model="filters.tagIds">
+              <option v-for="item in tagOptions" :key="item.id" :value="item.id">{{ item.label }}（{{ item.count }}）</option>
             </select>
           </label>
-          <label class="field grow">
-            关键词
-            <input
-              v-model="query"
-              :placeholder="mode === 'filename' ? '文件名或扩展名，例如：IMG_2024、.mp4' : '用自然语言描述想要的画面，例如：可爱的猫娘、夜景街道'"
-              @keyup.enter="search()"
-            />
+          <label class="field">
+            AI 标签（只读，与人工标签隔离）
+            <select multiple v-model="filters.vlmTags">
+              <option v-for="item in vlmTagOptions" :key="item.id" :value="item.id">{{ item.label }}（{{ item.count }}）</option>
+            </select>
           </label>
-          <button class="primary sm" :disabled="loading" @click="search()">{{ loading ? '检索中…' : '搜索' }}</button>
-          <button class="ghost sm" @click="clearResult()">清空</button>
-          <button class="ghost sm" :disabled="uploading" @click="pickImage()">
-            {{ uploading ? '上传检索中…' : '以图搜图（本地上传）' }}
+          <label class="field">
+            人物分组
+            <select multiple v-model="filters.personIds">
+              <option v-for="item in personOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+            </select>
+          </label>
+          <label class="field">
+            媒体类型
+            <select v-model="filters.mimeType">
+              <option v-for="item in MIME_TYPES" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+          <label class="field">
+            拍摄时间（从）
+            <input type="date" v-model="filters.from" />
+          </label>
+          <label class="field">
+            拍摄时间（到）
+            <input type="date" v-model="filters.to" />
+          </label>
+        </div>
+        <div class="small muted" style="margin-top: 6px">
+          勾选项之间是「任一命中」；改完筛选条件后点「搜索」（或「以图搜图」）生效。
+        </div>
+      </div>
+    </Card>
+
+    <Card v-if="searched" title="结果">
+      <template #actions>
+        <span class="small muted">
+          命中 {{ total }} 张 · 已显示 {{ hits.length }} 张 · 模式 {{ resultModeText }}
+        </span>
+      </template>
+      <Placeholder v-if="error && !hitCards.length" :error="'检索失败: ' + error" />
+      <Placeholder v-else-if="!hitCards.length" text="没有命中的媒体" />
+      <template v-else>
+        <div class="small" style="color: var(--warning)" v-if="error">本次请求失败：{{ error }}</div>
+        <div class="scroll-panel tall">
+          <div class="media-grid wide">
+            <MediaTile
+              v-for="card in hitCards"
+              :key="card.id"
+              :src="card.thumb"
+              :caption="card.name + (card.scoreText ? ' · ' + card.scoreText : '')"
+              :selected="selectedId === card.id"
+              @click="selectHit(card)"
+            />
+          </div>
+        </div>
+        <div class="pager" v-if="pageable">
+          <button class="ghost sm" :disabled="loading || uploading || loadingMore || !hasMore" @click="loadMore()">
+            {{ loadingMore ? '加载中…' : (hasMore ? '加载更多（每批 ' + PAGE_SIZE + ' 张）' : '已全部加载') }}
           </button>
-          <button class="ghost sm" @click="toggleFilters()">
-            筛选条件<span v-if="activeFilterCount">（已选 {{ activeFilterCount }} 项）</span>{{ filtersOpen ? ' ▲' : ' ▼' }}
-          </button>
-          <input ref="imageInput" type="file" accept="image/*" style="display: none" @change="onImagePicked" />
+          <button class="ghost sm" :disabled="loading || loadingMore" @click="restart()">重新开始</button>
+          <span class="small muted">已显示 {{ hits.length }} / {{ total }}</span>
         </div>
-        <div class="small muted">
-          智能模式有文本即走语义检索并把 OCR/描述/关键词命中加权；文字模式只匹配 OCR/描述/AI 关键词；
-          文件名模式匹配文件名及扩展名。以图搜图上传的图片只用于本次查询，不落库。
-          <span v-if="imageName"> 已选文件：<span class="mono">{{ imageName }}</span></span>
-        </div>
-        <div class="small" style="color: var(--warning)" v-if="filterError">{{ filterError }}</div>
-        <div class="small" style="color: var(--warning)" v-if="aiDisabled">
-          AI 处理层已通过 AI_ENABLED=false 关闭，检索接口可能不可用。
-        </div>
+      </template>
+    </Card>
 
-        <div v-if="filtersOpen" style="margin-top: 12px">
-          <div v-if="filterLoading" class="small muted">加载筛选条件…</div>
-          <div class="grid cols-3">
-            <label class="field">
-              人工标签（任一命中，可多选）
-              <select multiple v-model="filters.tagIds">
-                <option v-for="item in tagOptions" :key="item.id" :value="item.id">{{ item.label }}（{{ item.count }}）</option>
-              </select>
-            </label>
-            <label class="field">
-              AI 标签（只读，与人工标签隔离）
-              <select multiple v-model="filters.vlmTags">
-                <option v-for="item in vlmTagOptions" :key="item.id" :value="item.id">{{ item.label }}（{{ item.count }}）</option>
-              </select>
-            </label>
-            <label class="field">
-              人物分组
-              <select multiple v-model="filters.personIds">
-                <option v-for="item in personOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-              </select>
-            </label>
-            <label class="field">
-              媒体类型
-              <select v-model="filters.mimeType">
-                <option v-for="item in MIME_TYPES" :key="item.value" :value="item.value">{{ item.label }}</option>
-              </select>
-            </label>
-            <label class="field">
-              拍摄时间（从）
-              <input type="date" v-model="filters.from" />
-            </label>
-            <label class="field">
-              拍摄时间（到）
-              <input type="date" v-model="filters.to" />
-            </label>
-          </div>
-          <div class="small muted" style="margin-top: 6px">
-            勾选项之间是「任一命中」；改完筛选条件后点「搜索」（或「以图搜图」）生效。
+    <Card v-else-if="error" title="检索">
+      <Placeholder :error="'检索失败: ' + error" />
+    </Card>
+
+    <Card v-if="selectedHit" :title="'媒体详情 · ' + selectedHit.name">
+      <template #actions>
+        <Badge v-if="selectedHit.isVideo" kind="primary">视频</Badge>
+        <Badge v-if="selectedHit.sourceText" kind="info">{{ selectedHit.sourceText }}</Badge>
+        <button class="ghost sm" :disabled="loading" @click="similarTo(selectedHit.id)">以图搜图</button>
+      </template>
+
+      <div class="grid cols-2">
+        <div class="col">
+          <img :src="selectedHit.thumb" alt="" style="width: 100%; border-radius: 6px" />
+          <div class="row">
+            <button class="ghost sm" @click="reveal(selectedHit.filePath)">打开所在目录</button>
+            <button class="ghost sm" :disabled="loading" @click="similarTo(selectedHit.id)">以图搜图</button>
           </div>
         </div>
-      </Card>
+        <div class="col">
+          <div class="small">路径 <span class="mono">{{ selectedHit.filePath || '—' }}</span></div>
+          <div class="small">类型 <span class="mono">{{ selectedHit.mimeType || '—' }}</span>
+            · 体积 {{ selectedHit.size }}
+            · 拍摄 {{ selectedHit.captured }}
+            · {{ selectedHit.scoreText || '未评分' }}</div>
 
-      <Card v-if="searched" title="结果">
-        <template #actions>
-          <span class="small muted">
-            命中 {{ total }} 张 · 已显示 {{ hits.length }} 张 · 模式 {{ resultModeText }}
-          </span>
-        </template>
-        <Placeholder v-if="error && !hitCards.length" :error="'检索失败: ' + error" />
-        <Placeholder v-else-if="!hitCards.length" text="没有命中的媒体" />
-        <template v-else>
-          <div class="small" style="color: var(--warning)" v-if="error">本次请求失败：{{ error }}</div>
-          <div class="scroll-panel tall">
-            <div class="media-grid wide">
-              <MediaTile
-                v-for="card in hitCards"
-                :key="card.id"
-                :src="card.thumb"
-                :caption="card.name + (card.scoreText ? ' · ' + card.scoreText : '')"
-                :selected="selectedId === card.id"
-                @click="selectHit(card)"
-              />
+          <Placeholder v-if="detailError" :error="'获取 AI 结果失败: ' + detailError" />
+          <Placeholder v-else-if="!detail" text="正在获取 /API/ai/media/:id…" />
+          <template v-else>
+            <div class="small">感知哈希 pHash <span class="mono">{{ detail.phash }}</span>
+              · 向量 <span class="mono">{{ detail.hasVector ? '已有' : '无' }}</span>
+              · 人脸 <span class="mono">{{ detail.faceCount }}</span> 张</div>
+            <div class="small">
+              AI 标签
+              <span v-if="!detail.vlmTags.length" class="muted">（无）</span>
+              <Badge v-for="tag in detail.vlmTags" :key="tag" kind="primary" style="margin-right: 4px">{{ tag }}</Badge>
             </div>
-          </div>
-          <div class="pager" v-if="pageable">
-            <button class="ghost sm" :disabled="loading || uploading || loadingMore || !hasMore" @click="loadMore()">
-              {{ loadingMore ? '加载中…' : (hasMore ? '加载更多（每批 ' + PAGE_SIZE + ' 张）' : '已全部加载') }}
-            </button>
-            <button class="ghost sm" :disabled="loading || loadingMore" @click="restart()">重新开始</button>
-            <span class="small muted">已显示 {{ hits.length }} / {{ total }}</span>
-          </div>
-        </template>
-      </Card>
-
-      <Card v-else-if="error" title="检索">
-        <Placeholder :error="'检索失败: ' + error" />
-      </Card>
-
-      <Card v-if="selectedHit" :title="'媒体详情 · ' + selectedHit.name">
-        <template #actions>
-          <Badge v-if="selectedHit.isVideo" kind="primary">视频</Badge>
-          <Badge v-if="selectedHit.sourceText" kind="info">{{ selectedHit.sourceText }}</Badge>
-          <button class="ghost sm" :disabled="loading" @click="similarTo(selectedHit.id)">以图搜图</button>
-        </template>
-
-        <div class="grid cols-2">
-          <div class="col">
-            <img :src="selectedHit.thumb" alt="" style="width: 100%; border-radius: 6px" />
-            <div class="row">
-              <button class="ghost sm" @click="reveal(selectedHit.filePath)">打开所在目录</button>
-              <button class="ghost sm" :disabled="loading" @click="similarTo(selectedHit.id)">以图搜图</button>
-            </div>
-          </div>
-          <div class="col">
-            <div class="small">路径 <span class="mono">{{ selectedHit.filePath || '—' }}</span></div>
-            <div class="small">类型 <span class="mono">{{ selectedHit.mimeType || '—' }}</span>
-              · 体积 {{ selectedHit.size }}
-              · 拍摄 {{ selectedHit.captured }}
-              · {{ selectedHit.scoreText || '未评分' }}</div>
-
-            <Placeholder v-if="detailError" :error="'获取 AI 结果失败: ' + detailError" />
-            <Placeholder v-else-if="!detail" text="正在获取 /API/ai/media/:id…" />
-            <template v-else>
-              <div class="small">感知哈希 pHash <span class="mono">{{ detail.phash }}</span>
-                · 向量 <span class="mono">{{ detail.hasVector ? '已有' : '无' }}</span>
-                · 人脸 <span class="mono">{{ detail.faceCount }}</span> 张</div>
-              <div class="small">
-                AI 标签
-                <span v-if="!detail.vlmTags.length" class="muted">（无）</span>
-                <Badge v-for="tag in detail.vlmTags" :key="tag" kind="primary" style="margin-right: 4px">{{ tag }}</Badge>
-              </div>
-              <div class="small">描述</div>
-              <div class="small muted" style="white-space: pre-wrap">{{ detail.caption || '（无）' }}</div>
-              <div class="small">OCR 文字</div>
-              <div class="small muted" style="white-space: pre-wrap">{{ detail.ocrText || '（无）' }}</div>
-            </template>
-          </div>
+            <div class="small">描述</div>
+            <div class="small muted" style="white-space: pre-wrap">{{ detail.caption || '（无）' }}</div>
+            <div class="small">OCR 文字</div>
+            <div class="small muted" style="white-space: pre-wrap">{{ detail.ocrText || '（无）' }}</div>
+          </template>
         </div>
-      </Card>
-    </div>`,
-};
+      </div>
+    </Card>
+  </div>
+</template>

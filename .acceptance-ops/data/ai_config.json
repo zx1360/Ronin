@@ -1,0 +1,17 @@
+{
+  "runtime": {
+    "idle_timeout_seconds": 120,
+    "job_timeout_seconds": 900,
+    "batch_size": 32,
+    "max_attempts": 3,
+    "workers": 2,
+    "device": "auto",
+    "auto_capabilities": [
+      "phash",
+      "embed",
+      "face",
+      "ocr"
+    ],
+    "vlm_model": ""
+  }
+}

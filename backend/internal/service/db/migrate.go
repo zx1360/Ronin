@@ -2,9 +2,9 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
-	"strings"
 )
 
 // 旧表按需补列；新增列时同时更新 sqlite.sql，供全新库建表。
@@ -32,18 +32,18 @@ var addedColumns = []addedColumn{
 }
 
 // ensureColumns 补齐缺失的列；表不存在时跳过（该模块未启用）。
-func ensureColumns(ctx context.Context) error {
-	existing, err := tableColumns(ctx)
+func ensureColumns(ctx context.Context, tx *sql.Tx) error {
+	existing, err := tableColumns(ctx, tx)
 	if err != nil {
 		return err
 	}
 	for _, column := range addedColumns {
 		columns, ok := existing[column.table]
-		if !ok || columns[column.name] {
+		if !ok || len(columns) == 0 || columns[column.name] {
 			continue
 		}
 		stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", column.table, column.ddl)
-		if _, err := writePool.ExecContext(ctx, stmt); err != nil {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("补充列 %s.%s 失败: %w", column.table, column.name, err)
 		}
 		log.Printf("数据库迁移：%s 增加列 %s", column.table, column.name)
@@ -51,27 +51,27 @@ func ensureColumns(ctx context.Context) error {
 	return nil
 }
 
-func ensureUserDataSync(ctx context.Context) error {
+func ensureUserDataSync(ctx context.Context, tx *sql.Tx) error {
 	// 同步版本由客户端提供；旧触发器会破坏其时间顺序。
 	for _, table := range []string{"essay_articles", "essay_labels", "essay_year_summaries", "booklet_styles", "booklet_records"} {
-		if _, err := writePool.ExecContext(ctx, "DROP TRIGGER IF EXISTS trg_"+table+"_updated_at"); err != nil {
+		if _, err := tx.ExecContext(ctx, "DROP TRIGGER IF EXISTS trg_"+table+"_updated_at"); err != nil {
 			return err
 		}
 	}
-	_, err := writePool.ExecContext(ctx, `INSERT INTO essay_labels(id,name)
+	_, err := tx.ExecContext(ctx, `INSERT INTO essay_labels(id,name)
 		SELECT '00000000-0000-4000-8000-000000000001','隐藏'
 		WHERE NOT EXISTS (SELECT 1 FROM essay_labels WHERE id='00000000-0000-4000-8000-000000000001' OR (name='隐藏' AND parent_id IS NULL))`)
 	return err
 }
 
 // tableColumns 返回各表已有列名集合（只关心 addedColumns 涉及的列）。
-func tableColumns(ctx context.Context) (map[string]map[string]bool, error) {
+func tableColumns(ctx context.Context, tx *sql.Tx) (map[string]map[string]bool, error) {
 	tables := map[string]map[string]bool{}
 	for _, column := range addedColumns {
 		if _, ok := tables[column.table]; ok {
 			continue
 		}
-		columns, err := columnsOf(ctx, column.table)
+		columns, err := columnsOf(ctx, tx, column.table)
 		if err != nil {
 			return nil, err
 		}
@@ -81,12 +81,9 @@ func tableColumns(ctx context.Context) (map[string]map[string]bool, error) {
 }
 
 // columnsOf 查询单表列名；表不存在时返回 nil（调用方据 nil 跳过）。
-func columnsOf(ctx context.Context, table string) (map[string]bool, error) {
-	rows, err := writePool.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
+func columnsOf(ctx context.Context, tx *sql.Tx, table string) (map[string]bool, error) {
+	rows, err := tx.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
 	if err != nil {
-		if strings.Contains(err.Error(), "no such table") {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("读取表结构失败 (%s): %w", table, err)
 	}
 	defer rows.Close()

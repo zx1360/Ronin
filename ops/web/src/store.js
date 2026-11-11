@@ -3,7 +3,7 @@
 // 偏好由服务端持有（static/data/ops_web.json），页面只在内存中镜像一份，
 // 不写 localStorage 等浏览器存储。
 
-import { reactive } from './vue.js';
+import { reactive } from 'vue';
 import { api, setApiKey } from './api.js';
 
 let leaveGuard;

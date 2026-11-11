@@ -1,0 +1,92 @@
+<script>
+// 应用入口：装配侧边导航、顶部状态栏与页面路由。
+
+import { computed, onMounted, onUnmounted } from 'vue';
+import { state, bootstrap, navigate, parseRoute, canLeave } from './store.js';
+import Toasts from './components/Toasts.vue';
+import ConfirmHost from './components/ConfirmHost.vue';
+import DashboardPage from './pages/dashboard.vue';
+import AiPage from './pages/ai.vue';
+import ComixPage from './pages/comix.vue';
+import TasksPage from './pages/tasks.vue';
+import SettingsPage from './pages/settings.vue';
+import HelpPage from './pages/help.vue';
+import BookletPage from './pages/booklet.vue';
+import EssayPage from './pages/essay.vue';
+
+/** 导航项：顺序即侧边栏顺序。 */
+export const routes = [
+  { path: '/dashboard', group: '运行与维护', label: '工作台', component: DashboardPage },
+  { path: '/tasks', group: '运行与维护', label: '任务中心', component: TasksPage },
+  { path: '/ai', group: '运行与维护', label: 'AI 与检索', component: AiPage },
+  { path: '/comix', group: '运行与维护', label: '漫画管理', component: ComixPage },
+  { path: '/essay', group: '个人数据', label: '随笔', component: EssayPage },
+  { path: '/booklet', group: '个人数据', label: '积微 · 打卡', component: BookletPage },
+  { path: '/settings', group: '平台', label: '设置与连接', component: SettingsPage },
+  { path: '/help', group: '平台', label: '使用说明', component: HelpPage },
+];
+
+export default {
+  components: { Toasts, ConfirmHost },
+  setup() {
+    const current = computed(() => routes.find((item) => item.path === state.route) || routes[0]);
+    const groups = [...new Set(routes.map((item) => item.group))].map((label) => ({ label, items: routes.filter((item) => item.group === label) }));
+
+    let navigation;
+    const onHashChange = async () => {
+      const hash = window.location.hash, next = parseRoute();
+      if (next === state.route) return;
+      const allowed = await (navigation ??= Promise.resolve(canLeave()).finally(() => { navigation = null; }));
+      if (window.location.hash !== hash) return;
+      if (allowed) state.route = next;
+      else window.history.replaceState(null, '', '#' + state.route);
+    };
+
+    onMounted(() => {
+      window.addEventListener('hashchange', onHashChange);
+      bootstrap();
+      if (!window.location.hash) navigate('/dashboard');
+    });
+    onUnmounted(() => window.removeEventListener('hashchange', onHashChange));
+
+    return { state, groups, current, bootstrap, navigate };
+  },
+};
+</script>
+
+<template>
+  <div class="shell" v-if="state.ready">
+    <aside class="sidebar">
+      <div class="brand">Northstar<small>个人数据与运维</small></div>
+      <nav class="nav">
+        <template v-for="group in groups" :key="group.label">
+          <span class="nav-section">{{ group.label }}</span>
+          <a v-for="item in group.items" :key="item.path" :href="'#' + item.path"
+             :aria-current="item.path === current.path ? 'page' : undefined"
+             :class="{ active: item.path === current.path }">{{ item.label }}</a>
+        </template>
+      </nav>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <h1>{{ current.label }}</h1>
+        <span class="grow"></span>
+        <span v-if="state.bootError" class="small error">连接信息获取失败</span>
+        <button v-if="state.bootError" class="ghost sm" :disabled="state.connecting" @click="bootstrap()">{{ state.connecting ? '连接中…' : '重新连接' }}</button>
+      </header>
+      <main class="content">
+        <component :is="current.component" :key="current.path" />
+      </main>
+    </div>
+    <Toasts />
+    <ConfirmHost />
+  </div>
+  <div v-else>
+    <div class="placeholder error" v-if="state.bootError">
+      {{ state.bootError }}
+      请确认 Monarch 正在运行, 并通过本机地址访问本页面: http://127.0.0.1:7275
+    </div>
+    <div class="boot" v-else>正在连接 Monarch…</div>
+    <div class="content"><button class="primary" @click="bootstrap()">重试</button></div>
+  </div>
+</template>

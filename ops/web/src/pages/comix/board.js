@@ -1,7 +1,7 @@
-import { ref, computed, onMounted } from '../../vue.js';
-import { api, assetUrl } from '../../api.js';
+import { ref, computed, onMounted } from 'vue';
+import { useApi, assetUrl } from '../../api.js';
 import { state, toast, confirmAction } from '../../store.js';
-import { usePolling } from '../../ui.js';
+import { usePolling } from '../../composables.js';
 import { taskActive } from '../../utils.js';
 import {
   chapterStatusKind,
@@ -14,6 +14,7 @@ import {
 
 /** 建立漫画页的共享状态；必须在组件的 setup() 中调用（内部注册 onMounted/onUnmounted）。 */
 export function useComixBoard() {
+  const api = useApi();
   const unwrap = (payload) => payload.data;
 
   // ---- comix 集成可用性 ----
@@ -27,6 +28,7 @@ export function useComixBoard() {
       config.value = unwrap(await api.get('/API/comix/config'));
       configError.value = '';
     } catch (err) {
+      if (api.signal.aborted) return;
       config.value = null;
       configError.value = err.message;
     }
@@ -58,6 +60,7 @@ export function useComixBoard() {
       toast(`初始化完成${message ? `：${message}` : ''}`, 'success');
       await Promise.all([loadSites(), loadConfig()]);
     } catch (err) {
+      if (api.signal.aborted) return;
       toast(`初始化失败: ${err.message}`, 'error');
     } finally {
       initRunning.value = false;
@@ -75,6 +78,7 @@ export function useComixBoard() {
       sites.value = Array.isArray(data.sites) ? data.sites : [];
       sitesError.value = '';
     } catch (err) {
+      if (api.signal.aborted) return;
       sites.value = [];
       sitesError.value = err.message;
     }
@@ -98,6 +102,7 @@ export function useComixBoard() {
       const ids = new Set(list.map((item) => item.id));
       pendingIds.value = pendingIds.value.filter((id) => !ids.has(id));
     } catch (err) {
+      if (api.signal.aborted) return;
       if (!signal.aborted) tasksError.value = err.message;
     }
   };
@@ -183,6 +188,7 @@ export function useComixBoard() {
       else toast(`已启动 ${ids.length} 个下载任务${failCount ? `，${failCount} 个提交失败` : ''}`, 'success');
       await trackSubmitted(ids);
     } catch (err) {
+      if (api.signal.aborted) return;
       toast(`提交失败: ${err.message}`, 'error');
     } finally {
       submitting.value = false;
@@ -214,6 +220,7 @@ export function useComixBoard() {
       comics.value = Array.isArray(data.comics) ? data.comics : [];
       comicsError.value = '';
     } catch (err) {
+      if (api.signal.aborted) return;
       comicsError.value = err.message;
     } finally {
       comicsLoading.value = false;
@@ -285,6 +292,7 @@ export function useComixBoard() {
       downloadTarget.value = null;
       await loadComics();
     } catch (err) {
+      if (api.signal.aborted) return;
       downloadError.value = err.message;
       toast(`提交下载失败: ${err.message}`, 'error');
     }
@@ -315,6 +323,7 @@ export function useComixBoard() {
     try {
       await startTask('update-check', body, all ? '全站追更检查' : '追更检查');
     } catch (err) {
+      if (api.signal.aborted) return;
       toast(`提交追更检查失败: ${err.message}`, 'error');
     }
   };
@@ -329,6 +338,7 @@ export function useComixBoard() {
       await api.put(`/API/comic/comic-info/${comic.comic_id}`, { is_public: next });
       toast(`「${comic.title}」已设为${next ? '公开' : '隐藏'}`, 'success');
     } catch (err) {
+      if (api.signal.aborted) return;
       toast(`更新失败: ${err.message}`, 'error');
     }
     await loadComics();
@@ -344,6 +354,7 @@ export function useComixBoard() {
       await api.put(`/API/comic/comic-info/${comic.comic_id}`, { readed: next });
       toast(`「${comic.title}」已标记为${next ? '已读' : '未读'}`, 'success');
     } catch (err) {
+      if (api.signal.aborted) return;
       toast(`更新失败: ${err.message}`, 'error');
     }
     await loadComics();
@@ -365,6 +376,7 @@ export function useComixBoard() {
         toast(`「${comic.title}」已删除`, 'success');
       }
     } catch (err) {
+      if (api.signal.aborted) return;
       toast(`删除失败: ${err.message}`, 'error');
     } finally {
       // 失败也要刷新：服务端可能已部分完成（DB 已删、文件残留）
@@ -381,6 +393,7 @@ export function useComixBoard() {
     try {
       await startTask('clean', {}, '孤儿回收');
     } catch (err) {
+      if (api.signal.aborted) return;
       toast(`提交清理失败: ${err.message}`, 'error');
     }
   };
@@ -396,6 +409,7 @@ export function useComixBoard() {
       if (chaptersComic.value?.comic_id !== comic.comic_id) return;
       chapters.value = Array.isArray(data.chapters) ? data.chapters : [];
     } catch (err) {
+      if (api.signal.aborted) return;
       if (chaptersComic.value?.comic_id === comic.comic_id) chaptersError.value = err.message;
     } finally {
       if (chaptersComic.value?.comic_id === comic.comic_id) chaptersLoading.value = false;

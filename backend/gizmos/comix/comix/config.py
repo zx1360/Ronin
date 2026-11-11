@@ -37,7 +37,7 @@ DB_FILE = _resolve(
 )
 
 # 建表脚本真源（Monarch 启动时执行同一份脚本）
-SCHEMA_FILE = str(BACKEND_ROOT / "references" / "db" / "sqlite.sql")
+SCHEMA_FILE = str(BACKEND_ROOT / "references" / "db" / "comix.sql")
 
 # 漫画存储根目录（其下直接是 {comic_id}/{chapter_id}/... 与 legacy 名称目录）
 COMIC_STORAGE_ROOT = _resolve(

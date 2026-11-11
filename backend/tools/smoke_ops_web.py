@@ -1,16 +1,18 @@
 """网页运维端冒烟：逐页 + 逐标签页检查渲染与控制台错误。
 
-用法：``python tools/smoke_ops_web.py``（服务需已运行；地址见 BASE）。
+用法：``python tools/smoke_ops_web.py --base http://127.0.0.1:17275``。
+仅验收显式指定的隔离实例；不启动服务。
 依赖 playwright + chromium（与 comix 爬虫同一套依赖）。
 """
+import argparse
 import os
 import re
 import sys
 
 from playwright.sync_api import sync_playwright
 
-# 默认走无证书警告的 HTTP 端口；临时实例可设 OPS_SMOKE_BASE=http://127.0.0.1:<port>
-BASE = os.environ.get("OPS_SMOKE_BASE", "http://127.0.0.1:7275")
+# 由显式参数或环境变量指定，不默认连接生产服务。
+BASE = ""
 PAGES = ["/dashboard", "/booklet", "/essay", "/ai", "/comix", "/tasks", "/logs", "/settings", "/help"]
 # 渲染瑕疵：模板未替换/字段缺失会在页面上留下这些痕迹
 ARTIFACTS = re.compile(r"\bundefined\b|\bNaN\b|\[object Object\]|\{\{")
@@ -69,4 +71,14 @@ def report(problems: list[str], console: list[str]) -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="验收 Go 托管的 Ops 构建产物；仅指定隔离实例。")
+    parser.add_argument("--base", default=os.environ.get("OPS_SMOKE_BASE"), help="隔离 Monarch 地址，例如 http://127.0.0.1:17275")
+    args = parser.parse_args()
+    if not args.base:
+        parser.error("必须通过 --base 或 OPS_SMOKE_BASE 显式指定隔离实例")
+    from urllib.parse import urlparse
+    target = urlparse(args.base)
+    if target.scheme not in ("http", "https") or target.hostname not in ("127.0.0.1", "localhost", "::1") or target.path not in ("", "/") or target.query or target.fragment or target.username:
+        parser.error("地址必须是无路径和凭据的本机 HTTP(S) 隔离实例")
+    BASE = args.base.rstrip("/")
     sys.exit(run())

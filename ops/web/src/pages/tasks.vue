@@ -1,7 +1,8 @@
-import { ref, onMounted, onUnmounted } from '../vue.js';
+<script>
+import { ref, onMounted, onUnmounted } from 'vue';
 import { navigate } from '../store.js';
-import TaskHistory from './logs.js';
-import GalleryTasks from './gallery-tasks.js';
+import TaskHistory from './logs.vue';
+import GalleryTasks from './gallery-tasks.vue';
 
 export default {
   components: { TaskHistory, GalleryTasks },
@@ -19,13 +20,16 @@ export default {
     onUnmounted(() => window.removeEventListener('hashchange', syncTab));
     return { tab, form, selectTab };
   },
-  template: `
-    <div>
-      <div class="tabs">
-        <button :class="{ active: tab === 'history' }" @click="selectTab('history')">任务与日志</button>
-        <button :class="{ active: tab === 'gallery' }" @click="selectTab('gallery')">媒体库维护</button>
-      </div>
-      <TaskHistory v-if="tab === 'history'" />
-      <GalleryTasks v-else :form="form" />
-    </div>`,
 };
+</script>
+
+<template>
+  <div>
+    <div class="tabs">
+      <button :class="{ active: tab === 'history' }" @click="selectTab('history')">任务与日志</button>
+      <button :class="{ active: tab === 'gallery' }" @click="selectTab('gallery')">媒体库维护</button>
+    </div>
+    <TaskHistory v-if="tab === 'history'" />
+    <GalleryTasks v-else :form="form" />
+  </div>
+</template>

@@ -212,8 +212,8 @@ func setupOpsWeb(r *gin.Engine) {
 		log.Printf("[ops] OPS_WEB_DIR 未配置，网页运维端不可用")
 		return
 	}
-	if info, err := os.Stat(webDir); err != nil || !info.IsDir() {
-		log.Printf("[ops] 网页运维端目录不可用（%s），请检查 OPS_WEB_DIR", webDir)
+	if info, err := os.Stat(filepath.Join(webDir, "index.html")); err != nil || info.IsDir() {
+		log.Printf("[ops] 网页运维端构建产物不可用（%s），请先在 ops/web 执行 npm run build 并检查 OPS_WEB_DIR", webDir)
 		return
 	}
 

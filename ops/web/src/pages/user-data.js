@@ -1,5 +1,5 @@
-import { ref, onMounted, onUnmounted } from '../vue.js';
-import { api, assetUrl } from '../api.js';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { useApi, assetUrl } from '../api.js';
 import { toast } from '../store.js';
 import { applySyncDelta } from './user-data-sync.js';
 
@@ -17,6 +17,7 @@ export const imageUrl = (path) => {
 };
 
 export function useUserData(module) {
+  const api = useApi();
   const names = module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
   const data = ref(Object.fromEntries(names.map((name) => [name, []])));
   const loading = ref(false), busy = ref(false), error = ref('');
@@ -28,6 +29,7 @@ export function useUserData(module) {
     try {
       result = await api.get(`${path}&after=${cursor}`, { signal: controller.signal });
     } catch (e) {
+      if (api.signal.aborted) return;
       if (!cursor || e.status !== 409) throw e;
       cursor = 0;
       result = await api.get(path, { signal: controller.signal });
@@ -41,7 +43,8 @@ export function useUserData(module) {
     if (loading.value || busy.value) return;
     loading.value = true;
     error.value = '';
-    try { await pull(); } catch (e) { if (!disposed) error.value = e.message; }
+    try { await pull(); } catch (e) {
+      if (api.signal.aborted) return; if (!disposed) error.value = e.message; }
     finally { loading.value = false; }
   }
   async function save(changes, files = new Map(), { checkLabels = true, baseCursor = cursor } = {}) {
@@ -75,7 +78,8 @@ export function useUserData(module) {
         && (changes.tombstones || []).every((item) => !data.value[item.collection].some((row) => row.id === item.id));
       if (!accepted) toast('另一端已有更新版本，请刷新编辑内容后重试', 'warning');
       return accepted;
-    } catch (e) { error.value = e.status === 404 ? '后端尚不支持安全在线编辑，请更新并重启 Monarch 后再保存' : e.message; toast(error.value, 'error'); return false; }
+    } catch (e) {
+      if (api.signal.aborted) return; error.value = e.status === 404 ? '后端尚不支持安全在线编辑，请更新并重启 Monarch 后再保存' : e.message; toast(error.value, 'error'); return false; }
     finally { busy.value = false; }
   }
   onMounted(refresh);
@@ -83,61 +87,7 @@ export function useUserData(module) {
   return { data, loading, busy, error, refresh, save, snapshotCursor: () => cursor };
 }
 
-export const MoodSelect = {
-  props: ['modelValue'], emits: ['update:modelValue'],
-  setup: () => ({ moods }),
-  template: `
-    <select aria-label="心情" :value="modelValue || ''" @change="$emit('update:modelValue', $event.target.value || null)">
-      <option value="">不记录心情</option>
-      <option v-for="m in moods" :value="m.value">{{ m.label }}</option>
-    </select>
-  `,
-};
 
-export const ImagePicker = {
-  props: { images: Array, files: Map, module: String, max: { default: 12 } },
-  emits: ['update:images', 'file'],
-  setup(props, { emit }) {
-    const urls = new Map();
-    const src = (path) => {
-      const name = path.split('/').pop(), file = props.files?.get(name);
-      if (!file) return imageUrl(path);
-      if (!urls.has(file)) urls.set(file, URL.createObjectURL(file));
-      return urls.get(file);
-    };
-    const pick = (event) => {
-      const paths = [...props.images];
-      for (const file of event.target.files) {
-        if (paths.length >= props.max) break;
-        if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) { toast('请选择 JPG、PNG、WebP 或 GIF 图片', 'error'); continue; }
-        const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[file.type];
-        const name = `${crypto.randomUUID()}.${ext}`;
-        emit('file', { name, file });
-        paths.push(`img_storage/${props.module}/${name}`);
-      }
-      emit('update:images', paths);
-      event.target.value = '';
-    };
-    onUnmounted(() => { for (const url of urls.values()) URL.revokeObjectURL(url); });
-    return { src, pick };
-  },
-  template: `
-    <div class="col">
-      <div class="user-images">
-        <figure v-for="(path,i) in images" :key="path">
-          <a :href="src(path)" target="_blank" rel="noopener">
-            <img :src="src(path)" loading="lazy" alt="附件图片" />
-          </a>
-          <button type="button" class="sm danger" @click="$emit('update:images', images.filter((_,n)=>n!==i))">移除</button>
-        </figure>
-      </div>
-      <label v-if="images.length < max" class="field">
-        添加图片
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" :multiple="max > 1" @change="pick" />
-      </label>
-    </div>
-  `,
-};
 
 export function labelTree(labels) {
   const byID = new Map(labels.map((l) => [l.id, l]));

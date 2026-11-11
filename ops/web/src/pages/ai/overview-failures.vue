@@ -1,8 +1,9 @@
+<script>
 import { useSelection } from '../../selection.js';
-import { ref, computed, onMounted, onUnmounted } from '../../vue.js';
-import { api } from '../../api.js';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useApi } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
-import { Placeholder } from '../../ui.js';
+import Placeholder from '../../components/Placeholder.vue';
 import { formatTime } from '../../utils.js';
 import { baseName, num, revealMedia, thumbUrl } from './shared.js';
 
@@ -18,6 +19,7 @@ export default {
   },
   emits: ['close'],
   setup(props) {
+    const api = useApi();
     const controller = new AbortController();
     const failures = ref([]);
     const failureTotal = ref(0);
@@ -59,6 +61,7 @@ export default {
         failureTotal.value = num(data && data.total);
         retain(failures.value.map((item) => item.mediaId));
       } catch (err) {
+      if (api.signal.aborted) return;
         if (!controller.signal.aborted) failureError.value = err.message;
       } finally {
         failureLoading.value = false;
@@ -103,72 +106,75 @@ export default {
       revealMedia, FAILURE_PAGE_SIZE,
     };
   },
-  template: `
-    <div>
-      <div class="row between">
-        <span class="small muted">
-          处理失败的媒体清单（{{ label }}）· 每批最多 {{ FAILURE_PAGE_SIZE }} 条 ·
-          已加载 {{ failures.length }} / 共 {{ failureTotal }} 项
-        </span>
-        <span class="row">
-          <button class="ghost sm" :disabled="failureLoading" @click="loadFailures(false)">刷新</button>
-          <button class="ghost sm" :disabled="failureLoading" @click="$emit('close')">关闭</button>
-        </span>
+};
+</script>
+
+<template>
+  <div>
+    <div class="row between">
+      <span class="small muted">
+        处理失败的媒体清单（{{ label }}）· 每批最多 {{ FAILURE_PAGE_SIZE }} 条 ·
+        已加载 {{ failures.length }} / 共 {{ failureTotal }} 项
+      </span>
+      <span class="row">
+        <button class="ghost sm" :disabled="failureLoading" @click="loadFailures(false)">刷新</button>
+        <button class="ghost sm" :disabled="failureLoading" @click="$emit('close')">关闭</button>
+      </span>
+    </div>
+
+    <Placeholder v-if="failureError" :error="'获取 /API/ai/failures 失败: ' + failureError" />
+    <Placeholder v-else-if="failureLoading && !failures.length" text="正在读取失败项…" />
+    <Placeholder v-else-if="!failures.length" text="没有失败项" />
+    <template v-else>
+      <div class="row" style="margin: 6px 0">
+        <button
+          class="ghost sm"
+          :disabled="busy"
+          @click="selectAllFailures()"
+        >全选已加载的 {{ failures.length }} 项</button>
+        <button
+          class="ghost sm"
+          :disabled="busy || !failureSelected.length"
+          @click="clearFailureSelection()"
+        >取消选择（{{ failureSelected.length }}）</button>
+        <button
+          class="danger sm"
+          :disabled="busy || !failureSelected.length"
+          @click="softDeleteFailures(failureSelected)"
+        >标记软删除（{{ failureSelected.length }}）</button>
+        <span class="grow"></span>
+        <button
+          class="ghost sm"
+          v-if="failureHasMore"
+          :disabled="failureLoading"
+          @click="loadFailures(true)"
+        >加载更多</button>
       </div>
 
-      <Placeholder v-if="failureError" :error="'获取 /API/ai/failures 失败: ' + failureError" />
-      <Placeholder v-else-if="failureLoading && !failures.length" text="正在读取失败项…" />
-      <Placeholder v-else-if="!failures.length" text="没有失败项" />
-      <template v-else>
-        <div class="row" style="margin: 6px 0">
-          <button
-            class="ghost sm"
-            :disabled="busy"
-            @click="selectAllFailures()"
-          >全选已加载的 {{ failures.length }} 项</button>
-          <button
-            class="ghost sm"
-            :disabled="busy || !failureSelected.length"
-            @click="clearFailureSelection()"
-          >取消选择（{{ failureSelected.length }}）</button>
-          <button
-            class="danger sm"
-            :disabled="busy || !failureSelected.length"
-            @click="softDeleteFailures(failureSelected)"
-          >标记软删除（{{ failureSelected.length }}）</button>
-          <span class="grow"></span>
-          <button
-            class="ghost sm"
-            v-if="failureHasMore"
-            :disabled="failureLoading"
-            @click="loadFailures(true)"
-          >加载更多</button>
-        </div>
-
-        <div class="media-grid wide">
-          <div
-            v-for="item in failures"
-            :key="item.mediaId"
-            class="media-tile"
-            :class="{ selected: isFailureSelected(item.mediaId) }"
-            @click="toggleFailure(item.mediaId)"
-          >
-            <img v-if="!item.thumbFailed" :src="item.thumb" alt="" loading="lazy" @error="markThumbMissing(item)" />
-            <div v-else class="thumb-missing">无缩略图</div>
-            <div class="meta">
-              <div :title="item.filePath">{{ item.name }}</div>
-              <div class="small muted">{{ item.updated }} · 尝试 {{ item.attempts }} 次</div>
-              <div class="small" v-if="item.isDeleted">已标记软删除</div>
-              <div class="small clamp-2" style="color: var(--warning)" :title="item.lastError">{{ item.lastError }}</div>
-              <div class="row" style="margin-top: 4px">
-                <button class="danger sm" :disabled="busy" @click.stop="softDeleteFailures([item.mediaId])">
-                  标记软删除
-                </button>
-                <button class="ghost sm" @click.stop="revealMedia(item.filePath)">打开目录</button>
-              </div>
+      <div class="media-grid wide">
+        <div
+          v-for="item in failures"
+          :key="item.mediaId"
+          class="media-tile"
+          :class="{ selected: isFailureSelected(item.mediaId) }"
+          @click="toggleFailure(item.mediaId)"
+        >
+          <img v-if="!item.thumbFailed" :src="item.thumb" alt="" loading="lazy" @error="markThumbMissing(item)" />
+          <div v-else class="thumb-missing">无缩略图</div>
+          <div class="meta">
+            <div :title="item.filePath">{{ item.name }}</div>
+            <div class="small muted">{{ item.updated }} · 尝试 {{ item.attempts }} 次</div>
+            <div class="small" v-if="item.isDeleted">已标记软删除</div>
+            <div class="small clamp-2" style="color: var(--warning)" :title="item.lastError">{{ item.lastError }}</div>
+            <div class="row" style="margin-top: 4px">
+              <button class="danger sm" :disabled="busy" @click.stop="softDeleteFailures([item.mediaId])">
+                标记软删除
+              </button>
+              <button class="ghost sm" @click.stop="revealMedia(item.filePath)">打开目录</button>
             </div>
           </div>
         </div>
-      </template>
-    </div>`,
-};
+      </div>
+    </template>
+  </div>
+</template>

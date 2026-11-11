@@ -48,7 +48,7 @@ type GalleryConfig struct {
 
 // OpsConfig 网页运维端（ops）配置
 type OpsConfig struct {
-	WebDir string // 网页端静态资源目录（源码在 ops/web/）
+	WebDir string // 网页端构建产物目录（ops/web/dist/）
 }
 
 // AiConfig 本地 AI 媒体处理配置。
@@ -112,8 +112,8 @@ func Load() error {
 	// gallery CLI：默认使用独立可执行文件（backend/gizmos/gallery.exe）
 	GalleryConf.Exe = envAbsOr("GALLERY_CLI", filepath.Join("gizmos", "gallery.exe"))
 
-	// 网页运维端静态资源目录（源码在 ops/web/，由后端内置 HTTP 服务托管）
-	OpsConf.WebDir = envAbsOr("OPS_WEB_DIR", filepath.Join("..", "ops", "web"))
+	// 网页运维端构建产物，由后端 HTTP 服务托管
+	OpsConf.WebDir = envAbsOr("OPS_WEB_DIR", filepath.Join("..", "ops", "web", "dist"))
 
 	loadAiConfig()
 
