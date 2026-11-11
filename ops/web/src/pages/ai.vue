@@ -1,18 +1,19 @@
+<script>
 // AI 媒体处理：能力就绪与进度、任务队列、人物分组、检索、近重复与软删除。
 //
 // 进入/手动刷新时取诊断与配置；活动期间仅轮询 /API/ai/progress。
 // 各标签页只在被选中时挂载，自带加载与空态提示。
 
-import { ref, computed, watch, onMounted, onUnmounted } from '../vue.js';
-import { api } from '../api.js';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useApi } from '../api.js';
 import { state, toast } from '../store.js';
-import { usePolling } from '../ui.js';
-import OverviewTab from './ai/overview.js';
-import JobsTab from './ai/jobs.js';
-import PersonsTab from './ai/persons.js';
-import SearchTab from './ai/search.js';
-import DuplicatesTab from './ai/duplicates.js';
-import DeletedTab from './ai/deleted.js';
+import { usePolling } from '../composables.js';
+import OverviewTab from './ai/overview.vue';
+import JobsTab from './ai/jobs.vue';
+import PersonsTab from './ai/persons.vue';
+import SearchTab from './ai/search.vue';
+import DuplicatesTab from './ai/duplicates.vue';
+import DeletedTab from './ai/deleted.vue';
 import { mergeProgress } from './ai/state.js';
 
 const TABS = [
@@ -29,6 +30,7 @@ export default {
     OverviewTab, JobsTab, PersonsTab, SearchTab, DuplicatesTab, DeletedTab,
   },
   setup() {
+    const api = useApi();
     const tab = ref('overview');
     const status = ref(null);
     const runtime = ref(null);
@@ -143,6 +145,7 @@ export default {
         await load();
         return result === undefined ? true : result;
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('操作失败: ' + (err && err.message ? err.message : String(err)), 'error');
         return false;
       } finally {
@@ -155,41 +158,44 @@ export default {
       disabled, schemaMissing, active, reload, run,
     };
   },
-  template: `
-    <div>
-      <p class="small muted" v-if="loading">刷新中…</p>
-
-      <div class="tabs">
-        <button
-          v-for="item in TABS"
-          :key="item.key"
-          :class="{ active: tab === item.key }"
-          @click="tab = item.key"
-        >{{ item.label }}</button>
-      </div>
-
-      <OverviewTab
-        v-if="tab === 'overview'"
-        :status="status"
-        :capabilities="capabilities"
-        :runtime="runtime"
-        :error="error"
-        :busy="busy"
-        :ai-disabled="disabled"
-        :schema-missing="schemaMissing"
-        :poll-error="pollError"
-        :run="run"
-        :refresh="reload"
-      />
-      <JobsTab
-        v-else-if="tab === 'jobs'"
-        :capabilities="capabilities"
-        :ai-disabled="disabled"
-        :active="active"
-      />
-      <PersonsTab v-else-if="tab === 'persons'" :ai-disabled="disabled" />
-      <SearchTab v-else-if="tab === 'search'" :ai-disabled="disabled" />
-      <DuplicatesTab v-else-if="tab === 'duplicates'" :ai-disabled="disabled" />
-      <DeletedTab v-else :ai-disabled="disabled" />
-    </div>`,
 };
+</script>
+
+<template>
+  <div>
+    <p class="small muted" v-if="loading">刷新中…</p>
+
+    <div class="tabs">
+      <button
+        v-for="item in TABS"
+        :key="item.key"
+        :class="{ active: tab === item.key }"
+        @click="tab = item.key"
+      >{{ item.label }}</button>
+    </div>
+
+    <OverviewTab
+      v-if="tab === 'overview'"
+      :status="status"
+      :capabilities="capabilities"
+      :runtime="runtime"
+      :error="error"
+      :busy="busy"
+      :ai-disabled="disabled"
+      :schema-missing="schemaMissing"
+      :poll-error="pollError"
+      :run="run"
+      :refresh="reload"
+    />
+    <JobsTab
+      v-else-if="tab === 'jobs'"
+      :capabilities="capabilities"
+      :ai-disabled="disabled"
+      :active="active"
+    />
+    <PersonsTab v-else-if="tab === 'persons'" :ai-disabled="disabled" />
+    <SearchTab v-else-if="tab === 'search'" :ai-disabled="disabled" />
+    <DuplicatesTab v-else-if="tab === 'duplicates'" :ai-disabled="disabled" />
+    <DeletedTab v-else :ai-disabled="disabled" />
+  </div>
+</template>

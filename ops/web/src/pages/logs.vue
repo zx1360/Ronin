@@ -1,7 +1,11 @@
-import { ref, computed, onMounted, onUnmounted, nextTick } from '../vue.js';
-import { api } from '../api.js';
+<script>
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { useApi } from '../api.js';
 import { state, toast, confirmAction, navigate } from '../store.js';
-import { usePolling, Card, Placeholder, Badge } from '../ui.js';
+import Card from '../components/Card.vue';
+import Placeholder from '../components/Placeholder.vue';
+import Badge from '../components/Badge.vue';
+import { usePolling } from '../composables.js';
 import { formatClock, formatTime, taskActive } from '../utils.js';
 import { taskSummary, comixStatusText, comixStatusKind } from './comix/helpers.js';
 
@@ -13,6 +17,7 @@ const SOURCES = {
 export default {
   components: { Card, Placeholder, Badge },
   setup() {
+    const api = useApi();
     const tasks = ref([]);
     const selectedKey = ref(new URLSearchParams(window.location.hash.split('?')[1]).get('task') || '');
     const detail = ref(null);
@@ -57,6 +62,7 @@ export default {
         if (signal.aborted || task.key !== selectedKey.value) return;
         detail.value = data?.data || null;
       } catch (err) {
+      if (api.signal.aborted) return;
         if (!signal.aborted && task.key === selectedKey.value) detailError.value = err.message;
       }
       if (autoScroll.value) {
@@ -100,7 +106,8 @@ export default {
         await api.post(`${SOURCES[task.source].path}/${encodeURIComponent(task.id)}/stop`);
         await refresh();
         toast('已发送取消或中断请求', 'success');
-      } catch (error) { toast(error.message, 'error'); }
+      } catch (error) {
+      if (api.signal.aborted) return; toast(error.message, 'error'); }
       finally { stopping.value = false; }
     };
 
@@ -124,6 +131,7 @@ export default {
         await navigator.clipboard.writeText(text);
         toast('日志已复制到剪贴板', 'success');
       } catch (err) {
+      if (api.signal.aborted) return;
         toast(`复制失败: ${err.message}`, 'error');
       }
     };
@@ -134,71 +142,74 @@ export default {
       commandText, rawLineCount, activeCount, stop, stopping, formatTime, navigate, comixStatusText, comixStatusKind, summary: computed(() => taskSummary(detail.value)),
     };
   },
-  template: `
-    <div>
-      <Card title="媒体与漫画任务">
-        <template #actions>
-          <span class="muted small">{{ activeCount ? activeCount + ' 项正在运行或排队' : '当前没有活动任务' }}</span>
-          <button class="ghost sm" @click="refresh()">刷新任务</button>
-        </template>
-        <p class="small muted">任务与日志在服务重启后清空；媒体和漫画库中的数据会保留。AI 的持久处理队列在「AI 与检索」管理。</p>
-        <Placeholder v-if="listError" :error="listError" />
-        <div v-if="!tasks.length && !listError" class="placeholder">
-          <p>还没有任务。可以导入媒体，或选择漫画开始下载。</p>
-          <div class="row" style="justify-content: center">
-            <button @click="navigate('/tasks?tab=gallery')">媒体库维护</button>
-            <button class="ghost" @click="navigate('/comix')">漫画管理</button>
-          </div>
+};
+</script>
+
+<template>
+  <div>
+    <Card title="媒体与漫画任务">
+      <template #actions>
+        <span class="muted small">{{ activeCount ? activeCount + ' 项正在运行或排队' : '当前没有活动任务' }}</span>
+        <button class="ghost sm" @click="refresh()">刷新任务</button>
+      </template>
+      <p class="small muted">任务与日志在服务重启后清空；媒体和漫画库中的数据会保留。AI 的持久处理队列在「AI 与检索」管理。</p>
+      <Placeholder v-if="listError" :error="listError" />
+      <div v-if="!tasks.length && !listError" class="placeholder">
+        <p>还没有任务。可以导入媒体，或选择漫画开始下载。</p>
+        <div class="row" style="justify-content: center">
+          <button @click="navigate('/tasks?tab=gallery')">媒体库维护</button>
+          <button class="ghost" @click="navigate('/comix')">漫画管理</button>
         </div>
-        <div class="task-list" v-if="tasks.length">
-          <table class="data">
-            <thead><tr><th>来源</th><th>任务</th><th>状态</th><th>提交时间</th><th></th></tr></thead>
-            <tbody><tr v-for="task in tasks" :key="task.key" :class="{ 'selected-row': selectedKey === task.key }">
-              <td>{{ SOURCES[task.source].label }}</td><td>{{ task.name }}</td>
-              <td><Badge :kind="comixStatusKind(task)">{{ comixStatusText(task) }}</Badge></td><td>{{ formatTime(task.started_at) }}</td>
-              <td><button class="ghost sm" @click="selectTask(task.key)">查看结果与日志</button></td>
-            </tr></tbody>
-          </table>
+      </div>
+      <div class="task-list" v-if="tasks.length">
+        <table class="data">
+          <thead><tr><th>来源</th><th>任务</th><th>状态</th><th>提交时间</th><th></th></tr></thead>
+          <tbody><tr v-for="task in tasks" :key="task.key" :class="{ 'selected-row': selectedKey === task.key }">
+            <td>{{ SOURCES[task.source].label }}</td><td>{{ task.name }}</td>
+            <td><Badge :kind="comixStatusKind(task)">{{ comixStatusText(task) }}</Badge></td><td>{{ formatTime(task.started_at) }}</td>
+            <td><button class="ghost sm" @click="selectTask(task.key)">查看结果与日志</button></td>
+          </tr></tbody>
+        </table>
+      </div>
+    </Card>
+    <div v-if="selected" class="task-output" ref="outputRef">
+      <Card :title="selected.name">
+        <template #actions>
+          <Badge :kind="comixStatusKind(detail || selected)">{{ comixStatusText(detail || selected) }}</Badge>
+          <button class="ghost sm" :disabled="!lines.length" @click="copyAll()">复制</button>
+          <button class="danger sm" v-if="runningSelected" :disabled="stopping" @click="stop()">{{ selected.status === 'queued' ? '取消排队' : '中断任务' }}</button>
+        </template>
+
+        <p v-if="summary" class="small">{{ summary }}</p>
+        <p v-if="detail && detail.error" class="placeholder error">{{ detail.error }}</p>
+        <p v-if="selected && selected.status === 'queued'" class="muted small">正在等待前面的漫画写任务结束；尚未启动子进程，可随时取消排队。</p>
+        <div class="row" style="margin-bottom: 12px">
+          <label class="field" style="flex: 1; min-width: 200px">
+            关键字过滤
+            <input v-model="keyword" placeholder="只显示包含该关键字的行" />
+          </label>
+          <label class="row small muted" style="gap: 6px; padding-top: 16px">
+            <input type="checkbox" v-model="autoScroll" /> 自动滚动到底部
+          </label>
+        </div>
+
+        <details class="small muted" style="margin-bottom: 12px">
+          <summary>执行信息</summary>
+          <div class="mono">{{ commandText }}</div>
+        </details>
+        <span v-if="keyword" class="badge warning" style="margin-left: 8px">
+          过滤后 {{ lines.length }} 行（原 {{ rawLineCount }} 行）
+        </span>
+        <Placeholder v-if="detailError" :error="'获取任务日志失败: ' + detailError" />
+        <Placeholder v-else-if="!detail" text="正在加载任务结果…" />
+        <Placeholder v-else-if="!lines.length" :text="keyword ? '没有匹配的日志' : '暂无日志'" />
+        <div v-else class="log-view" ref="viewRef" style="max-height: 360px">
+          <div v-for="(item, index) in lines" :key="index" :class="item.stream">
+            [{{ formatClock(item.time) }}][{{ item.stream }}] {{ item.text }}
+          </div>
         </div>
       </Card>
-      <div v-if="selected" class="task-output" ref="outputRef">
-        <Card :title="selected.name">
-          <template #actions>
-            <Badge :kind="comixStatusKind(detail || selected)">{{ comixStatusText(detail || selected) }}</Badge>
-            <button class="ghost sm" :disabled="!lines.length" @click="copyAll()">复制</button>
-            <button class="danger sm" v-if="runningSelected" :disabled="stopping" @click="stop()">{{ selected.status === 'queued' ? '取消排队' : '中断任务' }}</button>
-          </template>
-
-          <p v-if="summary" class="small">{{ summary }}</p>
-          <p v-if="detail && detail.error" class="placeholder error">{{ detail.error }}</p>
-          <p v-if="selected && selected.status === 'queued'" class="muted small">正在等待前面的漫画写任务结束；尚未启动子进程，可随时取消排队。</p>
-          <div class="row" style="margin-bottom: 12px">
-            <label class="field" style="flex: 1; min-width: 200px">
-              关键字过滤
-              <input v-model="keyword" placeholder="只显示包含该关键字的行" />
-            </label>
-            <label class="row small muted" style="gap: 6px; padding-top: 16px">
-              <input type="checkbox" v-model="autoScroll" /> 自动滚动到底部
-            </label>
-          </div>
-
-          <details class="small muted" style="margin-bottom: 12px">
-            <summary>执行信息</summary>
-            <div class="mono">{{ commandText }}</div>
-          </details>
-          <span v-if="keyword" class="badge warning" style="margin-left: 8px">
-            过滤后 {{ lines.length }} 行（原 {{ rawLineCount }} 行）
-          </span>
-          <Placeholder v-if="detailError" :error="'获取任务日志失败: ' + detailError" />
-          <Placeholder v-else-if="!detail" text="正在加载任务结果…" />
-          <Placeholder v-else-if="!lines.length" :text="keyword ? '没有匹配的日志' : '暂无日志'" />
-          <div v-else class="log-view" ref="viewRef" style="max-height: 360px">
-            <div v-for="(item, index) in lines" :key="index" :class="item.stream">
-              [{{ formatClock(item.time) }}][{{ item.stream }}] {{ item.text }}
-            </div>
-          </div>
-        </Card>
-      </div>
-      <Placeholder v-else-if="selectedKey && tasks.length" text="该任务已不可用，请在列表中重新选择。服务重启会清空任务历史。" />
-    </div>`,
-};
+    </div>
+    <Placeholder v-else-if="selectedKey && tasks.length" text="该任务已不可用，请在列表中重新选择。服务重启会清空任务历史。" />
+  </div>
+</template>

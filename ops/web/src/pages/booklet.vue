@@ -1,7 +1,12 @@
-import { ref, computed, watch } from '../vue.js';
-import { Card, Placeholder, useLeaveGuard } from '../ui.js';
+<script>
+import { ref, computed, watch } from 'vue';
+import Card from '../components/Card.vue';
+import Placeholder from '../components/Placeholder.vue';
+import { useLeaveGuard } from '../composables.js';
 import { confirmAction, toast } from '../store.js';
-import { useUserData, MoodSelect, ImagePicker, day, stamp, clone, imageUrl, moodText } from './user-data.js';
+import MoodSelect from '../components/MoodSelect.vue';
+import ImagePicker from '../components/ImagePicker.vue';
+import { useUserData, day, stamp, clone, imageUrl, moodText } from './user-data.js';
 
 function statistics(records) {
   let longest = 0, longestFull = 0, streak = 0, fullStreak = 0, full = 0, previous = '', previousFull = '';
@@ -133,158 +138,160 @@ export default {
       selectedId, selected, related, stats, creating, newStyle, files, createStyle, cancelStyle, addTask, saveStyle, removeStyle,
       month, moveMonth, taskFilter, calendar, historyQuery, historyStyle, history, visibleHistory, limit, styleName, doneCount, openDay, changeDate, imageUrl, moodText };
   },
-  template: `
-    <div class="user-page">
-      <div class="row between user-toolbar">
-        <span class="muted">把日常的小事，积成看得见的变化。</span>
-        <div class="row" v-if="!creating">
-          <button :disabled="loading || busy" @click="refresh">刷新</button>
-          <button class="primary" :disabled="loading || busy" @click="createStyle">新建样式</button>
-        </div>
+};
+</script>
+
+<template>
+  <div class="user-page">
+    <div class="row between user-toolbar">
+      <span class="muted">把日常的小事，积成看得见的变化。</span>
+      <div class="row" v-if="!creating">
+        <button :disabled="loading || busy" @click="refresh">刷新</button>
+        <button class="primary" :disabled="loading || busy" @click="createStyle">新建样式</button>
       </div>
-      <Placeholder v-if="error" :error="error" />
-      <div class="tabs" v-if="!creating">
-        <button :class="{active:tab==='today'}" @click="tab='today'">每日打卡</button>
-        <button :class="{active:tab==='overview'}" @click="tab='overview'">样式与日历</button>
-        <button :class="{active:tab==='history'}" @click="tab='history'">历史记录</button>
-      </div>
-      <Placeholder v-if="loading && !styles.length" text="正在加载积微…" />
-      <Card v-if="creating" title="新建打卡样式">
-        <form class="col" @submit.prevent="saveStyle">
-          <p class="muted small">从今天开始生效，保留过去样式和历史记录。每套样式包含 1 至 5 个任务。</p>
-          <div v-for="(task,i) in newStyle.tasks" :key="task.id" class="user-task-editor col">
-            <div class="row between">
-              <strong>任务 {{ i+1 }}</strong>
-              <button type="button" class="sm danger" :disabled="newStyle.tasks.length===1" @click="newStyle.tasks.splice(i,1)">移除任务</button>
-            </div>
-            <label class="field">
-              标题
-              <input v-model="task.title" required maxlength="120" />
-            </label>
-            <label class="field">
-              说明
-              <textarea v-model="task.description" rows="2"></textarea>
-            </label>
-            <ImagePicker :images="task.image ? [task.image] : []" :files="files" module="booklet" :max="1" @update:images="task.image=$event[0] || ''" @file="files.set($event.name,$event.file)" />
+    </div>
+    <Placeholder v-if="error" :error="error" />
+    <div class="tabs" v-if="!creating">
+      <button :class="{active:tab==='today'}" @click="tab='today'">每日打卡</button>
+      <button :class="{active:tab==='overview'}" @click="tab='overview'">样式与日历</button>
+      <button :class="{active:tab==='history'}" @click="tab='history'">历史记录</button>
+    </div>
+    <Placeholder v-if="loading && !styles.length" text="正在加载积微…" />
+    <Card v-if="creating" title="新建打卡样式">
+      <form class="col" @submit.prevent="saveStyle">
+        <p class="muted small">从今天开始生效，保留过去样式和历史记录。每套样式包含 1 至 5 个任务。</p>
+        <div v-for="(task,i) in newStyle.tasks" :key="task.id" class="user-task-editor col">
+          <div class="row between">
+            <strong>任务 {{ i+1 }}</strong>
+            <button type="button" class="sm danger" :disabled="newStyle.tasks.length===1" @click="newStyle.tasks.splice(i,1)">移除任务</button>
           </div>
+          <label class="field">
+            标题
+            <input v-model="task.title" required maxlength="120" />
+          </label>
+          <label class="field">
+            说明
+            <textarea v-model="task.description" rows="2"></textarea>
+          </label>
+          <ImagePicker :images="task.image ? [task.image] : []" :files="files" module="booklet" :max="1" @update:images="task.image=$event[0] || ''" @file="files.set($event.name,$event.file)" />
+        </div>
+        <div class="row">
+          <button type="button" :disabled="newStyle.tasks.length>=5" @click="addTask">添加任务</button>
+          <span class="spacer"></span>
+          <button type="button" :disabled="busy" @click="cancelStyle">取消</button>
+          <button class="primary" :disabled="busy">{{busy?'保存中…':'启用样式'}}</button>
+        </div>
+      </form>
+    </Card>
+    <template v-else-if="tab==='today'">
+      <Card title="每日打卡">
+        <template #actions>
+          <input type="date" aria-label="打卡日期" :value="date" :max="today" @change="changeDate" />
+          <button class="sm" @click="openDay(today)">今天</button>
+        </template>
+        <Placeholder v-if="!recordStyle" text="这一天还没有打卡样式。点击「新建样式」开始今天的积微。" />
+        <form v-else-if="form" class="col" @submit.prevent="saveRecord" @input="dirty=true" @change="dirty=true">
+          <div class="row between">
+            <span class="muted small">样式始于 {{recordStyle.start_date}}</span>
+            <strong>{{progress}} / {{recordStyle.tasks.length}} 项完成</strong>
+          </div>
+          <label v-for="task in recordStyle.tasks" :key="task.id" class="user-check-task">
+            <input type="checkbox" v-model="form.task_completion[task.id]" />
+            <span>
+              <strong>{{task.title}}</strong>
+              <span v-if="task.description" class="user-task-description">{{task.description}}</span>
+              <a v-if="task.image" :href="imageUrl(task.image)" target="_blank" rel="noopener" @click.stop>
+                <img :src="imageUrl(task.image)" loading="lazy" alt="任务图片" />
+              </a>
+            </span>
+          </label>
+          <label class="field">
+            这一天的留言
+            <textarea v-model="form.message" rows="4" placeholder="记录做了什么、当下的感受…"></textarea>
+          </label>
           <div class="row">
-            <button type="button" :disabled="newStyle.tasks.length>=5" @click="addTask">添加任务</button>
+            <MoodSelect v-model="form.mood" />
             <span class="spacer"></span>
-            <button type="button" :disabled="busy" @click="cancelStyle">取消</button>
-            <button class="primary" :disabled="busy">{{busy?'保存中…':'启用样式'}}</button>
+            <span class="small muted" v-if="dirty">有未保存的修改</span>
+            <button type="button" :disabled="!dirty || busy || loading" @click="discardRecord">撤销修改</button>
+            <button class="primary" :disabled="busy || loading">{{busy?'保存中…':'保存打卡'}}</button>
           </div>
         </form>
       </Card>
-      <template v-else-if="tab==='today'">
-        <Card title="每日打卡">
-          <template #actions>
-            <input type="date" aria-label="打卡日期" :value="date" :max="today" @change="changeDate" />
-            <button class="sm" @click="openDay(today)">今天</button>
-          </template>
-          <Placeholder v-if="!recordStyle" text="这一天还没有打卡样式。点击「新建样式」开始今天的积微。" />
-          <form v-else-if="form" class="col" @submit.prevent="saveRecord" @input="dirty=true" @change="dirty=true">
-            <div class="row between">
-              <span class="muted small">样式始于 {{recordStyle.start_date}}</span>
-              <strong>{{progress}} / {{recordStyle.tasks.length}} 项完成</strong>
-            </div>
-            <label v-for="task in recordStyle.tasks" :key="task.id" class="user-check-task">
-              <input type="checkbox" v-model="form.task_completion[task.id]" />
-              <span>
-                <strong>{{task.title}}</strong>
-                <span v-if="task.description" class="user-task-description">{{task.description}}</span>
-                <a v-if="task.image" :href="imageUrl(task.image)" target="_blank" rel="noopener" @click.stop>
-                  <img :src="imageUrl(task.image)" loading="lazy" alt="任务图片" />
-                </a>
-              </span>
-            </label>
-            <label class="field">
-              这一天的留言
-              <textarea v-model="form.message" rows="4" placeholder="记录做了什么、当下的感受…"></textarea>
-            </label>
-            <div class="row">
-              <MoodSelect v-model="form.mood" />
-              <span class="spacer"></span>
-              <span class="small muted" v-if="dirty">有未保存的修改</span>
-              <button type="button" :disabled="!dirty || busy || loading" @click="discardRecord">撤销修改</button>
-              <button class="primary" :disabled="busy || loading">{{busy?'保存中…':'保存打卡'}}</button>
-            </div>
-          </form>
-        </Card>
-      </template>
-      <template v-else-if="tab==='overview'">
-        <Card title="样式总览">
-          <template #actions>
-            <select aria-label="查看样式" v-model="selectedId">
-              <option value="">最新样式</option>
-              <option v-for="s in styles" :value="s.id">{{s.start_date}} · {{s.tasks.map(t=>t.title).join(' / ')}}</option>
-            </select>
-          </template>
-          <Placeholder v-if="!selected" text="还没有打卡样式" />
-          <template v-else>
-            <div class="user-stats">
-              <div>
-                <strong>{{stats.count}}</strong>
-                <span>有效打卡</span>
-              </div>
-              <div>
-                <strong>{{stats.full}}</strong>
-                <span>全部完成</span>
-              </div>
-              <div>
-                <strong>{{stats.longest}}</strong>
-                <span>最长连续天数</span>
-              </div>
-              <div>
-                <strong>{{stats.longestFull}}</strong>
-                <span>最长连续全完成</span>
-              </div>
-            </div>
-            <div class="row">
-              <span v-for="task in selected.tasks" class="badge">{{task.title}}</span>
-              <span class="spacer"></span>
-              <button class="sm danger" :disabled="busy" @click="removeStyle">删除此样式</button>
-            </div>
-          </template>
-        </Card>
-        <Card v-if="selected" title="打卡日历">
-          <template #actions>
-            <button class="sm" @click="moveMonth(-1)">上月</button>
-            <input type="month" aria-label="日历月份" v-model="month" />
-            <button class="sm" @click="moveMonth(1)">下月</button>
-            <select aria-label="任务筛选" v-model="taskFilter">
-              <option value="">全部任务</option>
-              <option v-for="t in selected.tasks" :value="t.id">{{t.title}}</option>
-            </select>
-          </template>
-          <div class="user-calendar">
-            <span v-for="w in ['一','二','三','四','五','六','日']" class="muted small">{{w}}</span>
-            <button v-for="d in calendar" :key="d.date" :class="{outside:d.outside, checked:d.checked, partial:d.record && !d.checked, today:d.date===today}" :disabled="d.date>today" :title="d.date + (d.record?.message ? ' · '+d.record.message : '')" @click="openDay(d.date)">
-              {{d.number}}
-            </button>
-          </div>
-          <p class="small muted">实色表示完成，浅色表示已有记录；点击日期查看或补记。</p>
-        </Card>
-      </template>
-      <Card v-else title="历史记录">
+    </template>
+    <template v-else-if="tab==='overview'">
+      <Card title="样式总览">
         <template #actions>
-          <select aria-label="历史样式筛选" v-model="historyStyle">
-            <option value="">全部样式</option>
-            <option v-for="s in styles" :value="s.id">{{s.start_date}}</option>
+          <select aria-label="查看样式" v-model="selectedId">
+            <option value="">最新样式</option>
+            <option v-for="s in styles" :value="s.id">{{s.start_date}} · {{s.tasks.map(t=>t.title).join(' / ')}}</option>
           </select>
-          <input aria-label="搜索留言" v-model="historyQuery" placeholder="搜索留言" />
         </template>
-        <Placeholder v-if="!history.length" text="没有匹配的打卡记录" />
-        <div v-for="r in visibleHistory" :key="r.id" class="user-entry">
-          <div class="row between">
-            <button class="ghost sm" @click="openDay(r.date)">{{r.date}}</button>
-            <span class="muted small">
-              样式 {{styleName(r.style_id)}} · {{doneCount(r)}} / {{Object.keys(r.task_completion).length}} 项 · {{moodText(r.mood)}}
-            </span>
+        <Placeholder v-if="!selected" text="还没有打卡样式" />
+        <template v-else>
+          <div class="user-stats">
+            <div>
+              <strong>{{stats.count}}</strong>
+              <span>有效打卡</span>
+            </div>
+            <div>
+              <strong>{{stats.full}}</strong>
+              <span>全部完成</span>
+            </div>
+            <div>
+              <strong>{{stats.longest}}</strong>
+              <span>最长连续天数</span>
+            </div>
+            <div>
+              <strong>{{stats.longestFull}}</strong>
+              <span>最长连续全完成</span>
+            </div>
           </div>
-          <p v-if="r.message" class="user-prose">{{r.message}}</p>
-        </div>
-        <button v-if="limit<history.length" @click="limit+=30">加载更多（{{history.length-limit}}）</button>
+          <div class="row">
+            <span v-for="task in selected.tasks" class="badge">{{task.title}}</span>
+            <span class="spacer"></span>
+            <button class="sm danger" :disabled="busy" @click="removeStyle">删除此样式</button>
+          </div>
+        </template>
       </Card>
-    </div>
-  `,
-};
+      <Card v-if="selected" title="打卡日历">
+        <template #actions>
+          <button class="sm" @click="moveMonth(-1)">上月</button>
+          <input type="month" aria-label="日历月份" v-model="month" />
+          <button class="sm" @click="moveMonth(1)">下月</button>
+          <select aria-label="任务筛选" v-model="taskFilter">
+            <option value="">全部任务</option>
+            <option v-for="t in selected.tasks" :value="t.id">{{t.title}}</option>
+          </select>
+        </template>
+        <div class="user-calendar">
+          <span v-for="w in ['一','二','三','四','五','六','日']" class="muted small">{{w}}</span>
+          <button v-for="d in calendar" :key="d.date" :class="{outside:d.outside, checked:d.checked, partial:d.record && !d.checked, today:d.date===today}" :disabled="d.date>today" :title="d.date + (d.record?.message ? ' · '+d.record.message : '')" @click="openDay(d.date)">
+            {{d.number}}
+          </button>
+        </div>
+        <p class="small muted">实色表示完成，浅色表示已有记录；点击日期查看或补记。</p>
+      </Card>
+    </template>
+    <Card v-else title="历史记录">
+      <template #actions>
+        <select aria-label="历史样式筛选" v-model="historyStyle">
+          <option value="">全部样式</option>
+          <option v-for="s in styles" :value="s.id">{{s.start_date}}</option>
+        </select>
+        <input aria-label="搜索留言" v-model="historyQuery" placeholder="搜索留言" />
+      </template>
+      <Placeholder v-if="!history.length" text="没有匹配的打卡记录" />
+      <div v-for="r in visibleHistory" :key="r.id" class="user-entry">
+        <div class="row between">
+          <button class="ghost sm" @click="openDay(r.date)">{{r.date}}</button>
+          <span class="muted small">
+            样式 {{styleName(r.style_id)}} · {{doneCount(r)}} / {{Object.keys(r.task_completion).length}} 项 · {{moodText(r.mood)}}
+          </span>
+        </div>
+        <p v-if="r.message" class="user-prose">{{r.message}}</p>
+      </div>
+      <button v-if="limit<history.length" @click="limit+=30">加载更多（{{history.length-limit}}）</button>
+    </Card>
+  </div>
+</template>

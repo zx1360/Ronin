@@ -1,3 +1,5 @@
+import { onScopeDispose } from 'vue';
+
 // 请求层：网页端与 Monarch 同源，所有接口都走相对路径。
 //
 // 生产模式下 /API/* 需要 X-API-Key；密钥由 /API/ops/local/bootstrap 下发
@@ -34,6 +36,7 @@ export class ApiError extends Error {
  */
 export async function request(method, path, options = {}) {
   const { body, signal, timeoutMs = 60000 } = options;
+  signal?.throwIfAborted();
   const multipart = body instanceof FormData;
   const headers = { Accept: 'application/json' };
   if (apiKey) headers['X-API-Key'] = apiKey;
@@ -88,10 +91,25 @@ export async function request(method, path, options = {}) {
   return payload;
 }
 
-export const api = {
-  get: (path, options) => request('GET', path, options),
-  post: (path, body, options) => request('POST', path, { ...options, body: body ?? {} }),
-  put: (path, body, options) => request('PUT', path, { ...options, body: body ?? {} }),
-  patch: (path, body, options) => request('PATCH', path, { ...options, body: body ?? {} }),
-  del: (path, options) => request('DELETE', path, options),
+function createApi(signal) {
+  const send = (method, path, options = {}) => request(method, path, {
+    ...options, signal: signal && options.signal ? AbortSignal.any([signal, options.signal]) : signal || options.signal,
+  });
+  return {
+  signal,
+  get: (path, options) => send('GET', path, options),
+  post: (path, body, options) => send('POST', path, { ...options, body: body ?? {} }),
+  put: (path, body, options) => send('PUT', path, { ...options, body: body ?? {} }),
+  patch: (path, body, options) => send('PATCH', path, { ...options, body: body ?? {} }),
+  del: (path, options) => send('DELETE', path, options),
 };
+}
+
+export const api = createApi();
+
+// 页面请求沿用同一请求封装，仅绑定组件生命周期。
+export function useApi() {
+  const controller = new AbortController();
+  onScopeDispose(() => controller.abort());
+  return createApi(controller.signal);
+}

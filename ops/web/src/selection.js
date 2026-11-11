@@ -1,4 +1,4 @@
-import { ref, computed } from './vue.js';
+import { ref, computed } from 'vue';
 
 export function useSelection() {
   const selected = ref([]);

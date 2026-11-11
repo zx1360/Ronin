@@ -1,4 +1,5 @@
-import { h } from '../../vue.js';
+<script>
+import { h } from 'vue';
 import { imageUrl } from '../user-data.js';
 
 function safeLink(raw) {
@@ -66,3 +67,4 @@ export default {
     };
   },
 };
+</script>

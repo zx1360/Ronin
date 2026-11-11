@@ -1,10 +1,13 @@
+<script>
 import { useSelection } from '../../selection.js';
 // 人物分组：改名、合并、删除、查看人脸、人工纠正与增量/重新聚类。
 
-import { ref, computed, onMounted, onUnmounted } from '../../vue.js';
-import { api } from '../../api.js';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useApi } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
-import { Card, Placeholder, MediaTile } from '../../ui.js';
+import Card from '../../components/Card.vue';
+import Placeholder from '../../components/Placeholder.vue';
+import MediaTile from '../../components/MediaTile.vue';
 import { num, thumbUrl } from './shared.js';
 
 const PAGE_SIZE = 60;
@@ -15,6 +18,7 @@ export default {
     aiDisabled: { type: Boolean, default: false },
   },
   setup(props) {
+    const api = useApi();
     const persons = ref([]);
     const shown = ref(PAGE_SIZE);
     const error = ref('');
@@ -30,21 +34,28 @@ export default {
     const faceError = ref('');
     const faceLoading = ref(false);
     const { selected: faceSelected, toggle: toggleFace, isSelected: isFaceSelected } = useSelection();
-    let faceRequest;
-    onUnmounted(() => faceRequest?.abort());
+    let faceRequest, listRequest;
+    onUnmounted(() => { faceRequest?.abort(); listRequest?.abort(); });
     const moveTarget = ref('');
 
     const load = async () => {
+      if (api.signal.aborted) return;
+      listRequest?.abort();
+      const request = listRequest = new AbortController();
       loading.value = true;
       try {
-        const data = await api.get('/API/ai/persons');
+        const data = await api.get('/API/ai/persons', { signal: request.signal });
+        if (request.signal.aborted) return;
         persons.value = Array.isArray(data && data.persons) ? data.persons : [];
         error.value = '';
         retain(persons.value.map((item) => item.id));
+        if (!selected.value.includes(mergeTarget.value)) mergeTarget.value = selected.value[0] || '';
+        if (facesOf.value && !persons.value.some((item) => item.id === facesOf.value)) closeFaces();
       } catch (err) {
-        error.value = err.message;
+      if (api.signal.aborted) return;
+        if (!request.signal.aborted) error.value = err.message;
       } finally {
-        loading.value = false;
+        if (!request.signal.aborted) loading.value = false;
       }
     };
 
@@ -116,6 +127,7 @@ export default {
         cancelRename();
         await load();
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('命名失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -135,6 +147,7 @@ export default {
         if (facesOf.value === card.id) closeFaces();
         await load();
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('删除失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -157,6 +170,7 @@ export default {
         clearSelection();
         await load();
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('合并失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -185,6 +199,7 @@ export default {
         closeFaces();
         await load();
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('聚类失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -207,6 +222,7 @@ export default {
         faces.value = Array.isArray(data && data.faces) ? data.faces : [];
         faceTotal.value = num(data && data.total);
       } catch (err) {
+      if (api.signal.aborted) return;
         if (!request.signal.aborted) faceError.value = err.message;
       } finally {
         if (!request.signal.aborted) faceLoading.value = false;
@@ -242,6 +258,7 @@ export default {
           closeFaces();
         }
       } catch (err) {
+      if (api.signal.aborted) return;
         toast('纠正失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -257,94 +274,97 @@ export default {
       mergeSelected, recluster, loadFaces, closeFaces, toggleFace, assignFaces, load,
     };
   },
-  template: `
-    <div>
-      <Card title="人物分组">
-        <template #actions>
-          <span class="small muted" v-if="loading">加载中…</span>
-          <span class="small muted" v-if="cards.length">共 {{ cards.length }} 组</span>
-          <button class="ghost sm" :disabled="busy" @click="load()">刷新</button>
-          <button class="ghost sm" :disabled="busy" @click="recluster(false)">增量聚类（保留现有人物）</button>
-          <button class="danger sm" :disabled="busy" @click="recluster(true)">重新聚类（清空分组）</button>
-        </template>
-
-        <div class="small muted">
-          点击卡片选中后可将多个分组合并；增量聚类只处理尚未归属的人脸，不影响已命名的人物；重新聚类会清空全部分组。
-        </div>
-        <div class="small" style="color: var(--warning)" v-if="aiDisabled">
-          AI 处理层已通过 AI_ENABLED=false 关闭，分组接口可能不可用。
-        </div>
-
-        <div class="row" style="margin: 10px 0" v-if="selectedCards.length >= 2">
-          <span class="small">合并到</span>
-          <select v-model="mergeTarget" style="min-width: 200px">
-            <option v-for="item in mergeOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-          </select>
-          <button class="primary sm" :disabled="busy" @click="mergeSelected()">合并所选 {{ selectedCards.length }} 组</button>
-          <button class="ghost sm" @click="clearSelection()">取消选择</button>
-        </div>
-
-        <div class="row" style="margin: 10px 0" v-if="editingCard">
-          <span class="small">命名「{{ editingCard.displayName }}」</span>
-          <input v-model="editName" placeholder="例如：家人 / 朋友 / 昵称" style="min-width: 220px" @keyup.enter="saveRename()" />
-          <button class="primary sm" :disabled="busy" @click="saveRename()">保存</button>
-          <button class="ghost sm" @click="cancelRename()">取消</button>
-          <span class="small muted">留空保存即清除名称</span>
-        </div>
-
-        <Placeholder v-if="error" :error="'获取 /API/ai/persons 失败: ' + error" />
-        <Placeholder v-else-if="!cards.length" text="暂无人物分组：请先处理人脸能力，再执行增量聚类" />
-        <div class="media-grid" v-else>
-          <div class="col" v-for="card in visibleCards" :key="card.id">
-            <MediaTile :src="card.thumb" :caption="card.caption" :selected="selectedIds.has(card.id)" @click="toggleSelect(card.id)" />
-            <div class="row">
-              <button class="ghost sm" :disabled="busy" @click="startRename(card)">命名</button>
-              <button class="ghost sm" :disabled="busy" @click="loadFaces(card)">人脸 {{ card.faceCount }}</button>
-              <button class="danger sm" :disabled="busy" @click="removePerson(card)">删除</button>
-            </div>
-          </div>
-        </div>
-        <button v-if="!error && visibleCards.length < cards.length" class="ghost sm" @click="showMore()">
-          加载更多（{{ visibleCards.length }} / {{ cards.length }}）
-        </button>
-      </Card>
-
-      <Card v-if="facesOf" :title="'「' + (facesOwner ? facesOwner.displayName : facesOf) + '」的人脸'">
-        <template #actions>
-          <span class="small muted" v-if="faceLoading">加载中…</span>
-          <span class="small muted">共 {{ faceTotal }} 张</span>
-          <button class="ghost sm" @click="closeFaces()">关闭</button>
-        </template>
-
-        <Placeholder v-if="faceError" :error="'获取人脸失败: ' + faceError" />
-        <Placeholder v-else-if="!faceCards.length && !faceLoading" text="该分组暂无已归属的人脸" />
-        <template v-else>
-          <div class="row" style="margin-bottom: 10px">
-            <span class="small muted">已选 {{ faceSelected.length }} 张</span>
-            <button class="ghost sm" :disabled="busy || !faceSelected.length" @click="assignFaces(null)">移出分组</button>
-            <span class="small">移到</span>
-            <select v-model="moveTarget" style="min-width: 180px">
-              <option value="">选择分组…</option>
-              <option v-for="item in otherPersons" :key="item.id" :value="item.id">{{ item.label }}</option>
-            </select>
-            <button
-              class="primary sm"
-              :disabled="busy || !faceSelected.length || !moveTarget"
-              @click="assignFaces(moveTarget)"
-            >应用</button>
-          </div>
-          <div class="media-grid">
-            <div class="col" v-for="face in faceCards" :key="face.id">
-              <MediaTile
-                :src="face.thumb"
-                :caption="face.caption"
-                :selected="face.selected"
-                @click="toggleFace(face.id)"
-              />
-              <div class="small muted">{{ face.detail }}</div>
-            </div>
-          </div>
-        </template>
-      </Card>
-    </div>`,
 };
+</script>
+
+<template>
+  <div>
+    <Card title="人物分组">
+      <template #actions>
+        <span class="small muted" v-if="loading">加载中…</span>
+        <span class="small muted" v-if="cards.length">共 {{ cards.length }} 组</span>
+        <button class="ghost sm" :disabled="busy" @click="load()">刷新</button>
+        <button class="ghost sm" :disabled="busy" @click="recluster(false)">增量聚类（保留现有人物）</button>
+        <button class="danger sm" :disabled="busy" @click="recluster(true)">重新聚类（清空分组）</button>
+      </template>
+
+      <div class="small muted">
+        点击卡片选中后可将多个分组合并；增量聚类只处理尚未归属的人脸，不影响已命名的人物；重新聚类会清空全部分组。
+      </div>
+      <div class="small" style="color: var(--warning)" v-if="aiDisabled">
+        AI 处理层已通过 AI_ENABLED=false 关闭，分组接口可能不可用。
+      </div>
+
+      <div class="row" style="margin: 10px 0" v-if="selectedCards.length >= 2">
+        <span class="small">合并到</span>
+        <select v-model="mergeTarget" style="min-width: 200px">
+          <option v-for="item in mergeOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+        </select>
+        <button class="primary sm" :disabled="busy" @click="mergeSelected()">合并所选 {{ selectedCards.length }} 组</button>
+        <button class="ghost sm" @click="clearSelection()">取消选择</button>
+      </div>
+
+      <div class="row" style="margin: 10px 0" v-if="editingCard">
+        <span class="small">命名「{{ editingCard.displayName }}」</span>
+        <input v-model="editName" placeholder="例如：家人 / 朋友 / 昵称" style="min-width: 220px" @keyup.enter="saveRename()" />
+        <button class="primary sm" :disabled="busy" @click="saveRename()">保存</button>
+        <button class="ghost sm" @click="cancelRename()">取消</button>
+        <span class="small muted">留空保存即清除名称</span>
+      </div>
+
+      <Placeholder v-if="error" :error="'获取 /API/ai/persons 失败: ' + error" />
+      <Placeholder v-else-if="!cards.length" text="暂无人物分组：请先处理人脸能力，再执行增量聚类" />
+      <div class="media-grid" v-else>
+        <div class="col" v-for="card in visibleCards" :key="card.id">
+          <MediaTile :src="card.thumb" :caption="card.caption" :selected="selectedIds.has(card.id)" @click="toggleSelect(card.id)" />
+          <div class="row">
+            <button class="ghost sm" :disabled="busy" @click="startRename(card)">命名</button>
+            <button class="ghost sm" :disabled="busy" @click="loadFaces(card)">人脸 {{ card.faceCount }}</button>
+            <button class="danger sm" :disabled="busy" @click="removePerson(card)">删除</button>
+          </div>
+        </div>
+      </div>
+      <button v-if="!error && visibleCards.length < cards.length" class="ghost sm" @click="showMore()">
+        加载更多（{{ visibleCards.length }} / {{ cards.length }}）
+      </button>
+    </Card>
+
+    <Card v-if="facesOf" :title="'「' + (facesOwner ? facesOwner.displayName : facesOf) + '」的人脸'">
+      <template #actions>
+        <span class="small muted" v-if="faceLoading">加载中…</span>
+        <span class="small muted">共 {{ faceTotal }} 张</span>
+        <button class="ghost sm" @click="closeFaces()">关闭</button>
+      </template>
+
+      <Placeholder v-if="faceError" :error="'获取人脸失败: ' + faceError" />
+      <Placeholder v-else-if="!faceCards.length && !faceLoading" text="该分组暂无已归属的人脸" />
+      <template v-else>
+        <div class="row" style="margin-bottom: 10px">
+          <span class="small muted">已选 {{ faceSelected.length }} 张</span>
+          <button class="ghost sm" :disabled="busy || !faceSelected.length" @click="assignFaces(null)">移出分组</button>
+          <span class="small">移到</span>
+          <select v-model="moveTarget" style="min-width: 180px">
+            <option value="">选择分组…</option>
+            <option v-for="item in otherPersons" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+          <button
+            class="primary sm"
+            :disabled="busy || !faceSelected.length || !moveTarget"
+            @click="assignFaces(moveTarget)"
+          >应用</button>
+        </div>
+        <div class="media-grid">
+          <div class="col" v-for="face in faceCards" :key="face.id">
+            <MediaTile
+              :src="face.thumb"
+              :caption="face.caption"
+              :selected="face.selected"
+              @click="toggleFace(face.id)"
+            />
+            <div class="small muted">{{ face.detail }}</div>
+          </div>
+        </div>
+      </template>
+    </Card>
+  </div>
+</template>
