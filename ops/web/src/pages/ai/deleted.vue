@@ -61,7 +61,7 @@ export default {
         total.value = num(data && data.total);
         retain(items.value.map((item) => item.id));
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         error.value = err.message;
       } finally {
         loading.value = false;
@@ -81,7 +81,7 @@ export default {
         selected.value = selected.value.filter((id) => ids.indexOf(id) < 0);
         await load(false);
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('恢复失败: ' + err.message, 'error');
       } finally {
         busy.value = false;

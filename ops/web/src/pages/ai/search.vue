@@ -205,7 +205,7 @@ export default {
         }
         return true;
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         if (id === requestId) failRequest(err, append);
         return false;
       } finally {
@@ -370,7 +370,7 @@ export default {
           faceCount: faces.length,
         };
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         if (id !== requestId || selectedId.value !== card.id) return;
         detailError.value = err.message;
       }

@@ -24,8 +24,8 @@
 | 当前依赖/行为 | 分发前需要处理 |
 | --- | --- |
 | `.env` 必须给出存储路径、两种端口；相对路径依赖工作目录 | 启动器固定工作目录，首次启动生成空目录、配置与 `cert/`，使用相对安装目录的默认路径 |
-| Monarch 和 comix 初始化使用 `references/db/sqlite.sql`，Gallery 依赖已初始化的库 | 主包携带同一份 SQL，保留独立运行 CLI 时的目录定位。托管子进程由 Monarch 注入数据库绝对路径 |
-| `OPS_WEB_DIR` 默认 `../ops/web` | 完整复制 `ops/web`，包括 Vue vendor 文件；现有网页无需 Node/npm 构建 |
+| Monarch/Gallery 共用 Go 初始化；漫画域由两端共用 `comix.sql` | 主包携带 `references/db/sqlite.sql` 和 `comix.sql`，保留独立运行 CLI 时的目录定位。托管子进程由 Monarch 注入数据库绝对路径 |
+| `OPS_WEB_DIR` 默认 `../ops/web/dist` | 打包前 npm ci/build，只复制 `ops/web/dist`；正式运行无需 Node/npm/CDN |
 | Gallery 任务调用 `gizmos/gallery.exe` | 构建并携带第二个 Go 产物；视频探测、剪辑及部分格式转换仍需 FFmpeg/ffprobe |
 | 视频工具只从 PATH 查找 | 随包携带适当的 Windows 构建与许可文件，由启动器为本进程及子进程补 PATH；也可在后端统一解析配置的工具目录 |
 | comix 使用 Python、requests、lxml、Playwright 等 | 交付独立 Python 运行时与锁定的依赖，校验其 `sqlite3.sqlite_version` 含 WAL-reset 修复。完整支持浏览器站点需带 Chromium，并固定 `PLAYWRIGHT_BROWSERS_PATH` |
@@ -36,7 +36,7 @@
 | 服务收到退出信号会关闭监听并清理托管进程，便携包尚无停止入口和单实例约束 | 启动器提供明确的停止入口，并验证 Windows 关窗行为。数据目录按实例独占，防止重复启动触发队列恢复 |
 | 程序与用户数据缺少升级交付规则 | 升级只替换程序/资源，保留数据和配置；升级前用 SQLite backup/只读 `VACUUM INTO` 做一致快照，不裸拷贝运行中的 `.db` |
 
-保留 `backend/cmd.exe`、`backend/gizmos/gallery.exe`、`backend/gizmos/comix/`、`backend/tools/ai/`、`backend/references/db/sqlite.sql`、`ops/web/` 的相对布局。使用发布文件清单装包，排除开发机的 `.env`、证书、数据库、媒体、运行偏好和私有密钥。
+保留 `backend/cmd.exe`、`backend/gizmos/gallery.exe`、`backend/gizmos/comix/`、`backend/tools/ai/`、`backend/references/db/{sqlite,comix}.sql`、`ops/web/dist/` 的相对布局。使用发布文件清单装包，排除开发机的 `.env`、证书、数据库、媒体、运行偏好和私有密钥。
 
 ## Android 安装与配对
 

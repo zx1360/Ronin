@@ -61,6 +61,7 @@ export async function request(method, path, options = {}) {
     });
     text = await response.text();
   } catch (error) {
+    if (signal?.aborted) throw new DOMException('请求已取消', 'AbortError');
     throw new ApiError(error.name === 'AbortError' ? '请求超时或已取消' : `网络请求失败: ${error.message}`);
   } finally {
     if (timer) clearTimeout(timer);
@@ -96,13 +97,13 @@ function createApi(signal) {
     ...options, signal: signal && options.signal ? AbortSignal.any([signal, options.signal]) : signal || options.signal,
   });
   return {
-  signal,
-  get: (path, options) => send('GET', path, options),
-  post: (path, body, options) => send('POST', path, { ...options, body: body ?? {} }),
-  put: (path, body, options) => send('PUT', path, { ...options, body: body ?? {} }),
-  patch: (path, body, options) => send('PATCH', path, { ...options, body: body ?? {} }),
-  del: (path, options) => send('DELETE', path, options),
-};
+    signal,
+    get: (path, options) => send('GET', path, options),
+    post: (path, body, options) => send('POST', path, { ...options, body: body ?? {} }),
+    put: (path, body, options) => send('PUT', path, { ...options, body: body ?? {} }),
+    patch: (path, body, options) => send('PATCH', path, { ...options, body: body ?? {} }),
+    del: (path, options) => send('DELETE', path, options),
+  };
 }
 
 export const api = createApi();

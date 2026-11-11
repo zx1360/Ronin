@@ -2,11 +2,11 @@
 
 ## 1. 它不是独立服务
 
-Northstar 源码在 `ops/web/`，由 Monarch 的 [setupOpsWeb](../../backend/internal/router/router.go) 直接托管：
+Northstar 源码在 `ops/web/`，构建到 `ops/web/dist/`，由 Monarch 的 [setupOpsWeb](../../backend/internal/router/router.go) 直接托管：
 
 - `/ops/` 页面静态资源。
 - `/API/ops/local/*` 本机能力接口。
-- 页面与 API 同源，因此没有独立 dev server、构建产物或 npm 依赖链。
+- 页面与 API 同源；Node/npm 仅用于构建，正式运行不依赖开发服务器或 CDN。
 - 生产入口推荐 `http://127.0.0.1:7275/ops/`；HTTPS 入口使用 7274。
 
 ## 2. 前端组成
@@ -16,14 +16,18 @@ index.html
   └─ src/main.js
       ├─ src/store.js       全局状态、bootstrap、hash 路由、toast、confirm
       ├─ src/api.js         fetch、API key、错误归一化、assetUrl
-      ├─ src/ui.js          共享 UI 与 usePolling
+      ├─ src/App.vue        hash 导航、页面装配
+      ├─ src/components/    共享 SFC
+      ├─ src/composables.js usePolling 与离开守卫
       ├─ src/utils.js       格式化
-      └─ pages/*.js         页面
-          ├─ ai/*.js
+      └─ pages/*.vue        页面
+          ├─ ai/*.vue
           └─ comix/*.js
 ```
 
-Vue 3 使用仓库内 `vendor/vue.esm-browser.prod.js`，通过 `vue.js` 转出；模板由浏览器运行时编译，不要引入 npm/打包器/CDN。
+Vue 3 SFC 在构建时编译，业务逻辑继续使用 JavaScript；版本由 `package-lock.json` 锁定。Vite 的 `base` 固定为 `/ops/`，资源采用带 hash 的构建路径，导航继续使用 hash。刷新请求仍落在 `/ops/`。
+
+仓库根运行 `npm.cmd ci --prefix ops/web`、`npm.cmd run build --prefix ops/web`。`OPS_WEB_DIR` 默认为 `../ops/web/dist`，已有显式配置须指向该目录。发布只携带 dist；开发在 ops/web 运行 `npm run watch`，通过 Monarch 刷新，不另开开发服务器或放宽同源鉴权。
 
 ## 3. 启动与鉴权
 
@@ -58,7 +62,7 @@ bootstrap 本身依赖回环限制，不需要先有 API key；服务端下发�
 | `#/settings` | 设置 | 界面偏好、连接信息与服务路径 |
 | `#/help` | 使用说明 | 操作入口、数据归属、同步与备份 |
 
-`main.js` 的 `routes` 数组是导航顺序和 hash 路由真源，不使用 Vue Router。漫画页只保留下载和书库，任务结果与日志统一进入任务中心。
+`App.vue` 的 `routes` 数组是导航顺序和 hash 路由真源，不使用 Vue Router。漫画页只保留下载和书库，任务结果与日志统一进入任务中心。
 
 ## 5. 状态与轮询
 
@@ -69,11 +73,11 @@ bootstrap 本身依赖回环限制，不需要先有 API key；服务端下发�
 - `confirmAction()` 由 `confirm_destructive` 控制破坏性操作二次确认。
 - `api.js` 统一拒绝 HTTP 错误、无效 JSON 和顶层 `ok:false`；页面捕获异常并提示 toast；AI 页通过自身的 `run()` 同时管理忙状态与刷新。
 
-任务、日志与 AI 页在有活动时轮询；任务/日志通常 2 秒，AI 使用偏好间隔。仪表盘在页面可见时按偏好刷新。组件卸载后不得续期轮询。
+任务、日志与 AI 页在有活动时轮询；任务/日志通常 2 秒，AI 使用偏好间隔。仪表盘在页面可见时按偏好刷新。组件卸载后不得续期轮询；`useApi` 在同一请求封装上绑定取消信号，`usePolling` 合并重叠刷新。
 
 AI 进入页面先展示 `/API/ai/progress`，随后补齐诊断与配置；活动期间只轮询进度，队列清空后重取统计。轻量进度与已有诊断按字段合并，避免覆盖模型候选和就绪信息。仪表盘目录用量首次返回待统计状态，按需异步扫描完成后展示。
 
-个人数据页只在进入页面、手动刷新或写入后请求，不轮询；`pages/user-data.js` 统一增量合并与图片上传。随笔草稿连同图片保存在浏览器 IndexedDB，编辑时保留正式原文，冲突时保留草稿。
+个人数据页只在进入页面、手动刷新或写入后请求，不轮询；`pages/user-data.js` 统一增量合并与图片上传。随笔草稿连同图片保存在浏览器 IndexedDB，编辑时保留正式原文，冲突时保留草稿。离开页面前等待草稿落盘，落盘失败保留编辑器；未保存的标签和留言、打卡输入使用离开提醒。
 
 在线写入使用 `/API/user-data/edit/:module` 并附带 `base_cursor`，后端在事务内校验读取快照，过期则整批拒绝并回滚附件；缺少新路由的旧后端不能写入。打卡及标签编辑保留打开表单时的游标；刷新不替换尚未保存的打卡输入和样式快照。离开未保存的打卡表单经过共享导航守卫；关闭浏览器触发原生提醒。
 
@@ -90,10 +94,12 @@ AI 进入页面先展示 `/API/ai/progress`，随后补齐诊断与配置；活�
 
 ## 7. 修改 Northstar 的验证
 
-无需构建；启动 Monarch 后打开页面逐页验证：
+仓库根运行；浏览器地址必须显式指向隔离 Monarch 实例：
 
 ```powershell
-python tools/smoke_ops_web.py
+pwsh -File verify.ps1 -Scope ops -OpsBase http://127.0.0.1:<隔离端口>
 ```
 
 修改 API 后先核对 [routes.md](../../backend/references/generated/api/routes.md) 和 Go handler，再刷新页面；不应为页面另建一份接口文档或字段命名体系。
+
+验收覆盖所有页面/标签、乱序与取消、多选保留、卸载停止轮询、草稿图片恢复/冲突和错误反馈。边缘响应由浏览器拦截注入；这些专项不会向后端写入测试数据。

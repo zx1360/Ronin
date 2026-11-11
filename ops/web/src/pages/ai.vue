@@ -4,7 +4,7 @@
 // 进入/手动刷新时取诊断与配置；活动期间仅轮询 /API/ai/progress。
 // 各标签页只在被选中时挂载，自带加载与空态提示。
 
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useApi } from '../api.js';
 import { state, toast } from '../store.js';
 import { usePolling } from '../composables.js';
@@ -45,9 +45,6 @@ export default {
       return status.value.schema_ready === false;
     });
     const capabilities = computed(() => status.value?.capabilities || []);
-    const controller = new AbortController();
-    let disposed = false;
-    onUnmounted(() => { disposed = true; controller.abort(); });
 
     /** 是否还有值得持续观察的活动（排队中/批次执行中/侧车或自拉 Ollama 在跑）。 */
     const active = computed(() => {
@@ -64,25 +61,20 @@ export default {
     });
 
     /** 拉取一次页面状态；silent 用于轮询，失败只在角落里小声提示，不打扰也不刷屏。 */
-    let inFlight = false;
-    let pendingRefresh = null;
-    const load = async (options) => {
-      const silent = !!(options && options.silent);
-      if (inFlight) {
-        if (!silent) pendingRefresh = { refresh: pendingRefresh?.refresh || options?.refresh };
-        return;
-      }
-      inFlight = true;
+    let diagnostics = true;
+    let refreshModels = false;
+    const load = async () => {
+      const silent = !diagnostics, refresh = refreshModels;
+      diagnostics = false;
+      refreshModels = false;
+      if (api.signal.aborted || (silent && disabled.value)) return;
       // 轮询不切换「刷新中…」，避免每几秒闪一次
       if (!silent) loading.value = true;
       const results = await Promise.allSettled([
-        api.get(silent ? '/API/ai/progress' : `/API/ai/status${options?.refresh ? '?refresh=true' : ''}`, { signal: controller.signal }),
-        ...(!silent ? [api.get('/API/ai/settings', { signal: controller.signal }).then((value) => {
-          if (!disposed) runtime.value = value || null;
-          return value;
-        })] : []),
+        api.get(silent ? '/API/ai/progress' : `/API/ai/status${refresh ? '?refresh=true' : ''}`),
+        ...(!silent ? [api.get('/API/ai/settings')] : []),
       ]);
-      if (disposed) return;
+      if (api.signal.aborted) return;
       const [statusResult, settingsResult] = results;
 
       if (statusResult.status === 'fulfilled') {
@@ -100,39 +92,33 @@ export default {
 
       if (settingsResult?.status === 'fulfilled') runtime.value = settingsResult.value || null;
 
-      inFlight = false;
+      if (settingsResult?.status === 'rejected') error.value = settingsResult.reason.message;
       loading.value = false;
-      if (pendingRefresh) {
-        const pending = pendingRefresh;
-        pendingRefresh = null;
-        await load(pending);
-      }
     };
 
-    // AI 关闭时一个请求都不再发出（状态里 enabled=false 即可判定），也不做任何重试
-    const poller = usePolling(() => {
-      if (disabled.value) return null;
-      return load({ silent: true });
-    }, {
+    const poller = usePolling(load, {
       interval: () => state.settings.ai_refresh_seconds || 3,
       enabled: () => !disabled.value && active.value,
     });
 
-    const reload = async () => {
-      await load({ refresh: true });
+    const refresh = (models = false) => {
+      diagnostics = true;
+      refreshModels ||= models;
+      return poller.trigger();
     };
+    const reload = () => refresh(true);
 
     onMounted(async () => {
-      const initialProgress = api.get('/API/ai/progress', { signal: controller.signal }).then((progress) => {
-        if (!disposed && !status.value) status.value = mergeProgress(null, progress);
+      const initialProgress = api.get('/API/ai/progress').then((progress) => {
+        if (!api.signal.aborted && !status.value) status.value = mergeProgress(null, progress);
       });
-      await Promise.allSettled([initialProgress, load()]);
+      await Promise.allSettled([initialProgress, poller.trigger()]);
     });
     watch(active, (value) => {
       if (value && !disabled.value) poller.trigger();
     });
     watch(() => status.value?.pending_total, (next, previous) => {
-      if (next === 0 && previous > 0 && !disabled.value) load();
+      if (next === 0 && previous > 0 && !disabled.value) refresh();
     });
 
     /** 统一的动作通道：忙标记 + 成功提示 + 重新拉取状态；失败提示具体原因。 */
@@ -142,10 +128,10 @@ export default {
       try {
         const result = await action();
         if (notice) toast(notice, 'success');
-        await load();
+        await refresh();
         return result === undefined ? true : result;
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted || err.name === 'AbortError') return false;
         toast('操作失败: ' + (err && err.message ? err.message : String(err)), 'error');
         return false;
       } finally {

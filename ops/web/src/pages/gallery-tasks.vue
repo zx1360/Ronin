@@ -28,7 +28,7 @@ export default {
         tasks.value = data?.data?.tasks || [];
         error.value = '';
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         if (!signal.aborted) error.value = err.message;
       } finally { loading.value = false; }
     };
@@ -65,7 +65,7 @@ export default {
         toast(`任务已启动: ${data?.data?.task_id || ''}`, 'success');
         navigate(`/tasks?task=gallery:${encodeURIComponent(data?.data?.task_id || '')}`);
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast(`启动失败: ${err.message}`, 'error');
       } finally {
         starting.value = false;

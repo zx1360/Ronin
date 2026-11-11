@@ -77,7 +77,7 @@ export default {
           clamping = false;
         }
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         if (!signal.aborted) error.value = err.message;
       } finally {
         loading.value = false;
@@ -142,7 +142,7 @@ export default {
         toast('已重新排队 ' + num(data && data.retried) + ' 条失败任务', 'success');
         await poller.trigger();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('重试失败: ' + err.message, 'error');
       } finally {
         retrying.value = false;

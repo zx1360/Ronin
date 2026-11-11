@@ -62,7 +62,7 @@ export default {
         if (signal.aborted || task.key !== selectedKey.value) return;
         detail.value = data?.data || null;
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         if (!signal.aborted && task.key === selectedKey.value) detailError.value = err.message;
       }
       if (autoScroll.value) {
@@ -107,7 +107,7 @@ export default {
         await refresh();
         toast('已发送取消或中断请求', 'success');
       } catch (error) {
-      if (api.signal.aborted) return; toast(error.message, 'error'); }
+        if (api.signal.aborted) return; toast(error.message, 'error'); }
       finally { stopping.value = false; }
     };
 
@@ -131,7 +131,7 @@ export default {
         await navigator.clipboard.writeText(text);
         toast('日志已复制到剪贴板', 'success');
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast(`复制失败: ${err.message}`, 'error');
       }
     };

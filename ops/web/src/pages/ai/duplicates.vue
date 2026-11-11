@@ -75,7 +75,7 @@ export default {
         shownGroups.value = GROUP_BATCH;
         retain(groups.value.flatMap((group) => group.items.map((item) => item.id)));
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         error.value = err.message;
         groups.value = [];
         ignoredTotal.value = 0;
@@ -101,7 +101,7 @@ export default {
         selected.value = selected.value.filter((id) => ids.indexOf(id) < 0);
         await load();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('标记失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -117,7 +117,7 @@ export default {
         selected.value = selected.value.filter((id) => ids.indexOf(id) < 0);
         await load();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('标记失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -147,7 +147,7 @@ export default {
           thumb: thumbUrl(item.id),
         }));
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         ignoredError.value = err.message;
         ignoredItems.value = [];
       } finally {
@@ -164,7 +164,7 @@ export default {
         await load();
         await loadIgnored();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('恢复失败: ' + err.message, 'error');
       } finally {
         busy.value = false;

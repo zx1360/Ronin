@@ -1,6 +1,6 @@
 # 数据库索引
 
-**SQLite（Go 内核 3.51.3，单文件）** — 表结构与触发器定义真源：`references/db/sqlite.sql`（幂等，可重复执行）。
+**SQLite（Go 内核 3.51.3，单文件）** — 表结构与触发器定义真源：非漫画域 `references/db/sqlite.sql`、漫画域 `references/db/comix.sql`（幂等，可重复执行）。
 
 | 项 | 值 |
 |---|---|
@@ -9,7 +9,7 @@
 | 写入模型 | 单写者：写连接池固定 1 连接 + `BEGIN IMMEDIATE`；WAL + `busy_timeout=10s` + 退避重试 |
 | 三方共用 | Monarch(Go) / gizmos(Go CLI) / comix(Python) 读写同一文件 |
 
-SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀。
+SQLite 表名扁平化；漫画域使用 `comics` 与 `comic_*`。
 
 | 模块 | 表 | 说明 |
 |------|----|------|
@@ -17,6 +17,19 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
 | 用户数据 | `essay_articles` / `essay_labels` / `essay_year_summaries` / `booklet_styles` / `booklet_records` / `user_data_changes` | 见 `user_data.md` |
 | AI | `media_ai` / `media_ai_tags` / `embeddings` / `faces` / `persons` / `jobs` / `duplicate_ignores` / `settings` | 见 `ai.md`。`jobs` 与 `media_ai`/`embeddings`/`faces` 各有 `input_sig` 列（输入档位 + 执行者指纹，用于追溯与显式重生成） |
 | 漫画 | `comic_sites` / `comics` / `comic_chapters` / `comic_images` / `comic_download_tasks` / `comic_aliases` | 见 `comix.md` |
+
+## Schema 与升级责任
+
+| 数据域 | schema | 升级入口 |
+|---|---|---|
+| Gallery 媒体/标签/图库标识/请求去重 | sqlite.sql | Go db.initialize → migrate.go |
+| 随笔/标签/汇总/打卡/同步游标 | sqlite.sql | 同上，含旧触发器清理与隐藏标签初始化 |
+| AI 产物/人物/任务/配置 | sqlite.sql | 同上 |
+| 漫画站点/漫画/章节/图片/任务/别名 | comix.sql | Monarch 与 comix init 执行同一 SQL；目前无补列或结构转换 |
+
+Monarch 的 `db.Init` 与 Gallery 的 `db.InitGallery` 共用初始化实现，在一个 `BEGIN IMMEDIATE` 事务内先补旧表列、再建缺失表并初始化用户数据，失败整体回滚。Gallery 使用 FULL 持久提交，独立运行无需先启动 HTTP 服务。comix 只初始化漫画域，SQL 在写事务内执行，不再创建或升级其他域。
+
+不重置全库 `user_version`，不删除生产数据。补列继续用最小的幂等声明；漫画未来若需结构转换，应新增双方共用的有序 SQL 迁移入口，不能各自独立升级相同表。发布需同时携带两份 SQL；自定义 `DB_SCHEMA_FILE` 时，`comix.sql` 放在同目录。
 
 ## 取值约定
 
@@ -37,7 +50,7 @@ SQLite 无 schema 概念，表名扁平化；comix 侧统一加 `comic_` 前缀�
   写操作后整体重算并只更新变化的行，天然容忍历史遗留的错误路径。
 - 新增列不能靠 `sqlite.sql` 的 `CREATE TABLE IF NOT EXISTS` 补上，统一在
   `internal/service/db/migrate.go` 的 `addedColumns` 里声明（先查 `pragma_table_info` 再
-  `ALTER TABLE ADD COLUMN`），同时更新 `sqlite.sql` 让全新库直接建好；Monarch 启动时执行。
+  `ALTER TABLE ADD COLUMN`），同时更新 `sqlite.sql` 让全新库直接建好；Monarch 和 Gallery 复用 Go 初始化入口执行。
   当前新增列：`jobs.input_sig`、`media_ai.{phash,ocr,caption}_input_sig`、
   `embeddings.input_sig`、`faces.input_sig`、`essay_articles.{title,labels_updated_at}`、`essay_labels.parent_id`。
 
