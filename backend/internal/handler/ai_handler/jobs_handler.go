@@ -1,11 +1,13 @@
 package ai_handler
 
 import (
-	"github.com/gin-gonic/gin"
-	"monarch/internal/model"
-	"monarch/internal/repository/ai_repo"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"monarch/internal/model"
+	"monarch/internal/repository/ai_repo"
 )
 
 // ListJobs 处理 GET /API/ai/jobs

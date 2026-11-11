@@ -3,15 +3,17 @@ package ai_handler
 import (
 	"context"
 	"errors"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"monarch/internal/repository/ai_repo"
-	"monarch/internal/service/ai"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"monarch/internal/repository/ai_repo"
+	"monarch/internal/service/ai"
 )
 
 // Search 处理 GET /API/ai/search

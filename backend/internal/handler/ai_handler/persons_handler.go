@@ -3,13 +3,15 @@ package ai_handler
 import (
 	"context"
 	"errors"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"monarch/internal/repository/ai_repo"
-	"monarch/internal/service/ai"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"monarch/internal/repository/ai_repo"
+	"monarch/internal/service/ai"
 )
 
 // ListPersons 处理 GET /API/ai/persons

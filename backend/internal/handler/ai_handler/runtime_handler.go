@@ -2,12 +2,14 @@ package ai_handler
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
-	"monarch/internal/config"
-	"monarch/internal/model"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"monarch/internal/config"
+	"monarch/internal/model"
 )
 
 // Status 处理 GET /API/ai/status
