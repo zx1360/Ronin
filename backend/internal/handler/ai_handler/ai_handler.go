@@ -2,13 +2,15 @@ package ai_handler
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"monarch/internal/repository/ai_repo"
-	"monarch/internal/service/ai"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"monarch/internal/repository/ai_repo"
+	"monarch/internal/service/ai"
 )
 
 // engine 返回全局引擎；未装配时以 503 明确回应。
