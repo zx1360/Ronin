@@ -52,7 +52,7 @@ export default {
         if (!selected.value.includes(mergeTarget.value)) mergeTarget.value = selected.value[0] || '';
         if (facesOf.value && !persons.value.some((item) => item.id === facesOf.value)) closeFaces();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         if (!request.signal.aborted) error.value = err.message;
       } finally {
         if (!request.signal.aborted) loading.value = false;
@@ -127,7 +127,7 @@ export default {
         cancelRename();
         await load();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('命名失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -147,7 +147,7 @@ export default {
         if (facesOf.value === card.id) closeFaces();
         await load();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('删除失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -170,7 +170,7 @@ export default {
         clearSelection();
         await load();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('合并失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -199,7 +199,7 @@ export default {
         closeFaces();
         await load();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('聚类失败: ' + err.message, 'error');
       } finally {
         busy.value = false;
@@ -222,7 +222,7 @@ export default {
         faces.value = Array.isArray(data && data.faces) ? data.faces : [];
         faceTotal.value = num(data && data.total);
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         if (!request.signal.aborted) faceError.value = err.message;
       } finally {
         if (!request.signal.aborted) faceLoading.value = false;
@@ -258,7 +258,7 @@ export default {
           closeFaces();
         }
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         toast('纠正失败: ' + err.message, 'error');
       } finally {
         busy.value = false;

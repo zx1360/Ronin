@@ -3,7 +3,7 @@
 //
 // 数据来自 /API/ops/overview（服务端按 TTL 缓存目录用量），按偏好里的间隔轮询。
 
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useApi } from '../api.js';
 import { state } from '../store.js';
 import Card from '../components/Card.vue';
@@ -29,18 +29,16 @@ export default {
     const error = ref('');
     const updatedAt = ref(null);
     const loading = ref(false);
-    const controller = new AbortController();
-    onUnmounted(() => controller.abort());
 
     const load = async () => {
-      if (loading.value || controller.signal.aborted) return;
+      if (loading.value || api.signal.aborted) return;
       loading.value = true;
       try {
-        overview.value = await api.get('/API/ops/overview', { timeoutMs: 30000, signal: controller.signal });
+        overview.value = await api.get('/API/ops/overview', { timeoutMs: 30000 });
         error.value = '';
         updatedAt.value = new Date().toISOString();
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         error.value = err.message;
       } finally {
         loading.value = false;

@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useApi, assetUrl } from '../api.js';
 import { toast } from '../store.js';
 import { applySyncDelta } from './user-data-sync.js';
@@ -21,34 +21,33 @@ export function useUserData(module) {
   const names = module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
   const data = ref(Object.fromEntries(names.map((name) => [name, []])));
   const loading = ref(false), busy = ref(false), error = ref('');
-  let cursor = 0, disposed = false;
-  const controller = new AbortController();
+  let cursor = 0;
   async function pull() {
     let result;
     const path = `/API/user-data/sync/${module}?sync_version=2`;
     try {
-      result = await api.get(`${path}&after=${cursor}`, { signal: controller.signal });
+      result = await api.get(`${path}&after=${cursor}`);
     } catch (e) {
-      if (api.signal.aborted) return;
       if (!cursor || e.status !== 409) throw e;
       cursor = 0;
-      result = await api.get(path, { signal: controller.signal });
+      result = await api.get(path);
     }
-    if (disposed) return;
+    if (api.signal.aborted) return;
     const next = applySyncDelta(module, data.value, result, cursor);
     data.value = next.data;
     cursor = next.cursor;
   }
   async function refresh() {
-    if (loading.value || busy.value) return;
+    if (api.signal.aborted || loading.value || busy.value) return;
     loading.value = true;
     error.value = '';
     try { await pull(); } catch (e) {
-      if (api.signal.aborted) return; if (!disposed) error.value = e.message; }
+      if (!api.signal.aborted) error.value = e.message;
+    }
     finally { loading.value = false; }
   }
   async function save(changes, files = new Map(), { checkLabels = true, baseCursor = cursor } = {}) {
-    if (busy.value || loading.value) return false;
+    if (api.signal.aborted || busy.value || loading.value) return false;
     busy.value = true;
     error.value = '';
     try {
@@ -62,6 +61,7 @@ export function useUserData(module) {
       const essays = changes.essays || [];
       const response = await api.post(`/API/user-data/edit/${module}${essays.length ? '?receipt=1' : ''}`, body);
       await pull();
+      if (api.signal.aborted) return false;
       if (essays.length) {
         const receipts = response?.essay_receipts;
         const results = essays.map((row) => Array.isArray(receipts) && receipts.find((item) => item?.id === row.id));
@@ -79,15 +79,16 @@ export function useUserData(module) {
       if (!accepted) toast('另一端已有更新版本，请刷新编辑内容后重试', 'warning');
       return accepted;
     } catch (e) {
-      if (api.signal.aborted) return; error.value = e.status === 404 ? '后端尚不支持安全在线编辑，请更新并重启 Monarch 后再保存' : e.message; toast(error.value, 'error'); return false; }
+      if (api.signal.aborted) return false;
+      error.value = e.status === 404 ? '后端尚不支持安全在线编辑，请更新并重启 Monarch 后再保存' : e.message;
+      toast(error.value, 'error');
+      return false;
+    }
     finally { busy.value = false; }
   }
   onMounted(refresh);
-  onUnmounted(() => { disposed = true; controller.abort(); });
   return { data, loading, busy, error, refresh, save, snapshotCursor: () => cursor };
 }
-
-
 
 export function labelTree(labels) {
   const byID = new Map(labels.map((l) => [l.id, l]));

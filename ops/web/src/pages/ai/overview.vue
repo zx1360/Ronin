@@ -28,28 +28,13 @@ export default {
     aiDisabled: { type: Boolean, default: false },
     schemaMissing: { type: Boolean, default: false },
     pollError: { type: String, default: '' },
-    run: { type: Function, default: null },
-    refresh: { type: Function, default: null },
+    run: { type: Function, required: true },
+    refresh: { type: Function, required: true },
   },
   setup(props) {
     const api = useApi();
-    /** 统一走服务端的「操作 + 提示 + 刷新状态」通道；失败不吞异常。 */
-    const act = async (notice, action) => {
-      if (typeof props.run === 'function') return props.run(notice, action);
-      try {
-        await action();
-        if (notice) toast(notice, 'success');
-        return true;
-      } catch (err) {
-      if (api.signal.aborted) return;
-        toast('操作失败: ' + err.message, 'error');
-        return false;
-      }
-    };
-
-    const doRefresh = () => {
-      if (typeof props.refresh === 'function') props.refresh();
-    };
+    const act = (notice, action) => props.run(notice, action);
+    const doRefresh = () => props.refresh();
 
     const header = computed(() => {
       const source = props.status || {};
@@ -333,6 +318,7 @@ export default {
     </div>
 
     <div class="small muted" style="margin: 6px 0" v-if="pollError">状态刷新失败：{{ pollError }}</div>
+    <Placeholder v-if="error" :error="error" />
 
     <Placeholder
       v-if="aiDisabled"
@@ -342,8 +328,8 @@ export default {
       v-else-if="schemaMissing"
       error="AI 数据表尚未初始化，请检查服务启动日志后重启 Monarch。"
     />
-    <Placeholder v-else-if="!status" :error="error" :text="error ? '' : '正在获取 /API/ai/status…'" />
-    <template v-else>
+    <Placeholder v-else-if="!status && !error" text="正在获取 /API/ai/status…" />
+    <template v-else-if="status">
       <Card title="当前批次" v-if="lastRun">
         <div class="row between">
           <div class="row">

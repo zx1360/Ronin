@@ -1,5 +1,5 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { confirmAction, toast } from '../../store.js';
+import { confirmAction, toast, setLeaveGuard } from '../../store.js';
 import { useUserData, clone, day, stamp, labelTree, hiddenLabels, descendants } from '../user-data.js';
 import { draftStore } from './drafts.js';
 
@@ -159,9 +159,13 @@ export function useEssayBoard() {
     const picked = candidates[Math.floor(Math.random() * candidates.length)];
     seen.add(picked.id); detailId.value = picked.id; tab.value = 'browse';
   }
-  const beforeUnload = (event) => { if (pending) { event.preventDefault(); event.returnValue = ''; } };
+  const clearLeaveGuard = setLeaveGuard(async () => {
+    if ((labelForm.value || message.value.trim()) && !await confirmAction('当前有未保存的标签或留言，离开将丢弃这些输入。继续吗？', { danger: true })) return false;
+    return persist();
+  });
+  const beforeUnload = (event) => { if (pending || labelForm.value || message.value.trim()) { event.preventDefault(); event.returnValue = ''; } };
   onMounted(() => { loadDrafts(); window.addEventListener('beforeunload', beforeUnload); });
-  onUnmounted(() => { disposed = true; persist(); clearTimeout(timer); window.removeEventListener('beforeunload', beforeUnload); });
+  onUnmounted(() => { clearLeaveGuard(); disposed = true; persist(); clearTimeout(timer); window.removeEventListener('beforeunload', beforeUnload); });
   return { ...board, busy: computed(() => busy.value || publishing.value), tab, query, year, years, labelFilter, sort, showHidden, filtered, page, limit, detailId, detail, labels, labelName, labelCount,
     drafts, draftError, loadDrafts, editor, original, draftStatus, preview, files, openEditor, closeEditor, discardDraft, publish, saveAsNew, removeEssay,
     message, appendMessage, toggleLabel, labelForm, editLabel, parentOptions, saveLabel, protectedLabel, removeLabel, stats, reread };

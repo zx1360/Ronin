@@ -9,12 +9,12 @@ Ronin 是一个**本机优先的媒体与个人数据系统**：
 
 - **Monarch**（Go）是唯一的后端真源，负责 HTTP API、SQLite、媒体库、AI 编排和外部 CLI 生命周期。
 - **Torrid**（Flutter/Android）是个人消费端：用户数据与对话以本地体验为中心，媒体标签等权威写入服务端。
-- **Northstar**（Vue 3 + 原生 ES 模块）是本机数据与运维端：只在回环地址使用，支持随笔、打卡，以及任务、AI、漫画和服务状态管理。
+- **Northstar**（Vue SFC + Vite）是本机数据与运维端：只在回环地址使用，支持随笔、打卡，以及任务、AI、漫画和服务状态管理。
 
 ```mermaid
 flowchart LR
     A[Torrid Android\nFlutter + Riverpod] -->|HTTPS :7274\nmDNS + X-API-Key| M
-    O[Northstar Ops\nVue 3 + ES modules] -->|HTTP :7275\n仅回环| M
+    O[Northstar Ops\nVue SFC + Vite] -->|HTTP :7275\n仅回环| M
     M[Monarch Go HTTP\nGin 路由/鉴权/处理器] --> R[Repository\n领域读写]
     R --> DB[(SQLite 单文件\nWAL + 单写连接)]
     M --> G[Gallery CLI\nGo 子进程]

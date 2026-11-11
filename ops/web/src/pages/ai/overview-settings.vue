@@ -59,7 +59,7 @@ export default {
         toast('处理配置已保存', 'success');
         emit('saved');
       } catch (err) {
-      if (api.signal.aborted) return;
+        if (api.signal.aborted) return;
         // 服务端会按取值范围回 400 并带原因，原样展示而不是笼统提示
         configError.value = err.message;
         toast('保存失败: ' + err.message, 'error');

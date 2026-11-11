@@ -1,6 +1,6 @@
 <script>
 import { useSelection } from '../../selection.js';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useApi } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';
 import Placeholder from '../../components/Placeholder.vue';
@@ -20,7 +20,6 @@ export default {
   emits: ['close'],
   setup(props) {
     const api = useApi();
-    const controller = new AbortController();
     const failures = ref([]);
     const failureTotal = ref(0);
     const failureError = ref('');
@@ -32,7 +31,7 @@ export default {
 
     /** 取某个能力"到底哪些文件失败了"；失败项通常是个位数，按批加载即可。 */
     const loadFailures = async (more) => {
-      if (controller.signal.aborted || failureLoading.value) return;
+      if (api.signal.aborted || failureLoading.value) return;
       if (more && !failureHasMore.value) return;
       failureLoading.value = true;
       failureError.value = '';
@@ -41,9 +40,9 @@ export default {
         const data = await api.get(
           '/API/ai/failures?capability=' + encodeURIComponent(props.capability)
           + '&limit=' + FAILURE_PAGE_SIZE + '&offset=' + offset,
-          { signal: controller.signal },
+          { signal: api.signal },
         );
-        if (controller.signal.aborted) return;
+        if (api.signal.aborted) return;
         const page = (Array.isArray(data && data.failures) ? data.failures : []).map((item) => ({
           mediaId: item.media_id || '',
           name: baseName(item.file_path) || String(item.media_id || '').slice(0, 8),
@@ -61,8 +60,8 @@ export default {
         failureTotal.value = num(data && data.total);
         retain(failures.value.map((item) => item.mediaId));
       } catch (err) {
-      if (api.signal.aborted) return;
-        if (!controller.signal.aborted) failureError.value = err.message;
+        if (api.signal.aborted) return;
+        if (!api.signal.aborted) failureError.value = err.message;
       } finally {
         failureLoading.value = false;
       }
@@ -87,7 +86,7 @@ export default {
         '将把选中的 ' + ids.length + ' 个文件标记为软删除（只改数据库标记，磁盘文件仍在，可在「已删除」页恢复）。',
         { title: '确认标记软删除', danger: true },
       );
-      if (!ok || controller.signal.aborted) return;
+      if (!ok || api.signal.aborted) return;
       await props.run('', async () => {
         await api.patch('/API/gallery/media', { media_ids: ids, is_deleted: true });
         toast('已标记软删除 ' + ids.length + ' 个文件', 'success');
@@ -97,7 +96,6 @@ export default {
     };
 
     onMounted(() => loadFailures(false));
-    onUnmounted(() => controller.abort());
 
     return {
       failures, failureTotal, failureError, failureLoading, failureSelected,

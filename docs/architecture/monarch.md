@@ -80,9 +80,11 @@ erDiagram
 - `media_assets/tags/media_tag_links`：Gallery 主数据；人工标签和 AI 标签物理隔离。
 - `essay_* / booklet_*`：用户数据按 updated_at 合并；`user_data_changes` 保存每行最新 revision 和 tombstone。
 - `media_ai / embeddings / faces / persons / jobs`：AI 产物与任务。
-- `comic_*`：comix 自己维护，Monarch 通过 repository/handler 使用。
+- `comics / comic_*`：Monarch 与 comix 共用 `comix.sql`，comix 仅初始化漫画域。
 
-新增列不能只改 `CREATE TABLE IF NOT EXISTS`；同时更新 `sqlite.sql` 和
+各域 schema 与升级入口见 [数据库维护责任](../../backend/AGENTS_DB.md)。Monarch/Gallery 复用事务初始化，Gallery 独立运行可建库并保持 FULL 持久提交。
+
+非漫画域新增列不能只改 `CREATE TABLE IF NOT EXISTS`；同时更新 `sqlite.sql` 和
 [migrate.go](../../backend/internal/service/db/migrate.go) 的 `addedColumns`。
 
 ## 5. 任务与外部进程
