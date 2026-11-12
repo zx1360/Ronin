@@ -80,35 +80,34 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
         title: const Text('随笔'),
         actions: [
           IconButton(
+            tooltip: 'AI 标签建议',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const EssayLabelSuggestionsPage(),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: '本机草稿',
+            icon: Badge.count(
+              count: draftCount,
+              isLabelVisible: draftCount > 0,
+              child: const Icon(Icons.drafts_outlined),
+            ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EssayDraftsPage()),
+            ),
+          ),
+          IconButton(
             tooltip: '浏览设置',
             icon: Badge(
               isLabelVisible: hasFilters,
               child: const Icon(Icons.tune),
             ),
             onPressed: () => _showBrowseSettings(context),
-          ),
-          PopupMenuButton<bool>(
-            tooltip: '更多随笔功能',
-            icon: Badge.count(
-              count: draftCount,
-              isLabelVisible: draftCount > 0,
-              child: const Icon(Icons.more_vert),
-            ),
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: true,
-                child: Text(draftCount > 0 ? '本机草稿 ($draftCount)' : '本机草稿'),
-              ),
-              const PopupMenuItem(value: false, child: Text('AI 标签建议')),
-            ],
-            onSelected: (drafts) => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => drafts
-                    ? const EssayDraftsPage()
-                    : const EssayLabelSuggestionsPage(),
-              ),
-            ),
           ),
         ],
       ),
@@ -168,6 +167,7 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        shape: const StadiumBorder(),
         icon: const Icon(Icons.edit_outlined),
         label: const Text('写随笔'),
         onPressed: () => Navigator.push(

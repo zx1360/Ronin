@@ -144,6 +144,47 @@ final class SummariesProvider
 
 String _$summariesHash() => r'028a16a52a89ea1117a22f3b4b48cd3b0fef9910';
 
+@ProviderFor(browseYears)
+final browseYearsProvider = BrowseYearsProvider._();
+
+final class BrowseYearsProvider
+    extends $FunctionalProvider<List<String>, List<String>, List<String>>
+    with $Provider<List<String>> {
+  BrowseYearsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'browseYearsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$browseYearsHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<String>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<String> create(Ref ref) {
+    return browseYears(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<String> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<String>>(value),
+    );
+  }
+}
+
+String _$browseYearsHash() => r'bf6f49c01694e9b5e5490ff1e9a53d992abc577a';
+
 @ProviderFor(filteredEssays)
 final filteredEssaysProvider = FilteredEssaysProvider._();
 
@@ -238,7 +279,7 @@ final class YearEssaysProvider
   }
 }
 
-String _$yearEssaysHash() => r'e06779f44b390d1fd2f221b603f370babbe27d7c';
+String _$yearEssaysHash() => r'0eac36a8eb8998d5488dce7a2a66944ffda0c0dc';
 
 final class YearEssaysFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<List<Essay>>, String> {

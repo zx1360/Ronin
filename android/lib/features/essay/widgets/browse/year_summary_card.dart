@@ -72,15 +72,11 @@ class YearSummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                allYears ? '年度写作分布（篇数）' : '月度写作趋势（字数）',
+                allYears ? '年度写作趋势' : '月度写作趋势',
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 12),
-              WritingTrendChart(
-                periods: periods,
-                yearly: allYears,
-                byCount: allYears,
-              ),
+              WritingTrendChart(periods: periods, yearly: allYears),
             ],
           ),
         ),

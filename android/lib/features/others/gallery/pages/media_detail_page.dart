@@ -99,13 +99,11 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
   @override
   Widget build(BuildContext context) {
     final storage = ref.watch(galleryStorageProvider);
+    final fileName = _getFileName(_currentAsset.filePath);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _getFileName(_currentAsset.filePath),
-          style: const TextStyle(fontSize: 14),
-        ),
+        title: const Text('媒体详情', maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
           IconButton(
             icon: _isSharing
@@ -124,7 +122,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
             onPressed: () => askAiAboutMedia(
               context,
               mediaId: _currentAsset.id,
-              fileName: _getFileName(_currentAsset.filePath),
+              fileName: fileName,
             ),
           ),
           IconButton(
@@ -149,11 +147,11 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
 
             const SizedBox(height: 12),
 
-            _buildMessageSection(),
+            _buildCompactInfoSection(fileName),
 
             const SizedBox(height: 12),
 
-            _buildCompactInfoSection(),
+            _buildMessageSection(),
 
             const SizedBox(height: 12),
 
@@ -343,7 +341,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
     }
   }
 
-  Widget _buildCompactInfoSection() {
+  Widget _buildCompactInfoSection(String fileName) {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -351,20 +349,23 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            SelectableText(
+              fileName,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 _buildCompactChip(
                   _currentAsset.mimeType?.split('/').last ?? '未知',
                 ),
-                const SizedBox(width: 8),
                 _buildCompactChip(_formatFileSize(_currentAsset.sizeBytes)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _formatDateTime(_currentAsset.capturedAt),
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                    textAlign: TextAlign.right,
-                  ),
+                Text(
+                  _formatDateTime(_currentAsset.capturedAt),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                 ),
               ],
             ),

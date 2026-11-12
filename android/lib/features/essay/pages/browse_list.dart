@@ -4,6 +4,7 @@ import 'package:torrid/features/essay/models/label_tree.dart';
 import 'package:torrid/features/essay/models/year_summary.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
 import 'package:torrid/features/essay/pages/year_overview_page.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/browse/essay_card.dart';
 import 'package:torrid/features/essay/widgets/browse/year_summary_card.dart';
@@ -47,7 +48,7 @@ class BrowseListState extends ConsumerState<BrowseList>
     final essaysAsync = allYears
         ? ref.watch(filteredEssaysProvider)
         : ref.watch(yearEssaysProvider(year: widget.year));
-    final labels = ref.watch(labelsProvider);
+    final labels = ref.watch(labelStreamProvider).value ?? const [];
     return essaysAsync.when(
       skipLoadingOnReload: true,
       error: (error, stack) => Center(child: Text('加载失败：$error')),
@@ -57,9 +58,7 @@ class BrowseListState extends ConsumerState<BrowseList>
           widget.year,
           visibleEssays(essays, labels),
         );
-        final indices = {
-          for (final (index, essay) in essays.indexed) essay.id: index + 1,
-        };
+        Map<String, int>? indices;
         return ListView.builder(
           key: PageStorageKey('essay-list-${widget.year}'),
           controller: _scrollController,
@@ -67,7 +66,10 @@ class BrowseListState extends ConsumerState<BrowseList>
           itemCount: essays.length + 1,
           findChildIndexCallback: (key) {
             final id = (key as ValueKey<String>).value;
-            return id == 'summary' ? 0 : indices[id];
+            if (id == 'summary') return 0;
+            return (indices ??= {
+              for (final (index, essay) in essays.indexed) essay.id: index + 1,
+            })[id];
           },
           itemBuilder: (context, index) => Padding(
             key: ValueKey(index == 0 ? 'summary' : essays[index - 1].id),

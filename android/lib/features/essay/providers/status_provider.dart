@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
@@ -27,6 +30,22 @@ List<YearSummary> summaries(Ref ref) {
   return YearSummary.groupByYear(
     visibleEssays(essays, allLabels),
   ).values.toList()..sort((a, b) => b.year.compareTo(a.year));
+}
+
+@riverpod
+List<String> browseYears(Ref ref) {
+  final essays = ref.watch(essayStreamProvider).value ?? const [];
+  final showHidden = ref.watch(
+    browseManagerProvider.select((s) => s.showHidden),
+  );
+  final hidden = showHidden
+      ? const <String>{}
+      : hiddenLabelIds(ref.watch(labelStreamProvider).value ?? const []);
+  final years = {
+    for (final essay in essays)
+      if (!essay.labels.any(hidden.contains)) essay.year,
+  }.toList()..sort((a, b) => b.compareTo(a));
+  return [for (final year in years) year.toString()];
 }
 
 Set<String> _expandFilter(
@@ -88,7 +107,16 @@ Future<List<Essay>> filteredEssays(Ref ref) async {
 }
 
 @riverpod
-Future<List<Essay>> yearEssays(Ref ref, {required String year}) async =>
-    (await ref.watch(
-      filteredEssaysProvider.future,
-    )).where((essay) => essay.year.toString() == year).toList();
+FutureOr<List<Essay>> yearEssays(Ref ref, {required String year}) {
+  final targetYear = int.tryParse(year);
+  List<Essay> selectYear(List<Essay> essays) => [
+    for (final essay in essays)
+      if (essay.year == targetYear) essay,
+  ];
+
+  final filtered = ref.watch(filteredEssaysProvider).asData;
+  if (filtered != null && !filtered.isLoading) {
+    return selectYear(filtered.value);
+  }
+  return ref.watch(filteredEssaysProvider.future).then(selectYear);
+}

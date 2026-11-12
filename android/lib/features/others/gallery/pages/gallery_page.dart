@@ -17,27 +17,26 @@ import 'package:torrid/features/others/gallery/widgets/main_widgets/content_widg
 import 'package:torrid/features/others/gallery/widgets/preview_window_widget.dart';
 import 'package:torrid/features/others/gallery/widgets/tag_drag_overlay.dart';
 
-/// 解析编辑参数 JSON，生成人类可读的编辑提示文本。
-/// 返回 null 表示没有有效的编辑信息。
-String? parseEditInfo(MediaAsset? media) {
-  if (media == null || media.editParams == null) return null;
+String? _editSummary(MediaAsset media) {
+  final params = media.editParams;
+  if (params == null) return null;
   try {
-    final json = jsonDecode(media.editParams as String) as Map<String, dynamic>;
+    final json = jsonDecode(params) as Map<String, dynamic>;
     final type = json['type'] as String?;
     if (type == 'image') {
       final rot = json['rotation'] as int? ?? 0;
       final hasCrop = json['crop_left'] != null;
       final parts = <String>[];
       if (rot != 0) parts.add('旋转$rot°');
-      if (hasCrop) parts.add('裁剪中');
-      return parts.isEmpty ? null : '编辑: ${parts.join(' · ')}';
+      if (hasCrop) parts.add('已裁切');
+      return parts.isEmpty ? null : parts.join(' · ');
     } else if (type == 'video') {
       final start = (json['trim_start_sec'] as num?)?.toDouble();
       final end = (json['trim_end_sec'] as num?)?.toDouble();
       final parts = <String>[];
       if (start != null && start > 0) parts.add(_formatSeconds(start));
       if (end != null && end > 0) parts.add(_formatSeconds(end));
-      return parts.isEmpty ? null : '剪辑: ${parts.join(' → ')}';
+      return parts.isEmpty ? null : '剪辑 ${parts.join(' → ')}';
     }
   } catch (_) {}
   return null;
@@ -59,7 +58,11 @@ class GalleryPage extends ConsumerStatefulWidget {
 }
 
 class _GalleryPageState extends ConsumerState<GalleryPage> {
-  /// 顶部/底部工具栏是否可见
+  static const _barBackgroundColor = Color(0x40000000);
+  static const _bottomBarHeight = 56.0;
+  static const _tagBarHeight = 40.0;
+  static const _playbackControlsClearance = 88.0;
+
   bool _barsVisible = true;
 
   /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270°)
@@ -70,11 +73,6 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   /// 拖拽打标签浮层控制器（由"标签"按钮手势驱动）
   final GlobalKey<TagDragOverlayState> _tagDragKey = GlobalKey();
-
-  /// 数值配置
-  Color get _barBackgroundColor => Color.fromRGBO(0, 0, 0, 0.25);
-  double get _toolbarHeight =>
-      44 * MediaQuery.textScalerOf(context).scale(14) / 14;
 
   @override
   void initState() {
@@ -103,9 +101,18 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 
   Future<void> _toggleAutoOrientation() async {
-    await ref
-        .read(galleryAutoOrientationProvider.notifier)
-        .update(!ref.read(galleryAutoOrientationProvider));
+    try {
+      await ref
+          .read(galleryAutoOrientationProvider.notifier)
+          .update(!ref.read(galleryAutoOrientationProvider));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('方向设置保存失败：$error')));
+      }
+      return;
+    }
     if (!mounted) return;
     _manualMediaId = null;
     if (_ratioMediaId != null && _aspectRatio != null) {
@@ -115,13 +122,6 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.light,
-        statusBarColor: Colors.transparent,
-      ),
-    );
-
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
     final inGroup = ref.watch(galleryActiveGroupProvider) != null;
@@ -138,9 +138,13 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
       ref.read(galleryWriteStatusProvider.notifier).clear();
     });
 
-    final mediaQuery = MediaQuery.of(context);
-    final topBarHeight = mediaQuery.padding.top + _toolbarHeight;
-    final bottomBarHeight = mediaQuery.padding.bottom + 56 + 40;
+    final showBars =
+        _barsVisible || currentMedia == null || currentMedia.isDeleted;
+    final bottomInset =
+        MediaQuery.paddingOf(context).bottom +
+        (showBars
+            ? _bottomBarHeight + (currentMedia == null ? 0 : _tagBarHeight)
+            : 0);
 
     return PopScope(
       canPop: !inGroup,
@@ -149,175 +153,59 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
           ref.read(currentMediaAssetProvider.notifier).closeGroup();
         }
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: ContentWidget(
-                rotationQuarterTurns: _quarterTurns,
-                onAspectRatio: _onAspectRatio,
-                onToggleBars: _toggleBarsVisibility,
-                onPrevious: _goToPrevious,
-                onNext: _goToNext,
-                onRotate: _toggleRotation,
-                topExcludeHeight: _barsVisible ? topBarHeight : 0,
-                bottomExcludeHeight: _barsVisible ? bottomBarHeight : 0,
-              ),
-            ),
-
-            // 顶部导航栏 (可切换显示/隐藏)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 0),
-              curve: Curves.easeInOut,
-              top: _barsVisible ? 0 : -topBarHeight,
-              left: 0,
-              right: 0,
-              child: _buildTopBar(context),
-            ),
-
-            // 底部区域 (标签栏 + 导航栏)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 0),
-              curve: Curves.easeInOut,
-              bottom: _barsVisible ? 0 : -bottomBarHeight,
-              left: 0,
-              right: 0,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 当前媒体的标签显示
-                  if (currentMedia != null)
-                    _buildTagBar(currentTags.value ?? []),
-                  // 底部导航栏
-                  _buildBottomBar(context, currentMedia),
-                ],
-              ),
-            ),
-
-            // 预览小窗 - 仅在启用且存在下一个文件时显示
-            if (ref.watch(galleryPreviewWindowEnabledProvider))
-              PreviewWindowWidget(
-                onTap: _goToNext,
-                rotationQuarterTurns: _quarterTurns,
-              ),
-
-            // 拖拽打标签浮层（非拖动时为空组件，不拦截任何交互）
-            Positioned.fill(
-              child: TagDragOverlay(
-                key: _tagDragKey,
-                bottomInset: _barsVisible ? bottomBarHeight : 8,
-                // 浮层跟随媒体旋转方向，横向看图时打标签不必再转手机
-                quarterTurns: _quarterTurns,
-              ),
-            ),
-          ],
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarIconBrightness: Brightness.light,
+          statusBarColor: Colors.transparent,
         ),
-      ),
-    );
-  }
-
-  Widget _buildTopBar(BuildContext context) {
-    final currentMedia = ref.watch(currentMediaAssetProvider);
-    final fileName =
-        currentMedia?.filePath.split('/').last.split('\\').last ?? '';
-    final editInfo = parseEditInfo(currentMedia);
-    final inGroup = ref.watch(galleryActiveGroupProvider) != null;
-    final groupAssets = ref.watch(galleryBrowsingAssetsProvider).value ?? [];
-    final groupIndex = ref.watch(galleryBrowsingIndexProvider);
-
-    return Container(
-      color: _barBackgroundColor,
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: _toolbarHeight,
-          child: Row(
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
             children: [
-              IconButton(
-                onPressed: () {
-                  if (inGroup) {
-                    ref.read(currentMediaAssetProvider.notifier).closeGroup();
-                  } else {
-                    Navigator.pop(context);
-                  }
-                },
-                icon: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 22,
+              Positioned.fill(
+                child: ContentWidget(
+                  rotationQuarterTurns: _quarterTurns,
+                  onAspectRatio: _onAspectRatio,
+                  onToggleBars: _toggleBarsVisibility,
+                  onPrevious: _goToPrevious,
+                  onNext: _goToNext,
+                  onRotate: _toggleRotation,
+                  bottomInset: bottomInset,
                 ),
-                tooltip: inGroup ? '返回主列表' : '返回',
               ),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      fileName,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
+              if (showBars)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    top: false,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (currentMedia != null)
+                          _buildTagBar(currentTags.value ?? []),
+                        _buildBottomBar(context, currentMedia, inGroup),
+                      ],
                     ),
-                    if (inGroup)
-                      Text(
-                        groupAssets.isEmpty
-                            ? '组内浏览'
-                            : '组内 ${groupIndex + 1}/${groupAssets.length} · ${currentMedia?.groupId == null ? '主文件' : '成员'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 10,
-                        ),
-                      ),
-                    if (!inGroup && editInfo != null)
-                      Text(
-                        editInfo,
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontSize: 10,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-              IconButton(
-                onPressed: currentMedia != null && !currentMedia.isDeleted
-                    ? () => _openEditor(context, currentMedia)
-                    : null,
-                icon: Icon(
-                  Icons.edit,
-                  color: currentMedia != null && !currentMedia.isDeleted
-                      ? Colors.white
-                      : Colors.grey[700]!,
-                  size: 22,
+              if (ref.watch(galleryPreviewWindowEnabledProvider))
+                PreviewWindowWidget(
+                  onTap: _goToNext,
+                  rotationQuarterTurns: _quarterTurns,
+                  minBottom:
+                      bottomInset +
+                      (currentMedia?.isVideo == true && _quarterTurns.isEven
+                          ? _playbackControlsClearance
+                          : 8),
                 ),
-                tooltip: "编辑",
-              ),
-              IconButton(
-                onPressed: _toggleAutoOrientation,
-                icon: Icon(
-                  Icons.screen_rotation,
-                  size: 22,
-                  color: ref.watch(galleryAutoOrientationProvider)
-                      ? Colors.lightBlueAccent
-                      : Colors.white,
+              Positioned.fill(
+                child: TagDragOverlay(
+                  key: _tagDragKey,
+                  bottomInset: showBars ? bottomInset : 8,
+                  quarterTurns: _quarterTurns,
                 ),
-                tooltip: ref.watch(galleryAutoOrientationProvider)
-                    ? '自动方向：开启'
-                    : '自动方向：关闭',
-              ),
-              IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const GallerySettingPage()),
-                ),
-                icon: const Icon(Icons.settings, color: Colors.white, size: 22),
-                tooltip: "设置",
               ),
             ],
           ),
@@ -329,17 +217,19 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   /// 构建标签栏
   Widget _buildTagBar(List<Tag> tags) {
     if (tags.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text(
-          '暂无标签',
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+      return const SizedBox(
+        height: _tagBarHeight,
+        child: Center(
+          child: Text(
+            '暂无标签',
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
         ),
       );
     }
 
     return Container(
-      height: 40,
+      height: _tagBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -367,87 +257,185 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 
   /// 构建底部导航栏
-  Widget _buildBottomBar(BuildContext context, MediaAsset? currentMedia) {
-    final inGroup = ref.watch(galleryActiveGroupProvider) != null;
+  Widget _buildBottomBar(
+    BuildContext context,
+    MediaAsset? currentMedia,
+    bool inGroup,
+  ) {
     final groupSize =
         ref.watch(mediaGroupSizesProvider).value?[currentMedia?.groupId ??
             currentMedia?.id] ??
         0;
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 56,
-        color: _barBackgroundColor,
+    final buttons = [
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanStart: currentMedia != null
+            ? (d) => _tagDragKey.currentState?.startDrag(d.globalPosition)
+            : null,
+        onPanUpdate: (d) =>
+            _tagDragKey.currentState?.updateDrag(d.globalPosition),
+        onPanEnd: (d) => _tagDragKey.currentState?.endDrag(d.globalPosition),
+        onPanCancel: () => _tagDragKey.currentState?.cancelDrag(),
+        onLongPress: currentMedia != null
+            ? () => _tagDragKey.currentState?.openPinned()
+            : null,
+        child: _bottomButton(
+          const IconData(0xe63e, fontFamily: 'iconfont'),
+          '标签',
+          currentMedia != null
+              ? () => _openLabelPage(context, currentMedia.id)
+              : null,
+        ),
+      ),
+      _bottomButton(
+        const IconData(0xe604, fontFamily: 'iconfont'),
+        inGroup ? '组内总览' : '网格',
+        () => _openGridView(context),
+      ),
+      if (inGroup || groupSize > 1)
+        _bottomButton(
+          inGroup ? Icons.layers_clear_outlined : Icons.layers_outlined,
+          inGroup ? '退出分组' : '组内 $groupSize 项',
+          inGroup
+              ? ref.read(currentMediaAssetProvider.notifier).closeGroup
+              : () => _browseGroup(currentMedia!),
+          color: Colors.amber,
+        ),
+      _bottomButton(
+        const IconData(0xe649, fontFamily: 'iconfont'),
+        currentMedia?.isDeleted == true
+            ? '恢复'
+            : inGroup && currentMedia?.groupId == null
+            ? '删除整组'
+            : '删除',
+        currentMedia != null ? () => _toggleDelete(currentMedia) : null,
+        color: currentMedia?.isDeleted == true ? Colors.red : Colors.white,
+      ),
+      PopupMenuButton<void>(
+        tooltip: '更多',
+        popUpAnimationStyle: AnimationStyle.noAnimation,
+        borderRadius: BorderRadius.circular(8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        constraints: const BoxConstraints(minWidth: 248, maxWidth: 288),
+        itemBuilder: _buildMoreMenu,
+        child: const _BottomBarLabel(
+          icon: Icons.more_horiz_rounded,
+          label: '更多',
+        ),
+      ),
+    ];
+    return Material(
+      color: _barBackgroundColor,
+      child: SizedBox(
+        height: _bottomBarHeight,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            // 标签管理：点击打开标签管理页；向上拖动激活"拖拽打标签"浮层；长按打开常驻浮层
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onPanStart: currentMedia != null
-                  ? (d) => _tagDragKey.currentState?.startDrag(d.globalPosition)
-                  : null,
-              onPanUpdate: (d) =>
-                  _tagDragKey.currentState?.updateDrag(d.globalPosition),
-              onPanEnd: (d) =>
-                  _tagDragKey.currentState?.endDrag(d.globalPosition),
-              onPanCancel: () => _tagDragKey.currentState?.cancelDrag(),
-              onLongPress: currentMedia != null
-                  ? () => _tagDragKey.currentState?.openPinned()
-                  : null,
-              child: _BottomBarButton(
-                icon: const IconData(0xe63e, fontFamily: "iconfont"),
-                label: "标签",
-                onPressed: currentMedia != null
-                    ? () => _openLabelPage(context, currentMedia.id)
-                    : null,
-              ),
-            ),
-            // 网格视图 / 捆绑
-            _BottomBarButton(
-              icon: const IconData(0xe604, fontFamily: "iconfont"),
-              label: inGroup ? '组内总览' : '网格',
-              onPressed: () => _openGridView(context),
-            ),
-            if (inGroup || groupSize > 1)
-              _BottomBarButton(
-                icon: inGroup
-                    ? Icons.layers_clear_outlined
-                    : Icons.layers_outlined,
-                label: inGroup ? '退出分组' : '组内 $groupSize 项',
-                color: Colors.amber,
-                onPressed: inGroup
-                    ? () => ref
-                          .read(currentMediaAssetProvider.notifier)
-                          .closeGroup()
-                    : () => _browseGroup(currentMedia!),
-              ),
-            // 删除当前媒体文件
-            _BottomBarButton(
-              icon: const IconData(0xe649, fontFamily: "iconfont"),
-              label: currentMedia?.isDeleted == true
-                  ? '恢复'
-                  : inGroup && currentMedia?.groupId == null
-                  ? '删除整组'
-                  : '删除',
-              color: currentMedia?.isDeleted == true ? Colors.red : null,
-              onPressed: currentMedia != null
-                  ? () => _toggleDelete(currentMedia)
-                  : null,
-            ),
-            // 详情页面
-            _BottomBarButton(
-              icon: const IconData(0xe611, fontFamily: "iconfont"),
-              label: "详情",
-              onPressed: currentMedia != null
-                  ? () => _openDetailPage(context)
-                  : null,
-            ),
-          ],
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [for (final button in buttons) Expanded(child: button)],
         ),
       ),
     );
   }
+
+  Widget _bottomButton(
+    IconData icon,
+    String label,
+    VoidCallback? onPressed, {
+    Color color = Colors.white,
+  }) => InkWell(
+    onTap: onPressed,
+    borderRadius: BorderRadius.circular(8),
+    child: _BottomBarLabel(
+      icon: icon,
+      label: label,
+      color: onPressed == null ? Colors.white38 : color,
+    ),
+  );
+
+  List<PopupMenuEntry<void>> _buildMoreMenu(BuildContext menuContext) {
+    final media = ref.read(currentMediaAssetProvider);
+    final inGroup = ref.read(galleryActiveGroupProvider) != null;
+    final total = ref.read(galleryBrowsingAssetsProvider).value?.length ?? 0;
+    final position = ref.read(galleryBrowsingIndexProvider) + 1;
+    final autoOrientation = ref.read(galleryAutoOrientationProvider);
+    final theme = Theme.of(menuContext);
+    final colors = theme.colorScheme;
+    final editSummary = media == null ? null : _editSummary(media);
+    return [
+      if (media != null) ...[
+        PopupMenuItem<void>(
+          enabled: false,
+          height: 0,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                media.filePath.split('/').last.split('\\').last,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: colors.onSurface,
+                ),
+              ),
+              if (editSummary != null)
+                Text(editSummary, style: theme.textTheme.bodySmall),
+              if (position > 0 && position <= total) ...[
+                const SizedBox(height: 10),
+                Text(
+                  '${inGroup ? (media.isGroupLead ? '组内主文件' : '组内成员') : '浏览进度'}'
+                  ' · $position / $total',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                LinearProgressIndicator(
+                  value: position / total,
+                  minHeight: 4,
+                  borderRadius: BorderRadius.circular(2),
+                  semanticsLabel: '媒体浏览进度',
+                  semanticsValue: '第 $position 项，共 $total 项',
+                ),
+              ],
+            ],
+          ),
+        ),
+        const PopupMenuDivider(height: 8),
+        _moreMenuItem(Icons.info_outline, '详情', () => _openMediaAction(media)),
+        if (!media.isDeleted && (media.isImage || media.isVideo))
+          _moreMenuItem(
+            media.isVideo ? Icons.content_cut : Icons.crop,
+            media.isVideo ? '剪辑视频' : '裁切图片',
+            () => _openMediaAction(media, edit: true),
+          ),
+      ],
+      CheckedPopupMenuItem<void>(
+        checked: autoOrientation,
+        onTap: _toggleAutoOrientation,
+        child: const Text('自动匹配媒体方向'),
+      ),
+      _moreMenuItem(Icons.settings_outlined, '媒体管理设置', () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const GallerySettingPage()));
+      }),
+    ];
+  }
+
+  PopupMenuItem<void> _moreMenuItem(
+    IconData icon,
+    String label,
+    VoidCallback onTap,
+  ) => PopupMenuItem<void>(
+    onTap: onTap,
+    child: Row(
+      children: [
+        Icon(icon, size: 24),
+        const SizedBox(width: 16),
+        Flexible(child: Text(label)),
+      ],
+    ),
+  );
 
   /// 打开标签管理页面
   void _openLabelPage(BuildContext context, String mediaId) {
@@ -483,16 +471,29 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     }
   }
 
-  /// 打开详情页面
-  Future<void> _openDetailPage(BuildContext context) async {
-    final currentMedia = ref.read(currentMediaAssetProvider);
-    if (currentMedia == null) return;
-
+  Future<void> _openMediaAction(MediaAsset shown, {bool edit = false}) async {
+    final media = ref.read(currentMediaAssetProvider);
+    if (media == null ||
+        media.id != shown.id ||
+        media.localLibraryId != shown.localLibraryId ||
+        (edit && (media.isDeleted || (!media.isImage && !media.isVideo)))) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('当前媒体已变化，请重新打开「更多」')));
+      return;
+    }
     final target = await Navigator.push<MediaAsset>(
       context,
-      MaterialPageRoute(builder: (_) => MediaDetailPage(asset: currentMedia)),
+      MaterialPageRoute(
+        builder: (_) {
+          if (!edit) return MediaDetailPage(asset: media);
+          return media.isVideo
+              ? VideoTrimmerPage(asset: media)
+              : ImageEditorPage(asset: media);
+        },
+      ),
     );
-    if (target != null && mounted) await _browseGroup(target);
+    if (!edit && target != null && mounted) await _browseGroup(target);
   }
 
   Future<void> _browseGroup(MediaAsset asset) async {
@@ -507,21 +508,6 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     }
   }
 
-  /// 打开编辑页面
-  void _openEditor(BuildContext context, MediaAsset media) {
-    if (media.isImage) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => ImageEditorPage(asset: media)),
-      );
-    } else if (media.isVideo) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => VideoTrimmerPage(asset: media)),
-      );
-    }
-  }
-
   /// 跳转到上一张（自动跳过已删除）
   void _goToPrevious() {
     ref.read(currentMediaAssetProvider.notifier).previous();
@@ -533,47 +519,33 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   }
 }
 
-/// 底部栏按钮
-class _BottomBarButton extends StatelessWidget {
+class _BottomBarLabel extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color? color;
-  final VoidCallback? onPressed;
+  final Color color;
 
-  const _BottomBarButton({
+  const _BottomBarLabel({
     required this.icon,
     required this.label,
-    this.color,
-    this.onPressed,
+    this.color = Colors.white,
   });
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = onPressed == null
-        ? Colors.grey[700]
-        : (color ?? Colors.white);
-
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: MediaQuery.sizeOf(context).width / 5,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: effectiveColor, size: 22),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: effectiveColor, fontSize: 9),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 2),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label, style: TextStyle(color: color, fontSize: 11)),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
