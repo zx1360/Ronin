@@ -6,270 +6,113 @@ part of 'settings_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$galleryAutoOrientationHash() =>
-    r'3c799ff5dcb017899640d57d0042f3a2dacdde2a';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [GalleryAutoOrientation].
-@ProviderFor(GalleryAutoOrientation)
-final galleryAutoOrientationProvider =
-    NotifierProvider<GalleryAutoOrientation, bool>.internal(
-  GalleryAutoOrientation.new,
-  name: r'galleryAutoOrientationProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryAutoOrientationHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+@ProviderFor(GalleryBrowseSettings)
+final galleryBrowseSettingsProvider = GalleryBrowseSettingsProvider._();
 
-typedef _$GalleryAutoOrientation = Notifier<bool>;
-String _$galleryModifiedCountHash() =>
-    r'd0c0b8767e9086366e97a72fe955b8e8f5999a7d';
+final class GalleryBrowseSettingsProvider
+    extends $NotifierProvider<GalleryBrowseSettings, GalleryBrowseOptions> {
+  GalleryBrowseSettingsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryBrowseSettingsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-/// modified_count - 记录最后一次操作的媒体文件在队列中的位置
-///
-/// Copied from [GalleryModifiedCount].
-@ProviderFor(GalleryModifiedCount)
-final galleryModifiedCountProvider =
-    NotifierProvider<GalleryModifiedCount, int>.internal(
-  GalleryModifiedCount.new,
-  name: r'galleryModifiedCountProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryModifiedCountHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+  @override
+  String debugGetCreateSourceHash() => _$galleryBrowseSettingsHash();
 
-typedef _$GalleryModifiedCount = Notifier<int>;
-String _$galleryCurrentIndexHash() =>
-    r'0d07dd3f91fb9e2a53eaa051895cdc2145576cc4';
+  @$internal
+  @override
+  GalleryBrowseSettings create() => GalleryBrowseSettings();
 
-/// 当前浏览位置索引
-///
-/// Copied from [GalleryCurrentIndex].
-@ProviderFor(GalleryCurrentIndex)
-final galleryCurrentIndexProvider =
-    NotifierProvider<GalleryCurrentIndex, int>.internal(
-  GalleryCurrentIndex.new,
-  name: r'galleryCurrentIndexProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryCurrentIndexHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GalleryBrowseOptions value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GalleryBrowseOptions>(value),
+    );
+  }
+}
 
-typedef _$GalleryCurrentIndex = Notifier<int>;
-String _$galleryGridColumnsHash() =>
-    r'7911eebfac5c3da40dab130ee2042944283b58b4';
+String _$galleryBrowseSettingsHash() =>
+    r'c4a7b903ed108f6c54f18526b34644c78a6423ad';
 
-/// 网格视图每行数量 (3, 4, 8, 16)
-///
-/// Copied from [GalleryGridColumns].
-@ProviderFor(GalleryGridColumns)
-final galleryGridColumnsProvider =
-    NotifierProvider<GalleryGridColumns, int>.internal(
-  GalleryGridColumns.new,
-  name: r'galleryGridColumnsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryGridColumnsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+abstract class _$GalleryBrowseSettings extends $Notifier<GalleryBrowseOptions> {
+  GalleryBrowseOptions build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<GalleryBrowseOptions, GalleryBrowseOptions>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<GalleryBrowseOptions, GalleryBrowseOptions>,
+              GalleryBrowseOptions,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
 
-typedef _$GalleryGridColumns = Notifier<int>;
-String _$galleryPreviewWindowEnabledHash() =>
-    r'5bb0b46de22e48d827b3ecb2b6eb3991f7e9432c';
+@ProviderFor(GalleryDownloadFilters)
+final galleryDownloadFiltersProvider = GalleryDownloadFiltersProvider._();
 
-/// 预览小窗开关设置（默认开启）
-///
-/// Copied from [GalleryPreviewWindowEnabled].
-@ProviderFor(GalleryPreviewWindowEnabled)
-final galleryPreviewWindowEnabledProvider =
-    NotifierProvider<GalleryPreviewWindowEnabled, bool>.internal(
-  GalleryPreviewWindowEnabled.new,
-  name: r'galleryPreviewWindowEnabledProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryPreviewWindowEnabledHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final class GalleryDownloadFiltersProvider
+    extends $NotifierProvider<GalleryDownloadFilters, GalleryDownloadOptions> {
+  GalleryDownloadFiltersProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryDownloadFiltersProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-typedef _$GalleryPreviewWindowEnabled = Notifier<bool>;
-String _$galleryDownloadMimeFilterHash() =>
-    r'7a7dc54c5e35413f3a96eb8867d8582ea4df9690';
+  @override
+  String debugGetCreateSourceHash() => _$galleryDownloadFiltersHash();
 
-/// 下载 MIME 类型筛选（空=全部, image, video）
-///
-/// Copied from [GalleryDownloadMimeFilter].
-@ProviderFor(GalleryDownloadMimeFilter)
-final galleryDownloadMimeFilterProvider =
-    NotifierProvider<GalleryDownloadMimeFilter, String>.internal(
-  GalleryDownloadMimeFilter.new,
-  name: r'galleryDownloadMimeFilterProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDownloadMimeFilterHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+  @$internal
+  @override
+  GalleryDownloadFilters create() => GalleryDownloadFilters();
 
-typedef _$GalleryDownloadMimeFilter = Notifier<String>;
-String _$galleryDownloadSortByHash() =>
-    r'3797fdb0fa3f7c7684badfc6db67993e1a38809d';
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GalleryDownloadOptions value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GalleryDownloadOptions>(value),
+    );
+  }
+}
 
-/// 下载排序字段（空=默认 sync_count 升序）
-///
-/// Copied from [GalleryDownloadSortBy].
-@ProviderFor(GalleryDownloadSortBy)
-final galleryDownloadSortByProvider =
-    NotifierProvider<GalleryDownloadSortBy, String>.internal(
-  GalleryDownloadSortBy.new,
-  name: r'galleryDownloadSortByProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDownloadSortByHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+String _$galleryDownloadFiltersHash() =>
+    r'13e070ea3b0fd532275b6ab98ab2fb49890a82dd';
 
-typedef _$GalleryDownloadSortBy = Notifier<String>;
-String _$galleryDownloadSortOrderHash() =>
-    r'420720d60be3cc8239d89ae11518cae9f6cad886';
-
-/// 下载排序方向（asc/desc）
-///
-/// Copied from [GalleryDownloadSortOrder].
-@ProviderFor(GalleryDownloadSortOrder)
-final galleryDownloadSortOrderProvider =
-    NotifierProvider<GalleryDownloadSortOrder, String>.internal(
-  GalleryDownloadSortOrder.new,
-  name: r'galleryDownloadSortOrderProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDownloadSortOrderHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryDownloadSortOrder = Notifier<String>;
-String _$galleryDownloadYearHash() =>
-    r'246645aef740e7e35b8a5e75e8226f1c1eb97d27';
-
-/// 下载年份筛选（0=不筛选）
-///
-/// Copied from [GalleryDownloadYear].
-@ProviderFor(GalleryDownloadYear)
-final galleryDownloadYearProvider =
-    NotifierProvider<GalleryDownloadYear, int>.internal(
-  GalleryDownloadYear.new,
-  name: r'galleryDownloadYearProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDownloadYearHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryDownloadYear = Notifier<int>;
-String _$galleryDownloadMonthHash() =>
-    r'bf8a5f4aa2d2abe4ac6a5d13d45cc28ced25581c';
-
-/// 下载月份筛选（0=不筛选）
-///
-/// Copied from [GalleryDownloadMonth].
-@ProviderFor(GalleryDownloadMonth)
-final galleryDownloadMonthProvider =
-    NotifierProvider<GalleryDownloadMonth, int>.internal(
-  GalleryDownloadMonth.new,
-  name: r'galleryDownloadMonthProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDownloadMonthHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryDownloadMonth = Notifier<int>;
-String _$galleryDownloadDayHash() =>
-    r'6af43dadb836e1ee27acdde9ef2486f8d8aa23d5';
-
-/// 下载日期筛选（0=不筛选）
-///
-/// Copied from [GalleryDownloadDay].
-@ProviderFor(GalleryDownloadDay)
-final galleryDownloadDayProvider =
-    NotifierProvider<GalleryDownloadDay, int>.internal(
-  GalleryDownloadDay.new,
-  name: r'galleryDownloadDayProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDownloadDayHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryDownloadDay = Notifier<int>;
-String _$galleryDownloadSecondarySortHash() =>
-    r'4976b19a9600f2bd61f443054dc41f8914603789';
-
-/// 下载二次排序字段（空=不进行二次排序）
-///
-/// Copied from [GalleryDownloadSecondarySort].
-@ProviderFor(GalleryDownloadSecondarySort)
-final galleryDownloadSecondarySortProvider =
-    NotifierProvider<GalleryDownloadSecondarySort, String>.internal(
-  GalleryDownloadSecondarySort.new,
-  name: r'galleryDownloadSecondarySortProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDownloadSecondarySortHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryDownloadSecondarySort = Notifier<String>;
-String _$galleryGridPreviewModeNotifierHash() =>
-    r'be3fac5092c9afbd3e273c174f56aa8cc33b70bb';
-
-/// 网格预览模式 Provider
-///
-/// Copied from [GalleryGridPreviewModeNotifier].
-@ProviderFor(GalleryGridPreviewModeNotifier)
-final galleryGridPreviewModeNotifierProvider = NotifierProvider<
-    GalleryGridPreviewModeNotifier, GalleryGridPreviewMode>.internal(
-  GalleryGridPreviewModeNotifier.new,
-  name: r'galleryGridPreviewModeNotifierProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryGridPreviewModeNotifierHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryGridPreviewModeNotifier = Notifier<GalleryGridPreviewMode>;
-String _$galleryTagAutoApplyEnabledHash() =>
-    r'247e75b14b63dd990e7b521bd1da9946cf966fc6';
-
-/// 标签自动套用开关（默认关闭）
-/// 开启后，当前媒体文件的标签会自动套用到下一个成为"当前文件"的媒体上。
-///
-/// Copied from [GalleryTagAutoApplyEnabled].
-@ProviderFor(GalleryTagAutoApplyEnabled)
-final galleryTagAutoApplyEnabledProvider =
-    NotifierProvider<GalleryTagAutoApplyEnabled, bool>.internal(
-  GalleryTagAutoApplyEnabled.new,
-  name: r'galleryTagAutoApplyEnabledProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryTagAutoApplyEnabledHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryTagAutoApplyEnabled = Notifier<bool>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+abstract class _$GalleryDownloadFilters
+    extends $Notifier<GalleryDownloadOptions> {
+  GalleryDownloadOptions build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref as $Ref<GalleryDownloadOptions, GalleryDownloadOptions>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<GalleryDownloadOptions, GalleryDownloadOptions>,
+              GalleryDownloadOptions,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

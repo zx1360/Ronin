@@ -8,15 +8,10 @@ import 'package:torrid/features/others/gallery/services/gallery_write_verificati
 
 /// 本地事务提交后顺序回传；确认过的记录保留到批次校验和清理完成。
 class GalleryWriteBuffer {
-  GalleryWriteBuffer({
-    required this.db,
-    required this.currentClient,
-    this.onChanged,
-  });
+  GalleryWriteBuffer({required this.db, required this.currentClient});
 
   final GalleryDatabaseService db;
   final ApiClient Function() currentClient;
-  final void Function()? onChanged;
   Future<void> _localWrites = Future.value();
   Future<bool>? _sending;
   Timer? _timer;
@@ -40,7 +35,6 @@ class GalleryWriteBuffer {
     };
     final next = _localWrites.then((_) async {
       await db.recordOperation(kind, snapshot);
-      if (!_disposed) onChanged?.call();
       retry();
     });
     _localWrites = next.then((_) {}, onError: (Object _) {});
@@ -90,6 +84,9 @@ class GalleryWriteBuffer {
 
   Future<void> _drain(GalleryApiService api) async {
     while (!_disposed) {
+      if (!identical(api.client, currentClient())) {
+        throw StateError('服务器连接已切换，请重试');
+      }
       final pending = await db.operations(pendingOnly: true, limit: 1);
       if (pending.isEmpty) return;
       final operation = pending.first;
@@ -98,38 +95,29 @@ class GalleryWriteBuffer {
     }
   }
 
-  Future<GalleryApiService> _boundApi(
-    ApiClient client, {
-    Future<bool> Function(String address)? confirmLegacy,
-  }) async {
+  Future<GalleryApiService> _boundApi(ApiClient client) async {
     final id = await GalleryApiService(client).fetchLibraryId();
-    final stored = await db.libraryId();
-    if (stored != null && stored != id) {
-      throw StateError('本机画廊属于另一图库，请切回原图库。本机修改已保留');
-    }
-    if (stored == null && await db.hasWorkingCopy()) {
-      if (confirmLegacy == null || !await confirmLegacy(client.baseUrl)) {
-        throw StateError('请在画廊设置中确认旧缓存所属图库。本机修改已保留');
-      }
-    }
     if (_disposed || !identical(client, currentClient())) {
       throw StateError('服务器连接已切换，请重试');
     }
-    if (stored == null) await db.bindLibrary(id);
+    await db.bindLibrary(id);
     return GalleryApiService(client, libraryId: id);
+  }
+
+  Future<void> lock() async {
+    if (_locked) throw StateError('已有回传操作正在执行');
+    _locked = true;
+    _timer?.cancel();
+    await _localWrites;
+    await _sending;
   }
 
   /// 确认期间冻结编辑，防止校验后的新操作被清理。
   Future<GalleryApiService> confirmAndLock({
     bool requireConnection = true,
-    Future<bool> Function(String address)? confirmLegacy,
   }) async {
-    if (_locked) throw StateError('已有回传操作正在执行');
-    _locked = true;
-    _timer?.cancel();
+    await lock();
     try {
-      await _localWrites;
-      await _sending;
       final client = currentClient();
       if (!requireConnection && (await db.operations(limit: 1)).isEmpty) {
         return GalleryApiService(client);
@@ -137,7 +125,7 @@ class GalleryWriteBuffer {
       if (client.baseUrl.isEmpty) {
         throw StateError('请先配置服务器地址，本机修改已保留');
       }
-      final api = await _boundApi(client, confirmLegacy: confirmLegacy);
+      final api = await _boundApi(client);
       await _drain(api);
       await verifyGalleryWrites(db, api, await db.operations());
       return api;
@@ -147,7 +135,10 @@ class GalleryWriteBuffer {
     }
   }
 
-  void unlock() => _locked = false;
+  void unlock() {
+    _locked = false;
+    retry();
+  }
 
   Future<T> writeOnline<T>(Future<T> Function(GalleryApiService) action) async {
     final api = await confirmAndLock();

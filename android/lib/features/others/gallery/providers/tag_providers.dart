@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/models/tag_tree.dart';
 import 'package:torrid/features/others/gallery/providers/media_providers.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
-import 'package:torrid/features/others/gallery/providers/stats_providers.dart';
 import 'package:torrid/features/others/gallery/providers/write_buffer_provider.dart';
 import 'package:torrid/features/others/gallery/services/gallery_write_buffer.dart';
 
@@ -19,17 +19,7 @@ part 'tag_providers.g.dart';
 @riverpod
 class TagTree extends _$TagTree {
   @override
-  Future<List<Tag>> build() async {
-    final db = ref.watch(galleryDatabaseProvider);
-    return await db.getAllTags();
-  }
-
-  /// 重新读取本地缓存（保留服务端同步得到的媒体计数）
-  Future<void> refresh() async {
-    final db = ref.read(galleryDatabaseProvider);
-    final cached = await db.getAllTags();
-    state = AsyncData(cached);
-  }
+  Stream<List<Tag>> build() => ref.watch(galleryDatabaseProvider).watchTags();
 
   /// 从服务端拉取标签并镜像到本地缓存（标签管理/immich 页进入时调用）
   Future<void> syncFromServer() async {
@@ -37,8 +27,6 @@ class TagTree extends _$TagTree {
       final db = ref.read(galleryDatabaseProvider);
       final tags = await retryServerWrite(api.fetchTags);
       await db.syncTagsCache(tags);
-      await refresh();
-      ref.invalidate(mediaIdsWithTagsProvider);
     });
   }
 
@@ -55,8 +43,8 @@ class TagTree extends _$TagTree {
         'name': name.trim(),
         'parent_id': parentId,
       });
-      await refresh();
-      return state.requireValue.firstWhere((tag) => tag.id == id);
+
+      return (await ref.read(galleryDatabaseProvider).getTag(id))!;
     }
     return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
@@ -64,7 +52,7 @@ class TagTree extends _$TagTree {
         () => api.createTag(name: name, parentId: parentId),
       );
       await db.upsertTagLocal(tag);
-      await refresh();
+
       return tag;
     });
   }
@@ -79,7 +67,7 @@ class TagTree extends _$TagTree {
       );
       final tags = await retryServerWrite(api.fetchTags);
       await db.syncTagsCache(tags, preserveOperations: false);
-      await refresh();
+
       return updated;
     });
   }
@@ -102,7 +90,7 @@ class TagTree extends _$TagTree {
       );
       final tags = await retryServerWrite(api.fetchTags);
       await db.syncTagsCache(tags, preserveOperations: false);
-      await refresh();
+
       return updated;
     });
   }
@@ -113,19 +101,13 @@ class TagTree extends _$TagTree {
       await ref.read(galleryWriteBufferProvider).queue('tagDelete', {
         'id': tagId,
       });
-      ref.invalidate(mediaIdsWithTagsProvider);
-      ref.invalidate(currentMediaTagsProvider);
-      return refresh();
+
+      return;
     }
     return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
       final removedIds = await retryServerWrite(() => api.deleteTag(tagId));
-      for (final id in removedIds) {
-        await db.deleteTagLocal(id);
-      }
-      ref.invalidate(mediaIdsWithTagsProvider);
-      ref.invalidate(currentMediaTagsProvider);
-      await refresh();
+      await db.deleteTagsLocal(removedIds);
     });
   }
 
@@ -141,28 +123,16 @@ class TagTree extends _$TagTree {
     }
     return ref.read(galleryWriteBufferProvider).writeOnline((api) async {
       final db = ref.read(galleryDatabaseProvider);
-      final current = state.valueOrNull ?? const <Tag>[];
-
-      Tag? target;
-      for (final tag in current) {
-        if (tag.id == tagId) {
-          target = tag;
-          break;
-        }
-      }
+      final target = await db.getTag(tagId);
       if (target == null || target.isFavorite == value) return;
 
       final updated = target.copyWith(isFavorite: value);
-      state = AsyncData([
-        for (final tag in current) tag.id == tagId ? updated : tag,
-      ]);
       await db.upsertTagLocal(updated);
 
       try {
         await retryServerWrite(() => api.updateTag(tagId, isFavorite: value));
       } catch (e) {
         await db.upsertTagLocal(target);
-        state = AsyncData(current);
         rethrow;
       }
     });
@@ -173,16 +143,15 @@ class TagTree extends _$TagTree {
       'id': id,
       ...fields,
     });
-    await refresh();
-    ref.invalidate(currentMediaTagsProvider);
-    return state.requireValue.firstWhere((tag) => tag.id == id);
+
+    return (await ref.read(galleryDatabaseProvider).getTag(id))!;
   }
 }
 
 /// 快捷标签（收藏标签，按绑定媒体数降序）
 @riverpod
-List<Tag> favoriteTags(FavoriteTagsRef ref) {
-  final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
+List<Tag> favoriteTags(Ref ref) {
+  final tags = ref.watch(tagTreeProvider).value ?? const <Tag>[];
   final favorites = [
     for (final tag in tags)
       if (tag.isFavorite) tag,
@@ -197,12 +166,12 @@ class CurrentMediaTags extends _$CurrentMediaTags {
   Future<void> _updates = Future.value();
 
   @override
-  Future<List<Tag>> build() async {
-    final currentMedia = ref.watch(currentMediaAssetProvider);
-    if (currentMedia == null) return [];
-
+  Stream<List<Tag>> build() {
+    final id = ref.watch(
+      currentMediaAssetProvider.select((asset) => asset?.id),
+    );
     final db = ref.watch(galleryDatabaseProvider);
-    return await db.getTagsForMedia(currentMedia.id);
+    return id == null ? Stream.value(const []) : db.watchTagsForMedia(id);
   }
 
   Future<void> setTags(List<String> tagIds) {
@@ -229,13 +198,6 @@ class CurrentMediaTags extends _$CurrentMediaTags {
       if (setEquals(baseline.toSet(), next)) return;
       final tagIds = next.toList();
       await buffer.queueTags(mediaId, tagIds);
-      if (container.read(currentMediaAssetProvider)?.id == mediaId) {
-        container.invalidate(currentMediaTagsProvider);
-      }
-      container.invalidate(mediaIdsWithTagsProvider);
-      await container
-          .read(mediaAssetListProvider.notifier)
-          .bumpModifiedCount(mediaId);
     });
     _updates = pending.then((_) {}, onError: (Object _) {});
     return pending.whenComplete(keepAlive.close);

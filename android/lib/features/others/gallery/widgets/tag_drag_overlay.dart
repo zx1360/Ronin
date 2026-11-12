@@ -181,7 +181,7 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
       _hoveredTagId = tagId;
       _hoveredFavoriteId = favoriteId;
     });
-    final tags = ref.read(tagTreeProvider).valueOrNull ?? const <Tag>[];
+    final tags = ref.read(tagTreeProvider).value ?? const <Tag>[];
     if (tagId != null &&
         !_expandedIds.contains(tagId) &&
         (groupTagsByParent(tags, hideFavorites: true)[tagId]?.isNotEmpty ??
@@ -257,9 +257,9 @@ class TagDragOverlayState extends ConsumerState<TagDragOverlay> {
   @override
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
-    final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
+    final tags = ref.watch(tagTreeProvider).value ?? const <Tag>[];
     final applied =
-        (ref.watch(currentMediaTagsProvider).valueOrNull ?? const <Tag>[])
+        (ref.watch(currentMediaTagsProvider).value ?? const <Tag>[])
             .map((t) => t.id)
             .toSet();
     final favorites = ref.watch(favoriteTagsProvider);

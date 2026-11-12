@@ -11,7 +11,7 @@ part 'record_provider.g.dart';
 
 /// 根据 styleId 返回关联的倒序排列的所有 Records
 @riverpod
-List<Record> recordsByStyleId(RecordsByStyleIdRef ref, String styleId) {
+List<Record> recordsByStyleId(Ref ref, String styleId) {
   final allRecords = ref.watch(allRecordsProvider);
   return allRecords.where((item) => item.styleId == styleId).toList()
     ..sort((a, b) => b.date.compareTo(a.date));
@@ -19,7 +19,7 @@ List<Record> recordsByStyleId(RecordsByStyleIdRef ref, String styleId) {
 
 /// 根据日期获取 Record
 @riverpod
-Record? recordByDate(RecordByDateRef ref, {required DateTime targetDate}) {
+Record? recordByDate(Ref ref, {required DateTime targetDate}) {
   final todayStyle = ref.watch(latestStyleProvider);
   if (todayStyle == null) return null;
 
@@ -35,7 +35,7 @@ Record? recordByDate(RecordByDateRef ref, {required DateTime targetDate}) {
 /// 各任务的完成次数，忽略不属于该计划的任务。
 @riverpod
 Map<String, int> allTaskCompletionCounts(
-  AllTaskCompletionCountsRef ref,
+  Ref ref,
   String styleId,
 ) {
   final records = ref.watch(recordsByStyleIdProvider(styleId));
@@ -61,7 +61,7 @@ Map<String, int> allTaskCompletionCounts(
 
 /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
 @riverpod
-int currentStreak(CurrentStreakRef ref, String styleId) {
+int currentStreak(Ref ref, String styleId) {
   final currentRecords = ref.watch(recordsByStyleIdProvider(styleId));
   if (currentRecords.isEmpty) return 0;
 
@@ -85,7 +85,7 @@ int currentStreak(CurrentStreakRef ref, String styleId) {
 
 /// 根据 Style 获取该 Style 的日期范围
 @riverpod
-DateTimeRange? styleDateRange(StyleDateRangeRef ref, {required Style? style}) {
+DateTimeRange? styleDateRange(Ref ref, {required Style? style}) {
   if (style == null) return null;
 
   final records = ref.watch(recordsByStyleIdProvider(style.id));

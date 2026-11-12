@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:path/path.dart' as path;
@@ -46,17 +45,13 @@ class PersonalizationService {
     final prefs = PrefsService().prefs;
     final previous = prefs.getString('preferences');
     try {
-      if (!await prefs.setString(
-        'preferences',
-        jsonEncode(settings.toJson()),
-      )) {
-        throw StateError('偏好设置保存失败');
-      }
+      await prefs.setString('preferences', jsonEncode(settings.toJson()));
     } catch (error) {
-      final restored = previous == null
-          ? await prefs.remove('preferences')
-          : await prefs.setString('preferences', previous);
-      if (!restored) throw StateError('偏好保存失败且回退失败: $error');
+      if (previous == null) {
+        await prefs.remove('preferences');
+      } else {
+        await prefs.setString('preferences', previous);
+      }
       await onRollback?.call();
       rethrow;
     }
@@ -134,22 +129,6 @@ class PersonalizationService {
           return false;
         }
       });
-
-  Future<List<File>> getImageFiles(PersonalizationImageType type) async {
-    final settings = getSettings();
-    final keys = switch (type) {
-      PersonalizationImageType.background => settings.backgroundImages,
-      PersonalizationImageType.sidebar => settings.sidebarImages,
-      PersonalizationImageType.avatar => [
-        if (settings.avatarPath != null) settings.avatarPath!,
-      ],
-    };
-    return (await Future.wait(
-      keys.map(getImageFile),
-    )).whereType<File>().toList();
-  }
-
-  Future<File?> getImageFile(String key) => IoService.getImageFile(key);
 
   String? _choose(List<String> items) =>
       items.isEmpty ? null : items[_random.nextInt(items.length)];

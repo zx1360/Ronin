@@ -1,30 +1,25 @@
-import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'comic_info.g.dart';
 
 // 漫画元数据
-@HiveType(typeId: 31)
+
 @JsonSerializable(fieldRename: FieldRename.snake)
 class ComicInfo {
-  @HiveField(0)
   final String id;
 
   @JsonKey(name: "title")
-  @HiveField(1)
   final String comicName;
-  @HiveField(2)
+
   final String coverImage;
 
-  @HiveField(3)
   final int chapterCount;
-  @HiveField(4)
+
   final int imageCount;
 
-  @HiveField(5)
   final bool? isPublic;
-  @HiveField(6)
+
   final bool? readed;
 
   ComicInfo({

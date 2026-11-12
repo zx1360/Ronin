@@ -1,0 +1,39 @@
+import '../../../core/services/storage/storage_types.dart';
+
+CREATE TABLE essay_entries (
+  id TEXT NOT NULL PRIMARY KEY,
+  date INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  word_count INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  imgs TEXT NOT NULL,
+  messages TEXT NOT NULL,
+  mood TEXT,
+  created_at INTEGER MAPPED BY `const EpochMicros()`,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  labels_updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL
+);
+
+CREATE TABLE essay_labels (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_id TEXT REFERENCES essay_labels (id) DEFERRABLE INITIALLY DEFERRED,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL
+);
+
+CREATE TABLE essay_links (
+  essay_id TEXT NOT NULL REFERENCES essay_entries (id) ON DELETE CASCADE,
+  label_id TEXT NOT NULL REFERENCES essay_labels (id) DEFERRABLE INITIALLY DEFERRED,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (essay_id, position),
+  UNIQUE (label_id, essay_id)
+);
+
+CREATE TABLE essay_drafts (
+  id TEXT NOT NULL PRIMARY KEY,
+  edited_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  essay TEXT NOT NULL,
+  original TEXT
+) AS EssayDraftRow;
+
+CREATE INDEX essay_entries_date ON essay_entries (date, id);

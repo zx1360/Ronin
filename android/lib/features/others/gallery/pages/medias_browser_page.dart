@@ -38,7 +38,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   final List<String> _selectionOrder = [];
 
   final _scrollController = ScrollController(keepScrollOffset: false);
-  final _previewCatalog = GalleryPreviewCatalog();
+  var _previewCatalog = GalleryPreviewCatalog();
   List<MediaAsset>? _previewAssets;
   Future<Map<String, GalleryPreview>>? _previewFuture;
   MediaGridLayout? _previewLayout;
@@ -55,12 +55,12 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   void _scrollToCurrentIndex({bool animate = true}) {
     if (!_scrollController.hasClients) return;
-    final assets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final assets = ref.read(galleryBrowsingAssetsProvider).value ?? [];
     final current = ref.read(currentMediaAssetProvider);
     final index = assets.indexWhere((a) => a.id == current?.id);
     if (index < 0) return;
-    final mode = ref.read(galleryGridPreviewModeNotifierProvider);
-    final columns = ref.read(galleryGridColumnsProvider);
+    final mode = ref.read(galleryBrowseSettingsProvider).gridMode;
+    final columns = ref.read(galleryBrowseSettingsProvider).gridColumns;
     final cellWidth = (_gridWidth - (columns - 1) * 2) / columns;
     final offset = mode == GalleryGridPreviewMode.thumb
         ? (index ~/ columns) * (cellWidth + 2)
@@ -90,12 +90,22 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(galleryFilesRevisionProvider, (_, _) {
+      setState(() {
+        _previewCatalog = GalleryPreviewCatalog();
+        _previewAssets = null;
+      });
+    });
     // 使用包含已删除文件的列表
     final assetsAsync = ref.watch(galleryBrowsingAssetsProvider);
-    final columns = ref.watch(galleryGridColumnsProvider);
+    final columns = ref.watch(
+      galleryBrowseSettingsProvider.select((settings) => settings.gridColumns),
+    );
     // 获取当前媒体的 ID，而不是索引
     final currentMedia = ref.watch(currentMediaAssetProvider);
-    final mode = ref.watch(galleryGridPreviewModeNotifierProvider);
+    final mode = ref.watch(
+      galleryBrowseSettingsProvider.select((settings) => settings.gridMode),
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -120,19 +130,17 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
               surfaceTintColor: Colors.transparent,
               position: PopupMenuPosition.under,
               onSelected: (mode) {
-                if (mode == ref.read(galleryGridPreviewModeNotifierProvider)) {
+                if (mode == ref.read(galleryBrowseSettingsProvider).gridMode) {
                   return;
                 }
                 _hasScrolledToInitial = false;
                 _userHasScrolled = false;
                 ref
-                    .read(galleryGridPreviewModeNotifierProvider.notifier)
-                    .setMode(mode);
+                    .read(galleryBrowseSettingsProvider.notifier)
+                    .setGridMode(mode);
               },
               itemBuilder: (context) {
-                final current = ref.watch(
-                  galleryGridPreviewModeNotifierProvider,
-                );
+                final current = mode;
                 return GalleryGridPreviewMode.values.map((mode) {
                   return PopupMenuItem(
                     value: mode,
@@ -172,7 +180,9 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
               onPressed: () {
                 _hasScrolledToInitial = false;
                 _userHasScrolled = false;
-                ref.read(galleryGridColumnsProvider.notifier).zoomOut();
+                ref
+                    .read(galleryBrowseSettingsProvider.notifier)
+                    .changeColumns(1);
               },
             ),
             // 放大 (减少列数)
@@ -182,7 +192,9 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
               onPressed: () {
                 _hasScrolledToInitial = false;
                 _userHasScrolled = false;
-                ref.read(galleryGridColumnsProvider.notifier).zoomIn();
+                ref
+                    .read(galleryBrowseSettingsProvider.notifier)
+                    .changeColumns(-1);
               },
             ),
           ],
@@ -191,7 +203,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
             IconButton(
               icon: const Icon(Icons.select_all),
               tooltip: '全选',
-              onPressed: () => _selectAll(assetsAsync.valueOrNull ?? []),
+              onPressed: () => _selectAll(assetsAsync.value ?? []),
             ),
             // 取消选择模式
             IconButton(
@@ -219,8 +231,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           }
 
           final taggedIds =
-              ref.watch(mediaIdsWithTagsProvider).valueOrNull ??
-              const <String>{};
+              ref.watch(mediaIdsWithTagsProvider).value ?? const <String>{};
           if (mode != GalleryGridPreviewMode.thumb &&
               !identical(_previewAssets, assets)) {
             _previewAssets = assets;
@@ -397,8 +408,8 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   /// 构建标题
   String _buildTitle(int columns) {
-    final mode = ref.read(galleryGridPreviewModeNotifierProvider);
-    final prefix = ref.read(galleryActiveGroupProvider) == null ? '' : '组内 · ';
+    final mode = ref.read(galleryBrowseSettingsProvider).gridMode;
+    final prefix = ref.read(galleryGroupProvider) == null ? '' : '组内 · ';
     return '$prefix${_modeLabel(mode)} ($columns列)';
   }
 

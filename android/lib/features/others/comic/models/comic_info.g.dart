@@ -3,81 +3,25 @@
 part of 'comic_info.dart';
 
 // **************************************************************************
-// TypeAdapterGenerator
-// **************************************************************************
-
-class ComicInfoAdapter extends TypeAdapter<ComicInfo> {
-  @override
-  final int typeId = 31;
-
-  @override
-  ComicInfo read(BinaryReader reader) {
-    final numOfFields = reader.readByte();
-    final fields = <int, dynamic>{
-      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
-    };
-    return ComicInfo(
-      id: fields[0] as String,
-      comicName: fields[1] as String,
-      coverImage: fields[2] as String,
-      chapterCount: fields[3] as int,
-      imageCount: fields[4] as int,
-      isPublic: fields[5] as bool?,
-      readed: fields[6] as bool?,
-    );
-  }
-
-  @override
-  void write(BinaryWriter writer, ComicInfo obj) {
-    writer
-      ..writeByte(7)
-      ..writeByte(0)
-      ..write(obj.id)
-      ..writeByte(1)
-      ..write(obj.comicName)
-      ..writeByte(2)
-      ..write(obj.coverImage)
-      ..writeByte(3)
-      ..write(obj.chapterCount)
-      ..writeByte(4)
-      ..write(obj.imageCount)
-      ..writeByte(5)
-      ..write(obj.isPublic)
-      ..writeByte(6)
-      ..write(obj.readed);
-  }
-
-  @override
-  int get hashCode => typeId.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ComicInfoAdapter &&
-          runtimeType == other.runtimeType &&
-          typeId == other.typeId;
-}
-
-// **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
 ComicInfo _$ComicInfoFromJson(Map<String, dynamic> json) => ComicInfo(
-      id: json['id'] as String,
-      comicName: json['title'] as String,
-      coverImage: json['cover_image'] as String,
-      chapterCount: (json['chapter_count'] as num).toInt(),
-      imageCount: (json['image_count'] as num).toInt(),
-      isPublic: json['is_public'] as bool? ?? true,
-      readed: json['readed'] as bool? ?? false,
-    );
+  id: json['id'] as String,
+  comicName: json['title'] as String,
+  coverImage: json['cover_image'] as String,
+  chapterCount: (json['chapter_count'] as num).toInt(),
+  imageCount: (json['image_count'] as num).toInt(),
+  isPublic: json['is_public'] as bool? ?? true,
+  readed: json['readed'] as bool? ?? false,
+);
 
 Map<String, dynamic> _$ComicInfoToJson(ComicInfo instance) => <String, dynamic>{
-      'id': instance.id,
-      'title': instance.comicName,
-      'cover_image': instance.coverImage,
-      'chapter_count': instance.chapterCount,
-      'image_count': instance.imageCount,
-      'is_public': instance.isPublic,
-      'readed': instance.readed,
-    };
+  'id': instance.id,
+  'title': instance.comicName,
+  'cover_image': instance.coverImage,
+  'chapter_count': instance.chapterCount,
+  'image_count': instance.imageCount,
+  'is_public': instance.isPublic,
+  'readed': instance.readed,
+};

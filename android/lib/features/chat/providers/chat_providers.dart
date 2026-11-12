@@ -2,10 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:torrid/features/chat/services/chat_store.dart';
 import 'package:torrid/features/chat/models/chat_models.dart';
 import 'package:torrid/features/chat/models/chat_options.dart';
 import 'package:torrid/features/chat/services/chat_api_service.dart';
@@ -76,42 +75,38 @@ class ChatState {
 
 /// 聊天控制器：本地会话读写 + 流式请求编排。
 ///
-/// 流式增量只更新内存状态，一轮结束（或失败）时才落库——每个 token 都写一次
-/// Hive 既慢又无意义。
+/// 流式增量只更新内存，用户消息和一轮结束的回复分别落库。
 @Riverpod(keepAlive: true)
 class ChatController extends _$ChatController {
   CancelToken? _cancelToken;
   String? _runningConversationId;
 
+  ChatState get _chat => state.requireValue;
+  set _chat(ChatState value) => state = AsyncData(value);
+
+  ChatStore get _store => ref.read(chatStoreProvider);
+
   @override
-  ChatState build() {
+  Future<ChatState> build() async {
     ref.onDispose(() => _cancelToken?.cancel());
-    final conversations = _sorted(_box.values.toList());
+    final conversations = await _store.conversations();
     return ChatState(
       conversations: conversations,
-      activeId: conversations.isEmpty ? null : conversations.first.id,
+      activeId: conversations.firstOrNull?.id,
     );
   }
 
-  Box<ChatConversation> get _box =>
-      Hive.box<ChatConversation>(HiveService.chatBoxName);
-
   /// 新建会话并切换过去（顺手清掉此前没说过话的空会话，避免列表越积越多）。
   Future<void> newConversation() async {
-    await _persistActive();
     final empties = [
-      for (final item in state.conversations)
+      for (final item in _chat.conversations)
         if (item.isEmpty) item.id,
     ];
-    for (final id in empties) {
-      await _box.delete(id);
-    }
-
     final conversation = ChatConversation.empty();
-    await _box.put(conversation.id, conversation);
-    state = state.copyWith(
+    await _store.newConversation(conversation, empties);
+    _chat = _chat.copyWith(
       conversations: _sorted([
-        for (final item in state.conversations)
+        for (final item in _chat.conversations)
           if (!empties.contains(item.id)) item,
         conversation,
       ]),
@@ -122,9 +117,8 @@ class ChatController extends _$ChatController {
 
   /// 切换会话。
   Future<void> select(String id) async {
-    if (id == state.activeId) return;
-    await _persistActive();
-    state = state.copyWith(activeId: id, clearError: true);
+    if (id == _chat.activeId) return;
+    _chat = _chat.copyWith(activeId: id, clearError: true);
   }
 
   /// 删除会话（连同其本地图片）。
@@ -133,20 +127,20 @@ class ChatController extends _$ChatController {
       _cancelToken?.cancel();
       _cancelToken = null;
       _runningConversationId = null;
-      state = state.copyWith(streaming: false);
+      _chat = _chat.copyWith(streaming: false);
     }
     final target = _conversationById(id);
-    await _box.delete(id);
+    await _store.deleteConversation(id);
     await _deleteAttachmentFiles(target);
 
     final remaining = _sorted(
-      [...state.conversations]..removeWhere((item) => item.id == id),
+      [..._chat.conversations]..removeWhere((item) => item.id == id),
     );
-    state = state.copyWith(
+    _chat = _chat.copyWith(
       conversations: remaining,
-      activeId: state.activeId == id && remaining.isNotEmpty
+      activeId: _chat.activeId == id && remaining.isNotEmpty
           ? remaining.first.id
-          : state.activeId,
+          : _chat.activeId,
       clearError: true,
     );
   }
@@ -156,11 +150,11 @@ class ChatController extends _$ChatController {
     _cancelToken?.cancel();
     _cancelToken = null;
     _runningConversationId = null;
-    for (final conversation in state.conversations) {
+    await _store.clearConversations();
+    for (final conversation in _chat.conversations) {
       await _deleteAttachmentFiles(conversation);
     }
-    await _box.clear();
-    state = const ChatState();
+    _chat = const ChatState();
   }
 
   /// 发送一轮消息（[attachments] 为本轮附带图片）。
@@ -168,13 +162,11 @@ class ChatController extends _$ChatController {
     String text, {
     List<ChatAttachment> attachments = const [],
   }) async {
-    if (state.streaming) return;
+    if (_chat.streaming) return;
     final prompt = text.trim();
     if (prompt.isEmpty && attachments.isEmpty) return;
 
-    if (state.active == null) await newConversation();
-    final conversation = state.active;
-    if (conversation == null) return;
+    final conversation = _chat.active ?? ChatConversation.empty();
 
     final userMessage = ChatMessage.user(
       content: prompt,
@@ -190,14 +182,15 @@ class ChatController extends _$ChatController {
       messages: [...conversation.messages, userMessage, assistantMessage],
       updatedAt: DateTime.now(),
     );
-    await _replaceActive(updated, streaming: true);
-    await _runTurn(conversation.id, assistantMessage.id);
+    if (await _beginTurn(updated)) {
+      await _runTurn(conversation.id, assistantMessage.id);
+    }
   }
 
   /// 重试：剔除结尾失败的回复后重新请求。
   Future<void> retry() async {
-    final conversation = state.active;
-    if (conversation == null || state.streaming) return;
+    final conversation = _chat.active;
+    if (conversation == null || _chat.streaming) return;
 
     final history = [...conversation.messages];
     while (history.isNotEmpty && !history.last.isUser) {
@@ -210,8 +203,9 @@ class ChatController extends _$ChatController {
       messages: [...history, assistantMessage],
       updatedAt: DateTime.now(),
     );
-    await _replaceActive(updated, streaming: true);
-    await _runTurn(conversation.id, assistantMessage.id);
+    if (await _beginTurn(updated)) {
+      await _runTurn(conversation.id, assistantMessage.id);
+    }
   }
 
   /// 中断当前回复。
@@ -220,10 +214,10 @@ class ChatController extends _$ChatController {
   }
 
   /// 清除一次性提示（页面展示后调用）。
-  void clearNotice() => state = state.copyWith(clearNotice: true);
+  void clearNotice() => _chat = _chat.copyWith(clearNotice: true);
 
   bool isGenerating(String id) =>
-      state.streaming && _runningConversationId == id;
+      _chat.streaming && _runningConversationId == id;
 
   // ---------- 内部 ----------
 
@@ -266,7 +260,7 @@ class ChatController extends _$ChatController {
             );
           case 'notice':
             // 服务端告知"抢占了谁"，属于提示而非错误
-            state = state.copyWith(notice: event.content);
+            _chat = _chat.copyWith(notice: event.content);
           case 'aborted':
             // 被另一个模型抢占：标为可重试的中断，不计入上下文
             _patchAssistant(
@@ -274,7 +268,7 @@ class ChatController extends _$ChatController {
               assistantMessageId,
               interrupted: true,
             );
-            state = state.copyWith(notice: event.error);
+            _chat = _chat.copyWith(notice: event.error);
             return;
           case 'error':
             throw AiStreamException(event.error ?? '模型返回错误');
@@ -295,16 +289,25 @@ class ChatController extends _$ChatController {
         error: cancelled ? null : e.toString(),
         interrupted: cancelled,
       );
-      state = state.copyWith(
+      _chat = _chat.copyWith(
         error: cancelled ? null : e.toString(),
         clearError: cancelled,
       );
     } finally {
       if (identical(_cancelToken, cancelToken)) {
-        _cancelToken = null;
-        _runningConversationId = null;
-        state = state.copyWith(streaming: false);
-        await _persistConversation(conversationId);
+        try {
+          await _persistConversation(conversationId);
+        } catch (error) {
+          if (identical(_cancelToken, cancelToken)) {
+            _chat = _chat.copyWith(error: '对话保存失败：$error');
+          }
+        } finally {
+          if (identical(_cancelToken, cancelToken)) {
+            _cancelToken = null;
+            _runningConversationId = null;
+            _chat = _chat.copyWith(streaming: false);
+          }
+        }
       }
     }
   }
@@ -410,7 +413,7 @@ class ChatController extends _$ChatController {
         else
           message,
     ];
-    state = state.copyWith(
+    _chat = _chat.copyWith(
       conversations: _replaceConversation(
         conversation.copyWith(messages: messages, updatedAt: DateTime.now()),
       ),
@@ -430,7 +433,7 @@ class ChatController extends _$ChatController {
         else
           message,
     ];
-    state = state.copyWith(
+    _chat = _chat.copyWith(
       conversations: _replaceConversation(
         conversation.copyWith(messages: messages, updatedAt: DateTime.now()),
       ),
@@ -438,7 +441,7 @@ class ChatController extends _$ChatController {
   }
 
   ChatConversation? _conversationById(String id) {
-    for (final conversation in state.conversations) {
+    for (final conversation in _chat.conversations) {
       if (conversation.id == id) return conversation;
     }
     return null;
@@ -446,34 +449,36 @@ class ChatController extends _$ChatController {
 
   List<ChatConversation> _replaceConversation(ChatConversation conversation) {
     return _sorted([
-      for (final item in state.conversations)
-        item.id == conversation.id ? conversation : item,
+      for (final item in _chat.conversations)
+        if (item.id != conversation.id) item,
+      conversation,
     ]);
   }
 
-  Future<void> _replaceActive(
-    ChatConversation conversation, {
-    required bool streaming,
-  }) async {
-    if (streaming) _runningConversationId = conversation.id;
-    state = state.copyWith(
+  Future<bool> _beginTurn(ChatConversation conversation) async {
+    _runningConversationId = conversation.id;
+    _chat = _chat.copyWith(
       conversations: _replaceConversation(conversation),
       activeId: conversation.id,
-      streaming: streaming,
+      streaming: true,
       clearError: true,
     );
-    await _box.put(conversation.id, conversation);
-  }
-
-  Future<void> _persistActive() async {
-    final id = state.active?.id;
-    if (id != null) await _persistConversation(id);
+    try {
+      await _store.save(conversation);
+      return true;
+    } catch (error) {
+      if (_runningConversationId == conversation.id) {
+        _runningConversationId = null;
+        _chat = _chat.copyWith(streaming: false, error: '对话保存失败：$error');
+      }
+      return false;
+    }
   }
 
   Future<void> _persistConversation(String id) async {
     final conversation = _conversationById(id);
     if (conversation == null || conversation.isEmpty) return;
-    await _box.put(conversation.id, conversation);
+    await _store.save(conversation);
   }
 
   List<ChatConversation> _sorted(List<ChatConversation> items) {

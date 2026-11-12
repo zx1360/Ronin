@@ -7,22 +7,22 @@ part of 'media_asset.dart';
 // **************************************************************************
 
 MediaAsset _$MediaAssetFromJson(Map<String, dynamic> json) => MediaAsset(
-      id: json['id'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-      capturedAt: DateTime.parse(json['captured_at'] as String),
-      filePath: json['file_path'] as String,
-      thumbPath: json['thumb_path'] as String?,
-      previewPath: json['preview_path'] as String?,
-      hash: json['hash'] as String,
-      sizeBytes: (json['size_bytes'] as num?)?.toInt() ?? 0,
-      mimeType: json['mime_type'] as String?,
-      isDeleted: json['is_deleted'] as bool? ?? false,
-      syncCount: (json['sync_count'] as num?)?.toInt() ?? 0,
-      groupId: json['group_id'] as String?,
-      message: json['message'] as String?,
-      editParams: json['edit_params'] as String?,
-    );
+  id: json['id'] as String,
+  createdAt: DateTime.parse(json['created_at'] as String),
+  updatedAt: DateTime.parse(json['updated_at'] as String),
+  capturedAt: DateTime.parse(json['captured_at'] as String),
+  filePath: json['file_path'] as String,
+  thumbPath: json['thumb_path'] as String?,
+  previewPath: json['preview_path'] as String?,
+  hash: json['hash'] as String,
+  sizeBytes: (json['size_bytes'] as num?)?.toInt() ?? 0,
+  mimeType: json['mime_type'] as String?,
+  isDeleted: json['is_deleted'] as bool? ?? false,
+  syncCount: (json['sync_count'] as num?)?.toInt() ?? 0,
+  groupId: json['group_id'] as String?,
+  message: json['message'] as String?,
+  editParams: json['edit_params'] as String?,
+);
 
 Map<String, dynamic> _$MediaAssetToJson(MediaAsset instance) =>
     <String, dynamic>{

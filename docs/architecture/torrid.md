@@ -17,9 +17,11 @@ main
 | 目录 | 职责 |
 | --- | --- |
 | `app/` | 应用主题、路由、壳 |
-| `core/` | 网络、证书、mDNS、Hive/Prefs、通用模型/组件 |
+| `core/` | 网络、证书、mDNS、Drift/Prefs、通用模型/组件 |
 | `providers/` | Riverpod 级别的网络配置、ApiClient、存储/进度派生 |
 | `features/` | 按功能拆分的页面、provider、service、model、widget |
+
+Riverpod 负责依赖、查询和业务动作。Gallery 浏览设置与下载筛选分组持久化，下载使用启动时读取的筛选快照，组内浏览位置只保留在当前会话。根作用域关闭 provider 自动重试，页面失去可见性时由 Riverpod 暂停订阅，写入和同步通过业务动作管理生命周期。
 
 顶层 GoRouter 路由见 [routes.dart](../../android/lib/app/routes/routes.dart)。`/others` 下的漫画、画廊、相册和智能相册是页面内 `Navigator.push` 的二级功能，不要误以为它们都是顶层深链路。
 
@@ -41,7 +43,7 @@ flowchart LR
 - [NetworkConfigManager](../../android/lib/providers/network_config/network_config_provider.dart) 负责多主机、激活项、API key 和 mDNS 发现结果。
 - [ApiClientManager](../../android/lib/providers/api_client/api_client_provider.dart) 监听网络配置派生 `ApiClient`；不要在页面中手动推送 ApiClient。
 - [ApiClient](../../android/lib/core/services/network/api_client.dart) 统一 Dio、证书、header、GET 重试、二进制和 NDJSON 流。
-- 启动页初始化证书与本地存储，失败可重试且不清数据；公共 HTTPS 使用系统 CA，内置后端证书仅按证书内容精确放行主机名不匹配。切换网络配置时关闭旧 ApiClient，页面读请求随 provider 释放取消。
+- 启动页初始化证书与本地存储，失败可重试且不清数据。公共 HTTPS 使用系统 CA，Dart 与 Android 原生播放器共用 `res/raw/server.crt`，仅匹配内置证书时允许主机名不匹配。切换网络配置时关闭旧 ApiClient，页面读请求随 provider 释放取消。
 - 网络错误通过 `ApiClient.mapError` 转为可读信息，业务请求由各功能的 service/provider 处理。
 
 服务端 mDNS 只广播 HTTPS 端口；发现后端上保存的 host/port 不会自动切换激活项。
@@ -50,19 +52,22 @@ flowchart LR
 
 | 存储 | 内容 | 权威关系 |
 | --- | --- | --- |
-| SharedPreferences | 主机列表、API key、聊天设置、界面偏好 | Android 本地设置真源 |
-| Hive | 随笔/打卡、Chat 会话消息、Review 镜像和历史、漫画缓存 | 依功能决定是本地真源或缓存 |
-| Hive `essayDrafts` / 私有目录 `essay_drafts/` | 随笔多草稿与草稿图片 | 仅本机；不参与同步、备份和 AI 回顾 |
-| sqflite `gallery.db` | Gallery 工作副本、操作表、下载批次 | 离线修改持久化；服务端仍是最终权威 |
+| SharedPreferencesWithCache | 主机配置、API key、对话选项、外观与 Gallery 显示/下载设置 | 本地设置，个性化可单独同步 |
+| Drift `torrid.sqlite` | 随笔、标签、打卡、tombstone 与 revision 游标 | 双端可写，Monarch 可重新下发已同步的数据 |
+| Drift `torrid.sqlite` | Gallery 工作副本、图库 ID、浏览位置、待回传操作 | 服务端权威，未确认的编辑保存在本机 |
+| Drift `torrid.sqlite` | 随笔草稿、对话、回顾历史、漫画阅读进度及下载队列 | 本机独有 |
+| Drift `torrid.sqlite` | Review 预设、漫画/章节元数据 | Review 镜像以服务端为准；漫画索引可从离线文件重建 |
 | 内部 Application Support `media/` | 打卡/随笔/聊天附件、草稿、个性化图片 | 持久用户文件，不属于缓存 |
-| 外部应用私有 `comics/`、`gallery/` | 漫画和画廊离线媒体 | 按模块清理，不随普通清缓存删除 |
+| 外部应用私有 `comics/`、`gallery/` | 漫画和画廊离线媒体，画廊预览按图库 ID 分目录 | 按模块清理，不随普通清缓存删除 |
 | 系统缓存 `media_share/`、`media_export/` | 分享和导出暂存 | 与网络图片缓存分开统计；保留近 24 小时分享文件 |
 
-Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/storage/hive_service.dart)。`typeId` 发布后不可复用，新增类型必须查看 [开发备忘](../../开发备忘.md)。
+[AppDatabase](../../android/lib/core/services/storage/app_database.dart) 持有一套后台 SQLite 连接。表定义和访问代码随功能拆分；随笔标签关联有独立表，随笔汇总、标签计数、打卡统计及 Gallery 处理范围按当前数据计算。随笔/打卡先上传后拉取，附件就绪后事务合并数据、删除标记和对应主机的游标。留言随正文版本同步，改标签只推进 `labels_updated_at`。
 
 文件操作统一经过 [IoService](../../android/lib/core/services/io/io_service.dart)：用户文件、离线文件和临时文件边界分开，导入使用唯一文件名与同盘暂存后重命名。`img_storage/booklet|essay|chat/...` 等同步键仍与后端兼容，映射到内部 `media/booklet|essay|chat/...`；不保存绝对用户图片路径。旧外部附件目录不自动迁移，重装后从后端恢复打卡、随笔与偏好；草稿、聊天和回顾仅存本机，卸载会丢失。
 
 公共导出走 Android MediaStore：图片进入 `Pictures/torrid/`，视频进入 `Movies/torrid/`，不覆盖同名文件。Android 10+ 无需存储权限；更早版本仅请求普通存储权限。画廊/视频先流式下载到隔离暂存文件，退出页面取消下载；后台仅执行当前导出操作，不新增常驻服务。
+
+可丢弃的网络图片由 `cached_network_image` 使用 `DefaultCacheManager` 缓存，图库预览、漫画下载、用户附件和导出文件按各自生命周期管理。阅读和画廊共用 [MediaVideoPlayer](../../android/lib/core/widgets/media/media_video_player.dart)。阅读视频自动循环，全屏沿用当前控制器。画廊原片走带鉴权的网络流，本地预览用于加载占位。隐藏或进入后台时暂停，切换来源或退出时释放播放器。
 
 ## 4. 功能域与后端映射
 
@@ -70,7 +75,7 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 | --- | --- | --- |
 | 积微 | `features/booklet` | `/API/user-data/*`；按 updated_at 增量合并，删除保留 tombstone |
 | 随笔 | `features/essay` | `/API/user-data/*`；本地派生统计从实际数据重算 |
-| 对话 | `features/chat` | `/API/ai/chat` NDJSON；会话/消息只落 Hive |
+| 对话 | `features/chat` | `/API/ai/chat` NDJSON；会话和消息在本机 SQLite |
 | 近期回顾 | `features/chat` | 后端计算统计，端上消费 `stats -> delta`；结果只存本机 |
 | 漫画 | `features/others/comic` | `/API/comic/*`；服务端库 + 端上阅读/下载缓存 |
 | Gallery | `features/others/gallery` | `/API/gallery/*`；离线编辑，批次回传校验 |
@@ -95,7 +100,7 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 
 ### Immich 相册
 
-该页按在线模型走 `retryServerWrite`。Gallery 的离线工作副本按图库 ID 绑定，已回传记录保留至批次校验。升级后第一次下载或回传时需确认旧缓存归属，同一图库的不同地址可共用工作副本。
+该页按在线模型走 `retryServerWrite`。Gallery 第一次连接时绑定服务端图库 ID，同一图库的不同地址可共用工作副本。更换图库前需先确认已有操作，再在画廊设置中清空工作副本。
 
 ## 6. Chat / Review 流式边界
 
@@ -117,4 +122,4 @@ Hive Adapter 集中在 [hive_service.dart](../../android/lib/core/services/stora
 2. 更新对应 `features/*/services`、model 和 provider。
 3. 对 503、空列表、字段缺失、流中断做降级。
 4. 如果涉及 Gallery 写入，确认服务端权威和缓存更新顺序没有反转。
-5. 运行 `flutter analyze`；生成文件只由 build_runner 生成，不手工编辑 `.g.dart`。
+5. 在根目录运行 `pwsh -File verify.ps1 -Scope android`。

@@ -11,7 +11,7 @@ class ChatConversationDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(chatControllerProvider);
+    final state = ref.watch(chatControllerProvider).requireValue;
     final controller = ref.read(chatControllerProvider.notifier);
 
     return Drawer(

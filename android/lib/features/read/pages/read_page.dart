@@ -30,7 +30,7 @@ class ReadPage extends StatelessWidget {
         body: const TabBarView(
           children: [
             PeriodicView(),
-            MediaView(),
+            MediaView(sectionIndex: 1),
             HotlistsView(),
             EntertainmentView(),
           ],

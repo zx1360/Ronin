@@ -6,7 +6,7 @@ part 'history_provider.g.dart';
 
 @riverpod
 Future<List<BookletHistoryEntry>> bookletHistory(
-  BookletHistoryRef ref, {
+  Ref ref, {
   String? styleId,
 }) async {
   final records = ref.watch(recordStreamProvider.future);

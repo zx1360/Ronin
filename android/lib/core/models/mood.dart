@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 
-part 'mood.g.dart';
 
 /// 心情类型枚举 - 使用表情符号表示心情
 /// 便于扩展：只需添加新的枚举值和对应的图标/颜色即可
-@HiveType(typeId: 8)
+
 enum MoodType {
-  @HiveField(0)
+
   happy,      // 开心 - 非常愉快
 
-  @HiveField(1)
   calm,       // 平静 - 心情平和
 
-  @HiveField(2)
   sad,        // 难过 - 有点低落
 
-  @HiveField(3)
   angry,      // 生气 - 烦躁/愤怒
 
-  @HiveField(4)
   tired,      // 疲惫 - 累/困倦
 }
 

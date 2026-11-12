@@ -17,18 +17,4 @@ class EssayDraft {
       essay.imgs.isNotEmpty ||
       essay.labels.isNotEmpty ||
       essay.mood != null;
-
-  factory EssayDraft.fromJson(Map<String, dynamic> json) => EssayDraft(
-    essay: Essay.fromJson(json['essay'] as Map<String, dynamic>),
-    original: json['original'] == null
-        ? null
-        : Essay.fromJson(json['original'] as Map<String, dynamic>),
-    updatedAt: DateTime.parse(json['updated_at'] as String),
-  );
-
-  Map<String, dynamic> toJson() => {
-    'essay': essay.toJson(),
-    'original': original?.toJson(),
-    'updated_at': updatedAt.toIso8601String(),
-  };
 }

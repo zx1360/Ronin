@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/modals/confirm_modal.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/label_editor.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
@@ -73,7 +73,7 @@ class EssayLabelsPage extends ConsumerWidget {
                           confirmFunc: () async {
                             try {
                               await ref
-                                  .read(essayServiceProvider.notifier)
+                                  .read(essayStoreProvider)
                                   .deleteLabel(label);
                             } catch (e) {
                               if (context.mounted) {

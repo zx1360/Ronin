@@ -9,6 +9,7 @@ import 'package:torrid/core/services/storage/cache_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
+import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
 
 const _shareChannel = MethodChannel('torrid/media_share');
 
@@ -57,7 +58,7 @@ Future<void> shareMediaBatch(
       );
       onProgress?.call(i + 1, unique.length, 0);
       await client.download(
-        '/API/gallery/${asset.id}/file',
+        galleryMediaPath(asset, 'file'),
         file.path,
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) => onProgress?.call(

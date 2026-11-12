@@ -4,12 +4,13 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:torrid/core/services/network/api_client.dart';
+import 'package:torrid/core/services/storage/app_database.dart';
 import 'package:torrid/core/services/storage/user_data_sync.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/features/booklet/providers/providers.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/services/essay_contract.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
@@ -96,10 +97,10 @@ class TransferController extends _$TransferController {
     TransferFiles? files;
     try {
       final address = Uri.parse(client.baseUrl).authority;
-      final cursorKey = 'cursor|$address|${target.name}';
+      final db = ref.read(appDatabaseProvider);
       final cursor = target == TransferTarget.preferences
           ? 0
-          : int.tryParse(userDataSyncBox.get(cursorKey) ?? '') ?? 0;
+          : await db.syncCursor(address, target.name);
       Future<Response<dynamic>> fetch(int after) => client.get(
         '/API/user-data/sync/${target.name}',
         queryParams: {
@@ -111,6 +112,7 @@ class TransferController extends _$TransferController {
       );
 
       Response<dynamic> response;
+      var after = cursor;
       try {
         response = await fetch(cursor);
       } on DioException catch (error) {
@@ -120,32 +122,34 @@ class TransferController extends _$TransferController {
             error.response?.data['code'] != 'invalid_sync_cursor') {
           rethrow;
         }
-        response = await fetch(0);
+        after = 0;
+        response = await fetch(after);
       }
       if (response.statusCode != 200 || response.data is! Map) {
         throw const FormatException('服务端返回了无效的数据对象');
       }
       final data = Map<String, dynamic>.from(response.data as Map);
-      if (target != TransferTarget.preferences &&
-          (data['cursor'] is! int || (data['cursor'] as int) < 0)) {
-        throw const FormatException('服务端返回了无效的同步游标');
-      }
       if (target == TransferTarget.essay) requireEssaySchema(data);
+      final batch = target == TransferTarget.preferences
+          ? null
+          : UserDataBatch(target.name, data);
+      if (batch != null && batch.cursor < after) {
+        throw const FormatException('服务端同步游标倒退');
+      }
       final relativeDir = target == TransferTarget.preferences
           ? 'preferences'
           : 'img_storage/${target.name}';
-      final local = switch (target) {
+      final paths = switch (target) {
         TransferTarget.booklet =>
-          ref.read(routineServiceProvider.notifier).snapshot(),
+          await ref.read(bookletStoreProvider).syncImages(batch!),
         TransferTarget.essay =>
-          ref.read(essayServiceProvider.notifier).snapshot(),
-        _ => null,
+          await ref.read(essayStoreProvider).syncImages(batch!),
+        TransferTarget.preferences => preferenceImagePaths(
+          Map<String, dynamic>.from(data['preferences'] as Map),
+        ),
+        TransferTarget.all => throw StateError('请指定数据模块'),
       };
-      final images = _imagePaths(
-        target,
-        local == null ? data : mergeUserData(target.name, local, data).data,
-        relativeDir,
-      );
+      final images = _imagePaths(target, paths, relativeDir);
       final directory = await IoService.userDirectory(relativeDir);
       if (target != TransferTarget.preferences) {
         for (final key in images.keys.toList()) {
@@ -162,15 +166,18 @@ class TransferController extends _$TransferController {
         return result._withElapsed(started);
       }
       await files.apply(() async {
+        if (!identical(ref.read(apiClientManagerProvider), client)) {
+          throw StateError('服务器连接已切换，请重试同步');
+        }
         switch (target) {
           case TransferTarget.booklet:
             await ref
-                .read(routineServiceProvider.notifier)
-                .syncData(data, cursorKey: cursorKey);
+                .read(bookletStoreProvider)
+                .syncData(batch!, address: address);
           case TransferTarget.essay:
             await ref
-                .read(essayServiceProvider.notifier)
-                .syncData(data, cursorKey: cursorKey);
+                .read(essayStoreProvider)
+                .syncData(batch!, address: address);
           case TransferTarget.preferences:
             await restorePreferences(
               Map<String, dynamic>.from(data['preferences'] as Map),
@@ -203,18 +210,11 @@ class TransferController extends _$TransferController {
 
   Map<String, String> _imagePaths(
     TransferTarget target,
-    Map<String, dynamic> data,
+    Iterable<String> paths,
     String root,
   ) {
-    final paths = switch (target) {
-      TransferTarget.booklet => _extractBookletImageUrls(data),
-      TransferTarget.essay => _extractEssayImageUrls(data),
-      TransferTarget.preferences => preferenceImagePaths(
-        Map<String, dynamic>.from(data['preferences'] as Map),
-      ),
-      TransferTarget.all => throw StateError('请指定数据模块'),
-    };
     final images = <String, String>{};
+    final destinations = <String, String>{};
     for (final path in paths.where((path) => path.isNotEmpty)) {
       final local = path.replaceFirst(RegExp(r'^/'), '');
       final parts = p.posix.split(local);
@@ -231,9 +231,7 @@ class TransferController extends _$TransferController {
       final remote = target == TransferTarget.preferences
           ? 'img_storage/preferences/${p.basename(local)}'
           : local;
-      if (images.entries.any(
-        (entry) => entry.key != relative && entry.value == remote,
-      )) {
+      if (destinations.putIfAbsent(remote, () => relative) != relative) {
         throw FormatException('图片文件名重复: $path');
       }
       images[relative] = remote;
@@ -253,31 +251,17 @@ class TransferController extends _$TransferController {
       message: '正在准备${target.displayName}备份...',
     );
     try {
-      late Map<String, dynamic> data;
-      switch (target) {
-        case TransferTarget.booklet:
-          final service = ref.read(routineServiceProvider.notifier);
-          data = await service.packUp();
-        case TransferTarget.essay:
-          final service = ref.read(essayServiceProvider.notifier);
-          data = await service.packUp();
-        case TransferTarget.preferences:
-          data = {
-            'jsonData': jsonEncode({'preferences': packPreferences()}),
-          };
-        case TransferTarget.all:
-          throw StateError('请指定数据模块');
-      }
+      final snapshot = switch (target) {
+        TransferTarget.booklet =>
+          await ref.read(bookletStoreProvider).snapshot(),
+        TransferTarget.essay => await ref.read(essayStoreProvider).snapshot(),
+        TransferTarget.preferences => _preferenceSnapshot(),
+        TransferTarget.all => throw StateError('请指定数据模块'),
+      };
       final root = target == TransferTarget.preferences
           ? 'preferences'
           : 'img_storage/${target.name}';
-      final images = _imagePaths(
-        target,
-        Map<String, dynamic>.from(
-          jsonDecode(data['jsonData'] as String) as Map,
-        ),
-        root,
-      );
+      final images = _imagePaths(target, snapshot.images, root);
       final directory = await IoService.userDirectory(root);
       final allFiles = <File>[];
       for (final key in images.keys) {
@@ -290,7 +274,7 @@ class TransferController extends _$TransferController {
         client: client,
         path:
             '/API/user-data/${target == TransferTarget.preferences ? 'backup' : 'sync'}/${target.name}',
-        jsonData: data,
+        jsonData: {'jsonData': jsonEncode(snapshot.data)},
         files: files,
       );
       _completeTransfer(
@@ -525,33 +509,12 @@ class TransferController extends _$TransferController {
     );
   }
 
-  List<String> _extractBookletImageUrls(dynamic data) {
-    final urls = <String>[];
-    final styles = data['styles'] as List? ?? [];
-    for (final style in styles) {
-      final tasks = style['tasks'] as List? ?? [];
-      for (final task in tasks) {
-        final image = task['image'] as String?;
-        if (image != null && image.isNotEmpty) {
-          urls.add(image);
-        }
-      }
-    }
-    return urls;
-  }
-
-  List<String> _extractEssayImageUrls(dynamic data) {
-    final urls = <String>[];
-    final essays = data['essays'] as List? ?? [];
-    for (final essay in essays) {
-      final imgs = essay['imgs'] as List? ?? [];
-      for (final img in imgs) {
-        if (img != null && img.toString().isNotEmpty) {
-          urls.add(img.toString());
-        }
-      }
-    }
-    return urls;
+  ({Map<String, dynamic> data, Iterable<String> images}) _preferenceSnapshot() {
+    final settings = packPreferences();
+    return (
+      data: {'preferences': settings},
+      images: preferenceImagePaths(settings),
+    );
   }
 
   List<List<T>> _createBatches<T>(List<T> items, int batchSize) {

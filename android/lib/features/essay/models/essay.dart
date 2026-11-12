@@ -1,4 +1,3 @@
-import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/models/message.dart';
 import 'package:torrid/core/models/mood.dart';
@@ -6,47 +5,34 @@ import 'package:torrid/core/utils/serialization.dart';
 
 part 'essay.g.dart';
 
-@HiveType(typeId: 1)
 @JsonSerializable(fieldRename: FieldRename.snake)
 class Essay {
-  @HiveField(0)
   final String id;
 
-  @HiveField(1)
   @JsonKey(fromJson: dateTimeFromJson, toJson: dateTimeToJson)
   final DateTime date;
 
-  @HiveField(2)
   final int wordCount;
 
-  @HiveField(3)
   final String content;
 
-  @HiveField(4)
   final List<String> imgs;
 
-  @HiveField(5)
   final List<String> labels;
 
-  @HiveField(6)
   @JsonKey(defaultValue: [])
   final List<Message> messages;
 
-  @HiveField(7)
   @MoodTypeConverter()
   final MoodType? mood;
 
-  @HiveField(8, defaultValue: '')
   @JsonKey(defaultValue: '')
   final String title;
 
-  @HiveField(9)
   final DateTime? updatedAt;
 
-  @HiveField(10)
   final DateTime? createdAt;
 
-  @HiveField(11)
   final DateTime? labelsUpdatedAt;
 
   Essay({

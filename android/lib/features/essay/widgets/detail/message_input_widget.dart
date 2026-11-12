@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 
 class MessageInputWidget extends ConsumerStatefulWidget {
   final String essayId;
@@ -28,7 +28,7 @@ class _MessageInputWidgetState extends ConsumerState<MessageInputWidget> {
     setState(() => _saving = true);
     try {
       await ref
-          .read(essayServiceProvider.notifier)
+          .read(essayStoreProvider)
           .appendMessage(widget.essayId, content);
       if (!mounted) return;
       _messageController.clear();

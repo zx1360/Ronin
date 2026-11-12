@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/chat/models/review_models.dart';
 import 'package:torrid/features/chat/providers/review_providers.dart';
+import 'package:torrid/features/chat/services/chat_store.dart';
 
 /// 近期回顾：后端从 booklet/essay 数据算确定性统计（+ 可选随机素材），
 /// 交本地模型按选定角色与语气写成叙述。
@@ -81,7 +82,7 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
   @override
   Widget build(BuildContext context) {
     final presets = ref.watch(reviewPresetsControllerProvider);
-    final history = ref.watch(reviewHistoryControllerProvider);
+    final history = ref.watch(reviewHistoryProvider);
     final draft = ref.watch(reviewDraftControllerProvider);
     final draftController = ref.read(reviewDraftControllerProvider.notifier);
     final preset = _selectedPreset(presets);
@@ -113,14 +114,14 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
         ],
       ),
       endDrawer: _HistoryDrawer(
-        records: history,
+        records: history.value ?? [],
         onOpen: (record) {
           draftController.show(record);
           Navigator.of(context).pop();
         },
         onDelete: (record) =>
-            ref.read(reviewHistoryControllerProvider.notifier).remove(record.id),
-        onClear: () => ref.read(reviewHistoryControllerProvider.notifier).clear(),
+            ref.read(chatStoreProvider).removeReview(record.id),
+        onClear: () => ref.read(chatStoreProvider).clearReviewHistory(),
       ),
       body: Column(
         children: [

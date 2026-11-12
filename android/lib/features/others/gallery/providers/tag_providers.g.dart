@@ -6,58 +6,158 @@ part of 'tag_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$favoriteTagsHash() => r'747a59d96e0aacc3ccfcb987f027011146b0fef2';
-
-/// 快捷标签（收藏标签，按绑定媒体数降序）
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// 标签树 Provider
 ///
-/// Copied from [favoriteTags].
-@ProviderFor(favoriteTags)
-final favoriteTagsProvider = AutoDisposeProvider<List<Tag>>.internal(
-  favoriteTags,
-  name: r'favoriteTagsProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$favoriteTagsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+/// Gallery 使用离线工作副本；在线相册写入前先确认待回传操作。
 
-typedef FavoriteTagsRef = AutoDisposeProviderRef<List<Tag>>;
-String _$tagTreeHash() => r'83659a5badc142d89dcebdf49285ff81927b0751';
+@ProviderFor(TagTree)
+final tagTreeProvider = TagTreeProvider._();
 
 /// 标签树 Provider
 ///
 /// Gallery 使用离线工作副本；在线相册写入前先确认待回传操作。
-///
-/// Copied from [TagTree].
-@ProviderFor(TagTree)
-final tagTreeProvider =
-    AutoDisposeAsyncNotifierProvider<TagTree, List<Tag>>.internal(
-  TagTree.new,
-  name: r'tagTreeProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$tagTreeHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final class TagTreeProvider
+    extends $StreamNotifierProvider<TagTree, List<Tag>> {
+  /// 标签树 Provider
+  ///
+  /// Gallery 使用离线工作副本；在线相册写入前先确认待回传操作。
+  TagTreeProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'tagTreeProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-typedef _$TagTree = AutoDisposeAsyncNotifier<List<Tag>>;
-String _$currentMediaTagsHash() => r'8571ad4f260c61b4691c770d549092efd1b0b8d8';
+  @override
+  String debugGetCreateSourceHash() => _$tagTreeHash();
+
+  @$internal
+  @override
+  TagTree create() => TagTree();
+}
+
+String _$tagTreeHash() => r'b930c6a6bd224059beeeef93e4bfe5af5fb253ce';
+
+/// 标签树 Provider
+///
+/// Gallery 使用离线工作副本；在线相册写入前先确认待回传操作。
+
+abstract class _$TagTree extends $StreamNotifier<List<Tag>> {
+  Stream<List<Tag>> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<AsyncValue<List<Tag>>, List<Tag>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<List<Tag>>, List<Tag>>,
+              AsyncValue<List<Tag>>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+/// 快捷标签（收藏标签，按绑定媒体数降序）
+
+@ProviderFor(favoriteTags)
+final favoriteTagsProvider = FavoriteTagsProvider._();
+
+/// 快捷标签（收藏标签，按绑定媒体数降序）
+
+final class FavoriteTagsProvider
+    extends $FunctionalProvider<List<Tag>, List<Tag>, List<Tag>>
+    with $Provider<List<Tag>> {
+  /// 快捷标签（收藏标签，按绑定媒体数降序）
+  FavoriteTagsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'favoriteTagsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$favoriteTagsHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<Tag>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<Tag> create(Ref ref) {
+    return favoriteTags(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<Tag> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<Tag>>(value),
+    );
+  }
+}
+
+String _$favoriteTagsHash() => r'de8dcdf48360fc3bcdd5278730d4e2334cae14ef';
 
 /// 当前媒体文件的标签 Provider（读本地缓存）
-///
-/// Copied from [CurrentMediaTags].
-@ProviderFor(CurrentMediaTags)
-final currentMediaTagsProvider =
-    AutoDisposeAsyncNotifierProvider<CurrentMediaTags, List<Tag>>.internal(
-  CurrentMediaTags.new,
-  name: r'currentMediaTagsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$currentMediaTagsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef _$CurrentMediaTags = AutoDisposeAsyncNotifier<List<Tag>>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+@ProviderFor(CurrentMediaTags)
+final currentMediaTagsProvider = CurrentMediaTagsProvider._();
+
+/// 当前媒体文件的标签 Provider（读本地缓存）
+final class CurrentMediaTagsProvider
+    extends $StreamNotifierProvider<CurrentMediaTags, List<Tag>> {
+  /// 当前媒体文件的标签 Provider（读本地缓存）
+  CurrentMediaTagsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'currentMediaTagsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$currentMediaTagsHash();
+
+  @$internal
+  @override
+  CurrentMediaTags create() => CurrentMediaTags();
+}
+
+String _$currentMediaTagsHash() => r'ce6e4d4944c3981cee1c63678c4defb73d619b7f';
+
+/// 当前媒体文件的标签 Provider（读本地缓存）
+
+abstract class _$CurrentMediaTags extends $StreamNotifier<List<Tag>> {
+  Stream<List<Tag>> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<AsyncValue<List<Tag>>, List<Tag>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<List<Tag>>, List<Tag>>,
+              AsyncValue<List<Tag>>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

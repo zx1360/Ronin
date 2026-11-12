@@ -10,7 +10,7 @@ import 'package:torrid/features/others/immich/providers/immich_providers.dart';
 final _assignedTagsProvider = FutureProvider.autoDispose
     .family<List<Tag>, List<String>>((ref, ids) async {
       final api = ref.watch(galleryApiProvider);
-      final cached = ref.read(tagTreeProvider).valueOrNull ?? const <Tag>[];
+      final cached = ref.read(tagTreeProvider).value ?? const <Tag>[];
       final token = CancelToken();
       ref.onDispose(token.cancel);
       final assigned = await api.fetchAssignedTagIds(ids, cancelToken: token);

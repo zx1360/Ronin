@@ -1,7 +1,6 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -12,29 +11,31 @@ import 'package:uuid/uuid.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/network/api_client.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_download_task.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/comic/provider/box_provider.dart';
+import 'package:torrid/features/others/comic/services/comic_store.dart';
 import 'package:torrid/features/others/comic/services/comic_storage.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 final comicDownloadTasksProvider =
-    StateNotifierProvider<ComicDownloadTaskNotifier, List<ComicDownloadTask>>(
-      (ref) => ComicDownloadTaskNotifier(ref),
+    NotifierProvider<ComicDownloadTaskNotifier, List<ComicDownloadTask>>(
+      ComicDownloadTaskNotifier.new,
     );
 
-class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
-  ComicDownloadTaskNotifier(this._ref) : super(const []);
+class ComicDownloadTaskNotifier extends Notifier<List<ComicDownloadTask>> {
+  @override
+  List<ComicDownloadTask> build() {
+    ref.onDispose(_dispose);
+    return const [];
+  }
 
-  static const String _prefsKey = 'comic_download_tasks_v1';
   static const int _maxConcurrentComics = 2;
   static const int _maxConcurrentImagesPerComic = 3;
   static const int _maxTaskRetryCount = 50;
   static const int _maxImageRetryRounds = 2;
 
-  final Ref _ref;
+  ComicStore get _store => ref.read(comicStoreProvider);
 
   /// 初始化只执行一次；并发调用者共享同一个 Future
   Future<void>? _initFuture;
@@ -56,26 +57,12 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   );
 
   Future<void> _loadPersistedTasks() async {
-    final raw = PrefsService().prefs.getString(_prefsKey);
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        final list = (jsonDecode(raw) as List)
-            .map(
-              (row) => ComicDownloadTask.fromJson(
-                Map<String, dynamic>.from(row as Map),
-              ),
-            )
-            .toList();
-        state = list;
-      } catch (e) {
-        AppLogger().warning('恢复漫画下载任务失败，将清空任务缓存: $e');
-        state = const [];
-      }
-    }
+    final saved = await _store.downloads();
+    if (!ref.mounted) return;
 
     final now = _nowMs;
     // 应用重启时，运行中的任务恢复为排队中。
-    state = state.map((task) {
+    state = saved.map((task) {
       if (task.status == ComicDownloadTaskStatus.running) {
         return task.copyWith(
           status: ComicDownloadTaskStatus.queued,
@@ -114,7 +101,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     );
     state = [task, ...state];
 
-    _persistSoon();
+    await _persistNow();
     _schedule();
     return task;
   }
@@ -176,7 +163,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
     if (deleteLocalFiles) {
       await deleteLocalComic(
-        _ref.read(comicInfoBoxProvider).get(task.comicId) ??
+        await _store.comic(task.comicId) ??
             ComicInfo(
               id: task.comicId,
               comicName: task.comicName,
@@ -197,10 +184,10 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     }
     await deleteComicFiles(
       comic,
-      _ref.read(comicInfoBoxProvider).values,
-      _ref.read(chapterInfoBoxProvider).values,
+      await _store.comics(),
+      await _store.chapters(),
     );
-    await _removeComicMeta(comic.id);
+    await _store.removeComic(comic.id);
   }
 
   Future<void> removeTask(String taskId) async {
@@ -220,6 +207,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   }
 
   void _schedule() {
+    if (!ref.mounted) return;
     if (_initFuture == null || _isScheduling) return;
 
     _isScheduling = true;
@@ -275,6 +263,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     } on _TaskCanceledException {
       // 取消属于预期控制流，这里不额外处理。
     } catch (e, st) {
+      if (!ref.mounted) return;
       AppLogger().error('漫画下载任务失败: $taskId, error: $e');
       AppLogger().error(st.toString());
 
@@ -316,8 +305,10 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     } finally {
       _runningTaskIds.remove(taskId);
       _taskCancelTokens.remove(taskId);
-      await _persistNow();
-      _schedule();
+      if (ref.mounted) {
+        await _persistNow();
+        _schedule();
+      }
     }
   }
 
@@ -328,7 +319,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
       throw _TaskCanceledException();
     }
 
-    final apiClient = _ref.read(apiClientManagerProvider);
+    final apiClient = ref.read(apiClientManagerProvider);
 
     final manifestToken = CancelToken();
     _registerCancelToken(taskId, manifestToken);
@@ -486,21 +477,8 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
     _assertTaskRunning(taskId);
 
-    final chapterBox = _ref.read(chapterInfoBoxProvider);
-    final comicBox = _ref.read(comicInfoBoxProvider);
-
-    final oldChapterIds = chapterBox.values
-        .where((chapter) => chapter.comicId == task.comicId)
-        .map((chapter) => chapter.id)
-        .toList();
-
-    final chapterMap = {
-      for (final chapter in chapters)
-        chapter.id: chapter.copyWith(imageCount: chapter.images.length),
-    };
-
     final comic =
-        (_ref.read(comicInfoBoxProvider).get(task.comicId) ??
+        (await _store.comic(task.comicId) ??
                 ComicInfo(
                   id: task.comicId,
                   comicName: task.comicName,
@@ -521,19 +499,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     await writeComicIndex(comicDirectory, comic, chapters);
     _assertTaskRunning(taskId);
 
-    final newChapterIds = chapterMap.keys.toSet();
-    final deleteChapterIds = oldChapterIds
-        .where((chapterId) => !newChapterIds.contains(chapterId))
-        .toList();
-
-    if (deleteChapterIds.isNotEmpty) {
-      await chapterBox.deleteAll(deleteChapterIds);
-    }
-    if (chapterMap.isNotEmpty) {
-      await chapterBox.putAll(chapterMap);
-    }
-
-    await comicBox.put(task.comicId, comic);
+    await _store.saveComic(comic, chapters);
 
     _updateTask(
       taskId,
@@ -656,24 +622,8 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     }
   }
 
-  Future<void> _removeComicMeta(String comicId) async {
-    final chapterBox = _ref.read(chapterInfoBoxProvider);
-    final comicBox = _ref.read(comicInfoBoxProvider);
-    final prefBox = _ref.read(comicPrefBoxProvider);
-
-    final chapterIds = chapterBox.values
-        .where((chapter) => chapter.comicId == comicId)
-        .map((chapter) => chapter.id)
-        .toList();
-
-    if (chapterIds.isNotEmpty) {
-      await chapterBox.deleteAll(chapterIds);
-    }
-    await comicBox.delete(comicId);
-    await prefBox.delete(comicId);
-  }
-
   ComicDownloadTask? _taskById(String taskId) {
+    if (!ref.mounted) return null;
     return _firstTaskWhere((task) => task.taskId == taskId);
   }
 
@@ -710,17 +660,18 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   void _persistSoon() {
     _persistTimer?.cancel();
     _persistTimer = Timer(const Duration(milliseconds: 400), () {
-      unawaited(_persistNow());
+      unawaited(
+        _persistNow().catchError((Object error, StackTrace stack) {
+          AppLogger().error('保存漫画下载任务失败', error, stack);
+        }),
+      );
     });
   }
 
   Future<void> _persistNow() async {
     _persistTimer?.cancel();
     _persistTimer = null;
-    await PrefsService().prefs.setString(
-      _prefsKey,
-      jsonEncode(state.map((task) => task.toJson()).toList()),
-    );
+    if (ref.mounted) await _store.saveDownloads(state);
   }
 
   void _setupRetryTimer() {
@@ -747,8 +698,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
   int get _nowMs => DateTime.now().millisecondsSinceEpoch;
 
-  @override
-  void dispose() {
+  void _dispose() {
     _retryTimer?.cancel();
     _persistTimer?.cancel();
 
@@ -762,7 +712,6 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
     _taskCancelTokens.clear();
     _runningTaskIds.clear();
-    super.dispose();
   }
 }
 

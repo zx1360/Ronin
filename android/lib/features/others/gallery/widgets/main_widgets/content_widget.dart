@@ -21,8 +21,7 @@ class ContentWidget extends ConsumerStatefulWidget {
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final VoidCallback? onRotate;
-  final double topExcludeHeight;
-  final double bottomExcludeHeight;
+  final double bottomInset;
   final void Function(String mediaId, double aspectRatio)? onAspectRatio;
 
   const ContentWidget({
@@ -32,8 +31,7 @@ class ContentWidget extends ConsumerStatefulWidget {
     this.onPrevious,
     this.onNext,
     this.onRotate,
-    this.topExcludeHeight = 0,
-    this.bottomExcludeHeight = 0,
+    this.bottomInset = 0,
     this.onAspectRatio,
   });
 
@@ -51,7 +49,8 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     final currentIndex = ref.watch(galleryBrowsingIndexProvider);
 
     return assetsAsync.when(
-      loading: () => _buildCentered(const CircularProgressIndicator(color: Colors.white)),
+      loading: () =>
+          _buildCentered(const CircularProgressIndicator(color: Colors.white)),
       error: (e, _) => _buildError(e),
       data: (assets) => _buildData(assets, currentIndex),
     );
@@ -59,50 +58,63 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
 
   // 静态状态
 
-  Widget _buildCentered(Widget child) =>
-      Container(color: Colors.black, child: Center(child: child));
+  Widget _buildCentered(Widget child) => Container(
+    color: Colors.black,
+    child: Center(child: child),
+  );
 
   Widget _buildError(Object error) => Container(
-        color: Colors.black,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48),
-              const SizedBox(height: 16),
-              Text('加载失败: $error',
-                  style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(mediaAssetListProvider),
-                child: const Text('重试'),
-              ),
-            ],
+    color: Colors.black,
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            '加载失败: $error',
+            style: const TextStyle(color: Colors.white),
+            textAlign: TextAlign.center,
           ),
-        ),
-      );
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => ref.invalidate(mediaAssetListProvider),
+            child: const Text('重试'),
+          ),
+        ],
+      ),
+    ),
+  );
 
   // 数据状态
 
   Widget _buildData(List<MediaAsset> assets, int currentIndex) {
     if (assets.isEmpty) {
-      return _buildCentered(const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.photo_library_outlined, color: Colors.grey, size: 64),
-          SizedBox(height: 16),
-          Text('暂无媒体文件\n请在设置中下载',
-              style: TextStyle(color: Colors.grey, fontSize: 16), textAlign: TextAlign.center),
-        ],
-      ));
+      return _buildCentered(
+        const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.photo_library_outlined, color: Colors.grey, size: 64),
+            SizedBox(height: 16),
+            Text(
+              '暂无媒体文件\n请在设置中下载',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
     }
 
     // 索引越界保护
     if (currentIndex < 0 || currentIndex >= assets.length) {
       final safe = currentIndex.clamp(0, assets.length - 1);
       WidgetsBinding.instance.addPostFrameCallback(
-          (_) => ref.read(currentMediaAssetProvider.notifier).jumpTo(safe));
-      return _buildCentered(const CircularProgressIndicator(color: Colors.white));
+        (_) => ref.read(currentMediaAssetProvider.notifier).jumpTo(safe),
+      );
+      return _buildCentered(
+        const CircularProgressIndicator(color: Colors.white),
+      );
     }
 
     final currentAsset = assets[currentIndex];
@@ -111,19 +123,28 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     if (currentAsset.isDeleted) {
       final hasLive = assets.any((a) => !a.isDeleted);
       if (!hasLive) {
-        return _buildCentered(const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.delete_outline, color: Colors.grey, size: 64),
-            SizedBox(height: 16),
-            Text('所有文件已删除',
-                style: TextStyle(color: Colors.grey, fontSize: 16), textAlign: TextAlign.center),
-          ],
-        ));
+        return _buildCentered(
+          const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.delete_outline, color: Colors.grey, size: 64),
+              SizedBox(height: 16),
+              Text(
+                '所有文件已删除',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        );
       }
       WidgetsBinding.instance.addPostFrameCallback(
-          (_) => ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted());
-      return _buildCentered(const CircularProgressIndicator(color: Colors.white));
+        (_) =>
+            ref.read(currentMediaAssetProvider.notifier).skipToNextNonDeleted(),
+      );
+      return _buildCentered(
+        const CircularProgressIndicator(color: Colors.white),
+      );
     }
 
     // 预加载附近图片
@@ -139,46 +160,33 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     if (currentAsset.isVideo) {
       final safe = MediaQuery.paddingOf(context);
       return Padding(
-        padding: EdgeInsets.only(
-          top: widget.topExcludeHeight > 0 ? widget.topExcludeHeight : safe.top,
-          bottom: widget.bottomExcludeHeight > 0
-              ? widget.bottomExcludeHeight
-              : safe.bottom,
+        padding: EdgeInsets.fromLTRB(
+          safe.left,
+          safe.top,
+          safe.right,
+          widget.bottomInset > 0 ? widget.bottomInset : safe.bottom,
         ),
-        child: Column(
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            _buildVideoControls(assets, currentIndex),
-            Expanded(child: _buildMedia(currentAsset)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: _ProgressBar(current: currentIndex + 1, total: assets.length),
+            _buildMedia(currentAsset),
+            Positioned(
+              top: 4,
+              left: 12,
+              right: 12,
+              child: _buildVideoControls(assets, currentIndex),
             ),
           ],
         ),
       );
     }
 
-    return Container(
-      color: Colors.black,
-      child: Stack(
-        children: [
-          // 主内容
-          Positioned.fill(child: _buildMedia(currentAsset)),
-          // 底部进度
-          Positioned(
-            bottom: widget.bottomExcludeHeight > 0 ? widget.bottomExcludeHeight + 8 : 8,
-            left: 16,
-            right: 16,
-            child: IgnorePointer(
-              child: _ProgressBar(current: currentIndex + 1, total: assets.length),
-            ),
-          ),
-          // 手势/控制层
-          Positioned.fill(
-            child: _buildImageGestures(assets, currentIndex),
-          ),
-        ],
-      ),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildMedia(currentAsset),
+        _buildImageGestures(assets, currentIndex),
+      ],
     );
   }
 
@@ -195,84 +203,121 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     final hasPrev = _hasLiveBefore(assets, currentIndex);
     final hasNext = _hasLiveAfter(assets, currentIndex);
 
-    return LayoutBuilder(builder: (_, c) {
-      final qw = c.maxWidth / 4;
-      return Stack(
-        children: [
-          // 左 1/4
-          Positioned(
-            left: 0, top: 0, bottom: 0, width: qw,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: hasPrev ? widget.onPrevious : null,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: AnimatedOpacity(
-                    opacity: hasPrev ? 0.3 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: const Icon(Icons.chevron_left, color: Colors.white, size: 40),
+    return LayoutBuilder(
+      builder: (_, c) {
+        final qw = c.maxWidth / 4;
+        return Stack(
+          children: [
+            // 左 1/4
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: qw,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: hasPrev ? widget.onPrevious : null,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: AnimatedOpacity(
+                      opacity: hasPrev ? 0.3 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(
+                        Icons.chevron_left,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          // 右 1/4
-          Positioned(
-            right: 0, top: 0, bottom: 0, width: qw,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: hasNext ? widget.onNext : null,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: AnimatedOpacity(
-                    opacity: hasNext ? 0.3 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: const Icon(Icons.chevron_right, color: Colors.white, size: 40),
+            // 右 1/4
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: qw,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: hasNext ? widget.onNext : null,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: AnimatedOpacity(
+                      opacity: hasNext ? 0.3 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          // 中心 — 单击切换工具栏 / 双击旋转
-          Positioned(
-            left: qw, right: qw, top: 0, bottom: 0,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: widget.onToggleBars,
-              onDoubleTap: widget.onRotate,
-              child: const SizedBox.expand(),
+            // 中心 — 单击切换工具栏 / 双击旋转
+            Positioned(
+              left: qw,
+              right: qw,
+              top: 0,
+              bottom: 0,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: widget.onToggleBars,
+                onDoubleTap: widget.onRotate,
+                child: const SizedBox.expand(),
+              ),
             ),
-          ),
-        ],
-      );
-    });
+          ],
+        );
+      },
+    );
   }
 
   // 视频浮动控制
 
   Widget _buildVideoControls(List<MediaAsset> assets, int currentIndex) {
-    final hasPrev = _hasLiveBefore(assets, currentIndex);
-    final hasNext = _hasLiveAfter(assets, currentIndex);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _FloatingBtn(icon: Icons.visibility_rounded, tooltip: '显示/隐藏工具栏',
-              onTap: widget.onToggleBars),
-          _FloatingBtn(icon: Icons.skip_previous_rounded, tooltip: '上一个',
-              enabled: hasPrev, onTap: widget.onPrevious),
-          _FloatingBtn(icon: Icons.skip_next_rounded, tooltip: '下一个',
-              enabled: hasNext, onTap: widget.onNext),
-          _FloatingBtn(icon: Icons.rotate_right_rounded, tooltip: '旋转',
-              onTap: widget.onRotate),
-        ],
-      ),
+    final style = IconButton.styleFrom(
+      backgroundColor: Colors.black54,
+      foregroundColor: Colors.white,
+      disabledBackgroundColor: Colors.black26,
+      disabledForegroundColor: Colors.white38,
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton.filled(
+          style: style,
+          icon: const Icon(Icons.visibility_rounded),
+          tooltip: '显示/隐藏工具栏',
+          onPressed: widget.onToggleBars,
+        ),
+        IconButton.filled(
+          style: style,
+          icon: const Icon(Icons.skip_previous_rounded),
+          tooltip: '上一个',
+          onPressed: _hasLiveBefore(assets, currentIndex)
+              ? widget.onPrevious
+              : null,
+        ),
+        IconButton.filled(
+          style: style,
+          icon: const Icon(Icons.skip_next_rounded),
+          tooltip: '下一个',
+          onPressed: _hasLiveAfter(assets, currentIndex) ? widget.onNext : null,
+        ),
+        IconButton.filled(
+          style: style,
+          icon: const Icon(Icons.rotate_right_rounded),
+          tooltip: '旋转',
+          onPressed: widget.onRotate,
+        ),
+      ],
     );
   }
 
@@ -301,10 +346,16 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
     const before = 3, after = 5;
     final targets = <int>[];
     for (int i = currentIndex + 1, c = 0; i < assets.length && c < after; i++) {
-      if (!assets[i].isDeleted) { targets.add(i); c++; }
+      if (!assets[i].isDeleted) {
+        targets.add(i);
+        c++;
+      }
     }
     for (int i = currentIndex - 1, c = 0; i >= 0 && c < before; i--) {
-      if (!assets[i].isDeleted) { targets.add(i); c++; }
+      if (!assets[i].isDeleted) {
+        targets.add(i);
+        c++;
+      }
     }
 
     final activeIds = targets.map((i) => assets[i].id).toSet();
@@ -326,74 +377,5 @@ class _ContentWidgetState extends ConsumerState<ContentWidget> {
         );
       }
     }
-  }
-}
-
-// 私有小组件
-
-class _ProgressBar extends StatelessWidget {
-  final int current, total;
-  const _ProgressBar({required this.current, required this.total});
-
-  @override
-  Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$current / $total',
-              style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: total > 0 ? current / total : 0,
-              backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white70),
-              minHeight: 3,
-            ),
-          ),
-        ],
-      );
-}
-
-class _FloatingBtn extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final bool enabled;
-  final VoidCallback? onTap;
-  const _FloatingBtn({required this.icon, this.tooltip = '', this.enabled = true, this.onTap});
-
-  @override
-  State<_FloatingBtn> createState() => _FloatingBtnState();
-}
-
-class _FloatingBtnState extends State<_FloatingBtn> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final ok = widget.enabled && widget.onTap != null;
-    return Tooltip(
-      message: widget.tooltip,
-      child: GestureDetector(
-        onTapDown: ok ? (_) => setState(() => _pressed = true) : null,
-        onTapUp: ok ? (_) => setState(() => _pressed = false) : null,
-        onTapCancel: ok ? () => setState(() => _pressed = false) : null,
-        onTap: ok ? widget.onTap : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 44, height: 44,
-          decoration: BoxDecoration(
-            color: _pressed
-                ? Colors.white.withValues(alpha: 0.4)
-                : Colors.black.withValues(alpha: ok ? 0.5 : 0.2),
-            shape: BoxShape.circle,
-            border: Border.all(
-                color: Colors.white.withValues(alpha: ok ? 0.3 : 0.1), width: 1),
-          ),
-          child: Icon(widget.icon,
-              color: Colors.white.withValues(alpha: ok ? 0.9 : 0.3), size: 24),
-        ),
-      ),
-    );
   }
 }

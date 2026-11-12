@@ -8,6 +8,8 @@ part 'media_asset.g.dart';
 @JsonSerializable(fieldRename: FieldRename.snake)
 class MediaAsset {
   final String id;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final String? localLibraryId;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime capturedAt;
@@ -29,7 +31,7 @@ class MediaAsset {
 
   /// 捆绑组主文件ID
   final String? groupId;
-  
+
   /// 对该媒体文件的留言
   final String? message;
 
@@ -38,6 +40,7 @@ class MediaAsset {
 
   const MediaAsset({
     required this.id,
+    this.localLibraryId,
     required this.createdAt,
     required this.updatedAt,
     required this.capturedAt,
@@ -76,6 +79,7 @@ class MediaAsset {
   }) {
     return MediaAsset(
       id: id ?? this.id,
+      localLibraryId: localLibraryId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       capturedAt: capturedAt ?? this.capturedAt,
@@ -89,8 +93,7 @@ class MediaAsset {
       syncCount: syncCount ?? this.syncCount,
       groupId: clearGroupId ? null : (groupId ?? this.groupId),
       message: clearMessage ? null : (message ?? this.message),
-      editParams:
-          clearEditParams ? null : (editParams ?? this.editParams),
+      editParams: clearEditParams ? null : (editParams ?? this.editParams),
     );
   }
 
@@ -122,41 +125,4 @@ class MediaAsset {
       _$MediaAssetFromJson(json);
 
   Map<String, dynamic> toJson() => _$MediaAssetToJson(this);
-
-  /// 转换为数据库 Map
-  Map<String, dynamic> toDbMap() => {
-        'id': id,
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-        'captured_at': capturedAt.toIso8601String(),
-        'file_path': filePath,
-        'thumb_path': thumbPath,
-        'preview_path': previewPath,
-        'hash': hash,
-        'size_bytes': sizeBytes,
-        'mime_type': mimeType,
-        'is_deleted': isDeleted ? 1 : 0,
-        'sync_count': syncCount,
-        'group_id': groupId,
-        'message': message,
-        'edit_params': editParams,
-      };
-
-  factory MediaAsset.fromDbMap(Map<String, dynamic> map) => MediaAsset(
-        id: map['id'] as String,
-        createdAt: DateTime.parse(map['created_at'] as String),
-        updatedAt: DateTime.parse(map['updated_at'] as String),
-        capturedAt: DateTime.parse(map['captured_at'] as String),
-        filePath: map['file_path'] as String,
-        thumbPath: map['thumb_path'] as String?,
-        previewPath: map['preview_path'] as String?,
-        hash: map['hash'] as String,
-        sizeBytes: map['size_bytes'] as int? ?? 0,
-        mimeType: map['mime_type'] as String?,
-        isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
-        syncCount: map['sync_count'] as int? ?? 0,
-        groupId: map['group_id'] as String?,
-        message: map['message'] as String?,
-        editParams: map['edit_params'] as String?,
-      );
 }
