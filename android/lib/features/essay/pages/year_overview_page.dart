@@ -81,7 +81,7 @@ class YearOverviewPage extends ConsumerWidget {
 
           const SizedBox(height: 20),
 
-          _buildSectionTitle(context, isAllYears ? '年度写作趋势（字数）' : '月度写作趋势（字数）'),
+          _buildSectionTitle(context, isAllYears ? '年度写作趋势' : '月度写作趋势'),
           const SizedBox(height: 12),
           Card(
             child: Padding(

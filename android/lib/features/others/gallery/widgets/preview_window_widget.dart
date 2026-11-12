@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -18,12 +19,14 @@ class PreviewWindowWidget extends ConsumerStatefulWidget {
 
   /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270° CW)
   final int rotationQuarterTurns;
+  final double minBottom;
 
   const PreviewWindowWidget({
     super.key,
     this.size = 80,
     this.onTap,
     this.rotationQuarterTurns = 0,
+    this.minBottom = 8,
   });
 
   @override
@@ -120,24 +123,23 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
   }
 
   Widget _buildDraggableWindow(BuildContext context, MediaAsset nextAsset) {
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
+    final maxRight = math.max(8.0, screenSize.width - widget.size - 8);
+    final maxBottom = math.max(8.0, screenSize.height - widget.size - 8);
+    final minBottom = math.min(widget.minBottom, maxBottom);
+    final right = _position.dx.clamp(8.0, maxRight);
+    final bottom = _position.dy.clamp(minBottom, maxBottom);
 
     return Positioned(
-      right: _position.dx,
-      bottom: _position.dy,
+      right: right,
+      bottom: bottom,
       child: GestureDetector(
         onPanUpdate: (details) {
           setState(() {
-            // 更新位置，限制在屏幕范围内
-            final newDx = (_position.dx - details.delta.dx).clamp(
-              8.0,
-              screenSize.width - widget.size - 8,
+            _position = Offset(
+              (right - details.delta.dx).clamp(8.0, maxRight),
+              (bottom - details.delta.dy).clamp(minBottom, maxBottom),
             );
-            final newDy = (_position.dy - details.delta.dy).clamp(
-              8.0,
-              screenSize.height - widget.size - 8,
-            );
-            _position = Offset(newDx, newDy);
           });
         },
         onTap: () {
