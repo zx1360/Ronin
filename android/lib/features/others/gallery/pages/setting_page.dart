@@ -16,8 +16,9 @@ class GallerySettingPage extends ConsumerStatefulWidget {
 
 class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   // 下载数量控制
-  final TextEditingController _downloadLimitController =
-      TextEditingController(text: '200');
+  final TextEditingController _downloadLimitController = TextEditingController(
+    text: '200',
+  );
   bool _isRefreshingStorage = false;
 
   @override
@@ -56,14 +57,13 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "本地存储情况",
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
+                  Text("本地存储情况", style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 4),
                   dbStatsAsync.when(
-                    loading: () => const Text("加载中...", style: TextStyle(fontSize: 12)),
-                    error: (e, _) => Text("错误: $e", style: const TextStyle(fontSize: 12)),
+                    loading: () =>
+                        const Text("加载中...", style: TextStyle(fontSize: 12)),
+                    error: (e, _) =>
+                        Text("错误: $e", style: const TextStyle(fontSize: 12)),
                     data: (stats) => Text(
                       "DB: ${stats.mediaAssetCount}条媒体 / ${stats.tagCount}标签 / ${stats.mediaTagLinkCount}关联",
                       style: const TextStyle(fontSize: 12),
@@ -73,9 +73,13 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          "文件: ${storageStats.fileCount}个 / ${storageStats.formattedSize}",
-                          style: const TextStyle(fontSize: 12),
+                        child: storageStats.when(
+                          loading: () => const Text('正在统计文件…'),
+                          error: (error, _) => Text('文件统计失败：$error'),
+                          data: (stats) => Text(
+                            '文件: ${stats.fileCount} 个 / ${stats.formattedSize}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
                         ),
                       ),
                       _isRefreshingStorage
@@ -102,14 +106,22 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
           // 显示设置
           Card(
             child: SwitchListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 0),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 0,
+              ),
               dense: true,
               secondary: const Icon(Icons.picture_in_picture_alt, size: 20),
               title: const Text("预览小窗", style: TextStyle(fontSize: 14)),
-              subtitle: const Text("显示下一个媒体文件的缩略图预览", style: TextStyle(fontSize: 11)),
+              subtitle: const Text(
+                "显示下一个媒体文件的缩略图预览",
+                style: TextStyle(fontSize: 11),
+              ),
               value: ref.watch(galleryPreviewWindowEnabledProvider),
               onChanged: (value) {
-                ref.read(galleryPreviewWindowEnabledProvider.notifier).setEnabled(value);
+                ref
+                    .read(galleryPreviewWindowEnabledProvider.notifier)
+                    .setEnabled(value);
               },
             ),
           ),
@@ -144,7 +156,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                           style: const TextStyle(fontSize: 13),
                           decoration: const InputDecoration(
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 6,
+                            ),
                             hintText: '200',
                           ),
                         ),
@@ -152,12 +167,16 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       const Text(" 条", style: TextStyle(fontSize: 13)),
                       const Spacer(),
                       ElevatedButton(
-                        onPressed: syncProgress.status != SyncStatus.downloading &&
+                        onPressed:
+                            syncProgress.status != SyncStatus.downloading &&
                                 syncProgress.status != SyncStatus.uploading
                             ? _handleDownload
                             : null,
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           minimumSize: Size.zero,
                         ),
                         child: const Text("下载", style: TextStyle(fontSize: 13)),
@@ -174,8 +193,14 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: processedStatsAsync.when(
-                          loading: () => const Text("加载中...", style: TextStyle(fontSize: 12)),
-                          error: (e, _) => Text("错误: $e", style: const TextStyle(fontSize: 12)),
+                          loading: () => const Text(
+                            "加载中...",
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          error: (e, _) => Text(
+                            "错误: $e",
+                            style: const TextStyle(fontSize: 12),
+                          ),
                           data: (stats) {
                             return Text(
                               "待标记: ${stats.mediaCount} 条 (含已删除 ${stats.deletedCount} 条)\n"
@@ -187,16 +212,23 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton(
-                        onPressed: syncProgress.status != SyncStatus.downloading &&
+                        onPressed:
+                            syncProgress.status != SyncStatus.downloading &&
                                 syncProgress.status != SyncStatus.uploading &&
-                                (processedStatsAsync.valueOrNull?.mediaCount ?? 0) > 0
+                                (processedStatsAsync.value?.mediaCount ?? 0) > 0
                             ? _handleMarkProcessed
                             : null,
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           minimumSize: Size.zero,
                         ),
-                        child: const Text("标记已处理", style: TextStyle(fontSize: 13)),
+                        child: const Text(
+                          "标记已处理",
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                     ],
                   ),
@@ -217,36 +249,56 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                 children: [
                   Text(
                     "危险操作",
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(color: Colors.red),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(color: Colors.red),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                     visualDensity: VisualDensity.compact,
-                    leading: const Icon(Icons.delete_forever, color: Colors.red, size: 20),
+                    leading: const Icon(
+                      Icons.delete_forever,
+                      color: Colors.red,
+                      size: 20,
+                    ),
                     title: const Text("清空数据库", style: TextStyle(fontSize: 13)),
-                    subtitle: const Text("删除所有记录", style: TextStyle(fontSize: 11)),
+                    subtitle: const Text(
+                      "删除所有记录",
+                      style: TextStyle(fontSize: 11),
+                    ),
                     onTap: _handleClearDatabase,
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                     visualDensity: VisualDensity.compact,
-                    leading: const Icon(Icons.folder_delete, color: Colors.red, size: 20),
+                    leading: const Icon(
+                      Icons.folder_delete,
+                      color: Colors.red,
+                      size: 20,
+                    ),
                     title: const Text("清空文件夹", style: TextStyle(fontSize: 13)),
-                    subtitle: const Text("删除 /gallery/ 下所有文件", style: TextStyle(fontSize: 11)),
+                    subtitle: const Text(
+                      "删除 /gallery/ 下所有文件",
+                      style: TextStyle(fontSize: 11),
+                    ),
                     onTap: _handleClearFiles,
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                     visualDensity: VisualDensity.compact,
-                    leading: const Icon(Icons.delete_sweep, color: Colors.red, size: 20),
+                    leading: const Icon(
+                      Icons.delete_sweep,
+                      color: Colors.red,
+                      size: 20,
+                    ),
                     title: const Text("清空所有数据", style: TextStyle(fontSize: 13)),
-                    subtitle: const Text("完全重置", style: TextStyle(fontSize: 11)),
+                    subtitle: const Text(
+                      "完全重置",
+                      style: TextStyle(fontSize: 11),
+                    ),
                     onTap: _handleClearAll,
                   ),
                 ],
@@ -260,7 +312,9 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
   /// 构建服务端数据总览卡片
   Widget _buildServerOverviewCard(
-      BuildContext context, AsyncValue<GalleryOverview> overviewAsync) {
+    BuildContext context,
+    AsyncValue<GalleryOverview> overviewAsync,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
@@ -298,8 +352,14 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                     runSpacing: 2,
                     children: [
                       _statChip("文件总数", "${overview.totalMedia}"),
-                      _statChip("图片", "${overview.imageCount} (${overview.imagePercent})"),
-                      _statChip("视频", "${overview.videoCount} (${overview.videoPercent})"),
+                      _statChip(
+                        "图片",
+                        "${overview.imageCount} (${overview.imagePercent})",
+                      ),
+                      _statChip(
+                        "视频",
+                        "${overview.videoCount} (${overview.videoPercent})",
+                      ),
                       _statChip("总大小", overview.formattedSize),
                     ],
                   ),
@@ -322,7 +382,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                     children: [
                       _statChip("最少处理次数", "${overview.syncStats.minSyncCount}"),
                       _statChip("最多处理次数", "${overview.syncStats.maxSyncCount}"),
-                      _statChip("平均处理次数", overview.syncStats.avgSyncCount.toStringAsFixed(1)),
+                      _statChip(
+                        "平均处理次数",
+                        overview.syncStats.avgSyncCount.toStringAsFixed(1),
+                      ),
                     ],
                   ),
                   const Text(
@@ -337,7 +400,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                       runSpacing: 2,
                       children: overview.yearStats
                           .take(6) // 最多显示6个年份
-                          .map((ys) => _statChip("${ys.year}年", "${ys.mediaCount}条"))
+                          .map(
+                            (ys) =>
+                                _statChip("${ys.year}年", "${ys.mediaCount}条"),
+                          )
                           .toList(),
                     ),
                   ],
@@ -373,7 +439,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     final filterYear = ref.watch(galleryDownloadYearProvider);
     final filterMonth = ref.watch(galleryDownloadMonthProvider);
     final filterDay = ref.watch(galleryDownloadDayProvider);
-    final serverOverview = ref.watch(galleryServerOverviewProvider).valueOrNull;
+    final serverOverview = ref.watch(galleryServerOverviewProvider).value;
 
     // 动态年份范围：服务端最早年份 ~ 今年
     final int minYear = serverOverview?.minYear ?? 2000;
@@ -391,8 +457,11 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                 const Spacer(),
                 GestureDetector(
                   onTap: () => _showFilterWarning(context),
-                  child: Icon(Icons.warning_amber_rounded,
-                      size: 16, color: Colors.orange.shade300),
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: Colors.orange.shade300,
+                  ),
                 ),
               ],
             ),
@@ -406,17 +475,23 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                 _FilterChip(
                   label: "全部",
                   selected: mimeFilter.isEmpty,
-                  onTap: () => ref.read(galleryDownloadMimeFilterProvider.notifier).set(''),
+                  onTap: () => ref
+                      .read(galleryDownloadMimeFilterProvider.notifier)
+                      .set(''),
                 ),
                 _FilterChip(
                   label: "图片",
                   selected: mimeFilter == 'image',
-                  onTap: () => ref.read(galleryDownloadMimeFilterProvider.notifier).set('image'),
+                  onTap: () => ref
+                      .read(galleryDownloadMimeFilterProvider.notifier)
+                      .set('image'),
                 ),
                 _FilterChip(
                   label: "视频",
                   selected: mimeFilter == 'video',
-                  onTap: () => ref.read(galleryDownloadMimeFilterProvider.notifier).set('video'),
+                  onTap: () => ref
+                      .read(galleryDownloadMimeFilterProvider.notifier)
+                      .set('video'),
                 ),
               ],
             ),
@@ -435,11 +510,18 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                     style: const TextStyle(fontSize: 12, color: Colors.black87),
                     items: const [
                       DropdownMenuItem(value: 'default', child: Text("默认")),
-                      DropdownMenuItem(value: 'captured_at', child: Text("文件日期")),
-                      DropdownMenuItem(value: 'size_bytes', child: Text("文件大小")),
+                      DropdownMenuItem(
+                        value: 'captured_at',
+                        child: Text("文件日期"),
+                      ),
+                      DropdownMenuItem(
+                        value: 'size_bytes',
+                        child: Text("文件大小"),
+                      ),
                     ],
                     onChanged: (v) {
-                      ref.read(galleryDownloadSortByProvider.notifier)
+                      ref
+                          .read(galleryDownloadSortByProvider.notifier)
                           .set(v == 'default' ? '' : v!);
                     },
                   ),
@@ -449,7 +531,8 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                   label: sortOrder == 'asc' ? "↑升" : "↓降",
                   selected: true,
                   onTap: () {
-                    ref.read(galleryDownloadSortOrderProvider.notifier)
+                    ref
+                        .read(galleryDownloadSortOrderProvider.notifier)
                         .set(sortOrder == 'asc' ? 'desc' : 'asc');
                   },
                 ),
@@ -515,8 +598,16 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
         value: currentYear,
         style: const TextStyle(fontSize: 12, color: Colors.black87),
         items: [
-          const DropdownMenuItem(value: 0, child: Text('全部', style: TextStyle(fontSize: 12))),
-          ...years.map((y) => DropdownMenuItem(value: y, child: Text('$y', style: const TextStyle(fontSize: 12)))),
+          const DropdownMenuItem(
+            value: 0,
+            child: Text('全部', style: TextStyle(fontSize: 12)),
+          ),
+          ...years.map(
+            (y) => DropdownMenuItem(
+              value: y,
+              child: Text('$y', style: const TextStyle(fontSize: 12)),
+            ),
+          ),
         ],
         onChanged: (v) {
           if (v == null) return;
@@ -540,9 +631,16 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
         value: currentMonth,
         style: const TextStyle(fontSize: 12, color: Colors.black87),
         items: [
-          const DropdownMenuItem(value: 0, child: Text('不限', style: TextStyle(fontSize: 12))),
-          ...List.generate(12, (i) => i + 1)
-              .map((m) => DropdownMenuItem(value: m, child: Text('$m', style: const TextStyle(fontSize: 12)))),
+          const DropdownMenuItem(
+            value: 0,
+            child: Text('不限', style: TextStyle(fontSize: 12)),
+          ),
+          ...List.generate(12, (i) => i + 1).map(
+            (m) => DropdownMenuItem(
+              value: m,
+              child: Text('$m', style: const TextStyle(fontSize: 12)),
+            ),
+          ),
         ],
         onChanged: (v) {
           if (v == null) return;
@@ -563,9 +661,16 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
         value: currentDay,
         style: const TextStyle(fontSize: 12, color: Colors.black87),
         items: [
-          const DropdownMenuItem(value: 0, child: Text('不限', style: TextStyle(fontSize: 12))),
-          ...List.generate(31, (i) => i + 1)
-              .map((d) => DropdownMenuItem(value: d, child: Text('$d', style: const TextStyle(fontSize: 12)))),
+          const DropdownMenuItem(
+            value: 0,
+            child: Text('不限', style: TextStyle(fontSize: 12)),
+          ),
+          ...List.generate(31, (i) => i + 1).map(
+            (d) => DropdownMenuItem(
+              value: d,
+              child: Text('$d', style: const TextStyle(fontSize: 12)),
+            ),
+          ),
         ],
         onChanged: (v) {
           if (v == null) return;
@@ -603,7 +708,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   Widget _buildSyncProgressIndicator(SyncProgress progress) {
     Color color;
     IconData icon;
-    
+
     switch (progress.status) {
       case SyncStatus.downloading:
         color = Colors.blue;
@@ -688,14 +793,14 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       // 刷新文件系统统计
       await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
       // 同时刷新数据库统计
-      ref.invalidate(galleryDbStatsProvider);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               '统计已刷新: '
-              '${ref.read(galleryCachedStorageStatsProvider).fileCount} 个文件, '
-              '${ref.read(galleryCachedStorageStatsProvider).formattedSize}',
+              '${ref.read(galleryCachedStorageStatsProvider).requireValue.fileCount} 个文件, '
+              '${ref.read(galleryCachedStorageStatsProvider).requireValue.formattedSize}',
             ),
             duration: const Duration(seconds: 2),
           ),
@@ -704,10 +809,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('刷新失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('刷新失败: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -720,11 +822,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     final limit = int.tryParse(_downloadLimitController.text) ?? 200;
     await ref
         .read(gallerySyncServiceProvider.notifier)
-        .downloadBatch(limit: limit, confirmLegacy: _confirmLegacyLibrary);
-    
+        .downloadBatch(limit: limit);
+
     // 刷新统计数据
-    ref.invalidate(galleryDbStatsProvider);
-    ref.invalidate(galleryProcessedStatsProvider);
+
     try {
       await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
     } catch (_) {}
@@ -734,32 +835,26 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   Future<void> _handleMarkProcessed() async {
     final confirmed = await _showConfirmDialog(
       title: '标记已处理',
-      content: '将把队列前段（含当前浏览位置与最后操作位置）的媒体在服务端标记为已处理，'
+      content:
+          '将把队列前段（含当前浏览位置与最后操作位置）的媒体在服务端标记为已处理，'
           '并从本地缓存删除其记录与缩略图/预览图，确定继续？',
     );
 
     if (confirmed) {
       await ref
           .read(gallerySyncServiceProvider.notifier)
-          .markProcessedAndClean(confirmLegacy: _confirmLegacyLibrary);
+          .markProcessedAndClean();
 
       // 刷新统计数据（异步，不阻塞 UI）
-      ref.invalidate(galleryDbStatsProvider);
-      ref.invalidate(galleryProcessedStatsProvider);
-      // 文件扫描较慢，fire-and-forget 避免阻塞
-      unawaited(ref.read(galleryCachedStorageStatsProvider.notifier).refresh()
-          .catchError((_) {}));
-    }
-  }
 
-  Future<bool> _confirmLegacyLibrary(String address) {
-    if (!mounted) return Future.value(false);
-    return _showConfirmDialog(
-      title: '关联旧版画廊缓存',
-      content:
-          '旧版缓存没有记录所属图库。请确认 $address 是此前下载这批媒体的服务器。'
-          '确认后，待回传的修改将发往这座图库。',
-    );
+      // 文件扫描较慢，fire-and-forget 避免阻塞
+      unawaited(
+        ref
+            .read(galleryCachedStorageStatsProvider.notifier)
+            .refresh()
+            .catchError((_) {}),
+      );
+    }
   }
 
   /// 处理清空数据库
@@ -770,10 +865,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       isDangerous: true,
     );
 
-    if (confirmed) {
-      await ref
-          .read(galleryLocalDataControllerProvider.notifier)
-          .clearDatabase();
+    if (confirmed && mounted) {
+      await _clearLocal(
+        ref.read(galleryLocalDataControllerProvider.notifier).clearDatabase,
+      );
     }
   }
 
@@ -785,8 +880,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       isDangerous: true,
     );
 
-    if (confirmed) {
-      await ref.read(galleryLocalDataControllerProvider.notifier).clearFiles();
+    if (confirmed && mounted) {
+      await _clearLocal(
+        ref.read(galleryLocalDataControllerProvider.notifier).clearFiles,
+      );
     }
   }
 
@@ -798,14 +895,24 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       isDangerous: true,
     );
 
-    if (confirmed) {
-      await ref.read(galleryLocalDataControllerProvider.notifier).clearAll();
+    if (confirmed && mounted) {
+      await _clearLocal(
+        ref.read(galleryLocalDataControllerProvider.notifier).clearAll,
+      );
+    }
+  }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('所有数据已清空')),
-        );
-      }
+  Future<void> _clearLocal(Future<void> Function() action) async {
+    var message = '本机数据已清理';
+    try {
+      await action();
+    } catch (error) {
+      message = '清理失败：$error';
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

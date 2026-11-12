@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:torrid/core/services/network/api_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
@@ -180,7 +182,7 @@ class ImmichMedia extends _$ImmichMedia {
       _request?.cancel();
       _request = null;
     });
-    final filter = ref.watch(immichFilterNotifierProvider);
+    final filter = ref.watch(immichFilterProvider);
     ref.watch(galleryApiProvider);
     final limit = _reloadLimit ?? _kPageSize;
     _reloadLimit = null;
@@ -189,14 +191,14 @@ class ImmichMedia extends _$ImmichMedia {
 
   Future<void> loadMore() async {
     if (state.isLoading) return;
-    final current = state.valueOrNull;
+    final current = state.value;
     if (current == null || !current.hasMore || current.loadingMore) return;
 
     final token = _request = CancelToken();
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final next = await _fetch(
-        ref.read(immichFilterNotifierProvider),
+        ref.read(immichFilterProvider),
         current.nextOffset,
         token,
         previous: current,
@@ -217,13 +219,13 @@ class ImmichMedia extends _$ImmichMedia {
 
   /// 重新拉取并保持已加载条数（批量操作后刷新, 不退回第一页）
   Future<void> reloadKeepingLength() async {
-    final loaded = state.valueOrNull?.assets.length ?? _kPageSize;
+    final loaded = state.value?.assets.length ?? _kPageSize;
     _reloadLimit = loaded.clamp(_kPageSize, 1000);
     await refresh();
   }
 
   Future<void> replaceLoadedAssets(List<MediaAsset> updated) async {
-    final current = state.valueOrNull;
+    final current = state.value;
     if (state.isLoading || (current?.loadingMore ?? false)) {
       await reloadKeepingLength();
       return;
@@ -249,7 +251,7 @@ class ImmichMedia extends _$ImmichMedia {
     final db = ref.read(galleryDatabaseProvider);
     final month = filter.jumpMonth;
 
-    final result = await api.queryMedia(
+    Future<MediaQueryResult> query(GalleryApiService api) => api.queryMedia(
       tagIds: filter.tagIds,
       includeDescendants: filter.includeDescendants,
       untagged: filter.untagged,
@@ -263,16 +265,28 @@ class ImmichMedia extends _$ImmichMedia {
       cancelToken: token,
     );
 
+    final binding = await db.libraryId();
+    var matched = binding != null;
+    late final MediaQueryResult result;
+    try {
+      result = await query(GalleryApiService(api.client, libraryId: binding));
+    } on ApiException catch (error) {
+      if (!matched || error.statusCode != 409) rethrow;
+      matched = false;
+      result = await query(api);
+    }
+
     final pageTags = <String, List<String>>{
       for (final asset in result.mediaAssets) asset.id: [],
     };
     for (final link in result.mediaTagLinks) {
       pageTags.putIfAbsent(link.mediaId, () => []).add(link.tagId);
     }
-    if (!token.isCancelled) {
+    if (matched && !token.isCancelled) {
       await db.updateMediaAssetsLocal(
         result.mediaAssets,
         preserveOperations: true,
+        expectedLibraryId: binding,
         tagIdsByMedia: pageTags,
       );
     }
@@ -335,7 +349,7 @@ class ImmichActions extends _$ImmichActions {
       final updated = await ref
           .read(galleryWriteBufferProvider)
           .writeOnline(action);
-      ref.invalidate(mediaAssetListProvider);
+
       ref.invalidate(galleryServerOverviewProvider);
       try {
         final photos = ref.read(immichMediaProvider.notifier);
@@ -346,7 +360,6 @@ class ImmichActions extends _$ImmichActions {
         }
       } catch (_) {}
       if (updated == null) {
-        ref.invalidate(mediaIdsWithTagsProvider);
         try {
           await ref.read(tagTreeProvider.notifier).syncFromServer();
         } catch (_) {}

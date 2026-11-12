@@ -1,99 +1,105 @@
+import 'dart:math';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'setting_provider.g.dart';
 
-/// 随笔排序方式
-enum SortType {
-  /// 按时间升序（旧→新）
-  ascending,
-
-  /// 按时间降序（新→旧）
-  descending,
-
-  /// 随机排序
-  random,
-}
+enum SortType { ascending, descending, random }
 
 enum LabelFilterMode { subtree, direct }
 
-/// 浏览设置状态
-///
-/// 包含排序方式和已选标签筛选条件。
 class BrowseSettings {
-  /// 当前排序方式
   final SortType sortType;
-
+  final int randomSeed;
   final Map<String, LabelFilterMode> selectedLabels;
+  final Map<String, LabelFilterMode> excludedLabels;
   final bool showHidden;
 
   const BrowseSettings({
     this.sortType = SortType.descending,
+    this.randomSeed = 0,
     this.selectedLabels = const {},
+    this.excludedLabels = const {},
     this.showHidden = false,
   });
 
   BrowseSettings copyWith({
     SortType? sortType,
+    int? randomSeed,
     Map<String, LabelFilterMode>? selectedLabels,
+    Map<String, LabelFilterMode>? excludedLabels,
     bool? showHidden,
-  }) {
-    return BrowseSettings(
-      sortType: sortType ?? this.sortType,
-      selectedLabels: selectedLabels ?? this.selectedLabels,
-      showHidden: showHidden ?? this.showHidden,
-    );
-  }
+  }) => BrowseSettings(
+    sortType: sortType ?? this.sortType,
+    randomSeed: randomSeed ?? this.randomSeed,
+    selectedLabels: selectedLabels ?? this.selectedLabels,
+    excludedLabels: excludedLabels ?? this.excludedLabels,
+    showHidden: showHidden ?? this.showHidden,
+  );
 
-  /// 是否有筛选条件
-  bool get hasFilters => selectedLabels.isNotEmpty || showHidden;
+  bool get hasFilters =>
+      selectedLabels.isNotEmpty || excludedLabels.isNotEmpty || showHidden;
 }
 
-/// 浏览设置管理器
-///
-/// 管理随笔浏览页面的排序和筛选设置。
 @riverpod
 class BrowseManager extends _$BrowseManager {
   @override
   BrowseSettings build() => const BrowseSettings();
 
-  /// 设置排序方式
-  void setSortType(SortType sortType) {
-    state = state.copyWith(sortType: sortType);
-  }
+  void setSortType(SortType sortType) => state = state.copyWith(
+    sortType: sortType,
+    randomSeed: sortType == SortType.random ? Random().nextInt(1 << 31) : null,
+  );
 
   void setShowHidden(bool value, Set<String> hiddenIds) {
     state = state.copyWith(
       showHidden: value,
       selectedLabels: value
-          ? state.selectedLabels
+          ? null
           : (Map.of(state.selectedLabels)
+              ..removeWhere((id, _) => hiddenIds.contains(id))),
+      excludedLabels: value
+          ? null
+          : (Map.of(state.excludedLabels)
               ..removeWhere((id, _) => hiddenIds.contains(id))),
     );
   }
 
-  void toggleLabel(String labelId, {required bool hasChildren}) {
-    final selected = Map.of(state.selectedLabels);
-    switch (selected[labelId]) {
+  void toggleLabel(
+    String id, {
+    required bool hasChildren,
+    required bool exclude,
+  }) {
+    final included = Map.of(state.selectedLabels);
+    final excluded = Map.of(state.excludedLabels);
+    final current = exclude ? excluded : included;
+    switch (current[id]) {
       case null:
-        selected[labelId] = hasChildren
+        (exclude ? included : excluded).remove(id);
+        current[id] = hasChildren
             ? LabelFilterMode.subtree
             : LabelFilterMode.direct;
       case LabelFilterMode.subtree:
-        selected[labelId] = LabelFilterMode.direct;
+        current[id] = LabelFilterMode.direct;
       case LabelFilterMode.direct:
-        selected.remove(labelId);
+        current.remove(id);
     }
-    state = state.copyWith(selectedLabels: selected);
+    state = state.copyWith(selectedLabels: included, excludedLabels: excluded);
   }
 
-  void removeLabel(String labelId) {
-    state = state.copyWith(
-      selectedLabels: Map.of(state.selectedLabels)..remove(labelId),
-    );
+  void removeLabel(String id, {required bool exclude}) {
+    state = exclude
+        ? state.copyWith(
+            excludedLabels: Map.of(state.excludedLabels)..remove(id),
+          )
+        : state.copyWith(
+            selectedLabels: Map.of(state.selectedLabels)..remove(id),
+          );
   }
 
-  /// 清除所有筛选条件
-  void clearFilters() {
-    state = const BrowseSettings();
-  }
+  void clearFilters() => state = state.copyWith(
+    selectedLabels: {},
+    excludedLabels: {},
+    showHidden: false,
+  );
 }

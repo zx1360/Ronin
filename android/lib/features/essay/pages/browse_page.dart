@@ -5,7 +5,7 @@ import 'package:torrid/features/essay/pages/drafts_page.dart';
 import 'package:torrid/features/essay/models/essay_reread.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
 import 'package:torrid/features/essay/pages/search_page.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/pages/browse_body.dart';
@@ -34,7 +34,8 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
       final selected = _rereadPicker.pick(essays, ref.read(labelsProvider));
       final essay = selected == null
           ? null
-          : ref.read(essayBoxProvider).get(selected.id);
+          : await ref.read(essayStoreProvider).essay(selected.id);
+      if (!mounted) return;
       if (essay == null) {
         ScaffoldMessenger.of(
           context,
@@ -59,41 +60,55 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(browseManagerProvider);
+    final draftCount = ref.watch(essayDraftsProvider).value?.length ?? 0;
+    final labelIds =
+        ref
+            .watch(labelStreamProvider)
+            .value
+            ?.map((label) => label.id)
+            .toSet() ??
+        {};
+    final included = settings.selectedLabels.keys
+        .where(labelIds.contains)
+        .length;
+    final excluded = settings.excludedLabels.keys
+        .where(labelIds.contains)
+        .length;
+    final hasFilters = included > 0 || excluded > 0 || settings.showHidden;
     return Scaffold(
       appBar: AppBar(
         title: const Text('随笔'),
         actions: [
           IconButton(
-            tooltip: 'AI 标签建议',
-            icon: const Icon(Icons.auto_awesome_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const EssayLabelSuggestionsPage(),
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: '本机草稿',
-            icon: Badge.count(
-              count: ref.watch(essayDraftsProvider).valueOrNull?.length ?? 0,
-              isLabelVisible:
-                  (ref.watch(essayDraftsProvider).valueOrNull?.isNotEmpty ??
-                  false),
-              child: const Icon(Icons.drafts_outlined),
-            ),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const EssayDraftsPage()),
-            ),
-          ),
-          IconButton(
             tooltip: '浏览设置',
             icon: Badge(
-              isLabelVisible: settings.hasFilters,
+              isLabelVisible: hasFilters,
               child: const Icon(Icons.tune),
             ),
             onPressed: () => _showBrowseSettings(context),
+          ),
+          PopupMenuButton<bool>(
+            tooltip: '更多随笔功能',
+            icon: Badge.count(
+              count: draftCount,
+              isLabelVisible: draftCount > 0,
+              child: const Icon(Icons.more_vert),
+            ),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: true,
+                child: Text(draftCount > 0 ? '本机草稿 ($draftCount)' : '本机草稿'),
+              ),
+              const PopupMenuItem(value: false, child: Text('AI 标签建议')),
+            ],
+            onSelected: (drafts) => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => drafts
+                    ? const EssayDraftsPage()
+                    : const EssayLabelSuggestionsPage(),
+              ),
+            ),
           ),
         ],
       ),
@@ -125,7 +140,7 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
               ],
             ),
           ),
-          if (settings.hasFilters)
+          if (hasFilters)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -133,8 +148,8 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
                   Expanded(
                     child: Text(
                       [
-                        if (settings.selectedLabels.isNotEmpty)
-                          '${settings.selectedLabels.length} 个标签筛选',
+                        if (included > 0) '包含 $included',
+                        if (excluded > 0) '排除 $excluded',
                         if (settings.showHidden) '含隐藏随笔',
                       ].join(' · '),
                       style: Theme.of(context).textTheme.bodySmall,

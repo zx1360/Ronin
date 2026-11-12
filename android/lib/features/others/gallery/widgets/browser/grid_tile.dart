@@ -56,111 +56,117 @@ class _GridTileState extends ConsumerState<_GridTile> {
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final file = widget.usePreview
-          ? (widget.previewPath == null ? null : File(widget.previewPath!))
-          : _thumbnail;
-      final details = constraints.maxWidth >= 48;
-      final dpr = MediaQuery.devicePixelRatioOf(context);
-      final border = widget.isSelected
-          ? Theme.of(context).colorScheme.primary
-          : widget.isCurrent
-          ? Colors.lightBlueAccent
-          : null;
-      return RepaintBoundary(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          onDoubleTap: widget.asset.isDeleted ? _undoDelete : null,
-          onLongPress: widget.onLongPress,
-          child: ColoredBox(
-            color: const Color(0xFF191A1D),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (file != null)
-                  Image(
-                    image: ResizeImage(
-                      FileImage(file),
-                      width: (constraints.maxWidth * dpr).ceil().clamp(1, 1440),
-                      height: (constraints.maxHeight * dpr).ceil().clamp(
-                        1,
-                        2560,
-                      ),
-                      policy: ResizeImagePolicy.fit,
-                    ),
-                    fit: widget.usePreview ? BoxFit.contain : BoxFit.cover,
-                    errorBuilder: (_, _, _) => _placeholder(),
-                  )
-                else
-                  _placeholder(),
-                if (widget.asset.isDeleted)
-                  const ColoredBox(color: Color(0x66000000)),
-                if (border != null)
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: border, width: 2),
-                    ),
-                  ),
-                if (details) ...[
-                  _GroupBadge(asset: widget.asset),
-                  if (widget.asset.isDeleted)
-                    _badge(Icons.delete_outline, Colors.redAccent, left: 4),
-                  if (!widget.isSelectionMode &&
-                      widget.asset.editParams != null)
-                    _badge(Icons.edit_outlined, Colors.amber, right: 4),
-                  if (widget.hasTags && !widget.isSelectionMode)
-                    _badge(
-                      Icons.label_outline,
-                      Colors.tealAccent,
-                      left: 4,
-                      bottom: 4,
-                    ),
-                  if (widget.asset.isVideo)
-                    _badge(
-                      Icons.play_circle_outline,
-                      Colors.white,
-                      right: 4,
-                      bottom: 4,
-                    ),
-                  if (widget.isSelectionMode)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: widget.isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
+  Widget build(BuildContext context) {
+    ref.listen(galleryFilesRevisionProvider, (_, _) => _loadThumbnail());
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final file = widget.usePreview
+            ? (widget.previewPath == null ? null : File(widget.previewPath!))
+            : _thumbnail;
+        final details = constraints.maxWidth >= 48;
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        final border = widget.isSelected
+            ? Theme.of(context).colorScheme.primary
+            : widget.isCurrent
+            ? Colors.lightBlueAccent
+            : null;
+        return RepaintBoundary(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTap,
+            onDoubleTap: widget.asset.isDeleted ? _undoDelete : null,
+            onLongPress: widget.onLongPress,
+            child: ColoredBox(
+              color: const Color(0xFF191A1D),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (file != null)
+                    Image(
+                      image: ResizeImage(
+                        FileImage(file),
+                        width: (constraints.maxWidth * dpr).ceil().clamp(
+                          1,
+                          1440,
                         ),
-                        child: widget.isSelected
-                            ? Center(
-                                child: FittedBox(
-                                  child: Text(
-                                    '${widget.selectionIndex}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
+                        height: (constraints.maxHeight * dpr).ceil().clamp(
+                          1,
+                          2560,
+                        ),
+                        policy: ResizeImagePolicy.fit,
+                      ),
+                      fit: widget.usePreview ? BoxFit.contain : BoxFit.cover,
+                      errorBuilder: (_, _, _) => _placeholder(),
+                    )
+                  else
+                    _placeholder(),
+                  if (widget.asset.isDeleted)
+                    const ColoredBox(color: Color(0x66000000)),
+                  if (border != null)
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: border, width: 2),
+                      ),
+                    ),
+                  if (details) ...[
+                    _GroupBadge(asset: widget.asset),
+                    if (widget.asset.isDeleted)
+                      _badge(Icons.delete_outline, Colors.redAccent, left: 4),
+                    if (!widget.isSelectionMode &&
+                        widget.asset.editParams != null)
+                      _badge(Icons.edit_outlined, Colors.amber, right: 4),
+                    if (widget.hasTags && !widget.isSelectionMode)
+                      _badge(
+                        Icons.label_outline,
+                        Colors.tealAccent,
+                        left: 4,
+                        bottom: 4,
+                      ),
+                    if (widget.asset.isVideo)
+                      _badge(
+                        Icons.play_circle_outline,
+                        Colors.white,
+                        right: 4,
+                        bottom: 4,
+                      ),
+                    if (widget.isSelectionMode)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: widget.isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.black54,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: widget.isSelected
+                              ? Center(
+                                  child: FittedBox(
+                                    child: Text(
+                                      '${widget.selectionIndex}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              )
-                            : null,
+                                )
+                              : null,
+                        ),
                       ),
-                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
+  }
 
   Widget _placeholder() => Center(
     child: Icon(
@@ -215,8 +221,7 @@ class _GroupBadge extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final count =
-        ref.watch(mediaGroupSizesProvider).valueOrNull?[asset.groupId ??
-            asset.id] ??
+        ref.watch(mediaGroupSizesProvider).value?[asset.groupId ?? asset.id] ??
         0;
     if (count < 2) return const SizedBox.shrink();
     return Positioned(

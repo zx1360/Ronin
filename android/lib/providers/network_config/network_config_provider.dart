@@ -34,11 +34,7 @@ class HostConfig {
   }
 
   HostConfig copyWith({String? host, String? port}) {
-    return HostConfig(
-      id: id,
-      host: host ?? this.host,
-      port: port ?? this.port,
-    );
+    return HostConfig(id: id, host: host ?? this.host, port: port ?? this.port);
   }
 
   /// "host:port", 用于连通性探测键与去重
@@ -48,10 +44,8 @@ class HostConfig {
 
   factory HostConfig.fromJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      final id = (json['id'] ?? '').toString();
       return HostConfig(
-        // 兼容早期没有 id 的持久化数据
-        id: id.isEmpty ? const Uuid().v4() : id,
+        id: json['id'] as String,
         host: (json['host'] ?? '').toString(),
         port: (json['port'] ?? '').toString(),
       );
@@ -145,12 +139,7 @@ class NetworkConfigManager extends _$NetworkConfigManager {
         }
       }
 
-      // 如果没有配置，尝试从旧的单一配置中迁移
-      if (configs.isEmpty) {
-        final host = prefs.getString("PC_HOST") ?? "";
-        final port = prefs.getString("PC_PORT") ?? "";
-        configs.add(HostConfig.create(host: host, port: port));
-      }
+      if (configs.isEmpty) configs.add(HostConfig.create());
 
       // 确保 activeIndex 在有效范围内
       if (activeIndex < 0 || activeIndex >= configs.length) {
@@ -189,8 +178,10 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     if (index < 0 || index >= state.configs.length) return;
 
     final newConfigs = List<HostConfig>.from(state.configs);
-    newConfigs[index] =
-        newConfigs[index].copyWith(host: host.trim(), port: port.trim());
+    newConfigs[index] = newConfigs[index].copyWith(
+      host: host.trim(),
+      port: port.trim(),
+    );
     state = state.copyWith(configs: newConfigs);
     await _persist();
     state = state.copyWith(message: '配置已保存');
@@ -275,7 +266,9 @@ class NetworkConfigManager extends _$NetworkConfigManager {
       for (final svc in discovered) {
         final key = '${svc.host}:${svc.port}';
         if (!existingHosts.contains(key)) {
-          newConfigs.add(HostConfig.create(host: svc.host, port: '${svc.port}'));
+          newConfigs.add(
+            HostConfig.create(host: svc.host, port: '${svc.port}'),
+          );
           existingHosts.add(key);
           added++;
         }
@@ -297,10 +290,7 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 
       return discovered;
     } catch (e) {
-      state = state.copyWith(
-        isDiscovering: false,
-        message: '服务发现失败: $e',
-      );
+      state = state.copyWith(isDiscovering: false, message: '服务发现失败: $e');
       return [];
     }
   }
@@ -311,7 +301,7 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 /// keepAlive 保证页面重建不会反复重测；
 /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
 @Riverpod(keepAlive: true)
-Future<bool> serverReachable(ServerReachableRef ref, String address) async {
+Future<bool> serverReachable(Ref ref, String address) async {
   final dio = CertTrust.createDio(
     options: BaseOptions(
       baseUrl: 'https://$address',

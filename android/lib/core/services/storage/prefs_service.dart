@@ -1,8 +1,5 @@
-import 'dart:convert';
-
 import 'package:json_annotation/json_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 
 part 'prefs_service.g.dart';
 
@@ -12,19 +9,19 @@ class AppSettings {
   // 外观相关 - 背景图片（共用于SplashPage/HomePage）
   // 存储相对路径，如 "preferences/background/xxx.jpg"
   List<String> backgroundImages;
-  
+
   // 外观相关 - 侧边栏背景图片
   List<String> sidebarImages;
-  
+
   // 座右铭列表
   List<String> mottos;
-  
+
   // 用户信息
   String nickname;
   String signature;
   // 头像图片路径，为空时使用默认
   String? avatarPath;
-  
+
   AppSettings({
     required this.backgroundImages,
     required this.sidebarImages,
@@ -72,30 +69,16 @@ class AppSettings {
 }
 
 class PrefsService {
-  // 饿汉式单例
   static final PrefsService _instance = PrefsService._();
   PrefsService._();
-  // 静态唯一实例
   factory PrefsService() => _instance;
 
-  // 由此管理的唯一对象
-  late SharedPreferences _prefs;
-  SharedPreferences get prefs {
-    return _prefs;
-  }
+  late SharedPreferencesWithCache _prefs;
+  SharedPreferencesWithCache get prefs => _prefs;
 
-  // 初始化prefs值
   Future<void> initPrefs() async {
-    _prefs = await SharedPreferences.getInstance();
-    await _ensureSettingsHasValue();
-  }
-
-  // 确保偏好设置preferences有值.
-  Future<void> _ensureSettingsHasValue() async {
-    if (!_prefs.containsKey("preferences") ||
-        _prefs.getString("preferences") == "") {
-      final settings = AppSettings.defaultValue();
-      await _prefs.setString("preferences", jsonEncode(settings.toJson()));
-    }
+    _prefs = await SharedPreferencesWithCache.create(
+      cacheOptions: const SharedPreferencesWithCacheOptions(),
+    );
   }
 }

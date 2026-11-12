@@ -672,7 +672,7 @@ class _MediaDetailPageState extends ConsumerState<MediaDetailPage> {
         mimeType: asset.mimeType,
         download: (target) async {
           await apiClient.download(
-            '/API/gallery/${asset.id}/file',
+            galleryMediaPath(asset, 'file'),
             target,
             cancelToken: token,
           );

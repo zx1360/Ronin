@@ -17,8 +17,22 @@ String galleryMediaUrl(
   String baseUrl,
   MediaAsset asset, {
   String type = 'file',
-}) =>
-    '$baseUrl/API/gallery/${asset.id}/$type?v=${Uri.encodeQueryComponent(asset.hash)}';
+}) => '$baseUrl${galleryMediaPath(asset, type, cacheKey: true)}';
+
+String galleryMediaPath(
+  MediaAsset asset,
+  String type, {
+  bool cacheKey = false,
+}) {
+  final query = {
+    if (asset.localLibraryId case final id?) 'library_id': id,
+    if (cacheKey) 'v': asset.hash,
+  };
+  return Uri(
+    path: '/API/gallery/${asset.id}/$type',
+    queryParameters: query.isEmpty ? null : query,
+  ).toString();
+}
 
 /// 媒体查询结果
 typedef MediaQueryResult = ({
@@ -32,7 +46,7 @@ typedef MediaQueryResult = ({
 /// 所有标签/标签关系/媒体标注的修改都通过这里写服务端, 本地表只做缓存.
 /// 失败统一抛出 [ApiException]（含可读 message）.
 @Riverpod(keepAlive: true)
-GalleryApiService galleryApi(GalleryApiRef ref) {
+GalleryApiService galleryApi(Ref ref) {
   return GalleryApiService(ref.watch(apiClientManagerProvider));
 }
 

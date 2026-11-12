@@ -3,116 +3,45 @@
 part of 'essay.dart';
 
 // **************************************************************************
-// TypeAdapterGenerator
-// **************************************************************************
-
-class EssayAdapter extends TypeAdapter<Essay> {
-  @override
-  final int typeId = 1;
-
-  @override
-  Essay read(BinaryReader reader) {
-    final numOfFields = reader.readByte();
-    final fields = <int, dynamic>{
-      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
-    };
-    return Essay(
-      updatedAt: fields[9] as DateTime?,
-      createdAt: fields[10] as DateTime?,
-      labelsUpdatedAt: fields[11] as DateTime?,
-      id: fields[0] as String,
-      date: fields[1] as DateTime,
-      wordCount: fields[2] as int,
-      content: fields[3] as String,
-      imgs: (fields[4] as List).cast<String>(),
-      labels: (fields[5] as List).cast<String>(),
-      messages: (fields[6] as List).cast<Message>(),
-      mood: fields[7] as MoodType?,
-      title: fields[8] == null ? '' : fields[8] as String,
-    );
-  }
-
-  @override
-  void write(BinaryWriter writer, Essay obj) {
-    writer
-      ..writeByte(12)
-      ..writeByte(0)
-      ..write(obj.id)
-      ..writeByte(1)
-      ..write(obj.date)
-      ..writeByte(2)
-      ..write(obj.wordCount)
-      ..writeByte(3)
-      ..write(obj.content)
-      ..writeByte(4)
-      ..write(obj.imgs)
-      ..writeByte(5)
-      ..write(obj.labels)
-      ..writeByte(6)
-      ..write(obj.messages)
-      ..writeByte(7)
-      ..write(obj.mood)
-      ..writeByte(8)
-      ..write(obj.title)
-      ..writeByte(9)
-      ..write(obj.updatedAt)
-      ..writeByte(10)
-      ..write(obj.createdAt)
-      ..writeByte(11)
-      ..write(obj.labelsUpdatedAt);
-  }
-
-  @override
-  int get hashCode => typeId.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is EssayAdapter &&
-          runtimeType == other.runtimeType &&
-          typeId == other.typeId;
-}
-
-// **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
 Essay _$EssayFromJson(Map<String, dynamic> json) => Essay(
-      updatedAt: json['updated_at'] == null
-          ? null
-          : DateTime.parse(json['updated_at'] as String),
-      createdAt: json['created_at'] == null
-          ? null
-          : DateTime.parse(json['created_at'] as String),
-      labelsUpdatedAt: json['labels_updated_at'] == null
-          ? null
-          : DateTime.parse(json['labels_updated_at'] as String),
-      id: json['id'] as String,
-      date: dateTimeFromJson(json['date'] as String),
-      wordCount: (json['word_count'] as num).toInt(),
-      content: json['content'] as String,
-      imgs: (json['imgs'] as List<dynamic>).map((e) => e as String).toList(),
-      labels:
-          (json['labels'] as List<dynamic>).map((e) => e as String).toList(),
-      messages: (json['messages'] as List<dynamic>?)
-              ?.map((e) => Message.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      mood: const MoodTypeConverter().fromJson(json['mood'] as String?),
-      title: json['title'] as String? ?? '',
-    );
+  updatedAt: json['updated_at'] == null
+      ? null
+      : DateTime.parse(json['updated_at'] as String),
+  createdAt: json['created_at'] == null
+      ? null
+      : DateTime.parse(json['created_at'] as String),
+  labelsUpdatedAt: json['labels_updated_at'] == null
+      ? null
+      : DateTime.parse(json['labels_updated_at'] as String),
+  id: json['id'] as String,
+  date: dateTimeFromJson(json['date'] as String),
+  wordCount: (json['word_count'] as num).toInt(),
+  content: json['content'] as String,
+  imgs: (json['imgs'] as List<dynamic>).map((e) => e as String).toList(),
+  labels: (json['labels'] as List<dynamic>).map((e) => e as String).toList(),
+  messages:
+      (json['messages'] as List<dynamic>?)
+          ?.map((e) => Message.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      [],
+  mood: const MoodTypeConverter().fromJson(json['mood'] as String?),
+  title: json['title'] as String? ?? '',
+);
 
 Map<String, dynamic> _$EssayToJson(Essay instance) => <String, dynamic>{
-      'id': instance.id,
-      'date': dateTimeToJson(instance.date),
-      'word_count': instance.wordCount,
-      'content': instance.content,
-      'imgs': instance.imgs,
-      'labels': instance.labels,
-      'messages': instance.messages,
-      'mood': const MoodTypeConverter().toJson(instance.mood),
-      'title': instance.title,
-      'updated_at': instance.updatedAt?.toIso8601String(),
-      'created_at': instance.createdAt?.toIso8601String(),
-      'labels_updated_at': instance.labelsUpdatedAt?.toIso8601String(),
-    };
+  'id': instance.id,
+  'date': dateTimeToJson(instance.date),
+  'word_count': instance.wordCount,
+  'content': instance.content,
+  'imgs': instance.imgs,
+  'labels': instance.labels,
+  'messages': instance.messages,
+  'mood': const MoodTypeConverter().toJson(instance.mood),
+  'title': instance.title,
+  'updated_at': instance.updatedAt?.toIso8601String(),
+  'created_at': instance.createdAt?.toIso8601String(),
+  'labels_updated_at': instance.labelsUpdatedAt?.toIso8601String(),
+};

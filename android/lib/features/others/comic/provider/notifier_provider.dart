@@ -3,19 +3,16 @@
 /// 管理阅读偏好、本地元数据与服务端同步。
 library;
 
-import 'package:hive/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
-import 'package:torrid/features/others/comic/models/comic_preference.dart';
-import 'package:torrid/features/others/comic/provider/box_provider.dart';
+import 'package:torrid/features/others/comic/services/comic_store.dart';
 import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:torrid/features/others/comic/services/comic_storage.dart';
 import 'package:torrid/providers/progress/progress.dart';
 import 'package:torrid/providers/progress/progress_provider.dart';
-import 'package:torrid/features/others/comic/provider/status_provider.dart';
 
 part 'notifier_provider.g.dart';
 
@@ -41,75 +38,24 @@ class ComicSyncResult {
       : '已同步 $synced 本漫画，均为最新';
 }
 
-/// Comic 模块的数据仓库
-///
-/// 封装对 [ComicPreference]、[ComicInfo]、[ChapterInfo] 三个 Box 的访问。
-class ComicRepository {
-  final Box<ComicPreference> prefBox;
-  final Box<ComicInfo> comicInfoBox;
-  final Box<ChapterInfo> chapterInfoBox;
-
-  const ComicRepository({
-    required this.prefBox,
-    required this.comicInfoBox,
-    required this.chapterInfoBox,
-  });
-}
-
-/// 阅读偏好与元数据服务。
 @riverpod
 class ComicService extends _$ComicService {
   @override
-  ComicRepository build() {
-    return ComicRepository(
-      prefBox: ref.read(comicPrefBoxProvider),
-      comicInfoBox: ref.read(comicInfoBoxProvider),
-      chapterInfoBox: ref.read(chapterInfoBoxProvider),
-    );
-  }
+  ComicStore build() => ref.watch(comicStoreProvider);
 
-  /// 保存漫画阅读偏好
-  Future<void> putComicPref({required ComicPreference comicPref}) async {
-    await state.prefBox.put(comicPref.comicId, comicPref);
-    ref.invalidate(comicPrefWithComicIdProvider);
-  }
-
-  /// 修改漫画阅读偏好
   Future<void> modifyComicPref({
     required String comicId,
     int? chapterIndex,
     bool? isFlipMode,
-  }) async {
-    final comicPref = ref.read(comicPrefWithComicIdProvider(comicId: comicId));
-    await state.prefBox.put(
-      comicPref.comicId,
-      comicPref.copyWith(chapterIndex: chapterIndex, flipReading: isFlipMode),
-    );
-    ref.invalidate(comicPrefWithComicIdProvider);
-  }
-
-  /// 用服务器数据同步更新本地漫画各字段
-  ///
-  /// 仅更新服务器侧维护的字段（is_public / readed / chapter_count / image_count），
-  /// 不覆盖本地持有的封面路径和 ID。
-  Future<void> syncFieldsFromServer(ComicInfo serverComic) async {
-    final localComic = state.comicInfoBox.get(serverComic.id);
-    if (localComic == null) return;
-
-    await state.comicInfoBox.put(
-      serverComic.id,
-      localComic.copyWith(
-        isPublic: serverComic.isPublic,
-        readed: serverComic.readed,
-        chapterCount: serverComic.chapterCount,
-        imageCount: serverComic.imageCount,
-      ),
-    );
-  }
+  }) => state.updateProgress(
+    comicId,
+    chapterIndex: chapterIndex,
+    flipReading: isFlipMode,
+  );
 
   /// 用服务端数据同步本地漫画：刷新各字段，并把有新章节的漫画加入下载队列。
   Future<ComicSyncResult> syncWithServer() async {
-    final localComics = ref.read(comicInfosProvider);
+    final localComics = await state.comics();
     if (localComics.isEmpty) {
       return const ComicSyncResult(hasLocalComics: false);
     }
@@ -125,7 +71,7 @@ class ComicService extends _$ComicService {
       final server = serverById[local.id];
       if (server == null) continue; // 服务端已没有这本，本地保持原样
 
-      await syncFieldsFromServer(server);
+      await state.syncFields(server);
       synced++;
 
       if (server.chapterCount > local.chapterCount) {
@@ -144,27 +90,19 @@ class ComicService extends _$ComicService {
 
   /// 刷新所有漫画元数据（完全重建）
   Future<void> refreshInfosAll() async {
+    final store = state;
     final (:comics, :chapters) = await _scanLocal();
-    final missing = state.comicInfoBox.keys
-        .where((id) => !comics.containsKey(id))
-        .toList();
-    await state.prefBox.deleteAll(missing);
-    await state.comicInfoBox.deleteAll(missing);
-    await state.chapterInfoBox.deleteAll(
-      state.chapterInfoBox.keys
-          .where((id) => !chapters.containsKey(id))
-          .toList(),
+    await store.replaceCatalog(
+      comics.values.toList(),
+      chapters.values.toList(),
     );
-
-    await state.comicInfoBox.putAll(comics);
-    await state.chapterInfoBox.putAll(chapters);
   }
 
   Future<({Map<String, ComicInfo> comics, Map<String, ChapterInfo> chapters})>
   _scanLocal() async {
     final directories = await localComicDirectories();
-    final existing = ref.read(comicInfoBoxProvider).values.toList();
-    final chapters = ref.read(chapterInfoBoxProvider).values.toList();
+    final existing = await state.comics();
+    final chapters = await state.chapters();
     final found = <String, ({ComicInfo comic, List<ChapterInfo> chapters})>{};
     final progress = ref.read(progressServiceProvider.notifier);
     progress.setProgress(

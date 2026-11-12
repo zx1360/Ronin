@@ -1,139 +1,88 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 
-/// Gallery 文件存储服务 - 管理本地媒体文件的存储路径
-/// 存储结构:
-/// - /gallery/Media/yyyy-mm/...    原图
-/// - /gallery/Thumbs/yyyy-mm/...   缩略图
-/// - /gallery/Previews/yyyy-mm/... 预览图
 class GalleryStorageService {
-  static final GalleryStorageService _instance =
-      GalleryStorageService._internal();
-  factory GalleryStorageService() => _instance;
-  GalleryStorageService._internal();
+  GalleryStorageService(this.libraryId);
 
-  static const String _galleryRoot = 'gallery';
-  static const String _mediaDir = 'Media';
-  static const String _thumbDir = 'Thumbs';
-  static const String _previewDir = 'Previews';
+  final Future<String?> Function() libraryId;
 
-  /// 初始化目录结构
-  Future<void> initDirectories() async {
-    await Future.wait([
-      IoService.offlineDirectory('$_galleryRoot/$_mediaDir'),
-      IoService.offlineDirectory('$_galleryRoot/$_thumbDir'),
-      IoService.offlineDirectory('$_galleryRoot/$_previewDir'),
-    ]);
+  Future<File> _file(String kind, String path) async {
+    final id = await libraryId();
+    if (id == null) throw StateError('请先连接服务端图库');
+    final directory = base64Url.encode(utf8.encode(id));
+    final normalized = path.replaceAll('\\', '/');
+    final root = 'gallery/$directory/$kind';
+    return IoService.offlineFile(
+      normalized.isEmpty ? root : '$root/$normalized',
+    );
   }
 
-  // 路径转换
+  Future<String> getLocalThumbPath(String path) async =>
+      (await _file('Thumbs', path)).path;
 
-  /// 从服务端相对路径转换为本地绝对路径 (缩略图)
-  Future<String> getLocalThumbPath(String serverPath) async {
-    final normalizedPath = serverPath.replaceAll('\\', '/');
-    return (await IoService.offlineFile(
-      '$_galleryRoot/$_thumbDir/$normalizedPath',
-    )).path;
-  }
+  Future<String> getLocalPreviewPath(String path) async =>
+      (await _file('Previews', path)).path;
 
-  /// 从服务端相对路径转换为本地绝对路径 (预览图)
-  Future<String> getLocalPreviewPath(String serverPath) async {
-    final normalizedPath = serverPath.replaceAll('\\', '/');
-    return (await IoService.offlineFile(
-      '$_galleryRoot/$_previewDir/$normalizedPath',
-    )).path;
-  }
-
-  // 文件操作
-
-  /// 保存缩略图到本地
   Future<File> saveThumbFile({
     required String serverPath,
     required List<int> bytes,
-  }) async {
-    final localPath = await getLocalThumbPath(serverPath);
-    return IoService.writeAtomically(File(localPath), bytes);
-  }
+  }) async =>
+      IoService.writeAtomically(await _file('Thumbs', serverPath), bytes);
 
-  /// 保存预览图到本地
   Future<File> savePreviewFile({
     required String serverPath,
     required List<int> bytes,
-  }) async {
-    final localPath = await getLocalPreviewPath(serverPath);
-    return IoService.writeAtomically(File(localPath), bytes);
-  }
+  }) async =>
+      IoService.writeAtomically(await _file('Previews', serverPath), bytes);
 
-  /// 获取本地缩略图文件 (如果存在)
-  Future<File?> getThumbFile(String serverPath) async {
-    final localPath = await getLocalThumbPath(serverPath);
-    final file = File(localPath);
-    return await file.exists() && await file.length() > 0 ? file : null;
-  }
+  Future<File?> _ifPresent(File file) async =>
+      await file.exists() && await file.length() > 0 ? file : null;
 
-  /// 获取本地预览图文件 (如果存在)
-  Future<File?> getPreviewFile(String serverPath) async {
-    final localPath = await getLocalPreviewPath(serverPath);
-    final file = File(localPath);
-    return await file.exists() && await file.length() > 0 ? file : null;
-  }
+  Future<File?> getThumbFile(String path) async =>
+      _ifPresent(await _file('Thumbs', path));
 
-  // 统计信息
+  Future<File?> getPreviewFile(String path) async =>
+      _ifPresent(await _file('Previews', path));
 
-  /// 获取存储统计信息
   Future<GalleryStorageStats> getStorageStats() async {
-    final galleryDir = await IoService.offlineDirectory(_galleryRoot);
-
-    if (!await galleryDir.exists()) {
-      return GalleryStorageStats(fileCount: 0, totalBytes: 0);
-    }
-
-    int fileCount = 0;
-    int totalBytes = 0;
-
-    await for (final entity in galleryDir.list(
+    final directory = await IoService.offlineDirectory('gallery');
+    var fileCount = 0;
+    var totalBytes = 0;
+    await for (final entry in directory.list(
       recursive: true,
       followLinks: false,
     )) {
-      if (entity is File) {
+      if (entry is File) {
         fileCount++;
-        totalBytes += await entity.length();
+        totalBytes += await entry.length();
       }
     }
-
     return GalleryStorageStats(fileCount: fileCount, totalBytes: totalBytes);
   }
 
-  /// 清空所有 Gallery 文件 (保留目录结构)
-  Future<void> clearAllFiles() async {
-    await IoService.deleteOfflineDirectory(_galleryRoot);
-    await initDirectories();
-    AppLogger().info('Gallery 文件存储已清空');
-  }
+  Future<void> clearAllFiles() => IoService.deleteOfflineDirectory('gallery');
 }
 
-/// 存储统计信息
 class GalleryStorageStats {
-  final int fileCount;
-  final int totalBytes;
-
   const GalleryStorageStats({
     required this.fileCount,
     required this.totalBytes,
   });
 
-  /// 格式化显示大小
+  final int fileCount;
+  final int totalBytes;
+
   String get formattedSize {
-    if (totalBytes < 1024) {
-      return '$totalBytes B';
-    } else if (totalBytes < 1024 * 1024) {
-      return '${(totalBytes / 1024).toStringAsFixed(2)} KB';
-    } else if (totalBytes < 1024 * 1024 * 1024) {
-      return '${(totalBytes / (1024 * 1024)).toStringAsFixed(2)} MB';
-    } else {
-      return '${(totalBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    const kb = 1024;
+    if (totalBytes < kb) return '$totalBytes B';
+    if (totalBytes < kb * kb) {
+      return '${(totalBytes / kb).toStringAsFixed(2)} KB';
     }
+    if (totalBytes < kb * kb * kb) {
+      return '${(totalBytes / (kb * kb)).toStringAsFixed(2)} MB';
+    }
+    return '${(totalBytes / (kb * kb * kb)).toStringAsFixed(2)} GB';
   }
 }

@@ -6,62 +6,166 @@ part of 'media_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$nextMediaAssetHash() => r'6fb007e93e6f936e3d20933e34d66c7cd6955664';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// 媒体编辑通过操作表提交，查询流提供工作副本。
 
-/// 下一个未删除的媒体文件 Provider（用于预览小窗）
-/// 如果不存在下一个文件，返回 null
-///
-/// Copied from [nextMediaAsset].
-@ProviderFor(nextMediaAsset)
-final nextMediaAssetProvider = AutoDisposeProvider<MediaAsset?>.internal(
-  nextMediaAsset,
-  name: r'nextMediaAssetProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$nextMediaAssetHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef NextMediaAssetRef = AutoDisposeProviderRef<MediaAsset?>;
-String _$mediaAssetListHash() => r'f05dd832400c76173f8cace6240a9cc2de87cae7';
-
-/// 媒体文件列表 Provider (按 captured_at 升序, 仅主文件, 包含已删除)
-///
-/// 读取持久工作副本；媒体编辑经操作表回传服务端。
-///
-/// Copied from [MediaAssetList].
 @ProviderFor(MediaAssetList)
-final mediaAssetListProvider =
-    AutoDisposeAsyncNotifierProvider<MediaAssetList, List<MediaAsset>>.internal(
-  MediaAssetList.new,
-  name: r'mediaAssetListProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$mediaAssetListHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final mediaAssetListProvider = MediaAssetListProvider._();
 
-typedef _$MediaAssetList = AutoDisposeAsyncNotifier<List<MediaAsset>>;
-String _$currentMediaAssetHash() => r'2a1fc259afdb37606c8df51d7ea94c7f39ec088f';
+/// 媒体编辑通过操作表提交，查询流提供工作副本。
+final class MediaAssetListProvider
+    extends $StreamNotifierProvider<MediaAssetList, List<MediaAsset>> {
+  /// 媒体编辑通过操作表提交，查询流提供工作副本。
+  MediaAssetListProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'mediaAssetListProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$mediaAssetListHash();
+
+  @$internal
+  @override
+  MediaAssetList create() => MediaAssetList();
+}
+
+String _$mediaAssetListHash() => r'f6ed1b2bc97ac88cb20e039daa4e07ac89077a8e';
+
+/// 媒体编辑通过操作表提交，查询流提供工作副本。
+
+abstract class _$MediaAssetList extends $StreamNotifier<List<MediaAsset>> {
+  Stream<List<MediaAsset>> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref as $Ref<AsyncValue<List<MediaAsset>>, List<MediaAsset>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<List<MediaAsset>>, List<MediaAsset>>,
+              AsyncValue<List<MediaAsset>>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
 
 /// 当前媒体文件 Provider
 /// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）
-///
-/// Copied from [CurrentMediaAsset].
-@ProviderFor(CurrentMediaAsset)
-final currentMediaAssetProvider =
-    AutoDisposeNotifierProvider<CurrentMediaAsset, MediaAsset?>.internal(
-  CurrentMediaAsset.new,
-  name: r'currentMediaAssetProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$currentMediaAssetHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef _$CurrentMediaAsset = AutoDisposeNotifier<MediaAsset?>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+@ProviderFor(CurrentMediaAsset)
+final currentMediaAssetProvider = CurrentMediaAssetProvider._();
+
+/// 当前媒体文件 Provider
+/// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）
+final class CurrentMediaAssetProvider
+    extends $NotifierProvider<CurrentMediaAsset, MediaAsset?> {
+  /// 当前媒体文件 Provider
+  /// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）
+  CurrentMediaAssetProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'currentMediaAssetProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$currentMediaAssetHash();
+
+  @$internal
+  @override
+  CurrentMediaAsset create() => CurrentMediaAsset();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(MediaAsset? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<MediaAsset?>(value),
+    );
+  }
+}
+
+String _$currentMediaAssetHash() => r'f24848e3c2d6c2811cc114ba6a9ae1275bef98ee';
+
+/// 当前媒体文件 Provider
+/// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）
+
+abstract class _$CurrentMediaAsset extends $Notifier<MediaAsset?> {
+  MediaAsset? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<MediaAsset?, MediaAsset?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<MediaAsset?, MediaAsset?>,
+              MediaAsset?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+/// 下一个未删除的媒体文件 Provider（用于预览小窗）
+/// 如果不存在下一个文件，返回 null
+
+@ProviderFor(nextMediaAsset)
+final nextMediaAssetProvider = NextMediaAssetProvider._();
+
+/// 下一个未删除的媒体文件 Provider（用于预览小窗）
+/// 如果不存在下一个文件，返回 null
+
+final class NextMediaAssetProvider
+    extends $FunctionalProvider<MediaAsset?, MediaAsset?, MediaAsset?>
+    with $Provider<MediaAsset?> {
+  /// 下一个未删除的媒体文件 Provider（用于预览小窗）
+  /// 如果不存在下一个文件，返回 null
+  NextMediaAssetProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'nextMediaAssetProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$nextMediaAssetHash();
+
+  @$internal
+  @override
+  $ProviderElement<MediaAsset?> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  MediaAsset? create(Ref ref) {
+    return nextMediaAsset(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(MediaAsset? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<MediaAsset?>(value),
+    );
+  }
+}
+
+String _$nextMediaAssetHash() => r'21fd1b849745ea6800c024b80539004a58875517';

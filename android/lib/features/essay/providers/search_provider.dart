@@ -6,7 +6,7 @@ import 'package:torrid/features/essay/providers/status_provider.dart';
 part 'search_provider.g.dart';
 
 @riverpod
-Future<EssaySearchIndex> essaySearchIndex(EssaySearchIndexRef ref) async {
+Future<EssaySearchIndex> essaySearchIndex(Ref ref) async {
   final essays = await ref.watch(filteredEssaysProvider.future);
   return compute(EssaySearchIndex.new, essays);
 }

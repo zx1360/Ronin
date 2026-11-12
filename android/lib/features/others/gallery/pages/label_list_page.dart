@@ -56,7 +56,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   Widget build(BuildContext context) {
     final tagsAsync = ref.watch(tagTreeProvider);
     final appliedTags = _selectMode
-        ? ref.watch(currentMediaTagsProvider).valueOrNull ?? const <Tag>[]
+        ? ref.watch(currentMediaTagsProvider).value ?? const <Tag>[]
         : const <Tag>[];
     final appliedIds = appliedTags.map((t) => t.id).toSet();
     final favoriteIds = ref
@@ -64,7 +64,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
         .map((t) => t.id)
         .toSet();
 
-    final allTags = tagsAsync.valueOrNull ?? const <Tag>[];
+    final allTags = tagsAsync.value ?? const <Tag>[];
     final expandableIds = {
       for (final t in allTags)
         if (t.parentId != null) t.parentId!,
@@ -414,7 +414,7 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
   /// 切换选中状态（打标签模式下立即写入）
   Future<void> _toggleSelection(String tagId) async {
     final current =
-        (ref.read(currentMediaTagsProvider).valueOrNull ?? const <Tag>[])
+        (ref.read(currentMediaTagsProvider).value ?? const <Tag>[])
             .map((t) => t.id)
             .toList();
     if (!current.remove(tagId)) current.add(tagId);

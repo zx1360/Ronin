@@ -11,7 +11,7 @@ extension _BrowserBatchActions on _MediasBrowserPageState {
         ),
       );
     }
-    final allAssets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final allAssets = ref.read(galleryBrowsingAssetsProvider).value ?? [];
     final byId = {for (final asset in allAssets) asset.id: asset};
     final selected = [
       for (final id in _selectionOrder)
@@ -73,7 +73,7 @@ extension _BrowserBatchActions on _MediasBrowserPageState {
     if (_working || _selectionOrder.length < 2) return;
     final byId = {
       for (final asset
-          in ref.read(mediaAssetListProvider).valueOrNull ?? <MediaAsset>[])
+          in ref.read(mediaAssetListProvider).value ?? <MediaAsset>[])
         asset.id: asset,
     };
     final selected = [

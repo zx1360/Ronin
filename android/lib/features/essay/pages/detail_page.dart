@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:torrid/app/theme/theme_book.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/widgets/detail/essay_content_widget.dart';
 import 'package:torrid/features/essay/widgets/detail/message_input_widget.dart';
 import 'package:torrid/features/essay/widgets/modify/retag_widget.dart';
@@ -33,7 +33,7 @@ class EssayDetailPage extends ConsumerWidget {
           IconButton(
             tooltip: '编辑标签',
             icon: const Icon(Icons.label_outline),
-            onPressed: essay.valueOrNull == null
+            onPressed: essay.value == null
                 ? null
                 : () => _showModify(context),
           ),

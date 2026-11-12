@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
 
@@ -12,7 +11,7 @@ class RetagWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final labels = ref.watch(labelsProvider);
-    final essay = ref.watch(essayByIdProvider(essayId)).valueOrNull;
+    final essay = ref.watch(essayByIdProvider(essayId)).value;
     if (essay == null) return const SizedBox.shrink();
 
     final selectedLabels = labels
@@ -22,7 +21,7 @@ class RetagWidget extends ConsumerWidget {
 
     Future<void> onToggle(String labelId) async {
       try {
-        await ref.read(essayServiceProvider.notifier).retag(essayId, labelId);
+        await ref.read(essayStoreProvider).retag(essayId, labelId);
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(

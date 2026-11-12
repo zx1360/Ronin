@@ -6,78 +6,181 @@ part of 'stats_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$galleryDbStatsHash() => r'215232d04d9fc65f5e1959946787a9ac1ad168f5';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// 数据库统计信息 Provider
-///
-/// Copied from [galleryDbStats].
 @ProviderFor(galleryDbStats)
-final galleryDbStatsProvider = FutureProvider<GalleryDbStats>.internal(
-  galleryDbStats,
-  name: r'galleryDbStatsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDbStatsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final galleryDbStatsProvider = GalleryDbStatsProvider._();
 
-typedef GalleryDbStatsRef = FutureProviderRef<GalleryDbStats>;
-String _$galleryServerOverviewHash() =>
-    r'62e804e5b049f9a2d67f875d0569f54c66a0f13a';
+final class GalleryDbStatsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<GalleryDbStats>,
+          GalleryDbStats,
+          Stream<GalleryDbStats>
+        >
+    with $FutureModifier<GalleryDbStats>, $StreamProvider<GalleryDbStats> {
+  GalleryDbStatsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryDbStatsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryDbStatsHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<GalleryDbStats> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<GalleryDbStats> create(Ref ref) {
+    return galleryDbStats(ref);
+  }
+}
+
+String _$galleryDbStatsHash() => r'6ce866b15395b8687b7365ebede61ccaa3956dd3';
+
+@ProviderFor(GalleryCachedStorageStats)
+final galleryCachedStorageStatsProvider = GalleryCachedStorageStatsProvider._();
+
+final class GalleryCachedStorageStatsProvider
+    extends
+        $AsyncNotifierProvider<GalleryCachedStorageStats, GalleryStorageStats> {
+  GalleryCachedStorageStatsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryCachedStorageStatsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryCachedStorageStatsHash();
+
+  @$internal
+  @override
+  GalleryCachedStorageStats create() => GalleryCachedStorageStats();
+}
+
+String _$galleryCachedStorageStatsHash() =>
+    r'f0893fe9e4c4ace489551ec27566396b7b8ee116';
+
+abstract class _$GalleryCachedStorageStats
+    extends $AsyncNotifier<GalleryStorageStats> {
+  FutureOr<GalleryStorageStats> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref as $Ref<AsyncValue<GalleryStorageStats>, GalleryStorageStats>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<GalleryStorageStats>, GalleryStorageStats>,
+              AsyncValue<GalleryStorageStats>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
 
 /// 服务端画廊总览 Provider
-///
-/// Copied from [galleryServerOverview].
-@ProviderFor(galleryServerOverview)
-final galleryServerOverviewProvider =
-    AutoDisposeFutureProvider<GalleryOverview>.internal(
-  galleryServerOverview,
-  name: r'galleryServerOverviewProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryServerOverviewHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef GalleryServerOverviewRef
-    = AutoDisposeFutureProviderRef<GalleryOverview>;
-String _$mediaIdsWithTagsHash() => r'7ad619b02b6a1941994ecee07f402fd641f544dd';
+@ProviderFor(galleryServerOverview)
+final galleryServerOverviewProvider = GalleryServerOverviewProvider._();
+
+/// 服务端画廊总览 Provider
+
+final class GalleryServerOverviewProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<GalleryOverview>,
+          GalleryOverview,
+          FutureOr<GalleryOverview>
+        >
+    with $FutureModifier<GalleryOverview>, $FutureProvider<GalleryOverview> {
+  /// 服务端画廊总览 Provider
+  GalleryServerOverviewProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryServerOverviewProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryServerOverviewHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<GalleryOverview> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<GalleryOverview> create(Ref ref) {
+    return galleryServerOverview(ref);
+  }
+}
+
+String _$galleryServerOverviewHash() =>
+    r'ac1868c6446cee7678b4933a8fb64305bcaa3251';
 
 /// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）
-///
-/// Copied from [mediaIdsWithTags].
+
 @ProviderFor(mediaIdsWithTags)
-final mediaIdsWithTagsProvider = FutureProvider<Set<String>>.internal(
-  mediaIdsWithTags,
-  name: r'mediaIdsWithTagsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$mediaIdsWithTagsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final mediaIdsWithTagsProvider = MediaIdsWithTagsProvider._();
 
-typedef MediaIdsWithTagsRef = FutureProviderRef<Set<String>>;
-String _$galleryCachedStorageStatsHash() =>
-    r'd902e809ca67b11248f60f65ece41f7dd217a773';
+/// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）
 
-/// 文件存储统计信息 (持久化缓存, 仅在手动刷新或数据同步后更新)
-///
-/// Copied from [GalleryCachedStorageStats].
-@ProviderFor(GalleryCachedStorageStats)
-final galleryCachedStorageStatsProvider =
-    NotifierProvider<GalleryCachedStorageStats, GalleryStorageStats>.internal(
-  GalleryCachedStorageStats.new,
-  name: r'galleryCachedStorageStatsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryCachedStorageStatsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final class MediaIdsWithTagsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Set<String>>,
+          Set<String>,
+          Stream<Set<String>>
+        >
+    with $FutureModifier<Set<String>>, $StreamProvider<Set<String>> {
+  /// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）
+  MediaIdsWithTagsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'mediaIdsWithTagsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-typedef _$GalleryCachedStorageStats = Notifier<GalleryStorageStats>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+  @override
+  String debugGetCreateSourceHash() => _$mediaIdsWithTagsHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<Set<String>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<Set<String>> create(Ref ref) {
+    return mediaIdsWithTags(ref);
+  }
+}
+
+String _$mediaIdsWithTagsHash() => r'efc2547cfd92f9ccd7814fc459339ac8c75c4173';

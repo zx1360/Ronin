@@ -46,17 +46,13 @@ class PersonalizationService {
     final prefs = PrefsService().prefs;
     final previous = prefs.getString('preferences');
     try {
-      if (!await prefs.setString(
-        'preferences',
-        jsonEncode(settings.toJson()),
-      )) {
-        throw StateError('偏好设置保存失败');
-      }
+      await prefs.setString('preferences', jsonEncode(settings.toJson()));
     } catch (error) {
-      final restored = previous == null
-          ? await prefs.remove('preferences')
-          : await prefs.setString('preferences', previous);
-      if (!restored) throw StateError('偏好保存失败且回退失败: $error');
+      if (previous == null) {
+        await prefs.remove('preferences');
+      } else {
+        await prefs.setString('preferences', previous);
+      }
       await onRollback?.call();
       rethrow;
     }

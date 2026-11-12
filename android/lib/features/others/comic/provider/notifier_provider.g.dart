@@ -6,22 +6,57 @@ part of 'notifier_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicServiceHash() => r'985e2c5e3dc09b30c7fbc386403dd98d1cde6db3';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// 阅读偏好与元数据服务。
-///
-/// Copied from [ComicService].
 @ProviderFor(ComicService)
-final comicServiceProvider =
-    AutoDisposeNotifierProvider<ComicService, ComicRepository>.internal(
-  ComicService.new,
-  name: r'comicServiceProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$comicServiceHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final comicServiceProvider = ComicServiceProvider._();
 
-typedef _$ComicService = AutoDisposeNotifier<ComicRepository>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+final class ComicServiceProvider
+    extends $NotifierProvider<ComicService, ComicStore> {
+  ComicServiceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'comicServiceProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$comicServiceHash();
+
+  @$internal
+  @override
+  ComicService create() => ComicService();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ComicStore value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ComicStore>(value),
+    );
+  }
+}
+
+String _$comicServiceHash() => r'6e21b83d8245e2d5c24609e161e3544f171db07f';
+
+abstract class _$ComicService extends $Notifier<ComicStore> {
+  ComicStore build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<ComicStore, ComicStore>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<ComicStore, ComicStore>,
+              ComicStore,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
