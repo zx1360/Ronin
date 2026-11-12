@@ -15,18 +15,20 @@ final galleryDbStatsProvider = GalleryDbStatsProvider._();
 final class GalleryDbStatsProvider
     extends
         $FunctionalProvider<
-          AsyncValue<GalleryDbStats>,
-          GalleryDbStats,
-          Stream<GalleryDbStats>
+          AsyncValue<({int links, int media, int tags})>,
+          ({int links, int media, int tags}),
+          Stream<({int links, int media, int tags})>
         >
-    with $FutureModifier<GalleryDbStats>, $StreamProvider<GalleryDbStats> {
+    with
+        $FutureModifier<({int links, int media, int tags})>,
+        $StreamProvider<({int links, int media, int tags})> {
   GalleryDbStatsProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'galleryDbStatsProvider',
-        isAutoDispose: false,
+        isAutoDispose: true,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -36,65 +38,59 @@ final class GalleryDbStatsProvider
 
   @$internal
   @override
-  $StreamProviderElement<GalleryDbStats> $createElement(
+  $StreamProviderElement<({int links, int media, int tags})> $createElement(
     $ProviderPointer pointer,
   ) => $StreamProviderElement(pointer);
 
   @override
-  Stream<GalleryDbStats> create(Ref ref) {
+  Stream<({int links, int media, int tags})> create(Ref ref) {
     return galleryDbStats(ref);
   }
 }
 
-String _$galleryDbStatsHash() => r'6ce866b15395b8687b7365ebede61ccaa3956dd3';
+String _$galleryDbStatsHash() => r'51159cc350e882ce721b35e75a5073b0e65023d0';
 
-@ProviderFor(GalleryCachedStorageStats)
-final galleryCachedStorageStatsProvider = GalleryCachedStorageStatsProvider._();
+@ProviderFor(galleryStorageStats)
+final galleryStorageStatsProvider = GalleryStorageStatsProvider._();
 
-final class GalleryCachedStorageStatsProvider
+final class GalleryStorageStatsProvider
     extends
-        $AsyncNotifierProvider<GalleryCachedStorageStats, GalleryStorageStats> {
-  GalleryCachedStorageStatsProvider._()
+        $FunctionalProvider<
+          AsyncValue<GalleryStorageStats>,
+          GalleryStorageStats,
+          FutureOr<GalleryStorageStats>
+        >
+    with
+        $FutureModifier<GalleryStorageStats>,
+        $FutureProvider<GalleryStorageStats> {
+  GalleryStorageStatsProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'galleryCachedStorageStatsProvider',
-        isAutoDispose: false,
+        name: r'galleryStorageStatsProvider',
+        isAutoDispose: true,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
 
   @override
-  String debugGetCreateSourceHash() => _$galleryCachedStorageStatsHash();
+  String debugGetCreateSourceHash() => _$galleryStorageStatsHash();
 
   @$internal
   @override
-  GalleryCachedStorageStats create() => GalleryCachedStorageStats();
-}
+  $FutureProviderElement<GalleryStorageStats> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
 
-String _$galleryCachedStorageStatsHash() =>
-    r'f0893fe9e4c4ace489551ec27566396b7b8ee116';
-
-abstract class _$GalleryCachedStorageStats
-    extends $AsyncNotifier<GalleryStorageStats> {
-  FutureOr<GalleryStorageStats> build();
-  @$mustCallSuper
   @override
-  WhenComplete runBuild() {
-    final ref =
-        this.ref as $Ref<AsyncValue<GalleryStorageStats>, GalleryStorageStats>;
-    final element =
-        ref.element
-            as $ClassProviderElement<
-              AnyNotifier<AsyncValue<GalleryStorageStats>, GalleryStorageStats>,
-              AsyncValue<GalleryStorageStats>,
-              Object?,
-              Object?
-            >;
-    return element.handleCreate(ref, build);
+  FutureOr<GalleryStorageStats> create(Ref ref) {
+    return galleryStorageStats(ref);
   }
 }
+
+String _$galleryStorageStatsHash() =>
+    r'ab457ca03fc4c83aded02f84b7e6d5d237e87fe9';
 
 /// 服务端画廊总览 Provider
 

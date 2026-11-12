@@ -15,7 +15,7 @@ import 'package:torrid/features/others/gallery/pages/image_editor_page.dart';
 import 'package:torrid/features/others/gallery/pages/media_detail_page.dart';
 import 'package:torrid/features/others/gallery/pages/video_trimmer_page.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
-import 'package:torrid/features/others/gallery/widgets/main_widgets/video_player_widget.dart';
+import 'package:torrid/features/others/gallery/widgets/main_widgets/gallery_video.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class _OfflineClient extends ApiClientManager {
@@ -39,17 +39,26 @@ class _OfflineApi extends ApiClient {
   }) async => throw const ApiException('测试离线');
 }
 
-class _Orientation extends GalleryAutoOrientation {
+class _BrowseSettings extends GalleryBrowseSettings {
   @override
-  bool build() => false;
+  GalleryBrowseOptions build() => (
+    autoOrientation: false,
+    previewWindow: false,
+    gridColumns: 4,
+    gridMode: GalleryGridPreviewMode.thumb,
+    autoApplyTags: false,
+  );
 
   @override
-  Future<void> update(bool value) async => state = value;
-}
-
-class _NoPreview extends GalleryPreviewWindowEnabled {
-  @override
-  bool build() => false;
+  Future<void> setAutoOrientation(bool enabled) async {
+    state = (
+      autoOrientation: enabled,
+      previewWindow: state.previewWindow,
+      gridColumns: state.gridColumns,
+      gridMode: state.gridMode,
+      autoApplyTags: state.autoApplyTags,
+    );
+  }
 }
 
 Future<void> _withGallery(
@@ -69,8 +78,7 @@ Future<void> _withGallery(
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           apiClientManagerProvider.overrideWith(_OfflineClient.new),
-          galleryAutoOrientationProvider.overrideWith(_Orientation.new),
-          galleryPreviewWindowEnabledProvider.overrideWith(_NoPreview.new),
+          galleryBrowseSettingsProvider.overrideWith(_BrowseSettings.new),
           galleryBrowsingAssetsProvider.overrideWith((_) => AsyncData(assets)),
           galleryBrowsingIndexProvider.overrideWith((_) => assets.length ~/ 2),
         ],
@@ -127,7 +135,7 @@ void main() {
       tester,
       [clip.copyWith(id: 'first'), clip, clip.copyWith(id: 'last')],
       () async {
-        final video = find.byType(VideoPlayerWidget);
+        final video = find.byType(GalleryVideo);
         expect(tester.getRect(video).top, 24);
         expect(tester.getRect(video).bottom, 720 - 24 - 40 - 56);
         expect(find.byType(LinearProgressIndicator), findsNothing);

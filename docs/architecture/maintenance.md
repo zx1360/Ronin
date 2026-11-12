@@ -16,7 +16,7 @@
 2. 网络配置只改 `NetworkConfigManager`，请求只经 `ApiClient`。
 3. 页面逻辑下沉 provider/service；页面保留渲染、导航和选择状态。
 4. 在功能目录的 `.drift` 文件维护端上表定义，运行 `dart run build_runner build` 生成代码。
-5. `flutter analyze`，必要时补 widget/unit test。
+5. 根目录运行 `pwsh -File verify.ps1 -Scope android`。
 
 ### 只改 Ops
 
@@ -66,7 +66,11 @@ pwsh -File verify.ps1 -Scope ops -OpsBase http://127.0.0.1:17275
 pwsh -File verify.ps1 -Scope all -OpsBase http://127.0.0.1:17275
 ```
 
-地址必须是已运行的隔离 Monarch 实例。入口不启动服务、不写生产库；省略 OpsBase 只构建/静态检查/测试并明确提示跳过浏览器。失败返回非零退出码。backend 复用 Go build/vet/test、主程序和 Gallery 构建、快照 -Check；android 复用 analyze/test；contracts 复用 backend/tools/check_contracts.ps1。共享样例见 contracts/README.md。
+地址必须是已运行的隔离 Monarch 实例。省略 `-OpsBase` 时执行构建、静态检查和测试，并提示跳过浏览器。失败返回非零退出码。
+
+- `backend` 执行 Go build/vet/test、Monarch 与 Gallery 构建和快照校验。首次验收会生成尚未创建的快照。路由导出使用临时目录，独立于 `.env` 和 Ops 构建。
+- `android` 执行依赖解析、代码生成、analyze、测试和 debug APK 构建。
+- `contracts` 单独运行跨端契约用例。`all` 的三端完整测试已覆盖这些用例。共享样例见 [contracts](../../contracts/README.md)。
 
 Ops 使用 npm ci/build 与原契约测试，浏览器验收用 Python Playwright（复用 comix 的依赖）。开发监听构建在 ops/web 下运行 npm run watch，仍访问 Go 托管产物。
 

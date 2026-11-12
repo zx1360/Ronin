@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/media_patch_intent.dart';
@@ -10,10 +9,14 @@ import 'package:torrid/features/others/gallery/providers/write_buffer_provider.d
 part 'media_providers.g.dart';
 
 // 组内位置仅在浏览期间保留，批次游标仍按主列表计算。
-final galleryActiveGroupProvider = StateProvider.autoDispose<String?>(
-  (ref) => null,
-);
-final galleryGroupIndexProvider = StateProvider.autoDispose<int>((ref) => 0);
+@riverpod
+class GalleryGroup extends _$GalleryGroup {
+  @override
+  ({String leadId, int index})? build() => null;
+
+  void open(String leadId, int index) => state = (leadId: leadId, index: index);
+  void close() => state = null;
+}
 
 final galleryGroupAssetsProvider = StreamProvider.autoDispose
     .family<List<MediaAsset>, String>(
@@ -21,16 +24,23 @@ final galleryGroupAssetsProvider = StreamProvider.autoDispose
     );
 final galleryBrowsingAssetsProvider =
     Provider.autoDispose<AsyncValue<List<MediaAsset>>>((ref) {
-      final group = ref.watch(galleryActiveGroupProvider);
+      final group = ref.watch(
+        galleryGroupProvider.select((group) => group?.leadId),
+      );
       return group == null
           ? ref.watch(mediaAssetListProvider)
           : ref.watch(galleryGroupAssetsProvider(group));
     });
 
+final galleryStoredIndexProvider = StreamProvider.autoDispose<int>(
+  (ref) => ref.watch(galleryDatabaseProvider).watchCurrentIndex(),
+);
+
 final galleryBrowsingIndexProvider = Provider.autoDispose<int>((ref) {
-  return ref.watch(galleryActiveGroupProvider) == null
-      ? ref.watch(galleryCurrentIndexProvider)
-      : ref.watch(galleryGroupIndexProvider);
+  return ref.watch(galleryGroupProvider.select((group) => group?.leadId)) ==
+          null
+      ? (ref.watch(galleryStoredIndexProvider).value ?? 0)
+      : ref.watch(galleryGroupProvider.select((group) => group?.index ?? 0));
 });
 
 final mediaGroupSizesProvider = StreamProvider.autoDispose<Map<String, int>>(
@@ -88,10 +98,12 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
   }
 
   Future<void> _updateIndex(int index) async {
-    if (ref.read(galleryActiveGroupProvider) == null) {
-      await ref.read(galleryCurrentIndexProvider.notifier).update(index);
+    if (!ref.mounted) return;
+    final group = ref.read(galleryGroupProvider);
+    if (group == null) {
+      await ref.read(galleryDatabaseProvider).setCurrentIndex(index);
     } else {
-      ref.read(galleryGroupIndexProvider.notifier).state = index;
+      ref.read(galleryGroupProvider.notifier).open(group.leadId, index);
     }
   }
 
@@ -100,15 +112,14 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     final db = ref.read(galleryDatabaseProvider);
     final lead = await db.getMediaAssetById(leadId);
     final members = await db.getGroupMembers(leadId);
-    if (members.isEmpty) return;
+    if (!ref.mounted || members.isEmpty) return;
     final group = [if (lead != null) lead, ...members];
     final index = group.indexWhere((a) => a.id == asset.id);
-    ref.read(galleryGroupIndexProvider.notifier).state = index < 0 ? 0 : index;
-    ref.read(galleryActiveGroupProvider.notifier).state = leadId;
+    ref.read(galleryGroupProvider.notifier).open(leadId, index < 0 ? 0 : index);
   }
 
   void closeGroup() {
-    ref.read(galleryActiveGroupProvider.notifier).state = null;
+    ref.read(galleryGroupProvider.notifier).close();
   }
 
   /// 前进到下一个未删除的文件
@@ -185,8 +196,8 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
     int toIndex,
     List<MediaAsset> assets,
   ) async {
-    if (ref.read(galleryActiveGroupProvider) != null) return;
-    if (!ref.read(galleryTagAutoApplyEnabledProvider)) return;
+    if (ref.read(galleryGroupProvider) != null) return;
+    if (!ref.read(galleryBrowseSettingsProvider).autoApplyTags) return;
 
     if (fromIndex < 0 || fromIndex >= assets.length) return;
     if (toIndex < 0 || toIndex >= assets.length) return;
@@ -201,7 +212,9 @@ class CurrentMediaAsset extends _$CurrentMediaAsset {
       final tagIds = await db.getTagIdsForMedia(fromAsset.id);
       await buffer.queueTags(toAsset.id, tagIds);
     } catch (error) {
-      ref.read(galleryWriteStatusProvider.notifier).report('标签套用未保存：$error');
+      if (ref.mounted) {
+        ref.read(galleryWriteStatusProvider.notifier).report('标签套用未保存：$error');
+      }
       rethrow;
     }
   }

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/core/constants/spacing.dart';
@@ -19,7 +17,6 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   final TextEditingController _downloadLimitController = TextEditingController(
     text: '200',
   );
-  bool _isRefreshingStorage = false;
 
   @override
   void dispose() {
@@ -30,7 +27,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   @override
   Widget build(BuildContext context) {
     final dbStatsAsync = ref.watch(galleryDbStatsProvider);
-    final storageStats = ref.watch(galleryCachedStorageStatsProvider);
+    final storageStats = ref.watch(galleryStorageStatsProvider);
     final processedStatsAsync = ref.watch(galleryProcessedStatsProvider);
     final syncProgress = ref.watch(gallerySyncServiceProvider);
     final serverOverviewAsync = ref.watch(galleryServerOverviewProvider);
@@ -65,7 +62,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                     error: (e, _) =>
                         Text("错误: $e", style: const TextStyle(fontSize: 12)),
                     data: (stats) => Text(
-                      "DB: ${stats.mediaAssetCount}条媒体 / ${stats.tagCount}标签 / ${stats.mediaTagLinkCount}关联",
+                      "DB: ${stats.media}条媒体 / ${stats.tags}标签 / ${stats.links}关联",
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
@@ -82,7 +79,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                           ),
                         ),
                       ),
-                      _isRefreshingStorage
+                      storageStats.isLoading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
@@ -117,11 +114,15 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                 "显示下一个媒体文件的缩略图预览",
                 style: TextStyle(fontSize: 11),
               ),
-              value: ref.watch(galleryPreviewWindowEnabledProvider),
+              value: ref.watch(
+                galleryBrowseSettingsProvider.select(
+                  (settings) => settings.previewWindow,
+                ),
+              ),
               onChanged: (value) {
                 ref
-                    .read(galleryPreviewWindowEnabledProvider.notifier)
-                    .setEnabled(value);
+                    .read(galleryBrowseSettingsProvider.notifier)
+                    .setPreviewWindow(value);
               },
             ),
           ),
@@ -433,16 +434,12 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
   /// 构建下载筛选设置卡片
   Widget _buildDownloadFilterCard(BuildContext context) {
-    final mimeFilter = ref.watch(galleryDownloadMimeFilterProvider);
-    final sortBy = ref.watch(galleryDownloadSortByProvider);
-    final sortOrder = ref.watch(galleryDownloadSortOrderProvider);
-    final filterYear = ref.watch(galleryDownloadYearProvider);
-    final filterMonth = ref.watch(galleryDownloadMonthProvider);
-    final filterDay = ref.watch(galleryDownloadDayProvider);
+    final filters = ref.watch(galleryDownloadFiltersProvider);
+    final controller = ref.read(galleryDownloadFiltersProvider.notifier);
     final serverOverview = ref.watch(galleryServerOverviewProvider).value;
 
     // 动态年份范围：服务端最早年份 ~ 今年
-    final int minYear = serverOverview?.minYear ?? 2000;
+    final minYear = serverOverview?.minYear ?? 2000;
     final int maxYear = DateTime.now().year;
 
     return Card(
@@ -474,24 +471,18 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                 const SizedBox(width: 8),
                 _FilterChip(
                   label: "全部",
-                  selected: mimeFilter.isEmpty,
-                  onTap: () => ref
-                      .read(galleryDownloadMimeFilterProvider.notifier)
-                      .set(''),
+                  selected: filters.mimeType.isEmpty,
+                  onTap: () => controller.update(mimeType: ''),
                 ),
                 _FilterChip(
                   label: "图片",
-                  selected: mimeFilter == 'image',
-                  onTap: () => ref
-                      .read(galleryDownloadMimeFilterProvider.notifier)
-                      .set('image'),
+                  selected: filters.mimeType == 'image',
+                  onTap: () => controller.update(mimeType: 'image'),
                 ),
                 _FilterChip(
                   label: "视频",
-                  selected: mimeFilter == 'video',
-                  onTap: () => ref
-                      .read(galleryDownloadMimeFilterProvider.notifier)
-                      .set('video'),
+                  selected: filters.mimeType == 'video',
+                  onTap: () => controller.update(mimeType: 'video'),
                 ),
               ],
             ),
@@ -506,7 +497,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                   child: DropdownButton<String>(
                     isExpanded: true,
                     isDense: true,
-                    value: sortBy.isEmpty ? 'default' : sortBy,
+                    value: filters.sortBy.isEmpty ? 'default' : filters.sortBy,
                     style: const TextStyle(fontSize: 12, color: Colors.black87),
                     items: const [
                       DropdownMenuItem(value: 'default', child: Text("默认")),
@@ -519,22 +510,22 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
                         child: Text("文件大小"),
                       ),
                     ],
-                    onChanged: (v) {
-                      ref
-                          .read(galleryDownloadSortByProvider.notifier)
-                          .set(v == 'default' ? '' : v!);
+                    onChanged: (value) {
+                      if (value != null) {
+                        controller.update(
+                          sortBy: value == 'default' ? '' : value,
+                        );
+                      }
                     },
                   ),
                 ),
                 const SizedBox(width: 4),
                 _FilterChip(
-                  label: sortOrder == 'asc' ? "↑升" : "↓降",
+                  label: filters.sortOrder == 'asc' ? "↑升" : "↓降",
                   selected: true,
-                  onTap: () {
-                    ref
-                        .read(galleryDownloadSortOrderProvider.notifier)
-                        .set(sortOrder == 'asc' ? 'desc' : 'asc');
-                  },
+                  onTap: () => controller.update(
+                    sortOrder: filters.sortOrder == 'asc' ? 'desc' : 'asc',
+                  ),
                 ),
               ],
             ),
@@ -545,26 +536,22 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
               children: [
                 const Text("日期:", style: TextStyle(fontSize: 12)),
                 const SizedBox(width: 8),
-                _buildYearDropdown(filterYear, minYear, maxYear),
+                _buildYearDropdown(filters.year, minYear, maxYear),
                 const Text("年", style: TextStyle(fontSize: 12)),
                 const SizedBox(width: 4),
-                if (filterYear > 0) ...[
-                  _buildMonthDropdown(filterMonth),
+                if (filters.year > 0) ...[
+                  _buildMonthDropdown(filters.month),
                   const Text("月", style: TextStyle(fontSize: 12)),
                   const SizedBox(width: 4),
-                  if (filterMonth > 0) ...[
-                    _buildDayDropdown(filterDay),
+                  if (filters.month > 0) ...[
+                    _buildDayDropdown(filters.day),
                     const Text("日", style: TextStyle(fontSize: 12)),
                     const SizedBox(width: 4),
                   ],
                 ],
-                if (filterYear > 0)
+                if (filters.year > 0)
                   TextButton.icon(
-                    onPressed: () {
-                      ref.read(galleryDownloadYearProvider.notifier).set(0);
-                      ref.read(galleryDownloadMonthProvider.notifier).set(0);
-                      ref.read(galleryDownloadDayProvider.notifier).set(0);
-                    },
+                    onPressed: () => controller.update(year: 0),
                     icon: const Icon(Icons.clear, size: 12),
                     label: const Text("清除", style: TextStyle(fontSize: 11)),
                     style: TextButton.styleFrom(
@@ -587,7 +574,11 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
   }
 
   Widget _buildYearDropdown(int currentYear, int minYear, int maxYear) {
-    final years = List.generate(maxYear - minYear + 1, (i) => maxYear - i);
+    final years = [
+      if (currentYear != 0 && (currentYear < minYear || currentYear > maxYear))
+        currentYear,
+      for (var year = maxYear; year >= minYear; year--) year,
+    ];
 
     return SizedBox(
       width: 68,
@@ -611,11 +602,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
         ],
         onChanged: (v) {
           if (v == null) return;
-          ref.read(galleryDownloadYearProvider.notifier).set(v);
-          if (v == 0) {
-            ref.read(galleryDownloadMonthProvider.notifier).set(0);
-            ref.read(galleryDownloadDayProvider.notifier).set(0);
-          }
+          ref.read(galleryDownloadFiltersProvider.notifier).update(year: v);
         },
       ),
     );
@@ -644,8 +631,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
         ],
         onChanged: (v) {
           if (v == null) return;
-          ref.read(galleryDownloadMonthProvider.notifier).set(v);
-          if (v == 0) ref.read(galleryDownloadDayProvider.notifier).set(0);
+          ref.read(galleryDownloadFiltersProvider.notifier).update(month: v);
         },
       ),
     );
@@ -674,7 +660,7 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
         ],
         onChanged: (v) {
           if (v == null) return;
-          ref.read(galleryDownloadDayProvider.notifier).set(v);
+          ref.read(galleryDownloadFiltersProvider.notifier).update(day: v);
         },
       ),
     );
@@ -687,11 +673,8 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
       builder: (ctx) => AlertDialog(
         title: const Text('下载筛选注意事项', style: TextStyle(fontSize: 16)),
         content: const Text(
-          '下载采用增量拉取策略：以本地已有文件数作为 offset 向服务端请求后续数据。\n\n'
-          '因此，在本地已有部分数据后修改筛选条件（类型/排序/日期），再次下载可能导致：\n'
-          '• 文件遗漏：新条件下被排在 offset 之前的文件不会再被拉取\n'
-          '• 文件重复：已下载的文件在新条件下排在 offset 之后会被再次拉取\n\n'
-          '建议：修改筛选条件后，先在"危险操作"区清空本地数据再下载，以获取完整准确的结果。',
+          '下次下载会按新的类型、排序和日期从服务端筛选，跳过本机已有记录。'
+          '本地已有记录和未回传编辑会保留，缺失的缩略图和预览图仍会补齐。',
           style: TextStyle(fontSize: 13),
         ),
         actions: [
@@ -788,19 +771,16 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
 
   /// 刷新文件存储统计
   Future<void> _handleRefreshStorageStats() async {
-    setState(() => _isRefreshingStorage = true);
     try {
-      // 刷新文件系统统计
-      await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
-      // 同时刷新数据库统计
+      final stats = await ref.refresh(galleryStorageStatsProvider.future);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               '统计已刷新: '
-              '${ref.read(galleryCachedStorageStatsProvider).requireValue.fileCount} 个文件, '
-              '${ref.read(galleryCachedStorageStatsProvider).requireValue.formattedSize}',
+              '${stats.fileCount} 个文件, '
+              '${stats.formattedSize}',
             ),
             duration: const Duration(seconds: 2),
           ),
@@ -812,8 +792,6 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
           SnackBar(content: Text('刷新失败: $e'), backgroundColor: Colors.red),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isRefreshingStorage = false);
     }
   }
 
@@ -823,12 +801,6 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
     await ref
         .read(gallerySyncServiceProvider.notifier)
         .downloadBatch(limit: limit);
-
-    // 刷新统计数据
-
-    try {
-      await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
-    } catch (_) {}
   }
 
   /// 处理"标记已处理并清理本地缓存"
@@ -840,20 +812,10 @@ class _GallerySettingPageState extends ConsumerState<GallerySettingPage> {
           '并从本地缓存删除其记录与缩略图/预览图，确定继续？',
     );
 
-    if (confirmed) {
+    if (confirmed && mounted) {
       await ref
           .read(gallerySyncServiceProvider.notifier)
           .markProcessedAndClean();
-
-      // 刷新统计数据（异步，不阻塞 UI）
-
-      // 文件扫描较慢，fire-and-forget 避免阻塞
-      unawaited(
-        ref
-            .read(galleryCachedStorageStatsProvider.notifier)
-            .refresh()
-            .catchError((_) {}),
-      );
     }
   }
 

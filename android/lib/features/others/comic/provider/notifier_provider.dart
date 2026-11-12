@@ -3,7 +3,9 @@
 /// 管理阅读偏好、本地元数据与服务端同步。
 library;
 
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/services/comic_store.dart';
@@ -38,7 +40,7 @@ class ComicSyncResult {
       : '已同步 $synced 本漫画，均为最新';
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 class ComicService extends _$ComicService {
   @override
   ComicStore build() => ref.watch(comicStoreProvider);
@@ -61,8 +63,12 @@ class ComicService extends _$ComicService {
     }
 
     // 强制重取服务端列表，否则拿到的可能是上次的缓存
-    ref.invalidate(comicsOnlineProvider);
-    final serverComics = await ref.read(comicsOnlineProvider.future);
+    final List<ComicInfo> serverComics;
+    try {
+      serverComics = await ref.refresh(comicsOnlineProvider.future);
+    } on ProviderException catch (error) {
+      throw ApiClient.mapError(error.exception);
+    }
     final serverById = {for (final comic in serverComics) comic.id: comic};
 
     var synced = 0;

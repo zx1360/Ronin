@@ -42,7 +42,7 @@ final class SmartAlbumControllerProvider
 }
 
 String _$smartAlbumControllerHash() =>
-    r'fa83fa899dd76bc5c18789b87020c7dd17ce80e4';
+    r'9c84908fc47668c5bc78c0ef6d0b7af1394b48db';
 
 abstract class _$SmartAlbumController extends $Notifier<SmartAlbumState> {
   SmartAlbumState build();

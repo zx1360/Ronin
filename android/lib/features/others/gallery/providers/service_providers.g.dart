@@ -111,3 +111,56 @@ final class GalleryStorageProvider
 }
 
 String _$galleryStorageHash() => r'479d1d6ba1551dc2ce632dfb2044f4fb4c1ca58f';
+
+@ProviderFor(GalleryFilesRevision)
+final galleryFilesRevisionProvider = GalleryFilesRevisionProvider._();
+
+final class GalleryFilesRevisionProvider
+    extends $NotifierProvider<GalleryFilesRevision, int> {
+  GalleryFilesRevisionProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryFilesRevisionProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryFilesRevisionHash();
+
+  @$internal
+  @override
+  GalleryFilesRevision create() => GalleryFilesRevision();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int>(value),
+    );
+  }
+}
+
+String _$galleryFilesRevisionHash() =>
+    r'a3e607c571dc1eefdad54366fa0e4d19269c29a2';
+
+abstract class _$GalleryFilesRevision extends $Notifier<int> {
+  int build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<int, int>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<int, int>,
+              int,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

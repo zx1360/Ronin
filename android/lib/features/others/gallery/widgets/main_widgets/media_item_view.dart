@@ -4,7 +4,7 @@ import 'package:torrid/features/others/gallery/models/image_edit.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/gallery/widgets/main_widgets/network_image_widget.dart';
-import 'package:torrid/features/others/gallery/widgets/main_widgets/video_player_widget.dart';
+import 'package:torrid/features/others/gallery/widgets/main_widgets/gallery_video.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 /// 单个媒体项视图 (图片/视频)
@@ -25,9 +25,6 @@ class MediaItemView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final storage = ref.watch(galleryStorageProvider);
     final filesRevision = ref.watch(galleryFilesRevisionProvider);
-    final apiClient = ref.watch(apiClientManagerProvider);
-    final baseUrl = apiClient.baseUrl;
-    final headers = apiClient.headers;
     final editedTurns = ImageEdit.parse(asset.editParams).quarterTurns;
     void reportAspect(double ratio) {
       onAspectRatio?.call(editedTurns.isOdd ? 1 / ratio : ratio);
@@ -36,24 +33,25 @@ class MediaItemView extends ConsumerWidget {
     final effectiveTurns = (rotationQuarterTurns + editedTurns) % 4;
 
     if (asset.isImage) {
-      final imageUrl = galleryMediaUrl(baseUrl, asset);
+      final apiClient = ref.watch(apiClientManagerProvider);
+      final imageUrl = galleryMediaUrl(apiClient.baseUrl, asset);
       return NetworkImageWidget(
         key: ValueKey((asset.id, filesRevision)),
         imageUrl: imageUrl,
         asset: asset,
         storage: storage,
         rotationQuarterTurns: effectiveTurns,
-        httpHeaders: headers,
+        httpHeaders: apiClient.headers,
         onAspectRatio: reportAspect,
       );
     }
 
     if (asset.isVideo) {
-      return VideoPlayerWidget(
-        key: ValueKey((asset.id, filesRevision, baseUrl)),
+      return GalleryVideo(
+        key: ValueKey((asset.id, filesRevision)),
         asset: asset,
         storage: storage,
-        rotationQuarterTurns: effectiveTurns,
+        quarterTurns: effectiveTurns,
         onAspectRatio: reportAspect,
       );
     }

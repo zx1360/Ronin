@@ -34,14 +34,9 @@ class GalleryLocalDataController extends _$GalleryLocalDataController {
       }
       if (files) {
         await ref.read(galleryStorageProvider).clearAllFiles();
-        ref.read(galleryFilesRevisionProvider.notifier).state++;
+        ref.read(galleryFilesRevisionProvider.notifier).changed();
       }
       if (database) await db.clearAllData();
-      if (files) {
-        try {
-          await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
-        } catch (_) {}
-      }
     } finally {
       if (locked) buffer.unlock();
       state = false;

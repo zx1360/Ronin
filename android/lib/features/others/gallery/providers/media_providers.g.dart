@@ -8,6 +8,69 @@ part of 'media_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+
+@ProviderFor(GalleryGroup)
+final galleryGroupProvider = GalleryGroupProvider._();
+
+final class GalleryGroupProvider
+    extends $NotifierProvider<GalleryGroup, ({int index, String leadId})?> {
+  GalleryGroupProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryGroupProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryGroupHash();
+
+  @$internal
+  @override
+  GalleryGroup create() => GalleryGroup();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(({int index, String leadId})? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<({int index, String leadId})?>(
+        value,
+      ),
+    );
+  }
+}
+
+String _$galleryGroupHash() => r'20c443c72937faaafc37eda15d5cb0db5fbb1ded';
+
+abstract class _$GalleryGroup extends $Notifier<({int index, String leadId})?> {
+  ({int index, String leadId})? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref
+            as $Ref<
+              ({int index, String leadId})?,
+              ({int index, String leadId})?
+            >;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<
+                ({int index, String leadId})?,
+                ({int index, String leadId})?
+              >,
+              ({int index, String leadId})?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
 /// 媒体编辑通过操作表提交，查询流提供工作副本。
 
 @ProviderFor(MediaAssetList)
@@ -98,7 +161,7 @@ final class CurrentMediaAssetProvider
   }
 }
 
-String _$currentMediaAssetHash() => r'f24848e3c2d6c2811cc114ba6a9ae1275bef98ee';
+String _$currentMediaAssetHash() => r'eb6d0cde101a857c699db1c94a8d3edc1bbeab38';
 
 /// 当前媒体文件 Provider
 /// 如果当前索引指向已删除文件，返回该文件（让 UI 层处理跳过逻辑）

@@ -45,7 +45,7 @@ final class GallerySyncServiceProvider
 }
 
 String _$gallerySyncServiceHash() =>
-    r'b307ce8bd8dfa2ac250978b8b46abb8d21bc03ce';
+    r'648b349524c2f9ca4dc875cefd8b1e42c6f69e67';
 
 /// Gallery 同步服务 Provider
 

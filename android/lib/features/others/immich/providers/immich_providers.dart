@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
@@ -326,12 +325,20 @@ class ImmichSelection extends _$ImmichSelection {
   void clear() => state = {};
 }
 
-final immichMediaUpdateProvider =
-    StateProvider.autoDispose<
-      ({List<MediaAsset> assets, bool changesVisibility})?
-    >((ref) => null);
+typedef ImmichMediaUpdate = ({List<MediaAsset> assets, bool changesVisibility});
 
-final immichTagRevisionProvider = StateProvider.autoDispose<int>((ref) => 0);
+@riverpod
+class ImmichEdits extends _$ImmichEdits {
+  @override
+  ({int tagRevision, ImmichMediaUpdate? media}) build() =>
+      (tagRevision: 0, media: null);
+
+  void tagsChanged() =>
+      state = (tagRevision: state.tagRevision + 1, media: state.media);
+
+  void mediaChanged(ImmichMediaUpdate update) =>
+      state = (tagRevision: state.tagRevision, media: update);
+}
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 @riverpod
@@ -396,7 +403,7 @@ class ImmichActions extends _$ImmichActions {
         addTagIds: add,
         removeTagIds: remove,
       );
-      ref.read(immichTagRevisionProvider.notifier).state++;
+      ref.read(immichEditsProvider.notifier).tagsChanged();
       return null;
     });
   }
@@ -427,10 +434,10 @@ class ImmichActions extends _$ImmichActions {
         () => api.patchMedia(mediaIds: mediaIds, intent: intent),
       );
       await db.updateMediaAssetsLocal(updated);
-      ref.read(immichMediaUpdateProvider.notifier).state = (
+      ref.read(immichEditsProvider.notifier).mediaChanged((
         assets: updated,
         changesVisibility: intent.isDeleted != null,
-      );
+      ));
       return intent.isDeleted == null ? updated : null;
     });
   }

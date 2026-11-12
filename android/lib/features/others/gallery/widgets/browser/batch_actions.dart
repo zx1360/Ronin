@@ -39,7 +39,7 @@ extension _BrowserBatchActions on _MediasBrowserPageState {
             // 捆绑按钮 (需要至少选择2个)
             if (_selectedIds.length >= 2 &&
                 !hasDeletedSelected &&
-                ref.read(galleryActiveGroupProvider) == null)
+                ref.read(galleryGroupProvider) == null)
               _BottomButton(
                 icon: Icons.link,
                 label: '捆绑',

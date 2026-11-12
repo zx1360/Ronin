@@ -78,12 +78,14 @@ class GallerySyncService extends _$GallerySyncService {
       return false;
     }
 
+    final filters = ref.read(galleryDownloadFiltersProvider);
     final keepAlive = ref.keepAlive();
     _cancelToken = CancelToken();
     final db = ref.read(galleryDatabaseProvider);
     final storage = ref.read(galleryStorageProvider);
     final buffer = ref.read(galleryWriteBufferProvider);
     var confirmedWrites = false;
+    var filesChanged = false;
 
     try {
       state = SyncProgress(
@@ -102,25 +104,14 @@ class GallerySyncService extends _$GallerySyncService {
       final cached = await db.getMediaAssets(includeGroupMembers: true);
       final cachedIds = cached.map((asset) => asset.id).toSet();
 
-      // 2. 请求 batch 数据（携带筛选/排序参数）
-      final mimeFilter = ref.read(galleryDownloadMimeFilterProvider);
-      final sortBy = ref.read(galleryDownloadSortByProvider);
-      final sortOrder = ref.read(galleryDownloadSortOrderProvider);
-      final filterYear = ref.read(galleryDownloadYearProvider);
-      final filterMonth = ref.read(galleryDownloadMonthProvider);
-      final filterDay = ref.read(galleryDownloadDayProvider);
-      final secondarySort = ref.read(galleryDownloadSecondarySortProvider);
-
-      final queryParams = <String, dynamic>{};
-      if (mimeFilter.isNotEmpty) queryParams['mime_type'] = mimeFilter;
-      if (sortBy.isNotEmpty) queryParams['sort_by'] = sortBy;
-      if (sortOrder.isNotEmpty) queryParams['sort_order'] = sortOrder;
-      if (filterYear > 0) queryParams['year'] = filterYear;
-      if (filterMonth > 0) queryParams['month'] = filterMonth;
-      if (filterDay > 0) queryParams['day'] = filterDay;
-      if (secondarySort.isNotEmpty) {
-        queryParams['secondary_sort'] = secondarySort;
-      }
+      final queryParams = <String, dynamic>{
+        if (filters.mimeType.isNotEmpty) 'mime_type': filters.mimeType,
+        if (filters.sortBy.isNotEmpty) 'sort_by': filters.sortBy,
+        if (filters.sortOrder.isNotEmpty) 'sort_order': filters.sortOrder,
+        if (filters.year > 0) 'year': filters.year,
+        if (filters.month > 0) 'month': filters.month,
+        if (filters.day > 0) 'day': filters.day,
+      };
 
       final batchData = await api.fetchUncachedBatch(
         limit: limit,
@@ -158,6 +149,7 @@ class GallerySyncService extends _$GallerySyncService {
       state = state.copyWith(message: '正在补齐缓存文件...', total: files.length);
       for (var start = 0; start < files.length; start += 4) {
         if (_cancelToken!.isCancelled) throw _cancelToken!.cancelError!;
+        filesChanged = true;
         final results = await Future.wait(
           files
               .skip(start)
@@ -183,9 +175,6 @@ class GallerySyncService extends _$GallerySyncService {
         failed += results.where((success) => !success).length;
       }
       if (_cancelToken!.isCancelled) throw _cancelToken!.cancelError!;
-      if (files.isNotEmpty) {
-        ref.read(galleryFilesRevisionProvider.notifier).state++;
-      }
       if (failed > 0) {
         state = SyncProgress(
           status: SyncStatus.error,
@@ -220,6 +209,9 @@ class GallerySyncService extends _$GallerySyncService {
     } finally {
       if (confirmedWrites) buffer.unlock();
       _cancelToken = null;
+      if (filesChanged && ref.mounted) {
+        ref.read(galleryFilesRevisionProvider.notifier).changed();
+      }
       keepAlive.close();
     }
   }
@@ -323,6 +315,7 @@ class GallerySyncService extends _$GallerySyncService {
       ref.invalidate(galleryServerOverviewProvider);
 
       await _deleteLocalFiles(processedAssets, storage);
+      ref.read(galleryFilesRevisionProvider.notifier).changed();
 
       state = SyncProgress(
         status: SyncStatus.success,

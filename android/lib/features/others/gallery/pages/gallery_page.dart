@@ -93,7 +93,8 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
     if (!mounted || ref.read(currentMediaAssetProvider)?.id != id) return;
     _ratioMediaId = id;
     _aspectRatio = ratio;
-    if (!ref.read(galleryAutoOrientationProvider) || _manualMediaId == id) {
+    if (!ref.read(galleryBrowseSettingsProvider).autoOrientation ||
+        _manualMediaId == id) {
       return;
     }
     final turns = mediaOrientationTurns(ratio, _quarterTurns);
@@ -103,8 +104,10 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   Future<void> _toggleAutoOrientation() async {
     try {
       await ref
-          .read(galleryAutoOrientationProvider.notifier)
-          .update(!ref.read(galleryAutoOrientationProvider));
+          .read(galleryBrowseSettingsProvider.notifier)
+          .setAutoOrientation(
+            !ref.read(galleryBrowseSettingsProvider).autoOrientation,
+          );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -124,7 +127,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   Widget build(BuildContext context) {
     final currentMedia = ref.watch(currentMediaAssetProvider);
     final currentTags = ref.watch(currentMediaTagsProvider);
-    final inGroup = ref.watch(galleryActiveGroupProvider) != null;
+    final inGroup = ref.watch(
+      galleryGroupProvider.select((group) => group != null),
+    );
     ref.listen(currentMediaAssetProvider, (previous, next) {
       if (previous?.id != next?.id) _manualMediaId = null;
     });
@@ -190,7 +195,11 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                     ),
                   ),
                 ),
-              if (ref.watch(galleryPreviewWindowEnabledProvider))
+              if (ref.watch(
+                galleryBrowseSettingsProvider.select(
+                  (settings) => settings.previewWindow,
+                ),
+              ))
                 PreviewWindowWidget(
                   onTap: _goToNext,
                   rotationQuarterTurns: _quarterTurns,
@@ -353,10 +362,12 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
   List<PopupMenuEntry<void>> _buildMoreMenu(BuildContext menuContext) {
     final media = ref.read(currentMediaAssetProvider);
-    final inGroup = ref.read(galleryActiveGroupProvider) != null;
+    final inGroup = ref.read(galleryGroupProvider) != null;
     final total = ref.read(galleryBrowsingAssetsProvider).value?.length ?? 0;
     final position = ref.read(galleryBrowsingIndexProvider) + 1;
-    final autoOrientation = ref.read(galleryAutoOrientationProvider);
+    final autoOrientation = ref
+        .read(galleryBrowseSettingsProvider)
+        .autoOrientation;
     final theme = Theme.of(menuContext);
     final colors = theme.colorScheme;
     final editSummary = media == null ? null : _editSummary(media);

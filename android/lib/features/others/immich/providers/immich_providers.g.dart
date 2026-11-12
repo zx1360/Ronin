@@ -175,6 +175,76 @@ abstract class _$ImmichSelection extends $Notifier<Set<String>> {
   }
 }
 
+@ProviderFor(ImmichEdits)
+final immichEditsProvider = ImmichEditsProvider._();
+
+final class ImmichEditsProvider
+    extends
+        $NotifierProvider<
+          ImmichEdits,
+          ({ImmichMediaUpdate? media, int tagRevision})
+        > {
+  ImmichEditsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'immichEditsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$immichEditsHash();
+
+  @$internal
+  @override
+  ImmichEdits create() => ImmichEdits();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(
+    ({ImmichMediaUpdate? media, int tagRevision}) value,
+  ) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride:
+          $SyncValueProvider<({ImmichMediaUpdate? media, int tagRevision})>(
+            value,
+          ),
+    );
+  }
+}
+
+String _$immichEditsHash() => r'904719223834f435ad569aae72efd6e3304a33d2';
+
+abstract class _$ImmichEdits
+    extends $Notifier<({ImmichMediaUpdate? media, int tagRevision})> {
+  ({ImmichMediaUpdate? media, int tagRevision}) build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref
+            as $Ref<
+              ({ImmichMediaUpdate? media, int tagRevision}),
+              ({ImmichMediaUpdate? media, int tagRevision})
+            >;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<
+                ({ImmichMediaUpdate? media, int tagRevision}),
+                ({ImmichMediaUpdate? media, int tagRevision})
+              >,
+              ({ImmichMediaUpdate? media, int tagRevision}),
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 
 @ProviderFor(ImmichActions)
@@ -211,7 +281,7 @@ final class ImmichActionsProvider
   }
 }
 
-String _$immichActionsHash() => r'566f8c549ff1444b14c1b2e6fd3bcdefdbf76fc5';
+String _$immichActionsHash() => r'0d57e16ebc1b0c0293650835df08b2af82c0fbc1';
 
 /// 批量操作状态与动作（在线直达服务端, 成功后刷新列表与标签计数）
 

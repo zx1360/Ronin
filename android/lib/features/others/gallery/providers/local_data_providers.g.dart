@@ -43,7 +43,7 @@ final class GalleryLocalDataControllerProvider
 }
 
 String _$galleryLocalDataControllerHash() =>
-    r'2e9caceb39d9a0e18c293f0bb8aa7dbd2a8a596b';
+    r'767d1fe17a4eda224d99760a71fab716ba4fa664';
 
 abstract class _$GalleryLocalDataController extends $Notifier<bool> {
   bool build();
