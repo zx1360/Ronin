@@ -7,20 +7,20 @@ part 'style_provider.g.dart';
 
 /// 根据 styleId 获取 Style
 @riverpod
-Style? styleById(StyleByIdRef ref, String styleId) {
+Style? styleById(Ref ref, String styleId) {
   final allStyles = ref.watch(allStylesProvider);
   return allStyles.where((style) => style.id == styleId).firstOrNull;
 }
 
 /// 获取最新的 Style（按创建时间排序）
 @riverpod
-Style? latestStyle(LatestStyleRef ref) {
+Style? latestStyle(Ref ref) {
   return ref.watch(sortedStylesProvider).firstOrNull;
 }
 
 /// 获取按时间倒序排列的所有 Style
 @riverpod
-List<Style> sortedStyles(SortedStylesRef ref) {
+List<Style> sortedStyles(Ref ref) {
   final allStyles = ref.watch(allStylesProvider);
   return List<Style>.of(allStyles)..sort((a, b) {
     final date = b.startDate.compareTo(a.startDate);

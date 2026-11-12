@@ -59,13 +59,13 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
     final mediaAsync = ref.watch(immichMediaProvider);
     final page = mediaAsync.hasError || mediaAsync.isReloading
         ? null
-        : mediaAsync.valueOrNull;
+        : mediaAsync.value;
     final selection = ref.watch(immichSelectionProvider);
     final busy = ref.watch(immichActionsProvider);
-    final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
+    final tags = ref.watch(tagTreeProvider).value ?? const <Tag>[];
     final tagById = {for (final tag in tags) tag.id: tag};
     final search = ref.watch(smartAlbumControllerProvider.notifier);
-    ref.listen(immichFilterNotifierProvider, (previous, next) {
+    ref.listen(immichFilterProvider, (previous, next) {
       if (previous?.jumpMonth != next.jumpMonth) _photoJump++;
       _clearSelection();
     });
@@ -178,8 +178,8 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   // 筛选栏
 
   Widget _buildFilterBar(Map<String, Tag> byId, int? total, bool busy) {
-    final filter = ref.watch(immichFilterNotifierProvider);
-    final notifier = ref.read(immichFilterNotifierProvider.notifier);
+    final filter = ref.watch(immichFilterProvider);
+    final notifier = ref.read(immichFilterProvider.notifier);
     final favorites = ref.watch(favoriteTagsProvider);
     final active =
         filter.tagIds.isNotEmpty ||
@@ -323,7 +323,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   /// 只保留一个入口按钮 + 已选条件，完整列表（可搜索、带次数）在弹出面板里，
   /// 避免把几十个标签塞进筛选栏挤占空间。
   Widget _buildAiTagRow(ImmichFilter filter, ImmichFilterNotifier notifier) {
-    final aiTags = ref.watch(immichAiTagsProvider).valueOrNull;
+    final aiTags = ref.watch(immichAiTagsProvider).value;
     if (aiTags == null || aiTags.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -439,7 +439,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
             const SizedBox(height: 8),
             TextButton(
               onPressed: () {
-                ref.read(immichFilterNotifierProvider.notifier).reset();
+                ref.read(immichFilterProvider.notifier).reset();
                 ref.invalidate(immichMediaProvider);
               },
               child: const Text('清除筛选'),
@@ -484,12 +484,8 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   // 基础交互
 
   Future<void> _jumpToMonth() async {
-    final current = ref.read(immichFilterNotifierProvider).jumpMonth;
-    final newest = ref
-        .read(immichMediaProvider)
-        .valueOrNull
-        ?.assets
-        .firstOrNull;
+    final current = ref.read(immichFilterProvider).jumpMonth;
+    final newest = ref.read(immichMediaProvider).value?.assets.firstOrNull;
     final month = await showImmichMonthPicker(
       context,
       current ?? newest?.capturedAt.toLocal() ?? DateTime.now(),
@@ -498,7 +494,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
     if (month == current) {
       setState(() => _photoJump++);
     } else {
-      ref.read(immichFilterNotifierProvider.notifier).setJumpMonth(month);
+      ref.read(immichFilterProvider.notifier).setJumpMonth(month);
     }
   }
 
@@ -544,8 +540,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   }
 
   void _openViewer(String mediaId) {
-    final assets =
-        ref.read(immichMediaProvider).valueOrNull?.assets ?? const [];
+    final assets = ref.read(immichMediaProvider).value?.assets ?? const [];
     openAlbumMediaViewer(
       context,
       assets: assets,
@@ -570,7 +565,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
 
   /// 选中项 id (按网格顺序, 首位作为捆绑主文件的默认值)
   List<String> get _selectedIdsOrdered {
-    final page = ref.read(immichMediaProvider).valueOrNull;
+    final page = ref.read(immichMediaProvider).value;
     final selection = ref.read(immichSelectionProvider);
     if (page == null) return selection.toList();
     return [
@@ -607,7 +602,7 @@ class _ImmichPageState extends ConsumerState<ImmichPage>
   Future<void> _editSelectionMessage() async {
     final ids = _selectedIdsOrdered;
     if (ids.isEmpty) return;
-    final assets = _assetsByIds(ids, ref.read(immichMediaProvider).valueOrNull);
+    final assets = _assetsByIds(ids, ref.read(immichMediaProvider).value);
     final first = assets.isEmpty ? null : assets.first.message;
     final same = assets.every((a) => (a.message ?? '') == (first ?? ''));
     final text = await showTextInputDialog(

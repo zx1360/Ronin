@@ -38,7 +38,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
   final List<String> _selectionOrder = [];
 
   final _scrollController = ScrollController(keepScrollOffset: false);
-  final _previewCatalog = GalleryPreviewCatalog();
+  var _previewCatalog = GalleryPreviewCatalog();
   List<MediaAsset>? _previewAssets;
   Future<Map<String, GalleryPreview>>? _previewFuture;
   MediaGridLayout? _previewLayout;
@@ -55,11 +55,11 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   void _scrollToCurrentIndex({bool animate = true}) {
     if (!_scrollController.hasClients) return;
-    final assets = ref.read(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final assets = ref.read(galleryBrowsingAssetsProvider).value ?? [];
     final current = ref.read(currentMediaAssetProvider);
     final index = assets.indexWhere((a) => a.id == current?.id);
     if (index < 0) return;
-    final mode = ref.read(galleryGridPreviewModeNotifierProvider);
+    final mode = ref.read(galleryGridPreviewModeProvider);
     final columns = ref.read(galleryGridColumnsProvider);
     final cellWidth = (_gridWidth - (columns - 1) * 2) / columns;
     final offset = mode == GalleryGridPreviewMode.thumb
@@ -90,12 +90,18 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(galleryFilesRevisionProvider, (_, _) {
+      setState(() {
+        _previewCatalog = GalleryPreviewCatalog();
+        _previewAssets = null;
+      });
+    });
     // 使用包含已删除文件的列表
     final assetsAsync = ref.watch(galleryBrowsingAssetsProvider);
     final columns = ref.watch(galleryGridColumnsProvider);
     // 获取当前媒体的 ID，而不是索引
     final currentMedia = ref.watch(currentMediaAssetProvider);
-    final mode = ref.watch(galleryGridPreviewModeNotifierProvider);
+    final mode = ref.watch(galleryGridPreviewModeProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -120,18 +126,18 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
               surfaceTintColor: Colors.transparent,
               position: PopupMenuPosition.under,
               onSelected: (mode) {
-                if (mode == ref.read(galleryGridPreviewModeNotifierProvider)) {
+                if (mode == ref.read(galleryGridPreviewModeProvider)) {
                   return;
                 }
                 _hasScrolledToInitial = false;
                 _userHasScrolled = false;
                 ref
-                    .read(galleryGridPreviewModeNotifierProvider.notifier)
+                    .read(galleryGridPreviewModeProvider.notifier)
                     .setMode(mode);
               },
               itemBuilder: (context) {
                 final current = ref.watch(
-                  galleryGridPreviewModeNotifierProvider,
+                  galleryGridPreviewModeProvider,
                 );
                 return GalleryGridPreviewMode.values.map((mode) {
                   return PopupMenuItem(
@@ -191,7 +197,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
             IconButton(
               icon: const Icon(Icons.select_all),
               tooltip: '全选',
-              onPressed: () => _selectAll(assetsAsync.valueOrNull ?? []),
+              onPressed: () => _selectAll(assetsAsync.value ?? []),
             ),
             // 取消选择模式
             IconButton(
@@ -219,7 +225,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
           }
 
           final taggedIds =
-              ref.watch(mediaIdsWithTagsProvider).valueOrNull ??
+              ref.watch(mediaIdsWithTagsProvider).value ??
               const <String>{};
           if (mode != GalleryGridPreviewMode.thumb &&
               !identical(_previewAssets, assets)) {
@@ -397,7 +403,7 @@ class _MediasBrowserPageState extends ConsumerState<MediasBrowserPage> {
 
   /// 构建标题
   String _buildTitle(int columns) {
-    final mode = ref.read(galleryGridPreviewModeNotifierProvider);
+    final mode = ref.read(galleryGridPreviewModeProvider);
     final prefix = ref.read(galleryActiveGroupProvider) == null ? '' : '组内 · ';
     return '$prefix${_modeLabel(mode)} ($columns列)';
   }

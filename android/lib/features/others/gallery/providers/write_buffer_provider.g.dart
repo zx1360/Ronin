@@ -6,38 +6,106 @@ part of 'write_buffer_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$galleryWriteBufferHash() =>
-    r'77ce43cf06570d35c1552326580a7716012f314a';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [galleryWriteBuffer].
 @ProviderFor(galleryWriteBuffer)
-final galleryWriteBufferProvider = Provider<GalleryWriteBuffer>.internal(
-  galleryWriteBuffer,
-  name: r'galleryWriteBufferProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryWriteBufferHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final galleryWriteBufferProvider = GalleryWriteBufferProvider._();
 
-typedef GalleryWriteBufferRef = ProviderRef<GalleryWriteBuffer>;
+final class GalleryWriteBufferProvider
+    extends
+        $FunctionalProvider<
+          GalleryWriteBuffer,
+          GalleryWriteBuffer,
+          GalleryWriteBuffer
+        >
+    with $Provider<GalleryWriteBuffer> {
+  GalleryWriteBufferProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryWriteBufferProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryWriteBufferHash();
+
+  @$internal
+  @override
+  $ProviderElement<GalleryWriteBuffer> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  GalleryWriteBuffer create(Ref ref) {
+    return galleryWriteBuffer(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GalleryWriteBuffer value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GalleryWriteBuffer>(value),
+    );
+  }
+}
+
+String _$galleryWriteBufferHash() =>
+    r'c4c5ccc2cc55caeb094f0e9e70fb280d1e84ec4a';
+
+@ProviderFor(GalleryWriteStatus)
+final galleryWriteStatusProvider = GalleryWriteStatusProvider._();
+
+final class GalleryWriteStatusProvider
+    extends $NotifierProvider<GalleryWriteStatus, String?> {
+  GalleryWriteStatusProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryWriteStatusProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryWriteStatusHash();
+
+  @$internal
+  @override
+  GalleryWriteStatus create() => GalleryWriteStatus();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(String? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<String?>(value),
+    );
+  }
+}
+
 String _$galleryWriteStatusHash() =>
     r'c64f476e51a919a9e92685967aef9a3154054ee6';
 
-/// See also [GalleryWriteStatus].
-@ProviderFor(GalleryWriteStatus)
-final galleryWriteStatusProvider =
-    NotifierProvider<GalleryWriteStatus, String?>.internal(
-  GalleryWriteStatus.new,
-  name: r'galleryWriteStatusProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryWriteStatusHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$GalleryWriteStatus = Notifier<String?>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+abstract class _$GalleryWriteStatus extends $Notifier<String?> {
+  String? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<String?, String?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<String?, String?>,
+              String?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

@@ -310,7 +310,7 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
     final tagIds = _tagIds;
     final busy = _busy || ref.watch(immichActionsProvider);
     final canEdit = !busy && tagIds != null;
-    final tags = ref.watch(tagTreeProvider).valueOrNull ?? const <Tag>[];
+    final tags = ref.watch(tagTreeProvider).value ?? const <Tag>[];
     final byId = {for (final tag in tags) tag.id: tag};
     final linkedTags = [
       for (final id in tagIds ?? const <String>[])

@@ -1,12 +1,6 @@
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label.dart';
 
-List<Label> ensureHiddenLabel(Iterable<Label> labels) {
-  final result = labels.toList();
-  if (!result.any((label) => label.isHiddenRoot)) result.add(Label.hidden());
-  return result;
-}
-
 void validateLabelTree(Iterable<Label> labels) {
   final byId = {for (final label in labels) label.id: label};
   for (final label in labels) {

@@ -6,21 +6,44 @@ part of 'search_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$essaySearchIndexHash() => r'07864d85a54914795327b3626fc063b02e3a211c';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [essaySearchIndex].
 @ProviderFor(essaySearchIndex)
-final essaySearchIndexProvider =
-    AutoDisposeFutureProvider<EssaySearchIndex>.internal(
-  essaySearchIndex,
-  name: r'essaySearchIndexProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$essaySearchIndexHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final essaySearchIndexProvider = EssaySearchIndexProvider._();
 
-typedef EssaySearchIndexRef = AutoDisposeFutureProviderRef<EssaySearchIndex>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+final class EssaySearchIndexProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<EssaySearchIndex>,
+          EssaySearchIndex,
+          FutureOr<EssaySearchIndex>
+        >
+    with $FutureModifier<EssaySearchIndex>, $FutureProvider<EssaySearchIndex> {
+  EssaySearchIndexProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'essaySearchIndexProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$essaySearchIndexHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<EssaySearchIndex> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<EssaySearchIndex> create(Ref ref) {
+    return essaySearchIndex(ref);
+  }
+}
+
+String _$essaySearchIndexHash() => r'd0d98775a61eeea645d7796c65e2ae953a4d3b73';

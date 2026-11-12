@@ -1,29 +1,24 @@
-/// 聊天页本地数据模型（仅存安卓本地 Hive）。
+/// 聊天页本地数据模型（仅存安卓本地）。
 ///
 /// 一个会话把消息整条存下来：会话数量少、单会话消息量可控，省掉额外的索引表。
 library;
 
-import 'package:hive/hive.dart';
+import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'chat_models.g.dart';
 
 /// 一条对话（会话）。
-@HiveType(typeId: 40)
+
 class ChatConversation {
-  @HiveField(0)
   final String id;
 
-  @HiveField(1)
   final String title;
 
-  @HiveField(2)
   final DateTime createdAt;
 
-  @HiveField(3)
   final DateTime updatedAt;
 
-  @HiveField(4)
   final List<ChatMessage> messages;
 
   ChatConversation({
@@ -74,31 +69,25 @@ class ChatRole {
 }
 
 /// 一条消息。[thinking] 为模型思考链，[error] 非空表示本轮失败。
-@HiveType(typeId: 41)
+
+@JsonSerializable()
 class ChatMessage {
-  @HiveField(0)
   final String id;
 
-  @HiveField(1)
   final String role;
 
-  @HiveField(2)
   final String content;
 
-  @HiveField(3)
   final String thinking;
 
-  @HiveField(4)
   final DateTime createdAt;
 
-  @HiveField(5)
   final List<ChatAttachment> attachments;
 
-  @HiveField(6)
   final String? error;
 
   /// 被另一个模型抢占而中断（不是错误，可直接重试）。
-  @HiveField(7)
+
   final bool interrupted;
 
   ChatMessage({
@@ -127,6 +116,10 @@ class ChatMessage {
       attachments = const [],
       error = null,
       interrupted = false;
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) =>
+      _$ChatMessageFromJson(json);
+  Map<String, dynamic> toJson() => _$ChatMessageToJson(this);
 
   ChatMessage copyWith({
     String? content,
@@ -176,15 +169,13 @@ List<ChatMessage> chatContext(List<ChatMessage> messages, {int numCtx = 0}) {
 }
 
 /// 消息携带的图片：库内媒体（mediaId）或本地图片（imagePath，IoService 相对路径）。
-@HiveType(typeId: 42)
+
+@JsonSerializable()
 class ChatAttachment {
-  @HiveField(0)
   final String? mediaId;
 
-  @HiveField(1)
   final String? imagePath;
 
-  @HiveField(2)
   final String? fileName;
 
   ChatAttachment({this.mediaId, this.imagePath, this.fileName});
@@ -194,6 +185,10 @@ class ChatAttachment {
 
   factory ChatAttachment.local(String imagePath, {String? fileName}) =>
       ChatAttachment(imagePath: imagePath, fileName: fileName);
+
+  factory ChatAttachment.fromJson(Map<String, dynamic> json) =>
+      _$ChatAttachmentFromJson(json);
+  Map<String, dynamic> toJson() => _$ChatAttachmentToJson(this);
 
   bool get isMedia => mediaId != null && mediaId!.isNotEmpty;
   bool get isLocal => imagePath != null && imagePath!.isNotEmpty;

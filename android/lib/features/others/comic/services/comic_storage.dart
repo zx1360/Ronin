@@ -9,7 +9,7 @@ import 'package:torrid/features/others/comic/services/io_image_service.dart';
 
 String comicDownloadPath(String id) => 'comics/.downloads/$id';
 
-// 下载目录保留名称和章节身份，重扫文件时不依赖 Hive 是否仍有元数据。
+// 下载目录保留名称和章节身份，重扫文件时可从索引恢复元数据。
 Future<void> writeComicIndex(
   Directory directory,
   ComicInfo comic,

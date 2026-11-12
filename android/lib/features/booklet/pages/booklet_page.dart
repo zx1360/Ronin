@@ -4,6 +4,7 @@ import 'package:torrid/features/booklet/pages/booklet_overview.dart';
 import 'package:torrid/features/booklet/pages/history_page.dart';
 
 import 'package:torrid/features/booklet/providers/providers.dart';
+import 'package:torrid/features/booklet/storage/booklet_store.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_detail_sheet.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
@@ -36,7 +37,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
   late TextEditingController _messageController;
   late FocusNode _focusNode;
   // routine的数据操作Notifier
-  RoutineService? _server;
+  BookletStore? _server;
   bool _saving = false;
   // 往期打卡补签相关.
   DateTime targetDate = DateTime(
@@ -55,7 +56,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     );
   }
 
-  /// 写入当前记录：先落库再刷新，避免直接改动 provider 暴露的 Hive 实例
+  /// 写入当前记录，查询流会更新页面。
   Future<void> _persist(Record record) async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -126,7 +127,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
 
   @override
   Widget build(BuildContext context) {
-    _server = ref.watch(routineServiceProvider.notifier);
+    _server = ref.watch(bookletStoreProvider);
     // 响应式数据获取.
     _latestStyle = ref.watch(latestStyleProvider);
     // 如果有style记录或变动, 则(重新)绑定一系列数据监听.

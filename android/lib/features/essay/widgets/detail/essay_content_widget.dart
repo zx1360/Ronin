@@ -6,8 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/pages/write_page.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
+import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/widgets/detail/check_image_sheet.dart';
 import 'package:torrid/core/modals/confirm_modal.dart';
 import 'package:torrid/core/utils/util.dart';
@@ -55,7 +56,7 @@ class EssayContentWidget extends ConsumerWidget {
                         });
                         try {
                           await ref
-                              .read(essayServiceProvider.notifier)
+                              .read(essayStoreProvider)
                               .editMessage(essay.id, index, message, text);
                           if (context.mounted) Navigator.pop(context);
                         } catch (e) {
@@ -183,9 +184,7 @@ class EssayContentWidget extends ConsumerWidget {
                   title: "确认删除",
                   content: "删除后随笔将无法恢复, 是否继续?",
                   confirmFunc: () async {
-                    await ref
-                        .read(essayServiceProvider.notifier)
-                        .deleteEssay(essay);
+                    await ref.read(essayStoreProvider).deleteEssay(essay);
                     if (context.mounted) {
                       context.pop();
                     }
@@ -200,12 +199,27 @@ class EssayContentWidget extends ConsumerWidget {
                 tooltip: "删除随笔(当天可用)",
               ),
             IconButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EssayWritePage(original: essay),
-                ),
-              ),
+              onPressed: () async {
+                try {
+                  final draft = await ref
+                      .read(essayDraftStoreProvider)
+                      .forEssay(essay.id);
+                  if (!context.mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          EssayWritePage(original: essay, draft: draft),
+                    ),
+                  );
+                } catch (error) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('打开草稿失败：$error')));
+                  }
+                }
+              },
               icon: Icon(
                 const IconData(0xe60c, fontFamily: "iconfont"),
                 color: AppTheme.outline,

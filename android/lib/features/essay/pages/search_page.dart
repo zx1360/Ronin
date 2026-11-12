@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/essay_search.dart';
 import 'package:torrid/features/essay/pages/detail_page.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
 import 'package:torrid/features/essay/providers/search_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 
@@ -105,16 +104,12 @@ class _EssaySearchPageState extends ConsumerState<EssaySearchPage> {
                                 essay: results[index],
                                 query: _query,
                                 onTap: () {
-                                  final essay = ref
-                                      .read(essayBoxProvider)
-                                      .get(results[index].id);
-                                  if (essay == null) return;
                                   FocusManager.instance.primaryFocus?.unfocus();
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) =>
-                                          EssayDetailPage(essayId: essay.id),
+                                          EssayDetailPage(essayId: results[index].id),
                                     ),
                                   );
                                 },

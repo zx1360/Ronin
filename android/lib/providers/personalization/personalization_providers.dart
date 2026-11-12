@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 

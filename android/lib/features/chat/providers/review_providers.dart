@@ -1,15 +1,13 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:hive/hive.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:torrid/core/services/storage/hive_service.dart';
-import 'package:torrid/core/services/storage/box_replace.dart';
+import 'package:torrid/features/chat/services/chat_store.dart';
 import 'package:torrid/features/chat/models/review_models.dart';
 import 'package:torrid/features/chat/providers/chat_providers.dart';
 import 'package:torrid/features/chat/services/review_api_service.dart';
-import 'package:torrid/features/essay/models/label_tree.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 
 part 'review_providers.g.dart';
 
@@ -44,7 +42,7 @@ class ReviewPresetsState {
   }
 }
 
-/// 语气/角色预设：服务端权威 + 本地 Hive 镜像。
+/// 语气/角色预设：服务端权威 + 本地镜像。
 ///
 /// 读：先用镜像（离线可用），再异步与服务端对齐；
 /// 写：整体推送到服务端，成功后才用服务端返回的列表刷新镜像。
@@ -52,21 +50,20 @@ class ReviewPresetsState {
 class ReviewPresetsController extends _$ReviewPresetsController {
   @override
   ReviewPresetsState build() {
-    final cached = _sorted(_box.values.toList());
-    Future.microtask(refresh);
-    return ReviewPresetsState(presets: cached);
+    Future.microtask(() => refresh(loadCache: true));
+    return const ReviewPresetsState(syncing: true);
   }
 
-  Box<ReviewPreset> get _box =>
-      Hive.box<ReviewPreset>(HiveService.reviewPresetBoxName);
+  ChatStore get _store => ref.read(chatStoreProvider);
 
   /// 从服务端拉取并覆盖本地镜像；失败时保留镜像并如实提示。
-  Future<void> refresh() async {
-    if (state.syncing) return;
+  Future<void> refresh({bool loadCache = false}) async {
+    if (state.syncing && !loadCache) return;
     state = state.copyWith(syncing: true, clearError: true);
     try {
+      if (loadCache) state = state.copyWith(presets: await _store.presets());
       final presets = await ref.read(reviewApiProvider).fetchPresets();
-      await _replaceCache(presets);
+      await _store.replacePresets(presets);
       state = ReviewPresetsState(presets: _sorted(presets));
     } catch (e) {
       state = state.copyWith(syncing: false, error: e.toString());
@@ -79,7 +76,7 @@ class ReviewPresetsController extends _$ReviewPresetsController {
     state = state.copyWith(syncing: true, clearError: true);
     try {
       final saved = await ref.read(reviewApiProvider).savePresets(presets);
-      await _replaceCache(saved);
+      await _store.replacePresets(saved);
       state = ReviewPresetsState(presets: _sorted(saved));
       return true;
     } catch (e) {
@@ -88,47 +85,14 @@ class ReviewPresetsController extends _$ReviewPresetsController {
     }
   }
 
-  Future<void> _replaceCache(List<ReviewPreset> presets) => replaceBoxes({
-    _box: <String, ReviewPreset>{
-      for (final preset in presets) preset.id: preset,
-    },
-  });
-
-  /// 排序只为了展示稳定：镜像的读取顺序由 Hive 决定，不能反过来影响推送顺序。
+  /// 排序只为了展示稳定：镜像的读取顺序由数据库决定，不能反过来影响推送顺序。
   List<ReviewPreset> _sorted(List<ReviewPreset> items) =>
       [...items]..sort((a, b) => a.name.compareTo(b.name));
 }
 
-/// 本地回顾历史（只存本机，不回传服务端）。
-@Riverpod(keepAlive: true)
-class ReviewHistoryController extends _$ReviewHistoryController {
-  @override
-  List<ReviewRecord> build() => _sorted(_box.values.toList());
-
-  Box<ReviewRecord> get _box =>
-      Hive.box<ReviewRecord>(HiveService.reviewHistoryBoxName);
-
-  Future<void> add(ReviewRecord record) async {
-    await _box.put(record.id, record);
-    state = _sorted([...state, record]);
-  }
-
-  Future<void> remove(String id) async {
-    await _box.delete(id);
-    state = [
-      for (final item in state)
-        if (item.id != id) item,
-    ];
-  }
-
-  Future<void> clear() async {
-    await _box.clear();
-    state = const [];
-  }
-
-  List<ReviewRecord> _sorted(List<ReviewRecord> items) =>
-      items..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-}
+final reviewHistoryProvider = StreamProvider.autoDispose<List<ReviewRecord>>(
+  (ref) => ref.watch(chatStoreProvider).watchHistory(),
+);
 
 /// 一次生成过程中的草稿状态（历史上限之外的内容不落库，只在本状态里）。
 class ReviewDraftState {
@@ -202,16 +166,14 @@ class ReviewDraftController extends _$ReviewDraftController {
     state = const ReviewDraftState(streaming: true);
 
     try {
-      final hidden = hiddenLabelIds(ref.read(labelBoxProvider).values);
+      final hiddenEssays = await ref.read(essayStoreProvider).hiddenEssayIds();
+      if (cancelToken.isCancelled) throw cancelToken.cancelError!;
       final stream = ref
           .read(reviewApiProvider)
           .generate(
             request: {
               ...scope.toRequestFields(today),
-              'exclude_essay_ids': [
-                for (final essay in ref.read(essayBoxProvider).values)
-                  if (essay.labels.any(hidden.contains)) essay.id,
-              ],
+              'exclude_essay_ids': hiddenEssays,
               'role': preset.role,
               'tone': preset.tone,
               if (focus.trim().isNotEmpty) 'focus': focus.trim(),
@@ -259,8 +221,8 @@ class ReviewDraftController extends _$ReviewDraftController {
       }
       state = state.copyWith(content: content, streaming: false);
       await ref
-          .read(reviewHistoryControllerProvider.notifier)
-          .add(
+          .read(chatStoreProvider)
+          .addReview(
             ReviewRecord.create(
               presetName: preset.name,
               span: '${span.from} ~ ${span.to}',

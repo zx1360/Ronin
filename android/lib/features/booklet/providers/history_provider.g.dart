@@ -6,158 +6,86 @@ part of 'history_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$bookletHistoryHash() => r'ebf8bee38fb0c71cf194869b9f3f78aef5b4770e';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
-/// See also [bookletHistory].
 @ProviderFor(bookletHistory)
-const bookletHistoryProvider = BookletHistoryFamily();
+final bookletHistoryProvider = BookletHistoryFamily._();
 
-/// See also [bookletHistory].
-class BookletHistoryFamily
-    extends Family<AsyncValue<List<BookletHistoryEntry>>> {
-  /// See also [bookletHistory].
-  const BookletHistoryFamily();
+final class BookletHistoryProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<BookletHistoryEntry>>,
+          List<BookletHistoryEntry>,
+          FutureOr<List<BookletHistoryEntry>>
+        >
+    with
+        $FutureModifier<List<BookletHistoryEntry>>,
+        $FutureProvider<List<BookletHistoryEntry>> {
+  BookletHistoryProvider._({
+    required BookletHistoryFamily super.from,
+    required String? super.argument,
+  }) : super(
+         retry: null,
+         name: r'bookletHistoryProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
 
-  /// See also [bookletHistory].
-  BookletHistoryProvider call({
-    String? styleId,
-  }) {
-    return BookletHistoryProvider(
-      styleId: styleId,
-    );
+  @override
+  String debugGetCreateSourceHash() => _$bookletHistoryHash();
+
+  @override
+  String toString() {
+    return r'bookletHistoryProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  BookletHistoryProvider getProviderOverride(
-    covariant BookletHistoryProvider provider,
-  ) {
-    return call(
-      styleId: provider.styleId,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
+  $FutureProviderElement<List<BookletHistoryEntry>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
 
   @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'bookletHistoryProvider';
-}
-
-/// See also [bookletHistory].
-class BookletHistoryProvider
-    extends AutoDisposeFutureProvider<List<BookletHistoryEntry>> {
-  /// See also [bookletHistory].
-  BookletHistoryProvider({
-    String? styleId,
-  }) : this._internal(
-          (ref) => bookletHistory(
-            ref as BookletHistoryRef,
-            styleId: styleId,
-          ),
-          from: bookletHistoryProvider,
-          name: r'bookletHistoryProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$bookletHistoryHash,
-          dependencies: BookletHistoryFamily._dependencies,
-          allTransitiveDependencies:
-              BookletHistoryFamily._allTransitiveDependencies,
-          styleId: styleId,
-        );
-
-  BookletHistoryProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.styleId,
-  }) : super.internal();
-
-  final String? styleId;
-
-  @override
-  Override overrideWith(
-    FutureOr<List<BookletHistoryEntry>> Function(BookletHistoryRef provider)
-        create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: BookletHistoryProvider._internal(
-        (ref) => create(ref as BookletHistoryRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        styleId: styleId,
-      ),
-    );
-  }
-
-  @override
-  AutoDisposeFutureProviderElement<List<BookletHistoryEntry>> createElement() {
-    return _BookletHistoryProviderElement(this);
+  FutureOr<List<BookletHistoryEntry>> create(Ref ref) {
+    final argument = this.argument as String?;
+    return bookletHistory(ref, styleId: argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is BookletHistoryProvider && other.styleId == styleId;
+    return other is BookletHistoryProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, styleId.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin BookletHistoryRef
-    on AutoDisposeFutureProviderRef<List<BookletHistoryEntry>> {
-  /// The parameter `styleId` of this provider.
-  String? get styleId;
-}
+String _$bookletHistoryHash() => r'f2101552679a8196d7362a79ed4d370960bb4168';
 
-class _BookletHistoryProviderElement
-    extends AutoDisposeFutureProviderElement<List<BookletHistoryEntry>>
-    with BookletHistoryRef {
-  _BookletHistoryProviderElement(super.provider);
+final class BookletHistoryFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<List<BookletHistoryEntry>>,
+          String?
+        > {
+  BookletHistoryFamily._()
+    : super(
+        retry: null,
+        name: r'bookletHistoryProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  BookletHistoryProvider call({String? styleId}) =>
+      BookletHistoryProvider._(argument: styleId, from: this);
 
   @override
-  String? get styleId => (origin as BookletHistoryProvider).styleId;
+  String toString() => r'bookletHistoryProvider';
 }
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

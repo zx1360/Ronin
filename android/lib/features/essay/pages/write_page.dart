@@ -11,7 +11,7 @@ import 'package:torrid/core/utils/util.dart';
 import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/essay_draft.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/widgets/label_selector.dart';
@@ -49,7 +49,6 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     final original = widget.original;
     _draft =
         widget.draft ??
-        (original == null ? null : _store.forEssay(original.id)) ??
         EssayDraft(
           essay:
               original ??
@@ -102,15 +101,14 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     _autosave?.cancel();
     final revision = ++_revision;
     _draft = _snapshot();
-    if (!_draft.hasContent && !_store.box.containsKey(_draft.essay.id)) {
-      return true;
-    }
     try {
       await _store.save(_draft);
       if (mounted && revision == _revision) setState(() => _status = '草稿已存本机');
       return true;
     } catch (e) {
-      if (mounted) setState(() => _status = '草稿保存失败，请重试：$e');
+      if (mounted && revision == _revision) {
+        setState(() => _status = '草稿保存失败，请重试：$e');
+      }
       return false;
     }
   }
@@ -118,17 +116,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed && !_allowPop && !_busy) {
-      unawaited(_cacheBeforePause());
-    }
-  }
-
-  Future<void> _cacheBeforePause() async {
-    if (await _persist()) {
-      try {
-        await _store.flush();
-      } catch (e) {
-        if (mounted) setState(() => _status = '草稿保存失败，请重试：$e');
-      }
+      unawaited(_persist());
     }
   }
 
@@ -144,10 +132,7 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _busy = true);
     try {
-      if (await _persist()) {
-        await _store.flush();
-        await _close();
-      }
+      if (await _persist()) await _close();
     } catch (e) {
       _error(e);
     } finally {
@@ -178,7 +163,6 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
         setState(() => _busy = true);
         try {
           await _store.remove(_draft.essay.id);
-          await _store.flush();
           await _close();
           // 图片清理失败不影响已完成的丢弃。
           try {
@@ -225,7 +209,6 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
     setState(() => _busy = true);
     try {
       if (!await _persist()) return;
-      await _store.flush();
       final base = _draft.original;
       final essay = await _store.publish(
         _draft.essay.copyWith(
@@ -236,18 +219,9 @@ class _EssayWritePageState extends ConsumerState<EssayWritePage>
           date: base?.date ?? DateTime.now(),
         ),
         (published) => ref
-            .read(essayServiceProvider.notifier)
+            .read(essayStoreProvider)
             .writeEssay(essay: published, original: base),
       );
-      // 保存成功后再删草稿；清理失败时保留可继续的同 ID 草稿。
-      _draft = EssayDraft(
-        essay: essay,
-        original: essay,
-        updatedAt: DateTime.now(),
-      );
-      await _store.save(_draft);
-      await _store.remove(essay.id);
-      await _store.flush();
       await _close();
       try {
         await _store.cleanImages(essay.id);

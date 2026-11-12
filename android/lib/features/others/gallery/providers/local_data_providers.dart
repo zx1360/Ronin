@@ -1,83 +1,50 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
-import 'package:torrid/features/others/gallery/services/gallery_sync_service.dart';
 import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
 
 part 'local_data_providers.g.dart';
 
-/// 本地缓存的清空动作。
-///
-/// 只清本机（gallery.db 与下载的文件），**不触碰服务端**；清空后把游标复位、让派生数据重取。
 @Riverpod(keepAlive: true)
 class GalleryLocalDataController extends _$GalleryLocalDataController {
-  /// 是否有清空操作在执行。
   @override
   bool build() => false;
 
-  /// 清空本地数据库缓存。
-  Future<void> clearDatabase() => _run(() async {
-    await ref.read(galleryDatabaseProvider).clearAllData();
-    await _resetCursors();
-    _invalidateDerived();
-  });
+  Future<void> clearDatabase() => _clear(database: true, files: false);
 
-  /// 清空本地媒体文件（保留数据库记录）。
-  Future<void> clearFiles() => _run(() async {
-    await ref.read(galleryStorageProvider).clearAllFiles();
-    await _refreshStorageStats();
-  }, preservesEdits: true);
+  Future<void> clearFiles() => _clear(database: false, files: true);
 
-  /// 清空数据库与文件。
-  Future<void> clearAll() => _run(() async {
-    await ref.read(galleryDatabaseProvider).clearAllData();
-    await ref.read(galleryStorageProvider).clearAllFiles();
-    await _resetCursors();
-    _invalidateDerived();
-    await _refreshStorageStats();
-  });
+  Future<void> clearAll() => _clear(database: true, files: true);
 
-  Future<void> _run(
-    Future<void> Function() action, {
-    bool preservesEdits = false,
-  }) async {
+  Future<void> _clear({required bool database, required bool files}) async {
     if (state) return;
     state = true;
     final buffer = ref.read(galleryWriteBufferProvider);
-    var confirmedWrites = false;
+    var locked = false;
     try {
-      if (!preservesEdits) {
+      if (database) {
         await buffer.confirmAndLock(requireConnection: false);
-        confirmedWrites = true;
-        if ((await ref.read(galleryDatabaseProvider).operations()).any(
-          (op) => op.kind == 'processed',
-        )) {
-          throw StateError('请先重试完成上次的标记已处理');
-        }
+      } else {
+        await buffer.lock();
       }
-      await action();
+      locked = true;
+      final db = ref.read(galleryDatabaseProvider);
+      if (database &&
+          (await db.operations()).any((op) => op.kind == 'processed')) {
+        throw StateError('请先重试完成上次的标记已处理');
+      }
+      if (files) {
+        await ref.read(galleryStorageProvider).clearAllFiles();
+        ref.read(galleryFilesRevisionProvider.notifier).state++;
+      }
+      if (database) await db.clearAllData();
+      if (files) {
+        try {
+          await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
+        } catch (_) {}
+      }
     } finally {
-      if (confirmedWrites) buffer.unlock();
+      if (locked) buffer.unlock();
       state = false;
     }
-  }
-
-  /// 浏览位置与"已处理"游标都指向已经不存在的数据，必须复位。
-  Future<void> _resetCursors() async {
-    await ref.read(galleryModifiedCountProvider.notifier).reset();
-    await ref.read(galleryCurrentIndexProvider.notifier).update(0);
-  }
-
-  void _invalidateDerived() {
-    ref.invalidate(mediaAssetListProvider);
-    ref.invalidate(tagTreeProvider);
-    ref.invalidate(galleryDbStatsProvider);
-    ref.invalidate(galleryProcessedStatsProvider);
-  }
-
-  /// 文件系统扫描较慢，失败不影响已完成的清理。
-  Future<void> _refreshStorageStats() async {
-    try {
-      await ref.read(galleryCachedStorageStatsProvider.notifier).refresh();
-    } catch (_) {}
   }
 }

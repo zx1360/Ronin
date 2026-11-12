@@ -1,0 +1,16 @@
+import 'storage_types.dart';
+
+CREATE TABLE sync_cursors (
+  address TEXT NOT NULL,
+  module TEXT NOT NULL,
+  revision INTEGER NOT NULL CHECK (revision >= 0),
+  PRIMARY KEY (address, module)
+);
+
+CREATE TABLE sync_deletions (
+  module TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  id TEXT NOT NULL,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  PRIMARY KEY (module, collection, id)
+);

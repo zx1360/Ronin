@@ -1,4 +1,3 @@
-import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/task.dart';
@@ -8,30 +7,23 @@ import 'package:torrid/core/utils/util.dart';
 
 part 'record.g.dart';
 
-@HiveType(typeId: 12)
 @JsonSerializable(fieldRename: FieldRename.snake)
 class Record {
-  @HiveField(0)
+
   final String id;
 
-  @HiveField(1)
   final String styleId;
 
-  @HiveField(2)
   @JsonKey(fromJson: dateFromJson, toJson: dateToJson)
   late final DateTime date;
 
-  @HiveField(3)
   String message;
 
-  @HiveField(4)
   late final Map<String, bool> taskCompletion;
 
-  @HiveField(5)
   @MoodTypeConverter()
   MoodType? mood;
 
-  @HiveField(6)
   final DateTime? updatedAt;
 
   Record({

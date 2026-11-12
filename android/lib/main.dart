@@ -10,5 +10,5 @@ void main() async {
   // 全应用锁定竖屏
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  runApp(ProviderScope(child: const MyApp()));
+  runApp(ProviderScope(retry: (_, _) => null, child: const MyApp()));
 }

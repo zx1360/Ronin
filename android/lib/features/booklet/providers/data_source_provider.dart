@@ -1,45 +1,25 @@
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:torrid/core/services/storage/box_replace.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
+import 'package:torrid/features/booklet/providers/routine_service_provider.dart';
+import 'package:torrid/features/booklet/storage/booklet_store.dart';
 
-part 'data_source_provider.g.dart';
+final styleStreamProvider = StreamProvider.autoDispose<List<Style>>(
+  (ref) => ref.watch(bookletStoreProvider).watchStyles(),
+);
 
-@riverpod
-Box<Style> styleBox(StyleBoxRef ref) {
-  return Hive.box(HiveService.styleBoxName);
-}
+final recordStreamProvider = StreamProvider.autoDispose<List<Record>>(
+  (ref) => ref.watch(bookletStoreProvider).watchRecords(),
+);
 
-@riverpod
-Box<Record> recordBox(RecordBoxRef ref) {
-  return Hive.box(HiveService.recordBoxName);
-}
+final allStylesProvider = Provider.autoDispose<List<Style>>((ref) {
+  final styles = ref.watch(styleStreamProvider);
+  if (styles.hasError) throw styles.error!;
+  return stylesWithStats(styles.value ?? [], ref.watch(allRecordsProvider));
+});
 
-@riverpod
-Stream<List<Style>> styleStream(StyleStreamRef ref) =>
-    watchBoxValues(ref.read(styleBoxProvider));
-
-@riverpod
-Stream<List<Record>> recordStream(RecordStreamRef ref) =>
-    watchBoxValues(ref.read(recordBoxProvider));
-
-@riverpod
-List<Style> allStyles(AllStylesRef ref) {
-  final asyncVal = ref.watch(styleStreamProvider);
-  if (asyncVal.hasError) {
-    throw asyncVal.error!;
-  }
-  return asyncVal.asData?.value ?? [];
-}
-
-@riverpod
-List<Record> allRecords(AllRecordsRef ref) {
-  final asyncVal = ref.watch(recordStreamProvider);
-  if (asyncVal.hasError) {
-    throw asyncVal.error!;
-  }
-  return asyncVal.asData?.value ?? [];
-}
+final allRecordsProvider = Provider.autoDispose<List<Record>>((ref) {
+  final records = ref.watch(recordStreamProvider);
+  if (records.hasError) throw records.error!;
+  return records.value ?? [];
+});

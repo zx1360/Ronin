@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/label_tree.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 
 Future<void> showLabelEditor(
@@ -81,7 +81,7 @@ Future<void> showLabelEditor(
                     setState(() => busy = true);
                     try {
                       await ref
-                          .read(essayServiceProvider.notifier)
+                          .read(essayStoreProvider)
                           .saveLabel(
                             original: label,
                             name: name,

@@ -66,15 +66,8 @@ class _CreateStyleSheetState extends ConsumerState<CreateStyleSheet> {
     final imported = <String>[];
     var committed = false;
     try {
-      final hasToday =
-          ref
-              .read(styleBoxProvider)
-              .values
-              .any((style) => isSameDay(style.startDate, DateTime.now())) ||
-          ref
-              .read(recordBoxProvider)
-              .values
-              .any((record) => isSameDay(record.date, DateTime.now()));
+      final hasToday = await ref.read(bookletStoreProvider).hasDataToday();
+      if (!mounted) return;
       if (hasToday) {
         final confirmed = await showConfirmDialog(
           context: context,
@@ -105,7 +98,7 @@ class _CreateStyleSheetState extends ConsumerState<CreateStyleSheet> {
       if (!mounted) return;
       final style = Style.newOne(getTodayDate(), tasks);
       await ref
-          .read(routineServiceProvider.notifier)
+          .read(bookletStoreProvider)
           .createStyle(style: style, replaceToday: hasToday);
       committed = true;
       if (mounted) Navigator.pop(context, style);

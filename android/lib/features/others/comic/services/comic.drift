@@ -1,0 +1,31 @@
+CREATE TABLE comic_catalog (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  cover_image TEXT NOT NULL,
+  chapter_count INTEGER NOT NULL,
+  image_count INTEGER NOT NULL,
+  is_public BOOLEAN,
+  readed BOOLEAN
+) AS ComicRow;
+
+CREATE TABLE comic_chapters (
+  id TEXT NOT NULL PRIMARY KEY,
+  comic_id TEXT NOT NULL REFERENCES comic_catalog (id) ON DELETE CASCADE,
+  chapter_index INTEGER NOT NULL,
+  dir_name TEXT NOT NULL,
+  images TEXT NOT NULL
+) AS ComicChapterRow;
+
+CREATE TABLE comic_progress (
+  comic_id TEXT NOT NULL PRIMARY KEY,
+  chapter_index INTEGER NOT NULL,
+  flip_reading BOOLEAN NOT NULL
+) AS ComicProgressRow;
+
+CREATE TABLE comic_downloads (
+  comic_id TEXT NOT NULL PRIMARY KEY,
+  created_at_ms INTEGER NOT NULL,
+  task TEXT NOT NULL
+) AS ComicDownloadRow;
+
+CREATE INDEX comic_chapter_order ON comic_chapters (comic_id, chapter_index);

@@ -72,7 +72,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(chatControllerProvider);
+    final loaded = ref.watch(chatControllerProvider);
+    final state = loaded.value;
+    if (state == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('对话')),
+        body: Center(
+          child: loaded.hasError
+              ? TextButton(
+                  onPressed: () => ref.invalidate(chatControllerProvider),
+                  child: Text('对话加载失败，点击重试：${loaded.error}'),
+                )
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
     final controller = ref.read(chatControllerProvider.notifier);
     final conversation = state.active;
 
@@ -83,7 +97,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     });
 
     // 服务端提示（如模型被抢占）用 SnackBar 呈现一次
-    ref.listen(chatControllerProvider.select((value) => value.notice), (
+    ref.listen(chatControllerProvider.select((value) => value.value?.notice), (
       previous,
       next,
     ) {

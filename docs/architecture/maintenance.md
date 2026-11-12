@@ -15,7 +15,7 @@
 1. 先确认 API 语义是否已经存在；不要在端上猜字段。
 2. 网络配置只改 `NetworkConfigManager`，请求只经 `ApiClient`。
 3. 页面逻辑下沉 provider/service；页面保留渲染、导航和选择状态。
-4. 修改 Hive 模型前检查 typeId。
+4. 在功能目录的 `.drift` 文件维护端上表定义，运行 `dart run build_runner build` 生成代码。
 5. `flutter analyze`，必要时补 widget/unit test。
 
 ### 只改 Ops

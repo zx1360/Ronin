@@ -40,8 +40,8 @@ class _AiTagSheetState extends ConsumerState<_AiTagSheet> {
   @override
   Widget build(BuildContext context) {
     final tagsAsync = ref.watch(immichAiTagsProvider);
-    final filter = ref.watch(immichFilterNotifierProvider);
-    final notifier = ref.read(immichFilterNotifierProvider.notifier);
+    final filter = ref.watch(immichFilterProvider);
+    final notifier = ref.read(immichFilterProvider.notifier);
 
     return Column(
       children: [

@@ -6,234 +6,254 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$labelsHash() => r'c6a955d8d203ad05246d7ecf2591d16e9e6a7d76';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// 所有标签列表（按可统计的随笔数量降序排列）
-///
-/// Copied from [labels].
 @ProviderFor(labels)
-final labelsProvider = AutoDisposeProvider<List<Label>>.internal(
-  labels,
-  name: r'labelsProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$labelsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final labelsProvider = LabelsProvider._();
 
-typedef LabelsRef = AutoDisposeProviderRef<List<Label>>;
-String _$idMapHash() => r'b1eacb5f7356127085390f63bd6d1564153c0aaf';
-
-/// 标签 ID 到名称的映射表
-///
-/// 便于在显示时快速查找标签名称。
-///
-/// Copied from [idMap].
-@ProviderFor(idMap)
-final idMapProvider = AutoDisposeProvider<Map<String, String>>.internal(
-  idMap,
-  name: r'idMapProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$idMapHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef IdMapRef = AutoDisposeProviderRef<Map<String, String>>;
-String _$summariesHash() => r'cb228c058fc475ac8982ef96ee615efae003dcb0';
-
-/// 所有年度统计数据（按年份降序排列，每年内月份按升序排列）
-///
-/// Copied from [summaries].
-@ProviderFor(summaries)
-final summariesProvider = AutoDisposeProvider<List<YearSummary>>.internal(
-  summaries,
-  name: r'summariesProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$summariesHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef SummariesRef = AutoDisposeProviderRef<List<YearSummary>>;
-String _$filteredEssaysHash() => r'a2ec0ad2691c7f6a76ef45f2a4d748ca82116016';
-
-/// 经过筛选和排序的随笔列表
-///
-/// 根据 [BrowseManager] 的设置进行标签筛选和排序。
-///
-/// Copied from [filteredEssays].
-@ProviderFor(filteredEssays)
-final filteredEssaysProvider = AutoDisposeFutureProvider<List<Essay>>.internal(
-  filteredEssays,
-  name: r'filteredEssaysProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$filteredEssaysHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef FilteredEssaysRef = AutoDisposeFutureProviderRef<List<Essay>>;
-String _$yearEssaysHash() => r'4ebd558a69783101aaf7f4b346826f0b6f9666c9';
-
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
-/// 指定年份的随笔列表（基于筛选结果）
-///
-/// Copied from [yearEssays].
-@ProviderFor(yearEssays)
-const yearEssaysProvider = YearEssaysFamily();
-
-/// 指定年份的随笔列表（基于筛选结果）
-///
-/// Copied from [yearEssays].
-class YearEssaysFamily extends Family<AsyncValue<List<Essay>>> {
-  /// 指定年份的随笔列表（基于筛选结果）
-  ///
-  /// Copied from [yearEssays].
-  const YearEssaysFamily();
-
-  /// 指定年份的随笔列表（基于筛选结果）
-  ///
-  /// Copied from [yearEssays].
-  YearEssaysProvider call({
-    required String year,
-  }) {
-    return YearEssaysProvider(
-      year: year,
-    );
-  }
-
-  @override
-  YearEssaysProvider getProviderOverride(
-    covariant YearEssaysProvider provider,
-  ) {
-    return call(
-      year: provider.year,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'yearEssaysProvider';
-}
-
-/// 指定年份的随笔列表（基于筛选结果）
-///
-/// Copied from [yearEssays].
-class YearEssaysProvider extends AutoDisposeFutureProvider<List<Essay>> {
-  /// 指定年份的随笔列表（基于筛选结果）
-  ///
-  /// Copied from [yearEssays].
-  YearEssaysProvider({
-    required String year,
-  }) : this._internal(
-          (ref) => yearEssays(
-            ref as YearEssaysRef,
-            year: year,
-          ),
-          from: yearEssaysProvider,
-          name: r'yearEssaysProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$yearEssaysHash,
-          dependencies: YearEssaysFamily._dependencies,
-          allTransitiveDependencies:
-              YearEssaysFamily._allTransitiveDependencies,
-          year: year,
-        );
-
-  YearEssaysProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.year,
-  }) : super.internal();
-
-  final String year;
-
-  @override
-  Override overrideWith(
-    FutureOr<List<Essay>> Function(YearEssaysRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: YearEssaysProvider._internal(
-        (ref) => create(ref as YearEssaysRef),
-        from: from,
-        name: null,
+final class LabelsProvider
+    extends $FunctionalProvider<List<Label>, List<Label>, List<Label>>
+    with $Provider<List<Label>> {
+  LabelsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'labelsProvider',
+        isAutoDispose: true,
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        year: year,
-      ),
-    );
-  }
+        $allTransitiveDependencies: null,
+      );
 
   @override
-  AutoDisposeFutureProviderElement<List<Essay>> createElement() {
-    return _YearEssaysProviderElement(this);
+  String debugGetCreateSourceHash() => _$labelsHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<Label>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<Label> create(Ref ref) {
+    return labels(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<Label> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<Label>>(value),
+    );
+  }
+}
+
+String _$labelsHash() => r'15c6e325205f8441e645a144596ee0c93bf566a7';
+
+@ProviderFor(idMap)
+final idMapProvider = IdMapProvider._();
+
+final class IdMapProvider
+    extends
+        $FunctionalProvider<
+          Map<String, String>,
+          Map<String, String>,
+          Map<String, String>
+        >
+    with $Provider<Map<String, String>> {
+  IdMapProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'idMapProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$idMapHash();
+
+  @$internal
+  @override
+  $ProviderElement<Map<String, String>> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  Map<String, String> create(Ref ref) {
+    return idMap(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Map<String, String> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Map<String, String>>(value),
+    );
+  }
+}
+
+String _$idMapHash() => r'63a907618e96ed067625574c938707dcfe06d537';
+
+@ProviderFor(summaries)
+final summariesProvider = SummariesProvider._();
+
+final class SummariesProvider
+    extends
+        $FunctionalProvider<
+          List<YearSummary>,
+          List<YearSummary>,
+          List<YearSummary>
+        >
+    with $Provider<List<YearSummary>> {
+  SummariesProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'summariesProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$summariesHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<YearSummary>> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  List<YearSummary> create(Ref ref) {
+    return summaries(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<YearSummary> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<YearSummary>>(value),
+    );
+  }
+}
+
+String _$summariesHash() => r'028a16a52a89ea1117a22f3b4b48cd3b0fef9910';
+
+@ProviderFor(filteredEssays)
+final filteredEssaysProvider = FilteredEssaysProvider._();
+
+final class FilteredEssaysProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Essay>>,
+          List<Essay>,
+          FutureOr<List<Essay>>
+        >
+    with $FutureModifier<List<Essay>>, $FutureProvider<List<Essay>> {
+  FilteredEssaysProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'filteredEssaysProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$filteredEssaysHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Essay>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Essay>> create(Ref ref) {
+    return filteredEssays(ref);
+  }
+}
+
+String _$filteredEssaysHash() => r'b856918ad2b77208e2035f772628cf21773e34fc';
+
+@ProviderFor(yearEssays)
+final yearEssaysProvider = YearEssaysFamily._();
+
+final class YearEssaysProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Essay>>,
+          List<Essay>,
+          FutureOr<List<Essay>>
+        >
+    with $FutureModifier<List<Essay>>, $FutureProvider<List<Essay>> {
+  YearEssaysProvider._({
+    required YearEssaysFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'yearEssaysProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$yearEssaysHash();
+
+  @override
+  String toString() {
+    return r'yearEssaysProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Essay>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Essay>> create(Ref ref) {
+    final argument = this.argument as String;
+    return yearEssays(ref, year: argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is YearEssaysProvider && other.year == year;
+    return other is YearEssaysProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, year.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin YearEssaysRef on AutoDisposeFutureProviderRef<List<Essay>> {
-  /// The parameter `year` of this provider.
-  String get year;
-}
+String _$yearEssaysHash() => r'e06779f44b390d1fd2f221b603f370babbe27d7c';
 
-class _YearEssaysProviderElement
-    extends AutoDisposeFutureProviderElement<List<Essay>> with YearEssaysRef {
-  _YearEssaysProviderElement(super.provider);
+final class YearEssaysFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<List<Essay>>, String> {
+  YearEssaysFamily._()
+    : super(
+        retry: null,
+        name: r'yearEssaysProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  YearEssaysProvider call({required String year}) =>
+      YearEssaysProvider._(argument: year, from: this);
 
   @override
-  String get year => (origin as YearEssaysProvider).year;
+  String toString() => r'yearEssaysProvider';
 }
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

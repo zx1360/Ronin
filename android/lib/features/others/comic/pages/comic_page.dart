@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/core/services/storage/hive_service.dart';
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 import 'package:torrid/features/others/comic/pages/comic_download_tasks_page.dart';
 import 'package:torrid/features/others/comic/pages/comic_detail.dart';
@@ -22,24 +21,7 @@ class ComicPage extends ConsumerStatefulWidget {
 class _ComicPageState extends ConsumerState<ComicPage> {
   bool isInProgress = false;
   bool isOnlineComicsLoaded = false;
-  bool _isHiveInitialized = false;
   bool _showAllComics = false; // false=仅公开, true=全部
-
-  @override
-  void initState() {
-    super.initState();
-    _initHive();
-  }
-
-  Future<void> _initHive() async {
-    await HiveService.initComic();
-    await ref.read(comicDownloadTasksProvider.notifier).initialize();
-    if (mounted) {
-      setState(() {
-        _isHiveInitialized = true;
-      });
-    }
-  }
 
   Future<void> initInfos() async {
     final option = await showOptionsDialog(
@@ -78,33 +60,26 @@ class _ComicPageState extends ConsumerState<ComicPage> {
   /// 与服务端同步本地漫画状态；编排在 [ComicService.syncWithServer] 里。
   Future<void> _syncStatus() async {
     try {
-      final result =
-          await ref.read(comicServiceProvider.notifier).syncWithServer();
+      final result = await ref
+          .read(comicServiceProvider.notifier)
+          .syncWithServer();
       if (!mounted) return;
 
-      final message =
-          result.hasLocalComics ? result.message : '本地没有已下载的漫画';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      final message = result.hasLocalComics ? result.message : '本地没有已下载的漫画';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('同步失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('同步失败: $e')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isHiveInitialized) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('漫画阅读'), centerTitle: true),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
     final comicInfos = ref.watch(comicInfosProvider);
     final onlineComicsAsync = isOnlineComicsLoaded
         ? ref.watch(comicsOnlineProvider)
@@ -180,9 +155,11 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                     ],
                   ),
                   title: const Text('下载任务'),
-                  subtitle: Text(activeDownloadTaskCount > 0
-                      ? '$activeDownloadTaskCount 个进行中'
-                      : '暂无进行中的下载'),
+                  subtitle: Text(
+                    activeDownloadTaskCount > 0
+                        ? '$activeDownloadTaskCount 个进行中'
+                        : '暂无进行中的下载',
+                  ),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -259,43 +236,45 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                       ),
                     ),
                     // 本地漫画网格：按 isPublic 过滤，与在线漫画一致
-                    Builder(builder: (context) {
-                      final filteredLocal = _showAllComics
-                          ? comicInfos
-                          : comicInfos
-                              .where((c) => c.isPublic ?? true)
-                              .toList();
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(10),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              childAspectRatio: 1,
-                              crossAxisSpacing: 6,
-                              mainAxisSpacing: 6,
-                            ),
-                        itemCount: filteredLocal.length,
-                        itemBuilder: (context, index) {
-                          final comic = filteredLocal[index];
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ComicDetailPage(
-                                    comicInfo: comic,
-                                    isLocal: true,
+                    Builder(
+                      builder: (context) {
+                        final filteredLocal = _showAllComics
+                            ? comicInfos
+                            : comicInfos
+                                  .where((c) => c.isPublic ?? true)
+                                  .toList();
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(10),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 1,
+                                crossAxisSpacing: 6,
+                                mainAxisSpacing: 6,
+                              ),
+                          itemCount: filteredLocal.length,
+                          itemBuilder: (context, index) {
+                            final comic = filteredLocal[index];
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ComicDetailPage(
+                                      comicInfo: comic,
+                                      isLocal: true,
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                            child: ComicItem(comicInfo: comic, isLocal: true),
-                          );
-                        },
-                      );
-                    }),
+                                );
+                              },
+                              child: ComicItem(comicInfo: comic, isLocal: true),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ],
                   // 在线漫画相关
                   Container(

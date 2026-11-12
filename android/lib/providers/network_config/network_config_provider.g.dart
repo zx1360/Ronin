@@ -6,203 +6,156 @@ part of 'network_config_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serverReachableHash() => r'688b767fc3437af09e7187b4e722ecb29a01e6dc';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// 网络配置管理Provider
 
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
+@ProviderFor(NetworkConfigManager)
+final networkConfigManagerProvider = NetworkConfigManagerProvider._();
 
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
-/// 单个服务器地址的连通性探测（"host:port" 为键）
-///
-/// keepAlive 保证页面重建不会反复重测；
-/// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
-///
-/// Copied from [serverReachable].
-@ProviderFor(serverReachable)
-const serverReachableProvider = ServerReachableFamily();
-
-/// 单个服务器地址的连通性探测（"host:port" 为键）
-///
-/// keepAlive 保证页面重建不会反复重测；
-/// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
-///
-/// Copied from [serverReachable].
-class ServerReachableFamily extends Family<AsyncValue<bool>> {
-  /// 单个服务器地址的连通性探测（"host:port" 为键）
-  ///
-  /// keepAlive 保证页面重建不会反复重测；
-  /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
-  ///
-  /// Copied from [serverReachable].
-  const ServerReachableFamily();
-
-  /// 单个服务器地址的连通性探测（"host:port" 为键）
-  ///
-  /// keepAlive 保证页面重建不会反复重测；
-  /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
-  ///
-  /// Copied from [serverReachable].
-  ServerReachableProvider call(
-    String address,
-  ) {
-    return ServerReachableProvider(
-      address,
-    );
-  }
-
-  @override
-  ServerReachableProvider getProviderOverride(
-    covariant ServerReachableProvider provider,
-  ) {
-    return call(
-      provider.address,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'serverReachableProvider';
-}
-
-/// 单个服务器地址的连通性探测（"host:port" 为键）
-///
-/// keepAlive 保证页面重建不会反复重测；
-/// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
-///
-/// Copied from [serverReachable].
-class ServerReachableProvider extends FutureProvider<bool> {
-  /// 单个服务器地址的连通性探测（"host:port" 为键）
-  ///
-  /// keepAlive 保证页面重建不会反复重测；
-  /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
-  ///
-  /// Copied from [serverReachable].
-  ServerReachableProvider(
-    String address,
-  ) : this._internal(
-          (ref) => serverReachable(
-            ref as ServerReachableRef,
-            address,
-          ),
-          from: serverReachableProvider,
-          name: r'serverReachableProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$serverReachableHash,
-          dependencies: ServerReachableFamily._dependencies,
-          allTransitiveDependencies:
-              ServerReachableFamily._allTransitiveDependencies,
-          address: address,
-        );
-
-  ServerReachableProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.address,
-  }) : super.internal();
-
-  final String address;
-
-  @override
-  Override overrideWith(
-    FutureOr<bool> Function(ServerReachableRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: ServerReachableProvider._internal(
-        (ref) => create(ref as ServerReachableRef),
-        from: from,
-        name: null,
+/// 网络配置管理Provider
+final class NetworkConfigManagerProvider
+    extends $NotifierProvider<NetworkConfigManager, NetworkConfigState> {
+  /// 网络配置管理Provider
+  NetworkConfigManagerProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'networkConfigManagerProvider',
+        isAutoDispose: false,
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        address: address,
-      ),
-    );
-  }
+        $allTransitiveDependencies: null,
+      );
 
   @override
-  FutureProviderElement<bool> createElement() {
-    return _ServerReachableProviderElement(this);
+  String debugGetCreateSourceHash() => _$networkConfigManagerHash();
+
+  @$internal
+  @override
+  NetworkConfigManager create() => NetworkConfigManager();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(NetworkConfigState value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<NetworkConfigState>(value),
+    );
+  }
+}
+
+String _$networkConfigManagerHash() =>
+    r'b7d2c3ef87fcc9bf190050bec47753e89ea0db91';
+
+/// 网络配置管理Provider
+
+abstract class _$NetworkConfigManager extends $Notifier<NetworkConfigState> {
+  NetworkConfigState build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<NetworkConfigState, NetworkConfigState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<NetworkConfigState, NetworkConfigState>,
+              NetworkConfigState,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+/// 单个服务器地址的连通性探测（"host:port" 为键）
+///
+/// keepAlive 保证页面重建不会反复重测；
+/// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
+
+@ProviderFor(serverReachable)
+final serverReachableProvider = ServerReachableFamily._();
+
+/// 单个服务器地址的连通性探测（"host:port" 为键）
+///
+/// keepAlive 保证页面重建不会反复重测；
+/// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
+
+final class ServerReachableProvider
+    extends $FunctionalProvider<AsyncValue<bool>, bool, FutureOr<bool>>
+    with $FutureModifier<bool>, $FutureProvider<bool> {
+  /// 单个服务器地址的连通性探测（"host:port" 为键）
+  ///
+  /// keepAlive 保证页面重建不会反复重测；
+  /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
+  ServerReachableProvider._({
+    required ServerReachableFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'serverReachableProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$serverReachableHash();
+
+  @override
+  String toString() {
+    return r'serverReachableProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<bool> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<bool> create(Ref ref) {
+    final argument = this.argument as String;
+    return serverReachable(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is ServerReachableProvider && other.address == address;
+    return other is ServerReachableProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, address.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin ServerReachableRef on FutureProviderRef<bool> {
-  /// The parameter `address` of this provider.
-  String get address;
-}
+String _$serverReachableHash() => r'fd2f7599336467175da5e1acfb673be02c228ded';
 
-class _ServerReachableProviderElement extends FutureProviderElement<bool>
-    with ServerReachableRef {
-  _ServerReachableProviderElement(super.provider);
+/// 单个服务器地址的连通性探测（"host:port" 为键）
+///
+/// keepAlive 保证页面重建不会反复重测；
+/// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
+
+final class ServerReachableFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<bool>, String> {
+  ServerReachableFamily._()
+    : super(
+        retry: null,
+        name: r'serverReachableProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// 单个服务器地址的连通性探测（"host:port" 为键）
+  ///
+  /// keepAlive 保证页面重建不会反复重测；
+  /// 也可通过 `ref.invalidate(serverReachableProvider(address))` 手动刷新.
+
+  ServerReachableProvider call(String address) =>
+      ServerReachableProvider._(argument: address, from: this);
 
   @override
-  String get address => (origin as ServerReachableProvider).address;
+  String toString() => r'serverReachableProvider';
 }
-
-String _$networkConfigManagerHash() =>
-    r'9d140f97a6275bef33184d6ba1efe9aee79faaef';
-
-/// 网络配置管理Provider
-///
-/// Copied from [NetworkConfigManager].
-@ProviderFor(NetworkConfigManager)
-final networkConfigManagerProvider =
-    NotifierProvider<NetworkConfigManager, NetworkConfigState>.internal(
-  NetworkConfigManager.new,
-  name: r'networkConfigManagerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$networkConfigManagerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$NetworkConfigManager = Notifier<NetworkConfigState>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

@@ -1,0 +1,25 @@
+import '../../../core/services/storage/storage_types.dart';
+
+CREATE TABLE chat_conversations (
+  id TEXT NOT NULL PRIMARY KEY,
+  title TEXT NOT NULL,
+  created_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  messages TEXT NOT NULL
+) AS ChatConversationRow;
+
+CREATE TABLE review_presets (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  tone TEXT NOT NULL
+) AS ReviewPresetRow;
+
+CREATE TABLE review_history (
+  id TEXT NOT NULL PRIMARY KEY,
+  preset_name TEXT NOT NULL,
+  span TEXT NOT NULL,
+  created_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  content TEXT NOT NULL,
+  stats TEXT NOT NULL
+) AS ReviewHistoryRow;

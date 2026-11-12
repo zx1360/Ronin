@@ -14,21 +14,6 @@ import 'package:torrid/features/others/gallery/services/gallery_storage_service.
 
 part 'gallery_sync_service.g.dart';
 
-/// 批次处理范围上界
-///
-/// 取"当前浏览位置"与"最后操作位置"的较大者: 例如在末尾打标签后又翻回前面,
-/// 标记已处理应覆盖到打过标签的位置, 避免已处理的媒体又被下载回来.
-/// [length] 为队列长度, 已知时钳制在上界内; 未知(<=0)时交给数据库 LIMIT 截断.
-int processedUpperIndex({
-  required int currentIndex,
-  required int modifiedCount,
-  required int length,
-}) {
-  final upper = currentIndex > modifiedCount ? currentIndex : modifiedCount;
-  if (length <= 0) return upper < 0 ? 0 : upper;
-  return upper.clamp(0, length - 1);
-}
-
 /// 同步状态
 enum SyncStatus { idle, downloading, uploading, success, error }
 
@@ -87,10 +72,7 @@ class GallerySyncService extends _$GallerySyncService {
   }
 
   /// 下载一批媒体记录及缩略图、预览图。
-  Future<bool> downloadBatch({
-    int limit = 50,
-    Future<bool> Function(String address)? confirmLegacy,
-  }) async {
+  Future<bool> downloadBatch({int limit = 50}) async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
       return false;
@@ -111,7 +93,7 @@ class GallerySyncService extends _$GallerySyncService {
         total: 0,
       );
 
-      final api = await buffer.confirmAndLock(confirmLegacy: confirmLegacy);
+      final api = await buffer.confirmAndLock();
       final apiClient = api.client;
       confirmedWrites = true;
       if ((await db.operations()).any((op) => op.kind == 'processed')) {
@@ -147,26 +129,8 @@ class GallerySyncService extends _$GallerySyncService {
         cancelToken: _cancelToken,
       );
       final assets = batchData.medias;
-      final tags = batchData.tags;
-      final links = batchData.links;
       if (_cancelToken?.isCancelled == true) throw _cancelToken!.cancelError!;
-
-      if (assets.isNotEmpty) {
-        await db.upsertMediaAssets(assets);
-        await db.syncTagsCache(tags);
-        final tagsByMedia = <String, List<String>>{
-          for (final asset in assets) asset.id: [],
-        };
-        for (final link in links) {
-          tagsByMedia.putIfAbsent(link.mediaId, () => []).add(link.tagId);
-        }
-        await db.replaceTagsForMediaBatch(tagsByMedia);
-      }
-      ref.invalidate(mediaAssetListProvider);
-      ref.invalidate(tagTreeProvider);
-      ref.invalidate(mediaIdsWithTagsProvider);
-      ref.invalidate(galleryDbStatsProvider);
-
+      await db.storeBatch(batchData);
       // 重试只补缺失文件，不覆盖已有工作副本及标注。
       final files = <({String route, String path, bool thumb})>[];
       for (final asset in [...cached, ...assets]) {
@@ -219,7 +183,9 @@ class GallerySyncService extends _$GallerySyncService {
         failed += results.where((success) => !success).length;
       }
       if (_cancelToken!.isCancelled) throw _cancelToken!.cancelError!;
-      ref.invalidate(mediaAssetListProvider);
+      if (files.isNotEmpty) {
+        ref.read(galleryFilesRevisionProvider.notifier).state++;
+      }
       if (failed > 0) {
         state = SyncProgress(
           status: SyncStatus.error,
@@ -290,9 +256,7 @@ class GallerySyncService extends _$GallerySyncService {
   /// 1. 把队列前段 `0..[processedUpperIndex]` 的媒体在服务端 `sync_count + 1`
   ///    （批次处理游标, 使已处理媒体排到队尾, 下次下载取到的就是未处理的）;
   /// 2. 删除这批媒体的本地记录与缩略图/预览图, 腾出空间下载下一批.
-  Future<bool> markProcessedAndClean({
-    Future<bool> Function(String address)? confirmLegacy,
-  }) async {
+  Future<bool> markProcessedAndClean() async {
     if (state.status == SyncStatus.downloading ||
         state.status == SyncStatus.uploading) {
       return false;
@@ -312,23 +276,15 @@ class GallerySyncService extends _$GallerySyncService {
       );
 
       state = state.copyWith(message: '正在回传并校验操作...');
-      final api = await buffer.confirmAndLock(confirmLegacy: confirmLegacy);
+      final api = await buffer.confirmAndLock();
       confirmedWrites = true;
 
-      final assets = ref.read(mediaAssetListProvider).valueOrNull ?? [];
-      final upperIndex = processedUpperIndex(
-        currentIndex: ref.read(galleryCurrentIndexProvider),
-        modifiedCount: ref.read(galleryModifiedCountProvider),
-        length: assets.length,
-      );
-
-      // 1. 取队列中 0..upperIndex 的媒体及其组成员
       final operations = await db.operations();
       final saved = operations
           .where((op) => op.kind == 'processed')
           .firstOrNull;
       final processedAssets = saved == null
-          ? await db.getProcessedAssets(upperIndex)
+          ? await db.getProcessedAssets()
           : [
               for (final id in (saved.body['media_ids'] as List).cast<String>())
                 if (await db.getMediaAssetById(id) case final asset?) asset,
@@ -353,27 +309,18 @@ class GallerySyncService extends _$GallerySyncService {
 
       final mediaIds = processedAssets.map((a) => a.id).toList();
 
-      if (saved == null) {
-        await db.recordOperation('processed', {
-          'media_ids': mediaIds,
-          'mark_processed': true,
-          'request_id': const Uuid().v4(),
-        });
-      }
-      final completion = saved ?? (await db.operations()).last;
+      final completion =
+          saved ??
+          await db.recordOperation('processed', {
+            'media_ids': mediaIds,
+            'mark_processed': true,
+            'request_id': const Uuid().v4(),
+          });
       await api.sendOperation(completion);
 
       // 3. 删除本地记录与文件
-      await db.deleteProcessedData(mediaIds);
-      await ref.read(galleryModifiedCountProvider.notifier).reset();
-      await ref.read(galleryCurrentIndexProvider.notifier).update(0);
-
-      ref.invalidate(mediaAssetListProvider);
-      ref.invalidate(tagTreeProvider);
-      ref.invalidate(mediaIdsWithTagsProvider);
-      ref.invalidate(galleryDbStatsProvider);
+      await db.deleteProcessedData(mediaIds, confirmedSequence: completion.seq);
       ref.invalidate(galleryServerOverviewProvider);
-      await ref.read(mediaAssetListProvider.future);
 
       await _deleteLocalFiles(processedAssets, storage);
 
@@ -446,23 +393,9 @@ class GallerySyncService extends _$GallerySyncService {
   }
 }
 
-/// 与「标记已处理」使用相同范围的主文件统计。
 @riverpod
-Future<({int mediaCount, int deletedCount})> galleryProcessedStats(
-  GalleryProcessedStatsRef ref,
-) async {
-  final db = ref.watch(galleryDatabaseProvider);
-  final currentIndex = ref.watch(galleryCurrentIndexProvider);
-  final modifiedCount = ref.watch(galleryModifiedCountProvider);
-  final assets = await ref.watch(mediaAssetListProvider.future);
-  return db.getProcessedStats(
-    processedUpperIndex(
-      currentIndex: currentIndex,
-      modifiedCount: modifiedCount,
-      length: assets.length,
-    ),
-  );
-}
+Stream<({int mediaCount, int deletedCount})> galleryProcessedStats(Ref ref) =>
+    ref.watch(galleryDatabaseProvider).watchProcessedStats();
 
 /// 在独立 Isolate 中删除已处理媒体的本地文件
 /// 接收已解析的本地绝对路径，执行纯文件 I/O

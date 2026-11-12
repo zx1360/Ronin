@@ -6,21 +6,57 @@ part of 'progress_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+
+@ProviderFor(ProgressService)
+final progressServiceProvider = ProgressServiceProvider._();
+
+final class ProgressServiceProvider
+    extends $NotifierProvider<ProgressService, Progress> {
+  ProgressServiceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'progressServiceProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$progressServiceHash();
+
+  @$internal
+  @override
+  ProgressService create() => ProgressService();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Progress value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Progress>(value),
+    );
+  }
+}
+
 String _$progressServiceHash() => r'e76a9decc5b6452ad88a8c1aee6f9095a1e6fe0b';
 
-/// See also [ProgressService].
-@ProviderFor(ProgressService)
-final progressServiceProvider =
-    AutoDisposeNotifierProvider<ProgressService, Progress>.internal(
-  ProgressService.new,
-  name: r'progressServiceProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$progressServiceHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$ProgressService = AutoDisposeNotifier<Progress>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+abstract class _$ProgressService extends $Notifier<Progress> {
+  Progress build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<Progress, Progress>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<Progress, Progress>,
+              Progress,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

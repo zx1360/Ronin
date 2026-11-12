@@ -35,7 +35,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
   @override
   Widget build(BuildContext context) {
     final tagsAsync = ref.watch(tagTreeProvider);
-    final filter = ref.watch(immichFilterNotifierProvider);
+    final filter = ref.watch(immichFilterProvider);
     final favorites = ref.watch(favoriteTagsProvider);
 
     return Drawer(
@@ -102,7 +102,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                   const SizedBox(width: 8),
                   TextButton(
                     onPressed: () =>
-                        ref.read(immichFilterNotifierProvider.notifier).reset(),
+                        ref.read(immichFilterProvider.notifier).reset(),
                     child: const Text('清除筛选', style: TextStyle(fontSize: 13)),
                   ),
                 ],
@@ -213,7 +213,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
                     visualDensity: VisualDensity.compact,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     onSelected: (_) => ref
-                        .read(immichFilterNotifierProvider.notifier)
+                        .read(immichFilterProvider.notifier)
                         .toggleTag(tag.id),
                   ),
               ],
@@ -225,7 +225,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
 
   Widget _buildRow(TagNode node) {
     final tag = node.tag;
-    final filter = ref.watch(immichFilterNotifierProvider);
+    final filter = ref.watch(immichFilterProvider);
     final selected = filter.tagIds.contains(tag.id);
     final expanded = _expanded.contains(tag.id);
     final scheme = Theme.of(context).colorScheme;
@@ -240,7 +240,7 @@ class _ImmichTagTreePanelState extends ConsumerState<ImmichTagTreePanel> {
       ),
       child: InkWell(
         onTap: () =>
-            ref.read(immichFilterNotifierProvider.notifier).toggleTag(tag.id),
+            ref.read(immichFilterProvider.notifier).toggleTag(tag.id),
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.only(left: 4, right: 2, top: 2, bottom: 2),

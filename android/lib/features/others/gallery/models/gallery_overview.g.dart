@@ -19,8 +19,9 @@ GalleryOverview _$GalleryOverviewFromJson(Map<String, dynamic> json) =>
       totalSize: (json['total_size'] as num).toInt(),
       minYear: (json['min_year'] as num).toInt(),
       maxYear: (json['max_year'] as num).toInt(),
-      syncStats:
-          SyncStatsData.fromJson(json['sync_stats'] as Map<String, dynamic>),
+      syncStats: SyncStatsData.fromJson(
+        json['sync_stats'] as Map<String, dynamic>,
+      ),
       yearStats: (json['year_stats'] as List<dynamic>)
           .map((e) => YearStatItem.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -58,9 +59,9 @@ Map<String, dynamic> _$SyncStatsDataToJson(SyncStatsData instance) =>
     };
 
 YearStatItem _$YearStatItemFromJson(Map<String, dynamic> json) => YearStatItem(
-      year: (json['year'] as num).toInt(),
-      mediaCount: (json['media_count'] as num).toInt(),
-    );
+  year: (json['year'] as num).toInt(),
+  mediaCount: (json['media_count'] as num).toInt(),
+);
 
 Map<String, dynamic> _$YearStatItemToJson(YearStatItem instance) =>
     <String, dynamic>{

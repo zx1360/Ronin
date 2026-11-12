@@ -5,14 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/network/cert_trust.dart';
 import 'package:torrid/core/services/storage/cache_service.dart';
-import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:torrid/core/services/storage/app_database.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
 import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
@@ -73,10 +72,13 @@ class _SplashPageState extends ConsumerState<SplashPage>
     if (!_loadingAnimCtrl.isAnimating) _loadingAnimCtrl.repeat(reverse: true);
     try {
       await CertTrust.init();
-      await Hive.initFlutter();
       await PrefsService().initPrefs();
-      await HiveService.init();
-      await HiveService.initComic();
+      try {
+        await ref.read(appDatabaseProvider).initialize();
+      } catch (_) {
+        if (mounted) ref.invalidate(appDatabaseProvider);
+        rethrow;
+      }
       await ref.read(comicDownloadTasksProvider.notifier).initialize();
       await CacheService().init();
       unawaited(CacheService().performStartupCleanup());

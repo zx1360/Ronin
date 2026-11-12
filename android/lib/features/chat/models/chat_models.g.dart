@@ -3,146 +3,44 @@
 part of 'chat_models.dart';
 
 // **************************************************************************
-// TypeAdapterGenerator
+// JsonSerializableGenerator
 // **************************************************************************
 
-class ChatConversationAdapter extends TypeAdapter<ChatConversation> {
-  @override
-  final int typeId = 40;
+ChatMessage _$ChatMessageFromJson(Map<String, dynamic> json) => ChatMessage(
+  id: json['id'] as String,
+  role: json['role'] as String,
+  content: json['content'] as String,
+  thinking: json['thinking'] as String,
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  attachments: (json['attachments'] as List<dynamic>)
+      .map((e) => ChatAttachment.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  error: json['error'] as String?,
+  interrupted: json['interrupted'] as bool? ?? false,
+);
 
-  @override
-  ChatConversation read(BinaryReader reader) {
-    final numOfFields = reader.readByte();
-    final fields = <int, dynamic>{
-      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+Map<String, dynamic> _$ChatMessageToJson(ChatMessage instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'role': instance.role,
+      'content': instance.content,
+      'thinking': instance.thinking,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'attachments': instance.attachments,
+      'error': instance.error,
+      'interrupted': instance.interrupted,
     };
-    return ChatConversation(
-      id: fields[0] as String,
-      title: fields[1] as String,
-      createdAt: fields[2] as DateTime,
-      updatedAt: fields[3] as DateTime,
-      messages: (fields[4] as List).cast<ChatMessage>(),
+
+ChatAttachment _$ChatAttachmentFromJson(Map<String, dynamic> json) =>
+    ChatAttachment(
+      mediaId: json['mediaId'] as String?,
+      imagePath: json['imagePath'] as String?,
+      fileName: json['fileName'] as String?,
     );
-  }
 
-  @override
-  void write(BinaryWriter writer, ChatConversation obj) {
-    writer
-      ..writeByte(5)
-      ..writeByte(0)
-      ..write(obj.id)
-      ..writeByte(1)
-      ..write(obj.title)
-      ..writeByte(2)
-      ..write(obj.createdAt)
-      ..writeByte(3)
-      ..write(obj.updatedAt)
-      ..writeByte(4)
-      ..write(obj.messages);
-  }
-
-  @override
-  int get hashCode => typeId.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChatConversationAdapter &&
-          runtimeType == other.runtimeType &&
-          typeId == other.typeId;
-}
-
-class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
-  @override
-  final int typeId = 41;
-
-  @override
-  ChatMessage read(BinaryReader reader) {
-    final numOfFields = reader.readByte();
-    final fields = <int, dynamic>{
-      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+Map<String, dynamic> _$ChatAttachmentToJson(ChatAttachment instance) =>
+    <String, dynamic>{
+      'mediaId': instance.mediaId,
+      'imagePath': instance.imagePath,
+      'fileName': instance.fileName,
     };
-    return ChatMessage(
-      id: fields[0] as String,
-      role: fields[1] as String,
-      content: fields[2] as String,
-      thinking: fields[3] as String,
-      createdAt: fields[4] as DateTime,
-      attachments: (fields[5] as List).cast<ChatAttachment>(),
-      error: fields[6] as String?,
-      interrupted: fields[7] as bool,
-    );
-  }
-
-  @override
-  void write(BinaryWriter writer, ChatMessage obj) {
-    writer
-      ..writeByte(8)
-      ..writeByte(0)
-      ..write(obj.id)
-      ..writeByte(1)
-      ..write(obj.role)
-      ..writeByte(2)
-      ..write(obj.content)
-      ..writeByte(3)
-      ..write(obj.thinking)
-      ..writeByte(4)
-      ..write(obj.createdAt)
-      ..writeByte(5)
-      ..write(obj.attachments)
-      ..writeByte(6)
-      ..write(obj.error)
-      ..writeByte(7)
-      ..write(obj.interrupted);
-  }
-
-  @override
-  int get hashCode => typeId.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChatMessageAdapter &&
-          runtimeType == other.runtimeType &&
-          typeId == other.typeId;
-}
-
-class ChatAttachmentAdapter extends TypeAdapter<ChatAttachment> {
-  @override
-  final int typeId = 42;
-
-  @override
-  ChatAttachment read(BinaryReader reader) {
-    final numOfFields = reader.readByte();
-    final fields = <int, dynamic>{
-      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
-    };
-    return ChatAttachment(
-      mediaId: fields[0] as String?,
-      imagePath: fields[1] as String?,
-      fileName: fields[2] as String?,
-    );
-  }
-
-  @override
-  void write(BinaryWriter writer, ChatAttachment obj) {
-    writer
-      ..writeByte(3)
-      ..writeByte(0)
-      ..write(obj.mediaId)
-      ..writeByte(1)
-      ..write(obj.imagePath)
-      ..writeByte(2)
-      ..write(obj.fileName);
-  }
-
-  @override
-  int get hashCode => typeId.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChatAttachmentAdapter &&
-          runtimeType == other.runtimeType &&
-          typeId == other.typeId;
-}

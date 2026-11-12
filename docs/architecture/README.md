@@ -43,12 +43,12 @@ flowchart LR
 
 | 数据域 | 真源 | Android 本地 | Ops 本地 |
 | --- | --- | --- | --- |
-| 随笔/打卡 | Monarch SQLite 的 user-data 表 | Hive 工作副本，按 updated_at 合并并传播 tombstone | 在线编辑与消费 |
+| 随笔/打卡 | Monarch SQLite 的 user-data 表与端上未同步写入 | Drift 工作副本，按版本合并并传播 tombstone，游标按服务端地址保存 | 在线编辑与消费 |
 | Gallery 媒体、人工标签、标注 | Monarch SQLite + Gallery 文件树 | 离线工作副本与持久操作表；批次回传校验后清理 | 查询和运维 |
 | AI 产物、任务、人物、去重否决 | Monarch AI 表与内存索引 | 查询/聊天/智能相册的消费端 | 主要控制面 |
 | 漫画元数据与下载任务 | `comic_*` 表与 Comic 文件树 | 阅读、下载到设备、本地阅读状态 | 爬虫、库管理、追更 |
-| Chat 会话与消息 | Android Hive（本地） | 唯一真源；服务端只负责本轮推理 | 不展示会话 |
-| Review 预设 | 服务端 `review_presets.json` | Hive 镜像，支持离线读取 | 不直接编辑 |
+| Chat 会话、回顾历史、随笔草稿 | Android SQLite 与私有附件文件 | 唯一真源 | 不涉及 |
+| Review 预设 | 服务端 `review_presets.json` | Drift 镜像，支持离线读取 | 不直接编辑 |
 | Ops 界面偏好 | 服务端 `ops_web.json` | 不涉及 | 页面只保留内存镜像 |
 
 ## 4. 一次典型请求的路径
@@ -80,7 +80,7 @@ sequenceDiagram
 
 ## 5. 维护时先问的五个问题
 
-1. **这个字段的权威在哪？** 是 SQLite、文件树、Android Hive，还是 Ops 偏好文件？
+1. **这个字段的权威在哪？** 是后端 SQLite、Android SQLite、媒体文件，还是偏好文件？
 2. **这是同步请求还是长任务？** 长任务必须经过 `taskengine`，不能在 handler 中直接阻塞执行。
 3. **写入是否需要事务？** 用户数据增量合并、标签树、AI 任务认领等必须走写连接/事务。
 4. **是否改变 API 契约？** 先改 Go 真源，再运行 `references/scripts/generate_refs.ps1`，最后同步端上 DTO。

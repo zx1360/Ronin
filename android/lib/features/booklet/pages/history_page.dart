@@ -20,9 +20,8 @@ class _BookletHistoryPageState extends ConsumerState<BookletHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final styleStream = ref.watch(styleStreamProvider);
-    final styles = List.of(
-      styleStream.asData?.value ?? ref.read(styleBoxProvider).values,
-    )..sort((a, b) => b.startDate.compareTo(a.startDate));
+    final styles = List.of(styleStream.value ?? [])
+      ..sort((a, b) => b.startDate.compareTo(a.startDate));
     final selected = styles.any((style) => style.id == _styleId)
         ? _styleId
         : null;

@@ -24,9 +24,7 @@ class RowInfoWidget extends ConsumerWidget {
           onChanged: (bool value) {
             ref
                 .read(comicServiceProvider.notifier)
-                .putComicPref(
-                  comicPref: comicPref.copyWith(flipReading: value),
-                );
+                .modifyComicPref(comicId: comicId, isFlipMode: value);
           },
         ),
       ],

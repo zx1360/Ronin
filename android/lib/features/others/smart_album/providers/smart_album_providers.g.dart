@@ -6,22 +6,58 @@ part of 'smart_album_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+
+@ProviderFor(SmartAlbumController)
+final smartAlbumControllerProvider = SmartAlbumControllerProvider._();
+
+final class SmartAlbumControllerProvider
+    extends $NotifierProvider<SmartAlbumController, SmartAlbumState> {
+  SmartAlbumControllerProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'smartAlbumControllerProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$smartAlbumControllerHash();
+
+  @$internal
+  @override
+  SmartAlbumController create() => SmartAlbumController();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(SmartAlbumState value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<SmartAlbumState>(value),
+    );
+  }
+}
+
 String _$smartAlbumControllerHash() =>
     r'fa83fa899dd76bc5c18789b87020c7dd17ce80e4';
 
-/// See also [SmartAlbumController].
-@ProviderFor(SmartAlbumController)
-final smartAlbumControllerProvider =
-    AutoDisposeNotifierProvider<SmartAlbumController, SmartAlbumState>.internal(
-  SmartAlbumController.new,
-  name: r'smartAlbumControllerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$smartAlbumControllerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$SmartAlbumController = AutoDisposeNotifier<SmartAlbumState>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+abstract class _$SmartAlbumController extends $Notifier<SmartAlbumState> {
+  SmartAlbumState build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<SmartAlbumState, SmartAlbumState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<SmartAlbumState, SmartAlbumState>,
+              SmartAlbumState,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

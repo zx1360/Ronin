@@ -1,804 +1,457 @@
 import 'dart:convert';
 
-import 'package:path/path.dart' as p;
-import 'package:sqflite/sqflite.dart';
-import 'package:torrid/core/services/debug/logging_service.dart';
+import 'package:drift/drift.dart';
+import 'package:torrid/core/services/storage/app_database.dart';
+import 'package:torrid/features/others/gallery/models/batch_data.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 
 part 'gallery_operation_store.dart';
 
-/// Gallery 工作副本与操作表。
 class GalleryDatabaseService {
-  static final GalleryDatabaseService _instance =
-      GalleryDatabaseService._internal();
-  factory GalleryDatabaseService() => _instance;
-  GalleryDatabaseService._internal();
+  GalleryDatabaseService(this.db);
 
-  static Database? _database;
-  static const String _dbName = 'gallery.db';
-  static const int _dbVersion = 7;
+  final AppDatabase db;
 
-  Future<Database> get database async {
-    _database ??= await _initDatabase();
-    return _database!;
+  JoinedSelectStatement<HasResultSet, dynamic> _assets(
+    Expression<bool> condition,
+  ) {
+    final rows = db.galleryAssets;
+    return (db.select(rows).join([
+        innerJoin(db.galleryLibrary, const Constant(true)),
+      ])
+      ..where(condition)
+      ..orderBy([
+        OrderingTerm.asc(rows.capturedAt),
+        OrderingTerm.asc(rows.id),
+      ]));
   }
 
-  Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final path = p.join(dbPath, _dbName);
+  List<MediaAsset> _readAssets(List<TypedResult> rows) =>
+      rows.map(_joinedAsset).toList();
 
-    return await openDatabase(
-      path,
-      version: _dbVersion,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-      onConfigure: _onConfigure,
-      onOpen: _ensureTablesExist,
-    );
-  }
+  MediaAsset _joinedAsset(TypedResult row) => _asset(
+    row.readTable(db.galleryAssets),
+    row.readTable(db.galleryLibrary).id,
+  );
 
-  /// 启用外键约束
-  Future<void> _onConfigure(Database db) async {
-    await db.execute('PRAGMA foreign_keys = ON');
-  }
+  MediaAsset _asset(GalleryAssetRow row, String libraryId) => MediaAsset(
+    id: row.id,
+    localLibraryId: libraryId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    capturedAt: row.capturedAt,
+    filePath: row.filePath,
+    thumbPath: row.thumbPath,
+    previewPath: row.previewPath,
+    hash: row.hash,
+    sizeBytes: row.sizeBytes,
+    mimeType: row.mimeType,
+    isDeleted: row.isDeleted,
+    syncCount: row.syncCount,
+    groupId: row.groupId,
+    message: row.message,
+    editParams: row.editParams,
+  );
 
-  /// 确保表存在 (防止数据库文件存在但表不存在的情况)
-  Future<void> _ensureTablesExist(Database db) async {
-    // 检查 media_assets 表是否存在
-    final tables = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='media_assets'",
-    );
-    if (tables.isEmpty) {
-      AppLogger().info('Gallery 表不存在，重新创建...');
-      await _onCreate(db, _dbVersion);
-    }
-  }
-
-  /// 数据库升级
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    AppLogger().info('Gallery 数据库升级: $oldVersion -> $newVersion');
-    if (oldVersion < 2) {
-      await db.execute(
-        'ALTER TABLE media_assets ADD COLUMN edit_params TEXT DEFAULT NULL',
+  GalleryAssetRow _assetRow(MediaAsset asset, Set<String> availableGroups) =>
+      GalleryAssetRow(
+        id: asset.id,
+        createdAt: asset.createdAt,
+        updatedAt: asset.updatedAt,
+        capturedAt: asset.capturedAt,
+        filePath: asset.filePath,
+        thumbPath: asset.thumbPath,
+        previewPath: asset.previewPath,
+        hash: asset.hash,
+        sizeBytes: asset.sizeBytes,
+        mimeType: asset.mimeType,
+        isDeleted: asset.isDeleted,
+        syncCount: asset.syncCount,
+        groupId: availableGroups.contains(asset.groupId) ? asset.groupId : null,
+        message: asset.message,
+        editParams: asset.editParams,
       );
-    }
-    if (oldVersion < 3) {
-      // 标签收藏标记: 服务端权威, 本地仅为缓存
-      await db.execute(
-        'ALTER TABLE tags ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0',
-      );
-    }
-    if (oldVersion < 4) {
-      await db.execute(
-        'ALTER TABLE tags ADD COLUMN media_count INTEGER NOT NULL DEFAULT 0',
-      );
-    }
-    if (oldVersion < 5) {
-      await _createOperations(db);
-    } else if (oldVersion < 6) {
-      await db.execute(
-        'ALTER TABLE gallery_operations RENAME TO gallery_operations_v5',
-      );
-      await _createOperations(db);
-      await db.execute('''
-        INSERT INTO gallery_operations (seq, kind, body, synced)
-        SELECT seq, kind, body, synced FROM gallery_operations_v5
-      ''');
-      await db.execute('DROP TABLE gallery_operations_v5');
-    }
-    if (oldVersion < 7) await _createLibrary(db);
-  }
 
-  /// 创建表结构 - 与服务端字段保持一致（仅本地缓存，权威在服务端）
-  Future<void> _onCreate(Database db, int version) async {
-    await _createOperations(db);
-    await _createLibrary(db);
-    // 媒体文件表
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS media_assets (
-        id TEXT PRIMARY KEY,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        captured_at TEXT NOT NULL,
-        file_path TEXT NOT NULL,
-        thumb_path TEXT,
-        preview_path TEXT,
-        hash TEXT NOT NULL UNIQUE,
-        size_bytes INTEGER NOT NULL DEFAULT 0,
-        mime_type TEXT,
-        is_deleted INTEGER NOT NULL DEFAULT 0,
-        sync_count INTEGER NOT NULL DEFAULT 0,
-        group_id TEXT DEFAULT NULL,
-        message TEXT DEFAULT NULL,
-        edit_params TEXT DEFAULT NULL,
-        FOREIGN KEY (group_id) REFERENCES media_assets(id) ON DELETE SET NULL
-      )
-    ''');
+  Stream<List<MediaAsset>> watchMediaAssets() =>
+      _assets(db.galleryAssets.groupId.isNull()).watch().map(_readAssets);
 
-    // 标签表 - 树状结构
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS tags (
-        id TEXT PRIMARY KEY,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        name TEXT NOT NULL,
-        parent_id TEXT,
-        full_path TEXT,
-        is_favorite INTEGER NOT NULL DEFAULT 0,
-        media_count INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY (parent_id) REFERENCES tags(id) ON DELETE CASCADE,
-        UNIQUE (name, parent_id)
-      )
-    ''');
-
-    // 媒体-标签关联表
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS media_tag_links (
-        media_id TEXT NOT NULL,
-        tag_id TEXT NOT NULL,
-        PRIMARY KEY (tag_id, media_id),
-        FOREIGN KEY (media_id) REFERENCES media_assets(id) ON DELETE CASCADE,
-        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-      )
-    ''');
-
-    // 创建索引
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_media_assets_captured_at ON media_assets(captured_at)',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_media_assets_group_id ON media_assets(group_id)',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_tags_parent_id ON tags(parent_id)',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_media_tag_links_media_id ON media_tag_links(media_id)',
-    );
-
-    AppLogger().info('Gallery 数据库初始化完成');
-  }
-
-  // MediaAsset CRUD
-
-  /// 插入或更新媒体文件记录 (批量)
-  Future<void> upsertMediaAssets(List<MediaAsset> assets) async {
-    if (assets.isEmpty) return;
-    final db = await database;
-    await db.transaction((txn) async {
-      await txn.execute('PRAGMA defer_foreign_keys = ON');
-      final existing = {
-        for (final row in await txn.query('media_assets', columns: ['id']))
-          row['id'] as String,
-      };
-      final available = {...existing, ...assets.map((asset) => asset.id)};
-      final batch = txn.batch();
-      for (final asset in assets) {
-        final values = asset.toDbMap();
-        // 主文件未下载时，成员独立浏览。
-        if (!available.contains(asset.groupId)) values['group_id'] = null;
-        if (existing.add(asset.id)) {
-          batch.insert('media_assets', values);
-        } else {
-          batch.update(
-            'media_assets',
-            values,
-            where: 'id = ?',
-            whereArgs: [asset.id],
-          );
-        }
-      }
-      await batch.commit(noResult: true);
-    });
-  }
-
-  /// 获取所有媒体文件 (按 captured_at 升序)
-  /// - includeGroupMembers: 是否包含组成员文件
-  /// - excludeDeleted: 是否排除已删除的文件
   Future<List<MediaAsset>> getMediaAssets({
     bool includeGroupMembers = false,
-    bool excludeDeleted = false,
-  }) async {
-    final db = await database;
-    final conditions = <String>[];
-    if (!includeGroupMembers) conditions.add('group_id IS NULL');
-    if (excludeDeleted) conditions.add('is_deleted = 0');
-    final String where = conditions.isEmpty
-        ? ''
-        : 'WHERE ${conditions.join(' AND ')}';
-    final List<Map<String, dynamic>> maps = await db.rawQuery('''
-      SELECT * FROM media_assets $where ORDER BY captured_at ASC, id ASC
-    ''');
-    return maps.map((m) => MediaAsset.fromDbMap(m)).toList();
-  }
-
-  /// 获取媒体文件总数
-  Future<int> getMediaAssetCount() async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM media_assets',
-    );
-    return Sqflite.firstIntValue(result) ?? 0;
-  }
-
-  Future<Set<String>> getMediaAssetIds() async => {
-    for (final row in await (await database).query('media_assets', columns: ['id']))
-      row['id'] as String,
-  };
+  }) async => _readAssets(
+    await _assets(
+      includeGroupMembers
+          ? const Constant(true)
+          : db.galleryAssets.groupId.isNull(),
+    ).get(),
+  );
 
   Future<MediaAsset?> getMediaAssetById(String id) async {
-    final db = await database;
-    final rows = await db.query(
-      'media_assets',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    return rows.isEmpty ? null : MediaAsset.fromDbMap(rows.single);
+    final row = await _assets(db.galleryAssets.id.equals(id)).getSingleOrNull();
+    return row == null ? null : _joinedAsset(row);
   }
 
-  /// 批量写入服务端返回的媒体行（仅更新已存在的缓存行）
+  Future<List<MediaAsset>> getGroupMembers(String leadId) async =>
+      _readAssets(await _assets(db.galleryAssets.groupId.equals(leadId)).get());
+
+  Stream<List<MediaAsset>> watchGroup(String leadId) =>
+      _assets(
+        db.galleryAssets.id.equals(leadId) |
+            db.galleryAssets.groupId.equals(leadId),
+      ).watch().map((rows) {
+        final group = _readAssets(rows);
+        final index = group.indexWhere((asset) => asset.id == leadId);
+        if (index > 0) group.insert(0, group.removeAt(index));
+        return group;
+      });
+
+  Stream<Map<String, int>> watchGroupSizes() => db
+      .customSelect(
+        'SELECT group_id, COUNT(*) + 1 AS size FROM gallery_assets '
+        'WHERE group_id IS NOT NULL GROUP BY group_id',
+        readsFrom: {db.galleryAssets},
+      )
+      .watch()
+      .map(
+        (rows) => {
+          for (final row in rows)
+            row.read<String>('group_id'): row.read<int>('size'),
+        },
+      );
+
+  Future<void> storeBatch(BatchData data) => db.transaction(() async {
+    await _requireBinding();
+    final assets = data.medias;
+    if (assets.isEmpty) return;
+    final current = await _currentLead();
+    final available = {
+      ...assets.map((asset) => asset.id),
+      ...await getCachedMediaIds(assets.map((asset) => asset.groupId).nonNulls),
+    };
+    await db.batch(
+      (batch) => batch.insertAllOnConflictUpdate(
+        db.galleryAssets,
+        assets.map((asset) => _assetRow(asset, available)),
+      ),
+    );
+    await syncTagsCache(data.tags, preserveOperations: false);
+    final tagsByMedia = <String, List<String>>{
+      for (final asset in assets) asset.id: [],
+    };
+    for (final link in data.links) {
+      final tags = tagsByMedia[link.mediaId];
+      if (tags != null) tags.add(link.tagId);
+    }
+    await _replaceMediaTags(tagsByMedia);
+    if (current != null) await _restoreLead(current);
+  });
+
+  /// 在线写入只覆盖已缓存的媒体。
   Future<void> updateMediaAssetsLocal(
     List<MediaAsset> assets, {
     bool preserveOperations = false,
+    String? expectedLibraryId,
     Map<String, List<String>>? tagIdsByMedia,
-  }) async {
-    if (assets.isEmpty) return;
-    final db = await database;
-    await db.transaction((txn) async {
-      if (preserveOperations && await _hasOperations(txn)) return;
-      final cached = (await _getCachedMediaIds(
-        txn,
-        assets.map((asset) => asset.id),
-      )).toSet();
-      if (cached.isEmpty) return;
-      final cachedAssets = assets.where((asset) => cached.contains(asset.id));
-      final groupIds = {
-        for (final asset in cachedAssets)
-          if (asset.groupId case final id?) id,
-      };
-      final cachedGroups = (await _getCachedMediaIds(txn, groupIds)).toSet();
-      final batch = txn.batch();
-      for (final asset in cachedAssets) {
-        final values = asset.toDbMap();
-        // 主文件未下载时，缓存成员仍可单独浏览。
-        if (!cachedGroups.contains(asset.groupId)) values['group_id'] = null;
-        batch.update(
-          'media_assets',
-          values,
-          where: 'id = ?',
-          whereArgs: [asset.id],
-        );
-      }
-      await batch.commit(noResult: true);
-      if (tagIdsByMedia != null) {
-        await _replaceMediaTags(txn, cached, tagIdsByMedia);
-      }
-    });
-  }
-
-  Future<Map<String, int>> getGroupSizes() async {
-    final db = await database;
-    final rows = await db.rawQuery(
-      'SELECT group_id, COUNT(*) + 1 AS size FROM media_assets WHERE group_id IS NOT NULL GROUP BY group_id',
-    );
-    return {
-      for (final row in rows) row['group_id'] as String: row['size'] as int,
-    };
-  }
-
-  /// 获取某主文件的所有组成员
-  Future<List<MediaAsset>> getGroupMembers(String leadId) async {
-    final db = await database;
-    final maps = await db.query(
-      'media_assets',
-      where: 'group_id = ?',
-      whereArgs: [leadId],
-      orderBy: 'captured_at ASC, id ASC',
-    );
-    return maps.map((m) => MediaAsset.fromDbMap(m)).toList();
-  }
-
-  // Tag CRUD
-
-  /// 用服务端标签表镜像本地缓存（服务端权威）
-  ///
-  /// 先按父先子顺序写入/更新服务端返回的标签, 再删除本地多出来的标签
-  /// （其标签关联随外键级联清除）. 标签表很小, 因此每次同步都做整表镜像.
-  /// 被删除的标签会记入日志, 便于需要时人工恢复.
-  Future<void> syncTagsCache(
-    List<Tag> serverTags, {
-    bool preserveOperations = true,
-  }) async {
-    final db = await database;
-    final ordered = sortTagsByHierarchy(serverTags);
-    final serverIds = {for (final tag in serverTags) tag.id};
-
-    final localOnly = [
-      for (final tag in await getAllTags())
-        if (!serverIds.contains(tag.id)) tag,
-    ];
-    await db.transaction((txn) async {
-      if (preserveOperations && await _hasOperations(txn)) return;
-      if (localOnly.isNotEmpty) {
-        AppLogger().info('标签镜像: 移除 ${localOnly.length} 个服务端不存在的标签');
-      }
-      for (final tag in ordered) {
-        await _writeTag(txn, tag);
-      }
-      if (localOnly.isEmpty) return;
-      final placeholders = List.filled(localOnly.length, '?').join(',');
-      final removedIds = [for (final tag in localOnly) tag.id];
-      await txn.delete(
-        'media_tag_links',
-        where: 'tag_id IN ($placeholders)',
-        whereArgs: removedIds,
-      );
-      await txn.delete(
-        'tags',
-        where: 'id IN ($placeholders)',
-        whereArgs: removedIds,
-      );
-    });
-  }
-
-  /// 按层级排序标签, 保证父标签先于子标签 (环状数据不会死循环)
-  static List<Tag> sortTagsByHierarchy(List<Tag> tags) {
-    final byId = {for (final t in tags) t.id: t};
-    final result = <Tag>[];
-    final visited = <String>{};
-
-    void visit(Tag tag) {
-      if (!visited.add(tag.id)) return;
-      final parentId = tag.parentId;
-      if (parentId != null) {
-        final parent = byId[parentId];
-        if (parent != null) visit(parent);
-      }
-      result.add(tag);
+  }) => db.transaction(() async {
+    if (expectedLibraryId != null && await libraryId() != expectedLibraryId) {
+      return;
     }
-
-    for (final tag in tags) {
-      visit(tag);
-    }
-    return result;
-  }
-
-  /// 写入单个标签（本地缓存更新, 已存在则覆盖字段）
-  Future<void> upsertTagLocal(Tag tag) async {
-    final db = await database;
-    await db.transaction((txn) => _writeTag(txn, tag));
-  }
-
-  /// 写入标签行（INSERT OR IGNORE + UPDATE, 避免 REPLACE 级联删除子标签）
-  Future<void> _writeTag(DatabaseExecutor txn, Tag tag) async {
-    await txn.insert(
-      'tags',
-      tag.toDbMap(),
-      conflictAlgorithm: ConflictAlgorithm.ignore,
-    );
-    await txn.update(
-      'tags',
-      tag.toDbMap(),
-      where: 'id = ?',
-      whereArgs: [tag.id],
-    );
-  }
-
-  /// 从本地缓存删除标签（含子孙与关联）
-  Future<List<String>> deleteTagLocal(String tagId) async {
-    final db = await database;
-    return await db.transaction((txn) async {
-      final allTagIds = await _collectDescendantTagIds(txn, tagId);
-      allTagIds.add(tagId);
-      for (final tid in allTagIds) {
-        await txn.delete(
-          'media_tag_links',
-          where: 'tag_id = ?',
-          whereArgs: [tid],
-        );
-      }
-      for (final tid in allTagIds) {
-        await txn.delete('tags', where: 'id = ?', whereArgs: [tid]);
-      }
-      return allTagIds;
-    });
-  }
-
-  /// 获取所有标签
-  Future<List<Tag>> getAllTags() async {
-    final db = await database;
-    final maps = await db.query('tags', orderBy: 'full_path ASC');
-    return maps.map((m) => Tag.fromDbMap(m)).toList();
-  }
-
-  /// 获取标签总数
-  Future<int> getTagCount() async {
-    final db = await database;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM tags');
-    return Sqflite.firstIntValue(result) ?? 0;
-  }
-
-  /// 获取所有有关联标签的媒体 ID 集合（用于浏览页网格指示器）
-  Future<Set<String>> getMediaIdsWithTags() async {
-    final db = await database;
-    final maps = await db.rawQuery(
-      'SELECT DISTINCT media_id FROM media_tag_links',
-    );
-    return maps.map((m) => m['media_id'] as String).toSet();
-  }
-
-  /// 递归收集标签的所有子孙 ID（不包含自身）
-  Future<List<String>> _collectDescendantTagIds(
-    Transaction txn,
-    String parentId,
-  ) async {
-    final result = <String>[];
-    final children = await txn.query(
-      'tags',
-      where: 'parent_id = ?',
-      whereArgs: [parentId],
-    );
-    for (final child in children) {
-      final childId = child['id'] as String;
-      result.add(childId);
-      final grandChildren = await _collectDescendantTagIds(txn, childId);
-      result.addAll(grandChildren);
-    }
-    return result;
-  }
-
-  // MediaTagLink CRUD
-
-  /// 获取媒体文件关联的所有标签 ID
-  Future<List<String>> getTagIdsForMedia(String mediaId) async {
-    final db = await database;
-    final maps = await db.query(
-      'media_tag_links',
-      columns: ['tag_id'],
-      where: 'media_id = ?',
-      whereArgs: [mediaId],
-    );
-    return maps.map((m) => m['tag_id'] as String).toList();
-  }
-
-  /// 获取媒体文件关联的所有标签
-  Future<List<Tag>> getTagsForMedia(String mediaId) async {
-    final db = await database;
-    final maps = await db.rawQuery(
-      '''
-      SELECT t.* FROM tags t
-      INNER JOIN media_tag_links mtl ON t.id = mtl.tag_id
-      WHERE mtl.media_id = ?
-      ORDER BY t.full_path ASC
-    ''',
-      [mediaId],
-    );
-    return maps.map((m) => Tag.fromDbMap(m)).toList();
-  }
-
-  /// 设置媒体文件的标签 (全量替换)
-  Future<void> setTagsForMedia(String mediaId, List<String> tagIds) async {
-    final db = await database;
-    await db.transaction((txn) async {
-      // 删除旧关联
-      await txn.delete(
-        'media_tag_links',
-        where: 'media_id = ?',
-        whereArgs: [mediaId],
-      );
-      // 插入新关联
-      for (final tagId in tagIds) {
-        await txn.insert('media_tag_links', {
-          'media_id': mediaId,
-          'tag_id': tagId,
-        });
-      }
-    });
-  }
-
-  /// 批量增删媒体的标签关联（与服务端批量操作保持一致）
-  Future<void> addRemoveMediaTagLinks(
-    List<String> mediaIds, {
-    List<String> addTagIds = const [],
-    List<String> removeTagIds = const [],
-  }) async {
-    if (mediaIds.isEmpty) return;
-    final db = await database;
-    await db.transaction((txn) async {
-      final cached = await _getCachedMediaIds(txn, mediaIds);
-      if (cached.isEmpty) return;
-      final batch = txn.batch();
-      if (removeTagIds.isNotEmpty) {
-        final removed = _mediaChunks(removeTagIds).toList();
-        for (final media in _mediaChunks(cached)) {
-          final mediaMarks = List.filled(media.length, '?').join(',');
-          for (final tags in removed) {
-            final tagMarks = List.filled(tags.length, '?').join(',');
-            batch.rawDelete(
-              'DELETE FROM media_tag_links WHERE media_id IN ($mediaMarks) AND tag_id IN ($tagMarks)',
-              [...media, ...tags],
-            );
-          }
-        }
-      }
-      for (final mediaId in cached) {
-        for (final tagId in addTagIds) {
-          batch.insert('media_tag_links', {
-            'media_id': mediaId,
-            'tag_id': tagId,
-          }, conflictAlgorithm: ConflictAlgorithm.ignore);
-        }
-      }
-      await batch.commit(noResult: true);
-    });
-  }
-
-  /// 用服务端结果整批覆盖若干媒体的标签关联（仅处理本地已缓存的媒体）
-  Future<void> replaceTagsForMediaBatch(
-    Map<String, List<String>> tagIdsByMedia, {
-    bool preserveOperations = false,
-  }) async {
-    if (tagIdsByMedia.isEmpty) return;
-    final db = await database;
-    await db.transaction((txn) async {
-      if (preserveOperations && await _hasOperations(txn)) return;
-      final cached = await _getCachedMediaIds(txn, tagIdsByMedia.keys);
-      await _replaceMediaTags(txn, cached, tagIdsByMedia);
-    });
-  }
-
-  Future<void> _replaceMediaTags(
-    Transaction txn,
-    Iterable<String> cached,
-    Map<String, List<String>> tagIdsByMedia,
-  ) async {
+    if (preserveOperations && await _hasOperations()) return;
+    final cached = (await getCachedMediaIds(
+      assets.map((asset) => asset.id),
+    )).toSet();
     if (cached.isEmpty) return;
-    final batch = txn.batch();
-    for (final mediaId in cached) {
-      final tags = tagIdsByMedia[mediaId];
-      if (tags == null) continue;
-      batch.delete(
-        'media_tag_links',
-        where: 'media_id = ?',
-        whereArgs: [mediaId],
-      );
-      for (final tagId in tags) {
-        batch.insert('media_tag_links', {
-          'media_id': mediaId,
-          'tag_id': tagId,
-        }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      }
+    final changed = assets.where((asset) => cached.contains(asset.id));
+    final groups = (await getCachedMediaIds(
+      changed.map((asset) => asset.groupId).nonNulls,
+    )).toSet();
+    await db.batch(
+      (batch) => batch.insertAllOnConflictUpdate(
+        db.galleryAssets,
+        changed.map((asset) => _assetRow(asset, groups)),
+      ),
+    );
+    if (tagIdsByMedia != null) {
+      await _replaceMediaTags({
+        for (final id in cached)
+          if (tagIdsByMedia[id] case final ids?) id: ids,
+      });
     }
-    await batch.commit(noResult: true);
-  }
+  });
 
-  /// 过滤出本地已缓存的媒体 ID（避免写关联时触发外键约束）
   Future<List<String>> getCachedMediaIds(Iterable<String> ids) async {
-    if (ids.isEmpty) return const [];
-    return _getCachedMediaIds(await database, ids);
+    final table = db.galleryAssets;
+    return [
+      for (final chunk in _chunks(ids.toSet()))
+        for (final row
+            in await (db.selectOnly(table)
+                  ..addColumns([table.id])
+                  ..where(table.id.isIn(chunk)))
+                .get())
+          row.read(table.id)!,
+    ];
   }
-
-  Future<List<String>> _getCachedMediaIds(
-    DatabaseExecutor db,
-    Iterable<String> ids,
-  ) async => [
-    for (final row in await _queryByIds(
-      db,
-      'media_assets',
-      'id',
-      ids,
-      columns: ['id'],
-    ))
-      row['id'] as String,
-  ];
 
   Future<Map<String, MediaAsset>> getMediaAssetsByIds(
     Iterable<String> ids,
   ) async => {
-    for (final row in await _queryByIds(
-      await database,
-      'media_assets',
-      'id',
-      ids,
-    ))
-      row['id'] as String: MediaAsset.fromDbMap(row),
+    for (final chunk in _chunks(ids.toSet()))
+      for (final asset in _readAssets(
+        await _assets(db.galleryAssets.id.isIn(chunk)).get(),
+      ))
+        asset.id: asset,
   };
 
   Future<Map<String, Set<String>>> getMediaTagIdsByMedia(
     Iterable<String> ids,
   ) async {
-    if (ids.isEmpty) return {};
     final result = <String, Set<String>>{};
-    for (final row in await _queryByIds(
-      await database,
-      'media_tag_links',
-      'media_id',
-      ids,
-    )) {
-      result
-          .putIfAbsent(row['media_id'] as String, () => {})
-          .add(row['tag_id'] as String);
+    for (final chunk in _chunks(ids.toSet())) {
+      final rows = await (db.select(
+        db.galleryLinks,
+      )..where((row) => row.mediaId.isIn(chunk))).get();
+      for (final row in rows) {
+        (result[row.mediaId] ??= {}).add(row.tagId);
+      }
     }
     return result;
   }
 
-  Future<List<Map<String, Object?>>> _queryByIds(
-    DatabaseExecutor db,
-    String table,
-    String column,
-    Iterable<String> ids, {
-    List<String>? columns,
-  }) async => [
-    for (final chunk in _mediaChunks(ids))
-      ...await db.query(
-        table,
-        columns: columns,
-        where: '$column IN (${List.filled(chunk.length, '?').join(',')})',
-        whereArgs: chunk,
-      ),
-  ];
+  Tag _tag(GalleryTagRow row) => Tag(
+    id: row.id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    name: row.name,
+    parentId: row.parentId,
+    fullPath: row.fullPath,
+    isFavorite: row.isFavorite,
+    mediaCount: row.mediaCount,
+  );
 
-  /// 获取关联记录总数
-  Future<int> getMediaTagLinkCount() async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM media_tag_links',
-    );
-    return Sqflite.firstIntValue(result) ?? 0;
+  GalleryTagRow _tagRow(Tag tag) => GalleryTagRow(
+    id: tag.id,
+    createdAt: tag.createdAt,
+    updatedAt: tag.updatedAt,
+    name: tag.name,
+    parentId: tag.parentId,
+    fullPath: tag.fullPath,
+    isFavorite: tag.isFavorite,
+    mediaCount: tag.mediaCount,
+  );
+
+  SimpleSelectStatement<GalleryTags, GalleryTagRow> _tags() =>
+      db.select(db.galleryTags)
+        ..orderBy([(row) => OrderingTerm.asc(row.fullPath)]);
+
+  Future<List<Tag>> getAllTags() async =>
+      (await _tags().get()).map(_tag).toList();
+
+  Stream<List<Tag>> watchTags() =>
+      _tags().watch().map((rows) => rows.map(_tag).toList());
+
+  Future<Tag?> getTag(String id) async {
+    final row = await (_tags()..where((row) => row.id.equals(id)))
+        .getSingleOrNull();
+    return row == null ? null : _tag(row);
   }
 
-  /// 队列前段主文件的处理统计（含软删除记录）。
-  Future<({int mediaCount, int deletedCount})> getProcessedStats(
-    int upperIndex,
-  ) async {
-    if (upperIndex < 0) return (mediaCount: 0, deletedCount: 0);
-    final db = await database;
-    final rows = await db.rawQuery(
-      '''
-      SELECT COUNT(*) AS media_count, COALESCE(SUM(is_deleted), 0) AS deleted_count
-      FROM (
-        SELECT is_deleted FROM media_assets
-        WHERE group_id IS NULL ORDER BY captured_at ASC, id ASC LIMIT ?
-      )
-    ''',
-      [upperIndex + 1],
-    );
-    return (
-      mediaCount: rows.first['media_count'] as int,
-      deletedCount: rows.first['deleted_count'] as int,
-    );
-  }
-
-  // 批量操作 / 同步相关
-
-  Future<void> _createLibrary(Database db) => db.execute('''
-    CREATE TABLE IF NOT EXISTS gallery_library (
-      slot INTEGER PRIMARY KEY CHECK (slot = 1),
-      id TEXT NOT NULL
-    )
-  ''');
-
-  Future<String?> libraryId() async {
-    final rows = await (await database).query('gallery_library');
-    return rows.isEmpty ? null : rows.single['id'] as String;
-  }
-
-  Future<bool> hasWorkingCopy() async =>
-      Sqflite.firstIntValue(
-        await (await database).rawQuery('''
-        SELECT EXISTS (
-          SELECT 1 FROM media_assets UNION ALL
-          SELECT 1 FROM tags UNION ALL
-          SELECT 1 FROM gallery_operations
-        )
-      '''),
-      ) ==
-      1;
-
-  Future<void> bindLibrary(String id) async {
-    await (await database).insert('gallery_library', {'slot': 1, 'id': id});
-  }
-
-  /// 清空所有表数据
-  Future<void> clearAllData() async {
-    final db = await database;
-    await db.transaction((txn) async {
-      await txn.delete('media_tag_links');
-      await txn.delete('tags');
-      await txn.delete('media_assets');
-      await txn.delete('gallery_operations');
-      await txn.delete('gallery_library');
+  Future<void> syncTagsCache(
+    List<Tag> tags, {
+    bool preserveOperations = true,
+  }) => db.transaction(() async {
+    if (preserveOperations && await _hasOperations()) return;
+    await _requireBinding();
+    await db.batch((batch) {
+      batch.insertAllOnConflictUpdate(db.galleryTags, tags.map(_tagRow));
+      batch.deleteWhere(
+        db.galleryTags,
+        (row) => row.id.isNotIn(tags.map((tag) => tag.id)),
+      );
     });
-    AppLogger().info('Gallery 数据库已清空');
+  });
+
+  Future<void> upsertTagLocal(Tag tag) =>
+      db.into(db.galleryTags).insertOnConflictUpdate(_tagRow(tag));
+
+  Future<void> deleteTagsLocal(Iterable<String> ids) =>
+      (db.delete(db.galleryTags)..where((row) => row.id.isIn(ids))).go();
+
+  Future<List<String>> getTagIdsForMedia(String id) async =>
+      (await (db.select(
+            db.galleryLinks,
+          )..where((row) => row.mediaId.equals(id))).get())
+          .map((row) => row.tagId)
+          .toList();
+
+  Stream<List<Tag>> watchTagsForMedia(String mediaId) {
+    final tags = db.galleryTags;
+    final links = db.galleryLinks;
+    return (db.select(tags).join([
+            innerJoin(links, tags.id.equalsExp(links.tagId)),
+          ])
+          ..where(links.mediaId.equals(mediaId))
+          ..orderBy([OrderingTerm.asc(tags.fullPath)]))
+        .watch()
+        .map((rows) => [for (final row in rows) _tag(row.readTable(tags))]);
   }
 
-  /// 队列前段的主文件及其组成员，包含软删除记录。
-  Future<List<MediaAsset>> getProcessedAssets(int upperIndex) async {
-    if (upperIndex < 0) return [];
-    final db = await database;
-    final mainMaps = await db.rawQuery(
-      '''
-      SELECT * FROM media_assets
-      WHERE group_id IS NULL ORDER BY captured_at ASC, id ASC LIMIT ?
-    ''',
-      [upperIndex + 1],
-    );
-    if (mainMaps.isEmpty) return [];
+  Future<void> _replaceMediaTags(Map<String, List<String>> tagsByMedia) =>
+      db.batch((batch) {
+        for (final entry in tagsByMedia.entries) {
+          batch.deleteWhere(
+            db.galleryLinks,
+            (row) => row.mediaId.equals(entry.key),
+          );
+          batch.insertAll(db.galleryLinks, [
+            for (final id in entry.value.toSet())
+              GalleryLink(mediaId: entry.key, tagId: id),
+          ]);
+        }
+      });
 
-    final mainIds = mainMaps.map((row) => row['id'] as String).toList();
-    final placeholders = List.filled(mainIds.length, '?').join(',');
-    final memberMaps = await db.rawQuery(
-      'SELECT * FROM media_assets WHERE group_id IN ($placeholders)',
-      mainIds,
-    );
+  Future<void> addRemoveMediaTagLinks(
+    List<String> mediaIds, {
+    List<String> addTagIds = const [],
+    List<String> removeTagIds = const [],
+  }) => db.transaction(() async {
+    final cached = await getCachedMediaIds(mediaIds);
+    await db.batch((batch) {
+      for (final chunk in _chunks(cached)) {
+        batch.deleteWhere(
+          db.galleryLinks,
+          (row) => row.mediaId.isIn(chunk) & row.tagId.isIn(removeTagIds),
+        );
+        batch.insertAll(db.galleryLinks, [
+          for (final mediaId in chunk)
+            for (final tagId in addTagIds)
+              GalleryLink(mediaId: mediaId, tagId: tagId),
+        ], mode: InsertMode.insertOrIgnore);
+      }
+    });
+  });
+
+  Stream<Set<String>> watchMediaIdsWithTags() => db
+      .customSelect(
+        'SELECT DISTINCT media_id FROM gallery_links',
+        readsFrom: {db.galleryLinks},
+      )
+      .watch()
+      .map((rows) => {for (final row in rows) row.read<String>('media_id')});
+
+  Stream<({int media, int tags, int links})> watchCounts() => db
+      .customSelect(
+        """
+    SELECT (SELECT COUNT(*) FROM gallery_assets) AS media,
+           (SELECT COUNT(*) FROM gallery_tags) AS tags,
+           (SELECT COUNT(*) FROM gallery_links) AS links
+    """,
+        readsFrom: {db.galleryAssets, db.galleryTags, db.galleryLinks},
+      )
+      .watchSingle()
+      .map(
+        (row) => (
+          media: row.read<int>('media'),
+          tags: row.read<int>('tags'),
+          links: row.read<int>('links'),
+        ),
+      );
+
+  Future<String?> libraryId() async =>
+      (await db.select(db.galleryLibrary).getSingleOrNull())?.id;
+
+  Future<void> bindLibrary(String id) => db.transaction(() async {
+    final current = await libraryId();
+    if (current == id) return;
+    if (current != null) {
+      throw StateError('本机画廊属于另一图库，请切回原图库。本机修改已保留');
+    }
+    await db
+        .into(db.galleryLibrary)
+        .insert(GalleryLibraryCompanion.insert(slot: const Value(1), id: id));
+    await db
+        .into(db.galleryPositions)
+        .insert(GalleryPositionsCompanion.insert(slot: const Value(1)));
+  });
+
+  Future<void> _requireBinding() async {
+    if (await libraryId() == null) throw StateError('请先连接服务端图库');
+  }
+
+  Stream<int> watchCurrentIndex() => db
+      .select(db.galleryPositions)
+      .watchSingleOrNull()
+      .map((row) => row?.currentIndex ?? 0)
+      .distinct();
+
+  Future<void> setCurrentIndex(int value) => db
+      .update(db.galleryPositions)
+      .write(
+        GalleryPositionsCompanion(currentIndex: Value(value < 0 ? 0 : value)),
+      );
+  Future<void> clearAllData() => db.batch((batch) {
+    batch.deleteAll(db.galleryAssets);
+    batch.deleteAll(db.galleryTags);
+    batch.deleteAll(db.galleryOperations);
+    batch.deleteAll(db.galleryLibrary);
+  });
+
+  static const _processedQueue = r"""
+    WITH ranked AS (
+      SELECT id, ROW_NUMBER() OVER (ORDER BY captured_at, id) - 1 AS position
+      FROM gallery_assets WHERE group_id IS NULL
+    ), touched(id) AS (
+      SELECT json_extract(body, '$.media_id') FROM gallery_operations WHERE kind = 'tags'
+      UNION
+      SELECT value FROM gallery_operations, json_each(body, '$.affected_ids')
+      WHERE kind = 'patch'
+    ), processed AS (
+      SELECT id FROM ranked WHERE position <= MAX(
+        COALESCE((SELECT current_index FROM gallery_positions), 0),
+        COALESCE((SELECT MAX(ranked.position) FROM ranked JOIN gallery_assets media
+          ON ranked.id = COALESCE(media.group_id, media.id)
+          JOIN touched ON media.id = touched.id), 0)
+      )
+    )
+  """;
+
+  Stream<({int mediaCount, int deletedCount})> watchProcessedStats() => db
+      .customSelect(
+        """
+        $_processedQueue
+        SELECT COUNT(*) AS media_count, COALESCE(SUM(is_deleted), 0) AS deleted_count
+        FROM gallery_assets JOIN processed USING (id)
+        """,
+        readsFrom: {
+          db.galleryAssets,
+          db.galleryOperations,
+          db.galleryPositions,
+        },
+      )
+      .watchSingle()
+      .map(
+        (row) => (
+          mediaCount: row.read<int>('media_count'),
+          deletedCount: row.read<int>('deleted_count'),
+        ),
+      );
+
+  Future<List<MediaAsset>> getProcessedAssets() async {
+    final rows = await db.customSelect("""
+      $_processedQueue
+      SELECT a.*, library.id AS library_id FROM gallery_assets a CROSS JOIN gallery_library library
+      WHERE a.id IN (SELECT id FROM processed) OR a.group_id IN (SELECT id FROM processed)
+      ORDER BY a.captured_at, a.id
+      """).get();
     return [
-      for (final row in [...mainMaps, ...memberMaps]) MediaAsset.fromDbMap(row),
+      for (final row in rows)
+        _asset(db.galleryAssets.map(row.data), row.read<String>('library_id')),
     ];
   }
+}
 
-  /// 删除已处理媒体的本地记录及其标签关联。
-  Future<void> deleteProcessedData(List<String> mediaIds) async {
-    final db = await database;
-    final placeholders = List.filled(mediaIds.length, '?').join(',');
-
-    await db.transaction((txn) async {
-      final operations = await txn.query('gallery_operations');
-      for (final row in operations) {
-        final operation = GalleryOperation.fromRow(row);
-        final ids = {
-          ...(operation.body['media_ids'] as List? ?? []).cast<String>(),
-          if (operation.kind == 'patch')
-            ...(operation.body['affected_ids'] as List? ?? []).cast<String>(),
-          if (operation.kind == 'tags') operation.body['media_id'] as String,
-        };
-        final remaining = ids.where((id) => !mediaIds.contains(id)).toList();
-        if ((operation.synced && remaining.isEmpty) ||
-            operation.kind == 'processed') {
-          await txn.delete(
-            'gallery_operations',
-            where: 'seq = ?',
-            whereArgs: [operation.seq],
-          );
-        } else if (operation.synced && remaining.length != ids.length) {
-          await txn.update(
-            'gallery_operations',
-            {
-              'body': jsonEncode({
-                ...operation.body,
-                'media_ids': (operation.body['media_ids'] as List? ?? [])
-                    .where((id) => !mediaIds.contains(id))
-                    .toList(),
-                if (operation.kind == 'patch') 'affected_ids': remaining,
-              }),
-            },
-            where: 'seq = ?',
-            whereArgs: [operation.seq],
-          );
-        }
-      }
-      if (mediaIds.isEmpty) return;
-      // 先删除关联记录
-      await txn.delete(
-        'media_tag_links',
-        where: 'media_id IN ($placeholders)',
-        whereArgs: mediaIds,
-      );
-      // 再删除媒体文件记录
-      await txn.delete(
-        'media_assets',
-        where: 'id IN ($placeholders)',
-        whereArgs: mediaIds,
-      );
-    });
-
-    AppLogger().info('Gallery 已删除 ${mediaIds.length} 条媒体记录');
-  }
-
-  /// 关闭数据库
-  Future<void> close() async {
-    final db = await database;
-    await db.close();
-    _database = null;
+Iterable<List<String>> _chunks(Iterable<String> ids) sync* {
+  final values = ids.toList();
+  for (var start = 0; start < values.length; start += 400) {
+    yield values.sublist(start, (start + 400).clamp(0, values.length));
   }
 }

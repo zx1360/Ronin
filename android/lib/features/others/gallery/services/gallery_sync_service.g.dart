@@ -6,44 +6,105 @@ part of 'gallery_sync_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$galleryProcessedStatsHash() =>
-    r'9c67572542a9ce8a855217ed0d012c52ce885eec';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// Gallery 同步服务 Provider
 
-/// 与「标记已处理」使用相同范围的主文件统计。
-///
-/// Copied from [galleryProcessedStats].
-@ProviderFor(galleryProcessedStats)
-final galleryProcessedStatsProvider =
-    AutoDisposeFutureProvider<({int mediaCount, int deletedCount})>.internal(
-  galleryProcessedStats,
-  name: r'galleryProcessedStatsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryProcessedStatsHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef GalleryProcessedStatsRef
-    = AutoDisposeFutureProviderRef<({int mediaCount, int deletedCount})>;
-String _$gallerySyncServiceHash() =>
-    r'e48821237f156679979b7107e78cacb0099c18ab';
+@ProviderFor(GallerySyncService)
+final gallerySyncServiceProvider = GallerySyncServiceProvider._();
 
 /// Gallery 同步服务 Provider
-///
-/// Copied from [GallerySyncService].
-@ProviderFor(GallerySyncService)
-final gallerySyncServiceProvider =
-    AutoDisposeNotifierProvider<GallerySyncService, SyncProgress>.internal(
-  GallerySyncService.new,
-  name: r'gallerySyncServiceProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$gallerySyncServiceHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final class GallerySyncServiceProvider
+    extends $NotifierProvider<GallerySyncService, SyncProgress> {
+  /// Gallery 同步服务 Provider
+  GallerySyncServiceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'gallerySyncServiceProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-typedef _$GallerySyncService = AutoDisposeNotifier<SyncProgress>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+  @override
+  String debugGetCreateSourceHash() => _$gallerySyncServiceHash();
+
+  @$internal
+  @override
+  GallerySyncService create() => GallerySyncService();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(SyncProgress value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<SyncProgress>(value),
+    );
+  }
+}
+
+String _$gallerySyncServiceHash() =>
+    r'b307ce8bd8dfa2ac250978b8b46abb8d21bc03ce';
+
+/// Gallery 同步服务 Provider
+
+abstract class _$GallerySyncService extends $Notifier<SyncProgress> {
+  SyncProgress build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<SyncProgress, SyncProgress>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<SyncProgress, SyncProgress>,
+              SyncProgress,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(galleryProcessedStats)
+final galleryProcessedStatsProvider = GalleryProcessedStatsProvider._();
+
+final class GalleryProcessedStatsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<({int deletedCount, int mediaCount})>,
+          ({int deletedCount, int mediaCount}),
+          Stream<({int deletedCount, int mediaCount})>
+        >
+    with
+        $FutureModifier<({int deletedCount, int mediaCount})>,
+        $StreamProvider<({int deletedCount, int mediaCount})> {
+  GalleryProcessedStatsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryProcessedStatsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryProcessedStatsHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<({int deletedCount, int mediaCount})> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<({int deletedCount, int mediaCount})> create(Ref ref) {
+    return galleryProcessedStats(ref);
+  }
+}
+
+String _$galleryProcessedStatsHash() =>
+    r'09548f77341937fc13e8fbe12e215031d7f727d7';

@@ -6,423 +6,501 @@ part of 'sixty_api_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sixtyApiClientHash() => r'f7dd53caa9a33c1f6c9d7348bf1e1c10fb6adbcc';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [sixtyApiClient].
 @ProviderFor(sixtyApiClient)
-final sixtyApiClientProvider = Provider<SixtyApiClient>.internal(
-  sixtyApiClient,
-  name: r'sixtyApiClientProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$sixtyApiClientHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final sixtyApiClientProvider = SixtyApiClientProvider._();
 
-typedef SixtyApiClientRef = ProviderRef<SixtyApiClient>;
-String _$sixtySecondsHash() => r'c9f07eda36aba644ab87bdc0b106d586814369f1';
+final class SixtyApiClientProvider
+    extends $FunctionalProvider<SixtyApiClient, SixtyApiClient, SixtyApiClient>
+    with $Provider<SixtyApiClient> {
+  SixtyApiClientProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'sixtyApiClientProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
+  @override
+  String debugGetCreateSourceHash() => _$sixtyApiClientHash();
 
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
+  @$internal
+  @override
+  $ProviderElement<SixtyApiClient> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  SixtyApiClient create(Ref ref) {
+    return sixtyApiClient(ref);
   }
 
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(SixtyApiClient value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<SixtyApiClient>(value),
+    );
   }
 }
 
-/// See also [sixtySeconds].
+String _$sixtyApiClientHash() => r'2ea24875f825ec3526d56fd3577c0e132b6a7bb8';
+
 @ProviderFor(sixtySeconds)
-const sixtySecondsProvider = SixtySecondsFamily();
+final sixtySecondsProvider = SixtySecondsFamily._();
 
-/// See also [sixtySeconds].
-class SixtySecondsFamily extends Family<AsyncValue<Json>> {
-  /// See also [sixtySeconds].
-  const SixtySecondsFamily();
+final class SixtySecondsProvider
+    extends $FunctionalProvider<AsyncValue<Json>, Json, FutureOr<Json>>
+    with $FutureModifier<Json>, $FutureProvider<Json> {
+  SixtySecondsProvider._({
+    required SixtySecondsFamily super.from,
+    required String? super.argument,
+  }) : super(
+         retry: null,
+         name: r'sixtySecondsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
 
-  /// See also [sixtySeconds].
-  SixtySecondsProvider call(
-    String? date,
-  ) {
-    return SixtySecondsProvider(
-      date,
-    );
+  @override
+  String debugGetCreateSourceHash() => _$sixtySecondsHash();
+
+  @override
+  String toString() {
+    return r'sixtySecondsProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  SixtySecondsProvider getProviderOverride(
-    covariant SixtySecondsProvider provider,
-  ) {
-    return call(
-      provider.date,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
+  $FutureProviderElement<Json> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
 
   @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'sixtySecondsProvider';
-}
-
-/// See also [sixtySeconds].
-class SixtySecondsProvider extends AutoDisposeFutureProvider<Json> {
-  /// See also [sixtySeconds].
-  SixtySecondsProvider(
-    String? date,
-  ) : this._internal(
-          (ref) => sixtySeconds(
-            ref as SixtySecondsRef,
-            date,
-          ),
-          from: sixtySecondsProvider,
-          name: r'sixtySecondsProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$sixtySecondsHash,
-          dependencies: SixtySecondsFamily._dependencies,
-          allTransitiveDependencies:
-              SixtySecondsFamily._allTransitiveDependencies,
-          date: date,
-        );
-
-  SixtySecondsProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.date,
-  }) : super.internal();
-
-  final String? date;
-
-  @override
-  Override overrideWith(
-    FutureOr<Json> Function(SixtySecondsRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: SixtySecondsProvider._internal(
-        (ref) => create(ref as SixtySecondsRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        date: date,
-      ),
-    );
-  }
-
-  @override
-  AutoDisposeFutureProviderElement<Json> createElement() {
-    return _SixtySecondsProviderElement(this);
+  FutureOr<Json> create(Ref ref) {
+    final argument = this.argument as String?;
+    return sixtySeconds(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is SixtySecondsProvider && other.date == date;
+    return other is SixtySecondsProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, date.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin SixtySecondsRef on AutoDisposeFutureProviderRef<Json> {
-  /// The parameter `date` of this provider.
-  String? get date;
-}
+String _$sixtySecondsHash() => r'a86ad6c79b0998d0d8eec8781a6330b5bf3c1e65';
 
-class _SixtySecondsProviderElement
-    extends AutoDisposeFutureProviderElement<Json> with SixtySecondsRef {
-  _SixtySecondsProviderElement(super.provider);
+final class SixtySecondsFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<Json>, String?> {
+  SixtySecondsFamily._()
+    : super(
+        retry: null,
+        name: r'sixtySecondsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  SixtySecondsProvider call(String? date) =>
+      SixtySecondsProvider._(argument: date, from: this);
 
   @override
-  String? get date => (origin as SixtySecondsProvider).date;
+  String toString() => r'sixtySecondsProvider';
 }
 
-String _$bingWallpaperHash() => r'a97d0eba14415349ac3fc98f9b5f294f2a6d3382';
-
-/// See also [bingWallpaper].
 @ProviderFor(bingWallpaper)
-final bingWallpaperProvider = AutoDisposeFutureProvider<Json>.internal(
-  bingWallpaper,
-  name: r'bingWallpaperProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$bingWallpaperHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final bingWallpaperProvider = BingWallpaperProvider._();
 
-typedef BingWallpaperRef = AutoDisposeFutureProviderRef<Json>;
-String _$epicGamesHash() => r'e07df46c3255b97f51d59a2fb5b391e0979b065f';
+final class BingWallpaperProvider
+    extends $FunctionalProvider<AsyncValue<Json>, Json, FutureOr<Json>>
+    with $FutureModifier<Json>, $FutureProvider<Json> {
+  BingWallpaperProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'bingWallpaperProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-/// See also [epicGames].
-@ProviderFor(epicGames)
-final epicGamesProvider = AutoDisposeFutureProvider<List<Json>>.internal(
-  epicGames,
-  name: r'epicGamesProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$epicGamesHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+  @override
+  String debugGetCreateSourceHash() => _$bingWallpaperHash();
 
-typedef EpicGamesRef = AutoDisposeFutureProviderRef<List<Json>>;
-String _$toutiaoHotHash() => r'eb9c422c3fe4d8892bebc0abb2364d9d9d7b3495';
+  @$internal
+  @override
+  $FutureProviderElement<Json> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
 
-/// See also [toutiaoHot].
-@ProviderFor(toutiaoHot)
-final toutiaoHotProvider = AutoDisposeFutureProvider<List<Json>>.internal(
-  toutiaoHot,
-  name: r'toutiaoHotProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$toutiaoHotHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef ToutiaoHotRef = AutoDisposeFutureProviderRef<List<Json>>;
-String _$zhihuHotHash() => r'9e4814de36d80398a63a7eede1c4889cfa880dbe';
-
-/// See also [zhihuHot].
-@ProviderFor(zhihuHot)
-final zhihuHotProvider = AutoDisposeFutureProvider<List<Json>>.internal(
-  zhihuHot,
-  name: r'zhihuHotProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$zhihuHotHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef ZhihuHotRef = AutoDisposeFutureProviderRef<List<Json>>;
-String _$baiduTiebaHash() => r'38ba8935966c3058663406b2c0695218c7a437b5';
-
-/// See also [baiduTieba].
-@ProviderFor(baiduTieba)
-final baiduTiebaProvider = AutoDisposeFutureProvider<List<Json>>.internal(
-  baiduTieba,
-  name: r'baiduTiebaProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$baiduTiebaHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef BaiduTiebaRef = AutoDisposeFutureProviderRef<List<Json>>;
-String _$hitokotoHash() => r'13052ce8cd700eaa68279ae97d6a0dc4f2bd01ea';
-
-/// See also [hitokoto].
-@ProviderFor(hitokoto)
-final hitokotoProvider = AutoDisposeFutureProvider<String>.internal(
-  hitokoto,
-  name: r'hitokotoProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$hitokotoHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef HitokotoRef = AutoDisposeFutureProviderRef<String>;
-String _$duanziHash() => r'65f6029fc0871cb3753521a439a77b743eee213e';
-
-/// See also [duanzi].
-@ProviderFor(duanzi)
-final duanziProvider = AutoDisposeFutureProvider<String>.internal(
-  duanzi,
-  name: r'duanziProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$duanziHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef DuanziRef = AutoDisposeFutureProviderRef<String>;
-String _$fabingHash() => r'ebd5b102576648e24b88a8b00f86ead8ed9bca59';
-
-/// See also [fabing].
-@ProviderFor(fabing)
-const fabingProvider = FabingFamily();
-
-/// See also [fabing].
-class FabingFamily extends Family<AsyncValue<String>> {
-  /// See also [fabing].
-  const FabingFamily();
-
-  /// See also [fabing].
-  FabingProvider call(
-    String? person,
-  ) {
-    return FabingProvider(
-      person,
-    );
+  @override
+  FutureOr<Json> create(Ref ref) {
+    return bingWallpaper(ref);
   }
-
-  @override
-  FabingProvider getProviderOverride(
-    covariant FabingProvider provider,
-  ) {
-    return call(
-      provider.person,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'fabingProvider';
 }
 
-/// See also [fabing].
-class FabingProvider extends AutoDisposeFutureProvider<String> {
-  /// See also [fabing].
-  FabingProvider(
-    String? person,
-  ) : this._internal(
-          (ref) => fabing(
-            ref as FabingRef,
-            person,
-          ),
-          from: fabingProvider,
-          name: r'fabingProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$fabingHash,
-          dependencies: FabingFamily._dependencies,
-          allTransitiveDependencies: FabingFamily._allTransitiveDependencies,
-          person: person,
-        );
+String _$bingWallpaperHash() => r'7ef9a1fda39c941792a880c0e91cec6c7c64d7f8';
 
-  FabingProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.person,
-  }) : super.internal();
+@ProviderFor(epicGames)
+final epicGamesProvider = EpicGamesProvider._();
 
-  final String? person;
+final class EpicGamesProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Json>>,
+          List<Json>,
+          FutureOr<List<Json>>
+        >
+    with $FutureModifier<List<Json>>, $FutureProvider<List<Json>> {
+  EpicGamesProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'epicGamesProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
   @override
-  Override overrideWith(
-    FutureOr<String> Function(FabingRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: FabingProvider._internal(
-        (ref) => create(ref as FabingRef),
-        from: from,
-        name: null,
+  String debugGetCreateSourceHash() => _$epicGamesHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Json>> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Json>> create(Ref ref) {
+    return epicGames(ref);
+  }
+}
+
+String _$epicGamesHash() => r'1fe7b8df7204b59f5e7e43b53fef153933d16293';
+
+@ProviderFor(toutiaoHot)
+final toutiaoHotProvider = ToutiaoHotProvider._();
+
+final class ToutiaoHotProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Json>>,
+          List<Json>,
+          FutureOr<List<Json>>
+        >
+    with $FutureModifier<List<Json>>, $FutureProvider<List<Json>> {
+  ToutiaoHotProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'toutiaoHotProvider',
+        isAutoDispose: true,
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        person: person,
-      ),
-    );
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$toutiaoHotHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Json>> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Json>> create(Ref ref) {
+    return toutiaoHot(ref);
+  }
+}
+
+String _$toutiaoHotHash() => r'152e619585ea1d28bbfe81ee8a611e88be215bd3';
+
+@ProviderFor(zhihuHot)
+final zhihuHotProvider = ZhihuHotProvider._();
+
+final class ZhihuHotProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Json>>,
+          List<Json>,
+          FutureOr<List<Json>>
+        >
+    with $FutureModifier<List<Json>>, $FutureProvider<List<Json>> {
+  ZhihuHotProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'zhihuHotProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$zhihuHotHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Json>> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Json>> create(Ref ref) {
+    return zhihuHot(ref);
+  }
+}
+
+String _$zhihuHotHash() => r'e8a2695ccddd256a5fc34fd8a6b18f5d005c2dd1';
+
+@ProviderFor(baiduTieba)
+final baiduTiebaProvider = BaiduTiebaProvider._();
+
+final class BaiduTiebaProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Json>>,
+          List<Json>,
+          FutureOr<List<Json>>
+        >
+    with $FutureModifier<List<Json>>, $FutureProvider<List<Json>> {
+  BaiduTiebaProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'baiduTiebaProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$baiduTiebaHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Json>> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Json>> create(Ref ref) {
+    return baiduTieba(ref);
+  }
+}
+
+String _$baiduTiebaHash() => r'9753d1da2892477e4d52c888f74d70a1a443725d';
+
+@ProviderFor(hitokoto)
+final hitokotoProvider = HitokotoProvider._();
+
+final class HitokotoProvider
+    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
+    with $FutureModifier<String>, $FutureProvider<String> {
+  HitokotoProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'hitokotoProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$hitokotoHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<String> create(Ref ref) {
+    return hitokoto(ref);
+  }
+}
+
+String _$hitokotoHash() => r'4209aca7374a7150ae6f2f8bb7a92602a7b0bda3';
+
+@ProviderFor(duanzi)
+final duanziProvider = DuanziProvider._();
+
+final class DuanziProvider
+    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
+    with $FutureModifier<String>, $FutureProvider<String> {
+  DuanziProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'duanziProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$duanziHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<String> create(Ref ref) {
+    return duanzi(ref);
+  }
+}
+
+String _$duanziHash() => r'ad067946995cd59936cacbb81e7d6c385ab3bfcd';
+
+@ProviderFor(fabing)
+final fabingProvider = FabingFamily._();
+
+final class FabingProvider
+    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
+    with $FutureModifier<String>, $FutureProvider<String> {
+  FabingProvider._({
+    required FabingFamily super.from,
+    required String? super.argument,
+  }) : super(
+         retry: null,
+         name: r'fabingProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$fabingHash();
+
+  @override
+  String toString() {
+    return r'fabingProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  AutoDisposeFutureProviderElement<String> createElement() {
-    return _FabingProviderElement(this);
+  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<String> create(Ref ref) {
+    final argument = this.argument as String?;
+    return fabing(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is FabingProvider && other.person == person;
+    return other is FabingProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, person.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin FabingRef on AutoDisposeFutureProviderRef<String> {
-  /// The parameter `person` of this provider.
-  String? get person;
-}
+String _$fabingHash() => r'f775d7193f2623140020ff5d62e63694bd6f1874';
 
-class _FabingProviderElement extends AutoDisposeFutureProviderElement<String>
-    with FabingRef {
-  _FabingProviderElement(super.provider);
+final class FabingFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<String>, String?> {
+  FabingFamily._()
+    : super(
+        retry: null,
+        name: r'fabingProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  FabingProvider call(String? person) =>
+      FabingProvider._(argument: person, from: this);
 
   @override
-  String? get person => (origin as FabingProvider).person;
+  String toString() => r'fabingProvider';
 }
 
-String _$kfcCopyHash() => r'170b21f04d2df7e954a8ee09e45b97cd9250d3b6';
-
-/// See also [kfcCopy].
 @ProviderFor(kfcCopy)
-final kfcCopyProvider = AutoDisposeFutureProvider<String>.internal(
-  kfcCopy,
-  name: r'kfcCopyProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$kfcCopyHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final kfcCopyProvider = KfcCopyProvider._();
 
-typedef KfcCopyRef = AutoDisposeFutureProviderRef<String>;
-String _$dadJokeHash() => r'11ccf8c6ef3a91b91d64e588a2096f033274f2cf';
+final class KfcCopyProvider
+    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
+    with $FutureModifier<String>, $FutureProvider<String> {
+  KfcCopyProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'kfcCopyProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-/// See also [dadJoke].
+  @override
+  String debugGetCreateSourceHash() => _$kfcCopyHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<String> create(Ref ref) {
+    return kfcCopy(ref);
+  }
+}
+
+String _$kfcCopyHash() => r'e7d092b2351dc6634ce19f253b2232f9d482dcfe';
+
 @ProviderFor(dadJoke)
-final dadJokeProvider = AutoDisposeFutureProvider<String>.internal(
-  dadJoke,
-  name: r'dadJokeProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$dadJokeHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final dadJokeProvider = DadJokeProvider._();
 
-typedef DadJokeRef = AutoDisposeFutureProviderRef<String>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+final class DadJokeProvider
+    extends $FunctionalProvider<AsyncValue<String>, String, FutureOr<String>>
+    with $FutureModifier<String>, $FutureProvider<String> {
+  DadJokeProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'dadJokeProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$dadJokeHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<String> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<String> create(Ref ref) {
+    return dadJoke(ref);
+  }
+}
+
+String _$dadJokeHash() => r'08819a557bf2a8b1e926cf9e9e0f8173c7bf05fc';

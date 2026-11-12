@@ -16,7 +16,7 @@ class ReviewPresetsPage extends ConsumerStatefulWidget {
 }
 
 class _ReviewPresetsPageState extends ConsumerState<ReviewPresetsPage> {
-  /// 正在编辑的副本（未保存前不写 Hive，也不推送）。
+  /// 正在编辑的副本（未保存前只保留在页面）。
   List<ReviewPreset>? _draft;
 
   List<ReviewPreset> _current(ReviewPresetsState state) =>
@@ -52,7 +52,7 @@ class _ReviewPresetsPageState extends ConsumerState<ReviewPresetsPage> {
     if (!mounted) return;
     if (!ok) {
       final error = ref.read(reviewPresetsControllerProvider).error;
-      _toast('保存失败，服务端与本地都未改动：$error');
+      _toast('保存失败：$error');
       return;
     }
     setState(() => _draft = null);

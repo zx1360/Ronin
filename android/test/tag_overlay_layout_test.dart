@@ -1,4 +1,4 @@
-// 临时回归测试：标签浮层在"未旋转 / 媒体旋转 90°"两种方向下都能完成首帧布局。
+// 标签浮层在未旋转和媒体旋转 90° 时均能完成首帧布局。
 //
 // 背景：浮层旋转后构建期读取自身 RenderBox 的 size 会触发
 // 'hasSize': RenderBox was not laid out 断言，导致快速打标签完全不可用。
@@ -12,9 +12,9 @@ import 'package:torrid/features/others/gallery/widgets/tag_drag_overlay.dart';
 /// 假的标签树：只需要浮层能取到标签数据。
 class _FakeTagTree extends TagTree {
   @override
-  Future<List<Tag>> build() async {
+  Stream<List<Tag>> build() async* {
     final now = DateTime(2026, 1, 1);
-    return [
+    yield [
       Tag(id: 'root', createdAt: now, updatedAt: now, name: '家人', fullPath: '家人'),
       Tag(
         id: 'child',
@@ -32,7 +32,7 @@ class _FakeTagTree extends TagTree {
 /// 假的"当前媒体标签"：浮层只读取已应用集合。
 class _FakeCurrentMediaTags extends CurrentMediaTags {
   @override
-  Future<List<Tag>> build() async => const [];
+  Stream<List<Tag>> build() => Stream.value(const []);
 }
 
 Widget _host(TagDragOverlay overlay) {

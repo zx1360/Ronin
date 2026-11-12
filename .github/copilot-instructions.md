@@ -3,7 +3,7 @@
 单仓库三端：Monarch（Go 后端）、Torrid（Flutter Android）、Northstar（后端托管的本机数据与运维页）。
 架构与数据权威关系见 `docs/architecture/README.md`；各端规则见 `backend/AGENTS.md`、`android/AGENTS.md`、`ops/AGENTS.md`。
 
-- SQLite、媒体文件由后端与其托管的 gallery/comix CLI 共用；Android 的画廊是缓存，对话仅存本机，随笔/打卡双端可写，以 updated_at 逐行合并，删除使用 tombstone。
+- Monarch 的 SQLite 与媒体文件由后端和 gallery/comix CLI 共用。Android 用独立的 Drift + SQLite 保存业务数据，随笔/打卡双端可写并按版本合并，Gallery 工作副本绑定图库，对话与草稿仅存本机。
 - HTTPS `LOCAL_PORT`（7274，mDNS 广播）与 HTTP `LOCAL_HTTP_PORT`（7275，仅绑定 127.0.0.1）路由相同；`/ops/` 和 `/API/ops/local/*` 仅回环可访问。
 - API/CLI 真源是 Go 代码。改路由或 CLI 参数后在 `backend/` 用 `pwsh -File references/scripts/generate_refs.ps1` 刷新快照；`-Check` 校验，生成物不入 git。客户端按快照定位处理函数核对 DTO。
 - 跨端契约样例在 `contracts/`；修改协议后运行 `pwsh -File backend/tools/check_contracts.ps1`。

@@ -6,65 +6,134 @@ part of 'review_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$reviewPresetsControllerHash() =>
-    r'922b0d71b6b709f54f11ef5fccfbc3730dc05d63';
-
-/// 语气/角色预设：服务端权威 + 本地 Hive 镜像。
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// 语气/角色预设：服务端权威 + 本地镜像。
 ///
 /// 读：先用镜像（离线可用），再异步与服务端对齐；
 /// 写：整体推送到服务端，成功后才用服务端返回的列表刷新镜像。
-///
-/// Copied from [ReviewPresetsController].
+
 @ProviderFor(ReviewPresetsController)
-final reviewPresetsControllerProvider =
-    NotifierProvider<ReviewPresetsController, ReviewPresetsState>.internal(
-  ReviewPresetsController.new,
-  name: r'reviewPresetsControllerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$reviewPresetsControllerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final reviewPresetsControllerProvider = ReviewPresetsControllerProvider._();
 
-typedef _$ReviewPresetsController = Notifier<ReviewPresetsState>;
-String _$reviewHistoryControllerHash() =>
-    r'ed34e1698ca5b37bfcafce5ca622a877c1556ea5';
-
-/// 本地回顾历史（只存本机，不回传服务端）。
+/// 语气/角色预设：服务端权威 + 本地镜像。
 ///
-/// Copied from [ReviewHistoryController].
-@ProviderFor(ReviewHistoryController)
-final reviewHistoryControllerProvider =
-    NotifierProvider<ReviewHistoryController, List<ReviewRecord>>.internal(
-  ReviewHistoryController.new,
-  name: r'reviewHistoryControllerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$reviewHistoryControllerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+/// 读：先用镜像（离线可用），再异步与服务端对齐；
+/// 写：整体推送到服务端，成功后才用服务端返回的列表刷新镜像。
+final class ReviewPresetsControllerProvider
+    extends $NotifierProvider<ReviewPresetsController, ReviewPresetsState> {
+  /// 语气/角色预设：服务端权威 + 本地镜像。
+  ///
+  /// 读：先用镜像（离线可用），再异步与服务端对齐；
+  /// 写：整体推送到服务端，成功后才用服务端返回的列表刷新镜像。
+  ReviewPresetsControllerProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'reviewPresetsControllerProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
-typedef _$ReviewHistoryController = Notifier<List<ReviewRecord>>;
-String _$reviewDraftControllerHash() =>
-    r'21cdd1b0571851b9df63e88eaa3c0092b4157b8c';
+  @override
+  String debugGetCreateSourceHash() => _$reviewPresetsControllerHash();
+
+  @$internal
+  @override
+  ReviewPresetsController create() => ReviewPresetsController();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ReviewPresetsState value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ReviewPresetsState>(value),
+    );
+  }
+}
+
+String _$reviewPresetsControllerHash() =>
+    r'a6640ddff20968c17ed517bdb5a4a6704effcd6f';
+
+/// 语气/角色预设：服务端权威 + 本地镜像。
+///
+/// 读：先用镜像（离线可用），再异步与服务端对齐；
+/// 写：整体推送到服务端，成功后才用服务端返回的列表刷新镜像。
+
+abstract class _$ReviewPresetsController extends $Notifier<ReviewPresetsState> {
+  ReviewPresetsState build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<ReviewPresetsState, ReviewPresetsState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<ReviewPresetsState, ReviewPresetsState>,
+              ReviewPresetsState,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
 
 /// 回顾生成控制器。
-///
-/// Copied from [ReviewDraftController].
-@ProviderFor(ReviewDraftController)
-final reviewDraftControllerProvider =
-    NotifierProvider<ReviewDraftController, ReviewDraftState>.internal(
-  ReviewDraftController.new,
-  name: r'reviewDraftControllerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$reviewDraftControllerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef _$ReviewDraftController = Notifier<ReviewDraftState>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+@ProviderFor(ReviewDraftController)
+final reviewDraftControllerProvider = ReviewDraftControllerProvider._();
+
+/// 回顾生成控制器。
+final class ReviewDraftControllerProvider
+    extends $NotifierProvider<ReviewDraftController, ReviewDraftState> {
+  /// 回顾生成控制器。
+  ReviewDraftControllerProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'reviewDraftControllerProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$reviewDraftControllerHash();
+
+  @$internal
+  @override
+  ReviewDraftController create() => ReviewDraftController();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ReviewDraftState value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ReviewDraftState>(value),
+    );
+  }
+}
+
+String _$reviewDraftControllerHash() =>
+    r'305994e6fe1356e6e56925f39c8c6fd2e860e529';
+
+/// 回顾生成控制器。
+
+abstract class _$ReviewDraftController extends $Notifier<ReviewDraftState> {
+  ReviewDraftState build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<ReviewDraftState, ReviewDraftState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<ReviewDraftState, ReviewDraftState>,
+              ReviewDraftState,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

@@ -6,197 +6,182 @@ part of 'style_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$styleByIdHash() => r'36d243b5da9afc7934202a1f2f1d8bfc002682fd';
-
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 /// 根据 styleId 获取 Style
-///
-/// Copied from [styleById].
+
 @ProviderFor(styleById)
-const styleByIdProvider = StyleByIdFamily();
+final styleByIdProvider = StyleByIdFamily._();
 
 /// 根据 styleId 获取 Style
-///
-/// Copied from [styleById].
-class StyleByIdFamily extends Family<Style?> {
-  /// 根据 styleId 获取 Style
-  ///
-  /// Copied from [styleById].
-  const StyleByIdFamily();
 
+final class StyleByIdProvider
+    extends $FunctionalProvider<Style?, Style?, Style?>
+    with $Provider<Style?> {
   /// 根据 styleId 获取 Style
-  ///
-  /// Copied from [styleById].
-  StyleByIdProvider call(
-    String styleId,
-  ) {
-    return StyleByIdProvider(
-      styleId,
-    );
+  StyleByIdProvider._({
+    required StyleByIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'styleByIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$styleByIdHash();
+
+  @override
+  String toString() {
+    return r'styleByIdProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  StyleByIdProvider getProviderOverride(
-    covariant StyleByIdProvider provider,
-  ) {
-    return call(
-      provider.styleId,
-    );
+  $ProviderElement<Style?> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  Style? create(Ref ref) {
+    final argument = this.argument as String;
+    return styleById(ref, argument);
   }
 
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'styleByIdProvider';
-}
-
-/// 根据 styleId 获取 Style
-///
-/// Copied from [styleById].
-class StyleByIdProvider extends AutoDisposeProvider<Style?> {
-  /// 根据 styleId 获取 Style
-  ///
-  /// Copied from [styleById].
-  StyleByIdProvider(
-    String styleId,
-  ) : this._internal(
-          (ref) => styleById(
-            ref as StyleByIdRef,
-            styleId,
-          ),
-          from: styleByIdProvider,
-          name: r'styleByIdProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$styleByIdHash,
-          dependencies: StyleByIdFamily._dependencies,
-          allTransitiveDependencies: StyleByIdFamily._allTransitiveDependencies,
-          styleId: styleId,
-        );
-
-  StyleByIdProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.styleId,
-  }) : super.internal();
-
-  final String styleId;
-
-  @override
-  Override overrideWith(
-    Style? Function(StyleByIdRef provider) create,
-  ) {
-    return ProviderOverride(
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Style? value) {
+    return $ProviderOverride(
       origin: this,
-      override: StyleByIdProvider._internal(
-        (ref) => create(ref as StyleByIdRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        styleId: styleId,
-      ),
+      providerOverride: $SyncValueProvider<Style?>(value),
     );
-  }
-
-  @override
-  AutoDisposeProviderElement<Style?> createElement() {
-    return _StyleByIdProviderElement(this);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is StyleByIdProvider && other.styleId == styleId;
+    return other is StyleByIdProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, styleId.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin StyleByIdRef on AutoDisposeProviderRef<Style?> {
-  /// The parameter `styleId` of this provider.
-  String get styleId;
-}
+String _$styleByIdHash() => r'd4acf5511f14169eedb88536f6fecdb092f3e259';
 
-class _StyleByIdProviderElement extends AutoDisposeProviderElement<Style?>
-    with StyleByIdRef {
-  _StyleByIdProviderElement(super.provider);
+/// 根据 styleId 获取 Style
+
+final class StyleByIdFamily extends $Family
+    with $FunctionalFamilyOverride<Style?, String> {
+  StyleByIdFamily._()
+    : super(
+        retry: null,
+        name: r'styleByIdProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 根据 styleId 获取 Style
+
+  StyleByIdProvider call(String styleId) =>
+      StyleByIdProvider._(argument: styleId, from: this);
 
   @override
-  String get styleId => (origin as StyleByIdProvider).styleId;
+  String toString() => r'styleByIdProvider';
 }
 
-String _$latestStyleHash() => r'e4125a20048285e969010d74f728b5306782ef7f';
+/// 获取最新的 Style（按创建时间排序）
+
+@ProviderFor(latestStyle)
+final latestStyleProvider = LatestStyleProvider._();
 
 /// 获取最新的 Style（按创建时间排序）
-///
-/// Copied from [latestStyle].
-@ProviderFor(latestStyle)
-final latestStyleProvider = AutoDisposeProvider<Style?>.internal(
-  latestStyle,
-  name: r'latestStyleProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$latestStyleHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef LatestStyleRef = AutoDisposeProviderRef<Style?>;
-String _$sortedStylesHash() => r'd2e4b62ade495dc16a42c566706437c5d51a3f3b';
+final class LatestStyleProvider
+    extends $FunctionalProvider<Style?, Style?, Style?>
+    with $Provider<Style?> {
+  /// 获取最新的 Style（按创建时间排序）
+  LatestStyleProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'latestStyleProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$latestStyleHash();
+
+  @$internal
+  @override
+  $ProviderElement<Style?> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  Style? create(Ref ref) {
+    return latestStyle(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Style? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Style?>(value),
+    );
+  }
+}
+
+String _$latestStyleHash() => r'30514ec2d0c0207705068338effb96879fbd0d23';
 
 /// 获取按时间倒序排列的所有 Style
-///
-/// Copied from [sortedStyles].
-@ProviderFor(sortedStyles)
-final sortedStylesProvider = AutoDisposeProvider<List<Style>>.internal(
-  sortedStyles,
-  name: r'sortedStylesProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$sortedStylesHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef SortedStylesRef = AutoDisposeProviderRef<List<Style>>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+@ProviderFor(sortedStyles)
+final sortedStylesProvider = SortedStylesProvider._();
+
+/// 获取按时间倒序排列的所有 Style
+
+final class SortedStylesProvider
+    extends $FunctionalProvider<List<Style>, List<Style>, List<Style>>
+    with $Provider<List<Style>> {
+  /// 获取按时间倒序排列的所有 Style
+  SortedStylesProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'sortedStylesProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$sortedStylesHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<Style>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<Style> create(Ref ref) {
+    return sortedStyles(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<Style> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<Style>>(value),
+    );
+  }
+}
+
+String _$sortedStylesHash() => r'18ed12ab178154f3bcbd66b7671763da3b3a52d7';

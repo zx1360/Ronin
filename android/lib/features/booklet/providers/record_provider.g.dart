@@ -6,728 +6,446 @@ part of 'record_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$recordsByStyleIdHash() => r'99dc7231a71c5fa4bdcec015a3e57abe2c21ce57';
-
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 /// 根据 styleId 返回关联的倒序排列的所有 Records
-///
-/// Copied from [recordsByStyleId].
+
 @ProviderFor(recordsByStyleId)
-const recordsByStyleIdProvider = RecordsByStyleIdFamily();
+final recordsByStyleIdProvider = RecordsByStyleIdFamily._();
 
 /// 根据 styleId 返回关联的倒序排列的所有 Records
-///
-/// Copied from [recordsByStyleId].
-class RecordsByStyleIdFamily extends Family<List<Record>> {
-  /// 根据 styleId 返回关联的倒序排列的所有 Records
-  ///
-  /// Copied from [recordsByStyleId].
-  const RecordsByStyleIdFamily();
 
+final class RecordsByStyleIdProvider
+    extends $FunctionalProvider<List<Record>, List<Record>, List<Record>>
+    with $Provider<List<Record>> {
   /// 根据 styleId 返回关联的倒序排列的所有 Records
-  ///
-  /// Copied from [recordsByStyleId].
-  RecordsByStyleIdProvider call(
-    String styleId,
-  ) {
-    return RecordsByStyleIdProvider(
-      styleId,
-    );
+  RecordsByStyleIdProvider._({
+    required RecordsByStyleIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'recordsByStyleIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$recordsByStyleIdHash();
+
+  @override
+  String toString() {
+    return r'recordsByStyleIdProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  RecordsByStyleIdProvider getProviderOverride(
-    covariant RecordsByStyleIdProvider provider,
-  ) {
-    return call(
-      provider.styleId,
-    );
+  $ProviderElement<List<Record>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<Record> create(Ref ref) {
+    final argument = this.argument as String;
+    return recordsByStyleId(ref, argument);
   }
 
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'recordsByStyleIdProvider';
-}
-
-/// 根据 styleId 返回关联的倒序排列的所有 Records
-///
-/// Copied from [recordsByStyleId].
-class RecordsByStyleIdProvider extends AutoDisposeProvider<List<Record>> {
-  /// 根据 styleId 返回关联的倒序排列的所有 Records
-  ///
-  /// Copied from [recordsByStyleId].
-  RecordsByStyleIdProvider(
-    String styleId,
-  ) : this._internal(
-          (ref) => recordsByStyleId(
-            ref as RecordsByStyleIdRef,
-            styleId,
-          ),
-          from: recordsByStyleIdProvider,
-          name: r'recordsByStyleIdProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$recordsByStyleIdHash,
-          dependencies: RecordsByStyleIdFamily._dependencies,
-          allTransitiveDependencies:
-              RecordsByStyleIdFamily._allTransitiveDependencies,
-          styleId: styleId,
-        );
-
-  RecordsByStyleIdProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.styleId,
-  }) : super.internal();
-
-  final String styleId;
-
-  @override
-  Override overrideWith(
-    List<Record> Function(RecordsByStyleIdRef provider) create,
-  ) {
-    return ProviderOverride(
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<Record> value) {
+    return $ProviderOverride(
       origin: this,
-      override: RecordsByStyleIdProvider._internal(
-        (ref) => create(ref as RecordsByStyleIdRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        styleId: styleId,
-      ),
+      providerOverride: $SyncValueProvider<List<Record>>(value),
     );
-  }
-
-  @override
-  AutoDisposeProviderElement<List<Record>> createElement() {
-    return _RecordsByStyleIdProviderElement(this);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is RecordsByStyleIdProvider && other.styleId == styleId;
+    return other is RecordsByStyleIdProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, styleId.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin RecordsByStyleIdRef on AutoDisposeProviderRef<List<Record>> {
-  /// The parameter `styleId` of this provider.
-  String get styleId;
-}
+String _$recordsByStyleIdHash() => r'23794aa2892bc843bc4aba1ef01c1461287d3474';
 
-class _RecordsByStyleIdProviderElement
-    extends AutoDisposeProviderElement<List<Record>> with RecordsByStyleIdRef {
-  _RecordsByStyleIdProviderElement(super.provider);
+/// 根据 styleId 返回关联的倒序排列的所有 Records
+
+final class RecordsByStyleIdFamily extends $Family
+    with $FunctionalFamilyOverride<List<Record>, String> {
+  RecordsByStyleIdFamily._()
+    : super(
+        retry: null,
+        name: r'recordsByStyleIdProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 根据 styleId 返回关联的倒序排列的所有 Records
+
+  RecordsByStyleIdProvider call(String styleId) =>
+      RecordsByStyleIdProvider._(argument: styleId, from: this);
 
   @override
-  String get styleId => (origin as RecordsByStyleIdProvider).styleId;
+  String toString() => r'recordsByStyleIdProvider';
 }
 
-String _$recordByDateHash() => r'fb1f68f0b1c995d8e6ba5f5edc72e282bef9ed06';
-
 /// 根据日期获取 Record
-///
-/// Copied from [recordByDate].
+
 @ProviderFor(recordByDate)
-const recordByDateProvider = RecordByDateFamily();
+final recordByDateProvider = RecordByDateFamily._();
 
 /// 根据日期获取 Record
-///
-/// Copied from [recordByDate].
-class RecordByDateFamily extends Family<Record?> {
-  /// 根据日期获取 Record
-  ///
-  /// Copied from [recordByDate].
-  const RecordByDateFamily();
 
+final class RecordByDateProvider
+    extends $FunctionalProvider<Record?, Record?, Record?>
+    with $Provider<Record?> {
   /// 根据日期获取 Record
-  ///
-  /// Copied from [recordByDate].
-  RecordByDateProvider call({
-    required DateTime targetDate,
-  }) {
-    return RecordByDateProvider(
-      targetDate: targetDate,
-    );
+  RecordByDateProvider._({
+    required RecordByDateFamily super.from,
+    required DateTime super.argument,
+  }) : super(
+         retry: null,
+         name: r'recordByDateProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$recordByDateHash();
+
+  @override
+  String toString() {
+    return r'recordByDateProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  RecordByDateProvider getProviderOverride(
-    covariant RecordByDateProvider provider,
-  ) {
-    return call(
-      targetDate: provider.targetDate,
-    );
+  $ProviderElement<Record?> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  Record? create(Ref ref) {
+    final argument = this.argument as DateTime;
+    return recordByDate(ref, targetDate: argument);
   }
 
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'recordByDateProvider';
-}
-
-/// 根据日期获取 Record
-///
-/// Copied from [recordByDate].
-class RecordByDateProvider extends AutoDisposeProvider<Record?> {
-  /// 根据日期获取 Record
-  ///
-  /// Copied from [recordByDate].
-  RecordByDateProvider({
-    required DateTime targetDate,
-  }) : this._internal(
-          (ref) => recordByDate(
-            ref as RecordByDateRef,
-            targetDate: targetDate,
-          ),
-          from: recordByDateProvider,
-          name: r'recordByDateProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$recordByDateHash,
-          dependencies: RecordByDateFamily._dependencies,
-          allTransitiveDependencies:
-              RecordByDateFamily._allTransitiveDependencies,
-          targetDate: targetDate,
-        );
-
-  RecordByDateProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.targetDate,
-  }) : super.internal();
-
-  final DateTime targetDate;
-
-  @override
-  Override overrideWith(
-    Record? Function(RecordByDateRef provider) create,
-  ) {
-    return ProviderOverride(
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Record? value) {
+    return $ProviderOverride(
       origin: this,
-      override: RecordByDateProvider._internal(
-        (ref) => create(ref as RecordByDateRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        targetDate: targetDate,
-      ),
+      providerOverride: $SyncValueProvider<Record?>(value),
     );
-  }
-
-  @override
-  AutoDisposeProviderElement<Record?> createElement() {
-    return _RecordByDateProviderElement(this);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is RecordByDateProvider && other.targetDate == targetDate;
+    return other is RecordByDateProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, targetDate.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin RecordByDateRef on AutoDisposeProviderRef<Record?> {
-  /// The parameter `targetDate` of this provider.
-  DateTime get targetDate;
-}
+String _$recordByDateHash() => r'fdf2749e1e5a20994103f3060646f629beb2fc66';
 
-class _RecordByDateProviderElement extends AutoDisposeProviderElement<Record?>
-    with RecordByDateRef {
-  _RecordByDateProviderElement(super.provider);
+/// 根据日期获取 Record
+
+final class RecordByDateFamily extends $Family
+    with $FunctionalFamilyOverride<Record?, DateTime> {
+  RecordByDateFamily._()
+    : super(
+        retry: null,
+        name: r'recordByDateProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 根据日期获取 Record
+
+  RecordByDateProvider call({required DateTime targetDate}) =>
+      RecordByDateProvider._(argument: targetDate, from: this);
 
   @override
-  DateTime get targetDate => (origin as RecordByDateProvider).targetDate;
+  String toString() => r'recordByDateProvider';
+}
+
+/// 各任务的完成次数，忽略不属于该计划的任务。
+
+@ProviderFor(allTaskCompletionCounts)
+final allTaskCompletionCountsProvider = AllTaskCompletionCountsFamily._();
+
+/// 各任务的完成次数，忽略不属于该计划的任务。
+
+final class AllTaskCompletionCountsProvider
+    extends
+        $FunctionalProvider<
+          Map<String, int>,
+          Map<String, int>,
+          Map<String, int>
+        >
+    with $Provider<Map<String, int>> {
+  /// 各任务的完成次数，忽略不属于该计划的任务。
+  AllTaskCompletionCountsProvider._({
+    required AllTaskCompletionCountsFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'allTaskCompletionCountsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$allTaskCompletionCountsHash();
+
+  @override
+  String toString() {
+    return r'allTaskCompletionCountsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<Map<String, int>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  Map<String, int> create(Ref ref) {
+    final argument = this.argument as String;
+    return allTaskCompletionCounts(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Map<String, int> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Map<String, int>>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is AllTaskCompletionCountsProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
 }
 
 String _$allTaskCompletionCountsHash() =>
-    r'f7023265adac617feaf89bf3bf24852eb5734cfe';
+    r'6bd7c673d7b0fc9804fda32b246953a887855b30';
 
 /// 各任务的完成次数，忽略不属于该计划的任务。
-///
-/// Copied from [allTaskCompletionCounts].
-@ProviderFor(allTaskCompletionCounts)
-const allTaskCompletionCountsProvider = AllTaskCompletionCountsFamily();
 
-/// 各任务的完成次数，忽略不属于该计划的任务。
-///
-/// Copied from [allTaskCompletionCounts].
-class AllTaskCompletionCountsFamily extends Family<Map<String, int>> {
-  /// 各任务的完成次数，忽略不属于该计划的任务。
-  ///
-  /// Copied from [allTaskCompletionCounts].
-  const AllTaskCompletionCountsFamily();
-
-  /// 各任务的完成次数，忽略不属于该计划的任务。
-  ///
-  /// Copied from [allTaskCompletionCounts].
-  AllTaskCompletionCountsProvider call(
-    String styleId,
-  ) {
-    return AllTaskCompletionCountsProvider(
-      styleId,
-    );
-  }
-
-  @override
-  AllTaskCompletionCountsProvider getProviderOverride(
-    covariant AllTaskCompletionCountsProvider provider,
-  ) {
-    return call(
-      provider.styleId,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'allTaskCompletionCountsProvider';
-}
-
-/// 各任务的完成次数，忽略不属于该计划的任务。
-///
-/// Copied from [allTaskCompletionCounts].
-class AllTaskCompletionCountsProvider
-    extends AutoDisposeProvider<Map<String, int>> {
-  /// 各任务的完成次数，忽略不属于该计划的任务。
-  ///
-  /// Copied from [allTaskCompletionCounts].
-  AllTaskCompletionCountsProvider(
-    String styleId,
-  ) : this._internal(
-          (ref) => allTaskCompletionCounts(
-            ref as AllTaskCompletionCountsRef,
-            styleId,
-          ),
-          from: allTaskCompletionCountsProvider,
-          name: r'allTaskCompletionCountsProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$allTaskCompletionCountsHash,
-          dependencies: AllTaskCompletionCountsFamily._dependencies,
-          allTransitiveDependencies:
-              AllTaskCompletionCountsFamily._allTransitiveDependencies,
-          styleId: styleId,
-        );
-
-  AllTaskCompletionCountsProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.styleId,
-  }) : super.internal();
-
-  final String styleId;
-
-  @override
-  Override overrideWith(
-    Map<String, int> Function(AllTaskCompletionCountsRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: AllTaskCompletionCountsProvider._internal(
-        (ref) => create(ref as AllTaskCompletionCountsRef),
-        from: from,
-        name: null,
+final class AllTaskCompletionCountsFamily extends $Family
+    with $FunctionalFamilyOverride<Map<String, int>, String> {
+  AllTaskCompletionCountsFamily._()
+    : super(
+        retry: null,
+        name: r'allTaskCompletionCountsProvider',
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        styleId: styleId,
-      ),
-    );
-  }
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 各任务的完成次数，忽略不属于该计划的任务。
+
+  AllTaskCompletionCountsProvider call(String styleId) =>
+      AllTaskCompletionCountsProvider._(argument: styleId, from: this);
 
   @override
-  AutoDisposeProviderElement<Map<String, int>> createElement() {
-    return _AllTaskCompletionCountsProviderElement(this);
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is AllTaskCompletionCountsProvider && other.styleId == styleId;
-  }
-
-  @override
-  int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, styleId.hashCode);
-
-    return _SystemHash.finish(hash);
-  }
+  String toString() => r'allTaskCompletionCountsProvider';
 }
-
-mixin AllTaskCompletionCountsRef on AutoDisposeProviderRef<Map<String, int>> {
-  /// The parameter `styleId` of this provider.
-  String get styleId;
-}
-
-class _AllTaskCompletionCountsProviderElement
-    extends AutoDisposeProviderElement<Map<String, int>>
-    with AllTaskCompletionCountsRef {
-  _AllTaskCompletionCountsProviderElement(super.provider);
-
-  @override
-  String get styleId => (origin as AllTaskCompletionCountsProvider).styleId;
-}
-
-String _$currentStreakHash() => r'62126411ce6b4de089488da19d42feec1c63eb3b';
 
 /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
-///
-/// Copied from [currentStreak].
+
 @ProviderFor(currentStreak)
-const currentStreakProvider = CurrentStreakFamily();
+final currentStreakProvider = CurrentStreakFamily._();
 
 /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
-///
-/// Copied from [currentStreak].
-class CurrentStreakFamily extends Family<int> {
-  /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
-  ///
-  /// Copied from [currentStreak].
-  const CurrentStreakFamily();
 
+final class CurrentStreakProvider extends $FunctionalProvider<int, int, int>
+    with $Provider<int> {
   /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
-  ///
-  /// Copied from [currentStreak].
-  CurrentStreakProvider call(
-    String styleId,
-  ) {
-    return CurrentStreakProvider(
-      styleId,
-    );
+  CurrentStreakProvider._({
+    required CurrentStreakFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'currentStreakProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$currentStreakHash();
+
+  @override
+  String toString() {
+    return r'currentStreakProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  CurrentStreakProvider getProviderOverride(
-    covariant CurrentStreakProvider provider,
-  ) {
-    return call(
-      provider.styleId,
-    );
+  $ProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  int create(Ref ref) {
+    final argument = this.argument as String;
+    return currentStreak(ref, argument);
   }
 
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'currentStreakProvider';
-}
-
-/// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
-///
-/// Copied from [currentStreak].
-class CurrentStreakProvider extends AutoDisposeProvider<int> {
-  /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
-  ///
-  /// Copied from [currentStreak].
-  CurrentStreakProvider(
-    String styleId,
-  ) : this._internal(
-          (ref) => currentStreak(
-            ref as CurrentStreakRef,
-            styleId,
-          ),
-          from: currentStreakProvider,
-          name: r'currentStreakProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$currentStreakHash,
-          dependencies: CurrentStreakFamily._dependencies,
-          allTransitiveDependencies:
-              CurrentStreakFamily._allTransitiveDependencies,
-          styleId: styleId,
-        );
-
-  CurrentStreakProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.styleId,
-  }) : super.internal();
-
-  final String styleId;
-
-  @override
-  Override overrideWith(
-    int Function(CurrentStreakRef provider) create,
-  ) {
-    return ProviderOverride(
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int value) {
+    return $ProviderOverride(
       origin: this,
-      override: CurrentStreakProvider._internal(
-        (ref) => create(ref as CurrentStreakRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        styleId: styleId,
-      ),
+      providerOverride: $SyncValueProvider<int>(value),
     );
-  }
-
-  @override
-  AutoDisposeProviderElement<int> createElement() {
-    return _CurrentStreakProviderElement(this);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is CurrentStreakProvider && other.styleId == styleId;
+    return other is CurrentStreakProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, styleId.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin CurrentStreakRef on AutoDisposeProviderRef<int> {
-  /// The parameter `styleId` of this provider.
-  String get styleId;
-}
+String _$currentStreakHash() => r'c9e9589fb4fc44774a9dd40f753d65bfe4fa9827';
 
-class _CurrentStreakProviderElement extends AutoDisposeProviderElement<int>
-    with CurrentStreakRef {
-  _CurrentStreakProviderElement(super.provider);
+/// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
+
+final class CurrentStreakFamily extends $Family
+    with $FunctionalFamilyOverride<int, String> {
+  CurrentStreakFamily._()
+    : super(
+        retry: null,
+        name: r'currentStreakProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 截至今天或昨天的连续打卡天数；两天均未打卡则为 0。
+
+  CurrentStreakProvider call(String styleId) =>
+      CurrentStreakProvider._(argument: styleId, from: this);
 
   @override
-  String get styleId => (origin as CurrentStreakProvider).styleId;
+  String toString() => r'currentStreakProvider';
 }
 
-String _$styleDateRangeHash() => r'7b23cb2b263f7a82b0a0d82bc369b8d722260016';
-
 /// 根据 Style 获取该 Style 的日期范围
-///
-/// Copied from [styleDateRange].
+
 @ProviderFor(styleDateRange)
-const styleDateRangeProvider = StyleDateRangeFamily();
+final styleDateRangeProvider = StyleDateRangeFamily._();
 
 /// 根据 Style 获取该 Style 的日期范围
-///
-/// Copied from [styleDateRange].
-class StyleDateRangeFamily extends Family<DateTimeRange?> {
-  /// 根据 Style 获取该 Style 的日期范围
-  ///
-  /// Copied from [styleDateRange].
-  const StyleDateRangeFamily();
 
+final class StyleDateRangeProvider
+    extends
+        $FunctionalProvider<
+          DateTimeRange<DateTime>?,
+          DateTimeRange<DateTime>?,
+          DateTimeRange<DateTime>?
+        >
+    with $Provider<DateTimeRange<DateTime>?> {
   /// 根据 Style 获取该 Style 的日期范围
-  ///
-  /// Copied from [styleDateRange].
-  StyleDateRangeProvider call({
-    required Style? style,
-  }) {
-    return StyleDateRangeProvider(
-      style: style,
-    );
+  StyleDateRangeProvider._({
+    required StyleDateRangeFamily super.from,
+    required Style? super.argument,
+  }) : super(
+         retry: null,
+         name: r'styleDateRangeProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$styleDateRangeHash();
+
+  @override
+  String toString() {
+    return r'styleDateRangeProvider'
+        ''
+        '($argument)';
   }
 
+  @$internal
   @override
-  StyleDateRangeProvider getProviderOverride(
-    covariant StyleDateRangeProvider provider,
-  ) {
-    return call(
-      style: provider.style,
-    );
+  $ProviderElement<DateTimeRange<DateTime>?> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  DateTimeRange<DateTime>? create(Ref ref) {
+    final argument = this.argument as Style?;
+    return styleDateRange(ref, style: argument);
   }
 
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'styleDateRangeProvider';
-}
-
-/// 根据 Style 获取该 Style 的日期范围
-///
-/// Copied from [styleDateRange].
-class StyleDateRangeProvider extends AutoDisposeProvider<DateTimeRange?> {
-  /// 根据 Style 获取该 Style 的日期范围
-  ///
-  /// Copied from [styleDateRange].
-  StyleDateRangeProvider({
-    required Style? style,
-  }) : this._internal(
-          (ref) => styleDateRange(
-            ref as StyleDateRangeRef,
-            style: style,
-          ),
-          from: styleDateRangeProvider,
-          name: r'styleDateRangeProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$styleDateRangeHash,
-          dependencies: StyleDateRangeFamily._dependencies,
-          allTransitiveDependencies:
-              StyleDateRangeFamily._allTransitiveDependencies,
-          style: style,
-        );
-
-  StyleDateRangeProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.style,
-  }) : super.internal();
-
-  final Style? style;
-
-  @override
-  Override overrideWith(
-    DateTimeRange? Function(StyleDateRangeRef provider) create,
-  ) {
-    return ProviderOverride(
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(DateTimeRange<DateTime>? value) {
+    return $ProviderOverride(
       origin: this,
-      override: StyleDateRangeProvider._internal(
-        (ref) => create(ref as StyleDateRangeRef),
-        from: from,
-        name: null,
-        dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        style: style,
-      ),
+      providerOverride: $SyncValueProvider<DateTimeRange<DateTime>?>(value),
     );
-  }
-
-  @override
-  AutoDisposeProviderElement<DateTimeRange?> createElement() {
-    return _StyleDateRangeProviderElement(this);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is StyleDateRangeProvider && other.style == style;
+    return other is StyleDateRangeProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, style.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin StyleDateRangeRef on AutoDisposeProviderRef<DateTimeRange?> {
-  /// The parameter `style` of this provider.
-  Style? get style;
-}
+String _$styleDateRangeHash() => r'a85c583d72ae8856cbf4c9f193c4b1870b90a116';
 
-class _StyleDateRangeProviderElement
-    extends AutoDisposeProviderElement<DateTimeRange?> with StyleDateRangeRef {
-  _StyleDateRangeProviderElement(super.provider);
+/// 根据 Style 获取该 Style 的日期范围
+
+final class StyleDateRangeFamily extends $Family
+    with $FunctionalFamilyOverride<DateTimeRange<DateTime>?, Style?> {
+  StyleDateRangeFamily._()
+    : super(
+        retry: null,
+        name: r'styleDateRangeProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 根据 Style 获取该 Style 的日期范围
+
+  StyleDateRangeProvider call({required Style? style}) =>
+      StyleDateRangeProvider._(argument: style, from: this);
 
   @override
-  Style? get style => (origin as StyleDateRangeProvider).style;
+  String toString() => r'styleDateRangeProvider';
 }
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

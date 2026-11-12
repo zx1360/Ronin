@@ -1,27 +1,22 @@
-import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'package:torrid/core/utils/util.dart';
 
 part 'label.g.dart';
 
-@HiveType(typeId: 2)
 @JsonSerializable(fieldRename: FieldRename.snake)
 class Label {
-  @HiveField(0)
+
   final String id;
 
-  @HiveField(1)
   final String name;
 
-  @HiveField(2)
+  @JsonKey(defaultValue: 0)
   final int essayCount;
 
-  @HiveField(3)
   final String? parentId;
 
   static const hiddenId = '00000000-0000-4000-8000-000000000001';
 
-  @HiveField(4)
   final DateTime? updatedAt;
 
   Label({

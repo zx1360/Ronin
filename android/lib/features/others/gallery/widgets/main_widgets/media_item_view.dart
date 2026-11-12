@@ -24,7 +24,8 @@ class MediaItemView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storage = ref.watch(galleryStorageProvider);
-    final apiClient = ref.read(apiClientManagerProvider);
+    final filesRevision = ref.watch(galleryFilesRevisionProvider);
+    final apiClient = ref.watch(apiClientManagerProvider);
     final baseUrl = apiClient.baseUrl;
     final headers = apiClient.headers;
     final editedTurns = ImageEdit.parse(asset.editParams).quarterTurns;
@@ -37,7 +38,7 @@ class MediaItemView extends ConsumerWidget {
     if (asset.isImage) {
       final imageUrl = galleryMediaUrl(baseUrl, asset);
       return NetworkImageWidget(
-        key: ValueKey('image_${asset.id}'),
+        key: ValueKey((asset.id, filesRevision)),
         imageUrl: imageUrl,
         asset: asset,
         storage: storage,
@@ -49,7 +50,7 @@ class MediaItemView extends ConsumerWidget {
 
     if (asset.isVideo) {
       return VideoPlayerWidget(
-        key: ValueKey('video_${asset.id}'),
+        key: ValueKey((asset.id, filesRevision, baseUrl)),
         asset: asset,
         storage: storage,
         rotationQuarterTurns: effectiveTurns,

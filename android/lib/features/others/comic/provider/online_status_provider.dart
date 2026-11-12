@@ -13,7 +13,7 @@ part 'online_status_provider.g.dart';
 
 /// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
 @riverpod
-Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
+Future<List<ComicInfo>> comicsOnline(Ref ref) async {
   return _fetchList(
     ref.watch(apiClientManagerProvider),
     '/API/comic/comic-info',
@@ -24,7 +24,7 @@ Future<List<ComicInfo>> comicsOnline(ComicsOnlineRef ref) async {
 /// 根据漫画 ID 获取对应的章节信息
 @riverpod
 Future<List<ChapterInfo>> onlineChaptersWithComicId(
-  OnlineChaptersWithComicIdRef ref, {
+  Ref ref, {
   required String comicId,
 }) async {
   return _fetchList(
@@ -37,7 +37,7 @@ Future<List<ChapterInfo>> onlineChaptersWithComicId(
 /// 根据章节 ID 获取对应的图片信息
 @riverpod
 Future<List<Map<String, dynamic>>> onlineImagesWithChapterId(
-  OnlineImagesWithChapterIdRef ref, {
+  Ref ref, {
   required String chapterId,
 }) async {
   return _fetchList(

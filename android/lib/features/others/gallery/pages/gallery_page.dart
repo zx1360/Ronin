@@ -80,12 +80,6 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   void initState() {
     super.initState();
     ref.read(galleryWriteBufferProvider).retry();
-    _initStorage();
-  }
-
-  Future<void> _initStorage() async {
-    final storage = ref.read(galleryStorageProvider);
-    await storage.initDirectories();
   }
 
   void _toggleBarsVisibility() {
@@ -194,7 +188,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                 children: [
                   // 当前媒体的标签显示
                   if (currentMedia != null)
-                    _buildTagBar(currentTags.valueOrNull ?? []),
+                    _buildTagBar(currentTags.value ?? []),
                   // 底部导航栏
                   _buildBottomBar(context, currentMedia),
                 ],
@@ -229,8 +223,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
         currentMedia?.filePath.split('/').last.split('\\').last ?? '';
     final editInfo = parseEditInfo(currentMedia);
     final inGroup = ref.watch(galleryActiveGroupProvider) != null;
-    final groupAssets =
-        ref.watch(galleryBrowsingAssetsProvider).valueOrNull ?? [];
+    final groupAssets = ref.watch(galleryBrowsingAssetsProvider).value ?? [];
     final groupIndex = ref.watch(galleryBrowsingIndexProvider);
 
     return Container(
@@ -377,7 +370,7 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   Widget _buildBottomBar(BuildContext context, MediaAsset? currentMedia) {
     final inGroup = ref.watch(galleryActiveGroupProvider) != null;
     final groupSize =
-        ref.watch(mediaGroupSizesProvider).valueOrNull?[currentMedia?.groupId ??
+        ref.watch(mediaGroupSizesProvider).value?[currentMedia?.groupId ??
             currentMedia?.id] ??
         0;
     return SafeArea(

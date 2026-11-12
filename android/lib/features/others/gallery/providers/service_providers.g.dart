@@ -6,39 +6,108 @@ part of 'service_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$galleryDatabaseHash() => r'4035a38a451711598ab97fe492543d81a93e61b2';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// 数据库服务 Provider
+
+@ProviderFor(galleryDatabase)
+final galleryDatabaseProvider = GalleryDatabaseProvider._();
 
 /// 数据库服务 Provider
-///
-/// Copied from [galleryDatabase].
-@ProviderFor(galleryDatabase)
-final galleryDatabaseProvider = Provider<GalleryDatabaseService>.internal(
-  galleryDatabase,
-  name: r'galleryDatabaseProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryDatabaseHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef GalleryDatabaseRef = ProviderRef<GalleryDatabaseService>;
-String _$galleryStorageHash() => r'e3d91c97f363aec8568be9046fedbb3cf4478447';
+final class GalleryDatabaseProvider
+    extends
+        $FunctionalProvider<
+          GalleryDatabaseService,
+          GalleryDatabaseService,
+          GalleryDatabaseService
+        >
+    with $Provider<GalleryDatabaseService> {
+  /// 数据库服务 Provider
+  GalleryDatabaseProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryDatabaseProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryDatabaseHash();
+
+  @$internal
+  @override
+  $ProviderElement<GalleryDatabaseService> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  GalleryDatabaseService create(Ref ref) {
+    return galleryDatabase(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GalleryDatabaseService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GalleryDatabaseService>(value),
+    );
+  }
+}
+
+String _$galleryDatabaseHash() => r'ca512832ea2bde74de461eca7d878f8e90136269';
 
 /// 文件存储服务 Provider
-///
-/// Copied from [galleryStorage].
-@ProviderFor(galleryStorage)
-final galleryStorageProvider = Provider<GalleryStorageService>.internal(
-  galleryStorage,
-  name: r'galleryStorageProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryStorageHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef GalleryStorageRef = ProviderRef<GalleryStorageService>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+@ProviderFor(galleryStorage)
+final galleryStorageProvider = GalleryStorageProvider._();
+
+/// 文件存储服务 Provider
+
+final class GalleryStorageProvider
+    extends
+        $FunctionalProvider<
+          GalleryStorageService,
+          GalleryStorageService,
+          GalleryStorageService
+        >
+    with $Provider<GalleryStorageService> {
+  /// 文件存储服务 Provider
+  GalleryStorageProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryStorageProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryStorageHash();
+
+  @$internal
+  @override
+  $ProviderElement<GalleryStorageService> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  GalleryStorageService create(Ref ref) {
+    return galleryStorage(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GalleryStorageService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GalleryStorageService>(value),
+    );
+  }
+}
+
+String _$galleryStorageHash() => r'479d1d6ba1551dc2ce632dfb2044f4fb4c1ca58f';

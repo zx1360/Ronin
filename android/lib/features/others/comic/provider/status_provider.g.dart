@@ -6,355 +6,318 @@ part of 'status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicInfosHash() => r'62db4fa2d58005abb20a21ce511897ffa23edbab';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// 所有本地漫画信息（按拼音升序排列）
-///
-/// 对于含有中文的漫画名，按拼音首字母排序。
-///
-/// Copied from [comicInfos].
-@ProviderFor(comicInfos)
-final comicInfosProvider = AutoDisposeProvider<List<ComicInfo>>.internal(
-  comicInfos,
-  name: r'comicInfosProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$comicInfosHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+@ProviderFor(localComics)
+final localComicsProvider = LocalComicsProvider._();
 
-typedef ComicInfosRef = AutoDisposeProviderRef<List<ComicInfo>>;
-String _$comicPrefWithComicIdHash() =>
-    r'e7356a15d0a93a610b9181d66a02d9912a964930';
-
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
-/// 获取指定漫画的阅读偏好
-///
-/// 如果不存在则返回默认偏好（从第0章开始）。
-///
-/// Copied from [comicPrefWithComicId].
-@ProviderFor(comicPrefWithComicId)
-const comicPrefWithComicIdProvider = ComicPrefWithComicIdFamily();
-
-/// 获取指定漫画的阅读偏好
-///
-/// 如果不存在则返回默认偏好（从第0章开始）。
-///
-/// Copied from [comicPrefWithComicId].
-class ComicPrefWithComicIdFamily extends Family<ComicPreference> {
-  /// 获取指定漫画的阅读偏好
-  ///
-  /// 如果不存在则返回默认偏好（从第0章开始）。
-  ///
-  /// Copied from [comicPrefWithComicId].
-  const ComicPrefWithComicIdFamily();
-
-  /// 获取指定漫画的阅读偏好
-  ///
-  /// 如果不存在则返回默认偏好（从第0章开始）。
-  ///
-  /// Copied from [comicPrefWithComicId].
-  ComicPrefWithComicIdProvider call({
-    required String comicId,
-  }) {
-    return ComicPrefWithComicIdProvider(
-      comicId: comicId,
-    );
-  }
-
-  @override
-  ComicPrefWithComicIdProvider getProviderOverride(
-    covariant ComicPrefWithComicIdProvider provider,
-  ) {
-    return call(
-      comicId: provider.comicId,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'comicPrefWithComicIdProvider';
-}
-
-/// 获取指定漫画的阅读偏好
-///
-/// 如果不存在则返回默认偏好（从第0章开始）。
-///
-/// Copied from [comicPrefWithComicId].
-class ComicPrefWithComicIdProvider
-    extends AutoDisposeProvider<ComicPreference> {
-  /// 获取指定漫画的阅读偏好
-  ///
-  /// 如果不存在则返回默认偏好（从第0章开始）。
-  ///
-  /// Copied from [comicPrefWithComicId].
-  ComicPrefWithComicIdProvider({
-    required String comicId,
-  }) : this._internal(
-          (ref) => comicPrefWithComicId(
-            ref as ComicPrefWithComicIdRef,
-            comicId: comicId,
-          ),
-          from: comicPrefWithComicIdProvider,
-          name: r'comicPrefWithComicIdProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$comicPrefWithComicIdHash,
-          dependencies: ComicPrefWithComicIdFamily._dependencies,
-          allTransitiveDependencies:
-              ComicPrefWithComicIdFamily._allTransitiveDependencies,
-          comicId: comicId,
-        );
-
-  ComicPrefWithComicIdProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.comicId,
-  }) : super.internal();
-
-  final String comicId;
-
-  @override
-  Override overrideWith(
-    ComicPreference Function(ComicPrefWithComicIdRef provider) create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: ComicPrefWithComicIdProvider._internal(
-        (ref) => create(ref as ComicPrefWithComicIdRef),
-        from: from,
-        name: null,
+final class LocalComicsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<ComicInfo>>,
+          List<ComicInfo>,
+          Stream<List<ComicInfo>>
+        >
+    with $FutureModifier<List<ComicInfo>>, $StreamProvider<List<ComicInfo>> {
+  LocalComicsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'localComicsProvider',
+        isAutoDispose: true,
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        comicId: comicId,
-      ),
-    );
-  }
+        $allTransitiveDependencies: null,
+      );
 
   @override
-  AutoDisposeProviderElement<ComicPreference> createElement() {
-    return _ComicPrefWithComicIdProviderElement(this);
+  String debugGetCreateSourceHash() => _$localComicsHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<List<ComicInfo>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<ComicInfo>> create(Ref ref) {
+    return localComics(ref);
+  }
+}
+
+String _$localComicsHash() => r'7c85edfda6d71deaea156abea82624c5f139d720';
+
+@ProviderFor(comicInfos)
+final comicInfosProvider = ComicInfosProvider._();
+
+final class ComicInfosProvider
+    extends
+        $FunctionalProvider<List<ComicInfo>, List<ComicInfo>, List<ComicInfo>>
+    with $Provider<List<ComicInfo>> {
+  ComicInfosProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'comicInfosProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$comicInfosHash();
+
+  @$internal
+  @override
+  $ProviderElement<List<ComicInfo>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<ComicInfo> create(Ref ref) {
+    return comicInfos(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<ComicInfo> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<ComicInfo>>(value),
+    );
+  }
+}
+
+String _$comicInfosHash() => r'e45f0dc049b36ec41baa764ef16dae848d68837a';
+
+@ProviderFor(comicProgress)
+final comicProgressProvider = ComicProgressFamily._();
+
+final class ComicProgressProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<ComicPreference>,
+          ComicPreference,
+          Stream<ComicPreference>
+        >
+    with $FutureModifier<ComicPreference>, $StreamProvider<ComicPreference> {
+  ComicProgressProvider._({
+    required ComicProgressFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'comicProgressProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$comicProgressHash();
+
+  @override
+  String toString() {
+    return r'comicProgressProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<ComicPreference> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<ComicPreference> create(Ref ref) {
+    final argument = this.argument as String;
+    return comicProgress(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is ComicPrefWithComicIdProvider && other.comicId == comicId;
+    return other is ComicProgressProvider && other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, comicId.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin ComicPrefWithComicIdRef on AutoDisposeProviderRef<ComicPreference> {
-  /// The parameter `comicId` of this provider.
-  String get comicId;
-}
+String _$comicProgressHash() => r'7c4e1377653371920220826cc2fed626b345cc56';
 
-class _ComicPrefWithComicIdProviderElement
-    extends AutoDisposeProviderElement<ComicPreference>
-    with ComicPrefWithComicIdRef {
-  _ComicPrefWithComicIdProviderElement(super.provider);
+final class ComicProgressFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<ComicPreference>, String> {
+  ComicProgressFamily._()
+    : super(
+        retry: null,
+        name: r'comicProgressProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ComicProgressProvider call(String comicId) =>
+      ComicProgressProvider._(argument: comicId, from: this);
 
   @override
-  String get comicId => (origin as ComicPrefWithComicIdProvider).comicId;
+  String toString() => r'comicProgressProvider';
+}
+
+@ProviderFor(comicPrefWithComicId)
+final comicPrefWithComicIdProvider = ComicPrefWithComicIdFamily._();
+
+final class ComicPrefWithComicIdProvider
+    extends
+        $FunctionalProvider<ComicPreference, ComicPreference, ComicPreference>
+    with $Provider<ComicPreference> {
+  ComicPrefWithComicIdProvider._({
+    required ComicPrefWithComicIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'comicPrefWithComicIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$comicPrefWithComicIdHash();
+
+  @override
+  String toString() {
+    return r'comicPrefWithComicIdProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<ComicPreference> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  ComicPreference create(Ref ref) {
+    final argument = this.argument as String;
+    return comicPrefWithComicId(ref, comicId: argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ComicPreference value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ComicPreference>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ComicPrefWithComicIdProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$comicPrefWithComicIdHash() =>
+    r'de313419f5de6a88e808cf5dd65f85be31d7fae0';
+
+final class ComicPrefWithComicIdFamily extends $Family
+    with $FunctionalFamilyOverride<ComicPreference, String> {
+  ComicPrefWithComicIdFamily._()
+    : super(
+        retry: null,
+        name: r'comicPrefWithComicIdProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ComicPrefWithComicIdProvider call({required String comicId}) =>
+      ComicPrefWithComicIdProvider._(argument: comicId, from: this);
+
+  @override
+  String toString() => r'comicPrefWithComicIdProvider';
+}
+
+@ProviderFor(chaptersWithComicId)
+final chaptersWithComicIdProvider = ChaptersWithComicIdFamily._();
+
+final class ChaptersWithComicIdProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<ChapterInfo>>,
+          List<ChapterInfo>,
+          Stream<List<ChapterInfo>>
+        >
+    with
+        $FutureModifier<List<ChapterInfo>>,
+        $StreamProvider<List<ChapterInfo>> {
+  ChaptersWithComicIdProvider._({
+    required ChaptersWithComicIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'chaptersWithComicIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$chaptersWithComicIdHash();
+
+  @override
+  String toString() {
+    return r'chaptersWithComicIdProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<ChapterInfo>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<ChapterInfo>> create(Ref ref) {
+    final argument = this.argument as String;
+    return chaptersWithComicId(ref, comicId: argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ChaptersWithComicIdProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
 }
 
 String _$chaptersWithComicIdHash() =>
-    r'9592109cace153ea9f3ef32ac53b7c3b373c04b7';
+    r'e63bbc7059e95fa169cd54d771f0b500a13b8543';
 
-/// 获取指定漫画的所有章节信息
-///
-/// 按章节索引升序排列。
-///
-/// Copied from [chaptersWithComicId].
-@ProviderFor(chaptersWithComicId)
-const chaptersWithComicIdProvider = ChaptersWithComicIdFamily();
-
-/// 获取指定漫画的所有章节信息
-///
-/// 按章节索引升序排列。
-///
-/// Copied from [chaptersWithComicId].
-class ChaptersWithComicIdFamily extends Family<AsyncValue<List<ChapterInfo>>> {
-  /// 获取指定漫画的所有章节信息
-  ///
-  /// 按章节索引升序排列。
-  ///
-  /// Copied from [chaptersWithComicId].
-  const ChaptersWithComicIdFamily();
-
-  /// 获取指定漫画的所有章节信息
-  ///
-  /// 按章节索引升序排列。
-  ///
-  /// Copied from [chaptersWithComicId].
-  ChaptersWithComicIdProvider call({
-    required String comicId,
-  }) {
-    return ChaptersWithComicIdProvider(
-      comicId: comicId,
-    );
-  }
-
-  @override
-  ChaptersWithComicIdProvider getProviderOverride(
-    covariant ChaptersWithComicIdProvider provider,
-  ) {
-    return call(
-      comicId: provider.comicId,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'chaptersWithComicIdProvider';
-}
-
-/// 获取指定漫画的所有章节信息
-///
-/// 按章节索引升序排列。
-///
-/// Copied from [chaptersWithComicId].
-class ChaptersWithComicIdProvider
-    extends AutoDisposeFutureProvider<List<ChapterInfo>> {
-  /// 获取指定漫画的所有章节信息
-  ///
-  /// 按章节索引升序排列。
-  ///
-  /// Copied from [chaptersWithComicId].
-  ChaptersWithComicIdProvider({
-    required String comicId,
-  }) : this._internal(
-          (ref) => chaptersWithComicId(
-            ref as ChaptersWithComicIdRef,
-            comicId: comicId,
-          ),
-          from: chaptersWithComicIdProvider,
-          name: r'chaptersWithComicIdProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$chaptersWithComicIdHash,
-          dependencies: ChaptersWithComicIdFamily._dependencies,
-          allTransitiveDependencies:
-              ChaptersWithComicIdFamily._allTransitiveDependencies,
-          comicId: comicId,
-        );
-
-  ChaptersWithComicIdProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.comicId,
-  }) : super.internal();
-
-  final String comicId;
-
-  @override
-  Override overrideWith(
-    FutureOr<List<ChapterInfo>> Function(ChaptersWithComicIdRef provider)
-        create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: ChaptersWithComicIdProvider._internal(
-        (ref) => create(ref as ChaptersWithComicIdRef),
-        from: from,
-        name: null,
+final class ChaptersWithComicIdFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<ChapterInfo>>, String> {
+  ChaptersWithComicIdFamily._()
+    : super(
+        retry: null,
+        name: r'chaptersWithComicIdProvider',
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        comicId: comicId,
-      ),
-    );
-  }
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ChaptersWithComicIdProvider call({required String comicId}) =>
+      ChaptersWithComicIdProvider._(argument: comicId, from: this);
 
   @override
-  AutoDisposeFutureProviderElement<List<ChapterInfo>> createElement() {
-    return _ChaptersWithComicIdProviderElement(this);
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is ChaptersWithComicIdProvider && other.comicId == comicId;
-  }
-
-  @override
-  int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, comicId.hashCode);
-
-    return _SystemHash.finish(hash);
-  }
+  String toString() => r'chaptersWithComicIdProvider';
 }
-
-mixin ChaptersWithComicIdRef
-    on AutoDisposeFutureProviderRef<List<ChapterInfo>> {
-  /// The parameter `comicId` of this provider.
-  String get comicId;
-}
-
-class _ChaptersWithComicIdProviderElement
-    extends AutoDisposeFutureProviderElement<List<ChapterInfo>>
-    with ChaptersWithComicIdRef {
-  _ChaptersWithComicIdProviderElement(super.provider);
-
-  @override
-  String get comicId => (origin as ChaptersWithComicIdProvider).comicId;
-}
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

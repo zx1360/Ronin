@@ -50,7 +50,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
     try {
       final response = await ref
           .read(apiClientManagerProvider)
-          .get('/API/gallery/${widget.asset.id}/video-info');
+          .get(galleryMediaPath(widget.asset, 'video-info'));
       if (!mounted) return;
       final data = response.data as Map<String, dynamic>;
       final duration = (data['duration_ms'] as num).toDouble() / 1000;
@@ -134,7 +134,7 @@ class _VideoTrimmerPageState extends ConsumerState<VideoTrimmerPage> {
       final response = await ref
           .read(apiClientManagerProvider)
           .getBinary(
-            '/API/gallery/${widget.asset.id}/frame',
+            galleryMediaPath(widget.asset, 'frame'),
             queryParams: {'sec': sec.toStringAsFixed(3)},
             cancelToken: cancel,
           );

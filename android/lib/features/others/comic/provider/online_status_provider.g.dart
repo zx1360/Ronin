@@ -6,338 +6,228 @@ part of 'online_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$comicsOnlineHash() => r'eeecefd8e45a9ca96595e400841e62d406c8454a';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
+/// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
+
+@ProviderFor(comicsOnline)
+final comicsOnlineProvider = ComicsOnlineProvider._();
 
 /// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
-///
-/// Copied from [comicsOnline].
-@ProviderFor(comicsOnline)
-final comicsOnlineProvider =
-    AutoDisposeFutureProvider<List<ComicInfo>>.internal(
-  comicsOnline,
-  name: r'comicsOnlineProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$comicsOnlineHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
 
-typedef ComicsOnlineRef = AutoDisposeFutureProviderRef<List<ComicInfo>>;
-String _$onlineChaptersWithComicIdHash() =>
-    r'7e80e22fee3569863d3fac42719a0aca8f552135';
-
-/// Copied from Dart SDK
-class _SystemHash {
-  _SystemHash._();
-
-  static int combine(int hash, int value) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + value);
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    return hash ^ (hash >> 6);
-  }
-
-  static int finish(int hash) {
-    // ignore: parameter_assignments
-    hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-    // ignore: parameter_assignments
-    hash = hash ^ (hash >> 11);
-    return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
-  }
-}
-
-/// 根据漫画 ID 获取对应的章节信息
-///
-/// Copied from [onlineChaptersWithComicId].
-@ProviderFor(onlineChaptersWithComicId)
-const onlineChaptersWithComicIdProvider = OnlineChaptersWithComicIdFamily();
-
-/// 根据漫画 ID 获取对应的章节信息
-///
-/// Copied from [onlineChaptersWithComicId].
-class OnlineChaptersWithComicIdFamily
-    extends Family<AsyncValue<List<ChapterInfo>>> {
-  /// 根据漫画 ID 获取对应的章节信息
-  ///
-  /// Copied from [onlineChaptersWithComicId].
-  const OnlineChaptersWithComicIdFamily();
-
-  /// 根据漫画 ID 获取对应的章节信息
-  ///
-  /// Copied from [onlineChaptersWithComicId].
-  OnlineChaptersWithComicIdProvider call({
-    required String comicId,
-  }) {
-    return OnlineChaptersWithComicIdProvider(
-      comicId: comicId,
-    );
-  }
-
-  @override
-  OnlineChaptersWithComicIdProvider getProviderOverride(
-    covariant OnlineChaptersWithComicIdProvider provider,
-  ) {
-    return call(
-      comicId: provider.comicId,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'onlineChaptersWithComicIdProvider';
-}
-
-/// 根据漫画 ID 获取对应的章节信息
-///
-/// Copied from [onlineChaptersWithComicId].
-class OnlineChaptersWithComicIdProvider
-    extends AutoDisposeFutureProvider<List<ChapterInfo>> {
-  /// 根据漫画 ID 获取对应的章节信息
-  ///
-  /// Copied from [onlineChaptersWithComicId].
-  OnlineChaptersWithComicIdProvider({
-    required String comicId,
-  }) : this._internal(
-          (ref) => onlineChaptersWithComicId(
-            ref as OnlineChaptersWithComicIdRef,
-            comicId: comicId,
-          ),
-          from: onlineChaptersWithComicIdProvider,
-          name: r'onlineChaptersWithComicIdProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$onlineChaptersWithComicIdHash,
-          dependencies: OnlineChaptersWithComicIdFamily._dependencies,
-          allTransitiveDependencies:
-              OnlineChaptersWithComicIdFamily._allTransitiveDependencies,
-          comicId: comicId,
-        );
-
-  OnlineChaptersWithComicIdProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.comicId,
-  }) : super.internal();
-
-  final String comicId;
-
-  @override
-  Override overrideWith(
-    FutureOr<List<ChapterInfo>> Function(OnlineChaptersWithComicIdRef provider)
-        create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: OnlineChaptersWithComicIdProvider._internal(
-        (ref) => create(ref as OnlineChaptersWithComicIdRef),
-        from: from,
-        name: null,
+final class ComicsOnlineProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<ComicInfo>>,
+          List<ComicInfo>,
+          FutureOr<List<ComicInfo>>
+        >
+    with $FutureModifier<List<ComicInfo>>, $FutureProvider<List<ComicInfo>> {
+  /// 获取所有在线漫画信息（不过滤，由 UI 层控制可见性）
+  ComicsOnlineProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'comicsOnlineProvider',
+        isAutoDispose: true,
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        comicId: comicId,
-      ),
-    );
-  }
+        $allTransitiveDependencies: null,
+      );
 
   @override
-  AutoDisposeFutureProviderElement<List<ChapterInfo>> createElement() {
-    return _OnlineChaptersWithComicIdProviderElement(this);
+  String debugGetCreateSourceHash() => _$comicsOnlineHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<ComicInfo>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<ComicInfo>> create(Ref ref) {
+    return comicsOnline(ref);
+  }
+}
+
+String _$comicsOnlineHash() => r'f8239fd920726cc90663963774157d0a6c24ebec';
+
+/// 根据漫画 ID 获取对应的章节信息
+
+@ProviderFor(onlineChaptersWithComicId)
+final onlineChaptersWithComicIdProvider = OnlineChaptersWithComicIdFamily._();
+
+/// 根据漫画 ID 获取对应的章节信息
+
+final class OnlineChaptersWithComicIdProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<ChapterInfo>>,
+          List<ChapterInfo>,
+          FutureOr<List<ChapterInfo>>
+        >
+    with
+        $FutureModifier<List<ChapterInfo>>,
+        $FutureProvider<List<ChapterInfo>> {
+  /// 根据漫画 ID 获取对应的章节信息
+  OnlineChaptersWithComicIdProvider._({
+    required OnlineChaptersWithComicIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'onlineChaptersWithComicIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$onlineChaptersWithComicIdHash();
+
+  @override
+  String toString() {
+    return r'onlineChaptersWithComicIdProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<List<ChapterInfo>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<ChapterInfo>> create(Ref ref) {
+    final argument = this.argument as String;
+    return onlineChaptersWithComicId(ref, comicId: argument);
   }
 
   @override
   bool operator ==(Object other) {
     return other is OnlineChaptersWithComicIdProvider &&
-        other.comicId == comicId;
+        other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, comicId.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin OnlineChaptersWithComicIdRef
-    on AutoDisposeFutureProviderRef<List<ChapterInfo>> {
-  /// The parameter `comicId` of this provider.
-  String get comicId;
-}
+String _$onlineChaptersWithComicIdHash() =>
+    r'dd4f5c78d7cd7505a66aec87e3f6fd90ea60d2ad';
 
-class _OnlineChaptersWithComicIdProviderElement
-    extends AutoDisposeFutureProviderElement<List<ChapterInfo>>
-    with OnlineChaptersWithComicIdRef {
-  _OnlineChaptersWithComicIdProviderElement(super.provider);
+/// 根据漫画 ID 获取对应的章节信息
 
-  @override
-  String get comicId => (origin as OnlineChaptersWithComicIdProvider).comicId;
-}
-
-String _$onlineImagesWithChapterIdHash() =>
-    r'ce503e5ade0a0b21ddbe5282a3baaff260d642b9';
-
-/// 根据章节 ID 获取对应的图片信息
-///
-/// Copied from [onlineImagesWithChapterId].
-@ProviderFor(onlineImagesWithChapterId)
-const onlineImagesWithChapterIdProvider = OnlineImagesWithChapterIdFamily();
-
-/// 根据章节 ID 获取对应的图片信息
-///
-/// Copied from [onlineImagesWithChapterId].
-class OnlineImagesWithChapterIdFamily
-    extends Family<AsyncValue<List<Map<String, dynamic>>>> {
-  /// 根据章节 ID 获取对应的图片信息
-  ///
-  /// Copied from [onlineImagesWithChapterId].
-  const OnlineImagesWithChapterIdFamily();
-
-  /// 根据章节 ID 获取对应的图片信息
-  ///
-  /// Copied from [onlineImagesWithChapterId].
-  OnlineImagesWithChapterIdProvider call({
-    required String chapterId,
-  }) {
-    return OnlineImagesWithChapterIdProvider(
-      chapterId: chapterId,
-    );
-  }
-
-  @override
-  OnlineImagesWithChapterIdProvider getProviderOverride(
-    covariant OnlineImagesWithChapterIdProvider provider,
-  ) {
-    return call(
-      chapterId: provider.chapterId,
-    );
-  }
-
-  static const Iterable<ProviderOrFamily>? _dependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
-
-  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
-
-  @override
-  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
-      _allTransitiveDependencies;
-
-  @override
-  String? get name => r'onlineImagesWithChapterIdProvider';
-}
-
-/// 根据章节 ID 获取对应的图片信息
-///
-/// Copied from [onlineImagesWithChapterId].
-class OnlineImagesWithChapterIdProvider
-    extends AutoDisposeFutureProvider<List<Map<String, dynamic>>> {
-  /// 根据章节 ID 获取对应的图片信息
-  ///
-  /// Copied from [onlineImagesWithChapterId].
-  OnlineImagesWithChapterIdProvider({
-    required String chapterId,
-  }) : this._internal(
-          (ref) => onlineImagesWithChapterId(
-            ref as OnlineImagesWithChapterIdRef,
-            chapterId: chapterId,
-          ),
-          from: onlineImagesWithChapterIdProvider,
-          name: r'onlineImagesWithChapterIdProvider',
-          debugGetCreateSourceHash:
-              const bool.fromEnvironment('dart.vm.product')
-                  ? null
-                  : _$onlineImagesWithChapterIdHash,
-          dependencies: OnlineImagesWithChapterIdFamily._dependencies,
-          allTransitiveDependencies:
-              OnlineImagesWithChapterIdFamily._allTransitiveDependencies,
-          chapterId: chapterId,
-        );
-
-  OnlineImagesWithChapterIdProvider._internal(
-    super._createNotifier, {
-    required super.name,
-    required super.dependencies,
-    required super.allTransitiveDependencies,
-    required super.debugGetCreateSourceHash,
-    required super.from,
-    required this.chapterId,
-  }) : super.internal();
-
-  final String chapterId;
-
-  @override
-  Override overrideWith(
-    FutureOr<List<Map<String, dynamic>>> Function(
-            OnlineImagesWithChapterIdRef provider)
-        create,
-  ) {
-    return ProviderOverride(
-      origin: this,
-      override: OnlineImagesWithChapterIdProvider._internal(
-        (ref) => create(ref as OnlineImagesWithChapterIdRef),
-        from: from,
-        name: null,
+final class OnlineChaptersWithComicIdFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<List<ChapterInfo>>, String> {
+  OnlineChaptersWithComicIdFamily._()
+    : super(
+        retry: null,
+        name: r'onlineChaptersWithComicIdProvider',
         dependencies: null,
-        allTransitiveDependencies: null,
-        debugGetCreateSourceHash: null,
-        chapterId: chapterId,
-      ),
-    );
-  }
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 根据漫画 ID 获取对应的章节信息
+
+  OnlineChaptersWithComicIdProvider call({required String comicId}) =>
+      OnlineChaptersWithComicIdProvider._(argument: comicId, from: this);
 
   @override
-  AutoDisposeFutureProviderElement<List<Map<String, dynamic>>> createElement() {
-    return _OnlineImagesWithChapterIdProviderElement(this);
+  String toString() => r'onlineChaptersWithComicIdProvider';
+}
+
+/// 根据章节 ID 获取对应的图片信息
+
+@ProviderFor(onlineImagesWithChapterId)
+final onlineImagesWithChapterIdProvider = OnlineImagesWithChapterIdFamily._();
+
+/// 根据章节 ID 获取对应的图片信息
+
+final class OnlineImagesWithChapterIdProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Map<String, dynamic>>>,
+          List<Map<String, dynamic>>,
+          FutureOr<List<Map<String, dynamic>>>
+        >
+    with
+        $FutureModifier<List<Map<String, dynamic>>>,
+        $FutureProvider<List<Map<String, dynamic>>> {
+  /// 根据章节 ID 获取对应的图片信息
+  OnlineImagesWithChapterIdProvider._({
+    required OnlineImagesWithChapterIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'onlineImagesWithChapterIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$onlineImagesWithChapterIdHash();
+
+  @override
+  String toString() {
+    return r'onlineImagesWithChapterIdProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<List<Map<String, dynamic>>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<Map<String, dynamic>>> create(Ref ref) {
+    final argument = this.argument as String;
+    return onlineImagesWithChapterId(ref, chapterId: argument);
   }
 
   @override
   bool operator ==(Object other) {
     return other is OnlineImagesWithChapterIdProvider &&
-        other.chapterId == chapterId;
+        other.argument == argument;
   }
 
   @override
   int get hashCode {
-    var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, chapterId.hashCode);
-
-    return _SystemHash.finish(hash);
+    return argument.hashCode;
   }
 }
 
-mixin OnlineImagesWithChapterIdRef
-    on AutoDisposeFutureProviderRef<List<Map<String, dynamic>>> {
-  /// The parameter `chapterId` of this provider.
-  String get chapterId;
-}
+String _$onlineImagesWithChapterIdHash() =>
+    r'f74edf57b18977798d07c808d0b74003b018ac4c';
 
-class _OnlineImagesWithChapterIdProviderElement
-    extends AutoDisposeFutureProviderElement<List<Map<String, dynamic>>>
-    with OnlineImagesWithChapterIdRef {
-  _OnlineImagesWithChapterIdProviderElement(super.provider);
+/// 根据章节 ID 获取对应的图片信息
+
+final class OnlineImagesWithChapterIdFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<List<Map<String, dynamic>>>,
+          String
+        > {
+  OnlineImagesWithChapterIdFamily._()
+    : super(
+        retry: null,
+        name: r'onlineImagesWithChapterIdProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// 根据章节 ID 获取对应的图片信息
+
+  OnlineImagesWithChapterIdProvider call({required String chapterId}) =>
+      OnlineImagesWithChapterIdProvider._(argument: chapterId, from: this);
 
   @override
-  String get chapterId =>
-      (origin as OnlineImagesWithChapterIdProvider).chapterId;
+  String toString() => r'onlineImagesWithChapterIdProvider';
 }
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

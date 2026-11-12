@@ -1,6 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
-import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/features/others/gallery/models/gallery_overview.dart';
 import 'package:torrid/features/others/gallery/providers/service_providers.dart';
 import 'package:torrid/features/others/gallery/services/gallery_storage_service.dart';
@@ -10,53 +9,30 @@ part 'stats_providers.g.dart';
 
 // 统计信息 Providers
 
-/// 数据库统计信息 Provider
 @Riverpod(keepAlive: true)
-Future<GalleryDbStats> galleryDbStats(GalleryDbStatsRef ref) async {
-  final db = ref.watch(galleryDatabaseProvider);
+Stream<GalleryDbStats> galleryDbStats(Ref ref) => ref
+    .watch(galleryDatabaseProvider)
+    .watchCounts()
+    .map(
+      (count) => GalleryDbStats(
+        mediaAssetCount: count.media,
+        tagCount: count.tags,
+        mediaTagLinkCount: count.links,
+      ),
+    );
 
-  final mediaCount = await db.getMediaAssetCount();
-  final tagCount = await db.getTagCount();
-  final linkCount = await db.getMediaTagLinkCount();
-
-  return GalleryDbStats(
-    mediaAssetCount: mediaCount,
-    tagCount: tagCount,
-    mediaTagLinkCount: linkCount,
-  );
-}
-
-/// 文件存储统计信息 (持久化缓存, 仅在手动刷新或数据同步后更新)
 @Riverpod(keepAlive: true)
 class GalleryCachedStorageStats extends _$GalleryCachedStorageStats {
-  static const _fileCountKey = 'gallery_storage_file_count';
-  static const _totalBytesKey = 'gallery_storage_total_bytes';
-
   @override
-  GalleryStorageStats build() {
-    final prefs = PrefsService().prefs;
-    return GalleryStorageStats(
-      fileCount: prefs.getInt(_fileCountKey) ?? 0,
-      totalBytes: prefs.getInt(_totalBytesKey) ?? 0,
-    );
-  }
+  Future<GalleryStorageStats> build() =>
+      ref.watch(galleryStorageProvider).getStorageStats();
 
-  /// 重新扫描文件系统并更新缓存
   Future<void> refresh() async {
+    final storage = ref.read(galleryStorageProvider);
     try {
-      final storage = ref.read(galleryStorageProvider);
-      AppLogger().info('[存储统计] 开始扫描文件系统...');
-      final stats = await storage.getStorageStats();
-      AppLogger().info(
-        '[存储统计] 扫描完成: 文件数=${stats.fileCount}, 字节数=${stats.totalBytes}',
-      );
-      final prefs = PrefsService().prefs;
-      await prefs.setInt(_fileCountKey, stats.fileCount);
-      await prefs.setInt(_totalBytesKey, stats.totalBytes);
-      state = stats;
-      AppLogger().info('[存储统计] 状态已更新');
-    } catch (e, s) {
-      AppLogger().error('[存储统计] 刷新失败: $e\n$s');
+      state = AsyncData(await storage.getStorageStats());
+    } catch (error, stack) {
+      AppLogger().error('画廊文件统计失败', error, stack);
       rethrow;
     }
   }
@@ -77,9 +53,7 @@ class GalleryDbStats {
 
 /// 服务端画廊总览 Provider
 @riverpod
-Future<GalleryOverview> galleryServerOverview(
-  GalleryServerOverviewRef ref,
-) async {
+Future<GalleryOverview> galleryServerOverview(Ref ref) async {
   final apiClient = ref.watch(apiClientManagerProvider);
   final response = await apiClient.get('/API/gallery/overview');
   return GalleryOverview.fromJson(response.data as Map<String, dynamic>);
@@ -87,7 +61,5 @@ Future<GalleryOverview> galleryServerOverview(
 
 /// 有关联标签的媒体 ID 集合 Provider（用于浏览页标签指示器）
 @Riverpod(keepAlive: true)
-Future<Set<String>> mediaIdsWithTags(MediaIdsWithTagsRef ref) async {
-  final db = ref.watch(galleryDatabaseProvider);
-  return db.getMediaIdsWithTags();
-}
+Stream<Set<String>> mediaIdsWithTags(Ref ref) =>
+    ref.watch(galleryDatabaseProvider).watchMediaIdsWithTags();

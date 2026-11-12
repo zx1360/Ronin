@@ -1,0 +1,21 @@
+import '../../../core/services/storage/storage_types.dart';
+
+CREATE TABLE booklet_styles (
+  id TEXT NOT NULL PRIMARY KEY,
+  start_date TEXT NOT NULL,
+  tasks TEXT NOT NULL,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL
+);
+
+CREATE TABLE booklet_records (
+  id TEXT NOT NULL PRIMARY KEY,
+  style_id TEXT NOT NULL REFERENCES booklet_styles (id) DEFERRABLE INITIALLY DEFERRED,
+  date TEXT NOT NULL,
+  message TEXT NOT NULL,
+  task_completion TEXT NOT NULL,
+  mood TEXT,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  UNIQUE (style_id, date)
+);
+
+CREATE INDEX booklet_records_date ON booklet_records (date);

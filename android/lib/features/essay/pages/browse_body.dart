@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/essay/pages/browse_list.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/setting_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 
@@ -46,14 +46,15 @@ class BrowseBodyState extends ConsumerState<BrowseBody> {
 
   @override
   Widget build(BuildContext context) {
+    final activeYear = _currentPage > 0 && _currentPage <= _years.length
+        ? _years[_currentPage - 1]
+        : null;
     final years = ref
         .watch(summariesProvider)
         .map((summary) => summary.year)
         .toSet();
     if (ref.watch(browseManagerProvider).showHidden) {
-      final essays =
-          ref.watch(essayStreamProvider).valueOrNull ??
-          ref.read(essayBoxProvider).values;
+      final essays = ref.watch(essayStreamProvider).value ?? [];
       years.addAll(essays.map((essay) => essay.year.toString()));
     }
     _years = years.toList()..sort((a, b) => b.compareTo(a));
@@ -70,6 +71,18 @@ class BrowseBodyState extends ConsumerState<BrowseBody> {
           });
         }
       });
+    } else if (activeYear != null) {
+      final newPage = _years.contains(activeYear)
+          ? _years.indexOf(activeYear) + 1
+          : _currentPage.clamp(0, _years.length);
+      if (newPage != _currentPage) {
+        _currentPage = newPage;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _controller.hasClients && _currentPage == newPage) {
+            _controller.jumpToPage(newPage);
+          }
+        });
+      }
     }
 
     return Column(

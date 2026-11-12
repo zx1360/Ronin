@@ -7,23 +7,23 @@ part of 'tag.dart';
 // **************************************************************************
 
 Tag _$TagFromJson(Map<String, dynamic> json) => Tag(
-      id: json['id'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-      name: json['name'] as String,
-      parentId: json['parent_id'] as String?,
-      fullPath: json['full_path'] as String?,
-      isFavorite: json['is_favorite'] as bool? ?? false,
-      mediaCount: (json['media_count'] as num?)?.toInt() ?? 0,
-    );
+  id: json['id'] as String,
+  createdAt: DateTime.parse(json['created_at'] as String),
+  updatedAt: DateTime.parse(json['updated_at'] as String),
+  name: json['name'] as String,
+  parentId: json['parent_id'] as String?,
+  fullPath: json['full_path'] as String?,
+  isFavorite: json['is_favorite'] as bool? ?? false,
+  mediaCount: (json['media_count'] as num?)?.toInt() ?? 0,
+);
 
 Map<String, dynamic> _$TagToJson(Tag instance) => <String, dynamic>{
-      'id': instance.id,
-      'created_at': instance.createdAt.toIso8601String(),
-      'updated_at': instance.updatedAt.toIso8601String(),
-      'name': instance.name,
-      'parent_id': instance.parentId,
-      'full_path': instance.fullPath,
-      'is_favorite': instance.isFavorite,
-      'media_count': instance.mediaCount,
-    };
+  'id': instance.id,
+  'created_at': instance.createdAt.toIso8601String(),
+  'updated_at': instance.updatedAt.toIso8601String(),
+  'name': instance.name,
+  'parent_id': instance.parentId,
+  'full_path': instance.fullPath,
+  'is_favorite': instance.isFavorite,
+  'media_count': instance.mediaCount,
+};

@@ -6,26 +6,59 @@ part of 'local_data_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$galleryLocalDataControllerHash() =>
-    r'f420b146692c0eba1b22335197cac84de1dd15b0';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// 本地缓存的清空动作。
-///
-/// 只清本机（gallery.db 与下载的文件），**不触碰服务端**；清空后把游标复位、让派生数据重取。
-///
-/// Copied from [GalleryLocalDataController].
 @ProviderFor(GalleryLocalDataController)
 final galleryLocalDataControllerProvider =
-    NotifierProvider<GalleryLocalDataController, bool>.internal(
-  GalleryLocalDataController.new,
-  name: r'galleryLocalDataControllerProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$galleryLocalDataControllerHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+    GalleryLocalDataControllerProvider._();
 
-typedef _$GalleryLocalDataController = Notifier<bool>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+final class GalleryLocalDataControllerProvider
+    extends $NotifierProvider<GalleryLocalDataController, bool> {
+  GalleryLocalDataControllerProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'galleryLocalDataControllerProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$galleryLocalDataControllerHash();
+
+  @$internal
+  @override
+  GalleryLocalDataController create() => GalleryLocalDataController();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+}
+
+String _$galleryLocalDataControllerHash() =>
+    r'2e9caceb39d9a0e18c293f0bb8aa7dbd2a8a596b';
+
+abstract class _$GalleryLocalDataController extends $Notifier<bool> {
+  bool build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

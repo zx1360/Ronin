@@ -1,0 +1,57 @@
+import '../../../../core/services/storage/storage_types.dart';
+
+CREATE TABLE gallery_assets (
+  id TEXT NOT NULL PRIMARY KEY,
+  created_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  captured_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  file_path TEXT NOT NULL,
+  thumb_path TEXT,
+  preview_path TEXT,
+  hash TEXT NOT NULL UNIQUE,
+  size_bytes INTEGER NOT NULL,
+  mime_type TEXT,
+  is_deleted BOOLEAN NOT NULL,
+  sync_count INTEGER NOT NULL,
+  group_id TEXT REFERENCES gallery_assets (id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
+  message TEXT,
+  edit_params TEXT
+) AS GalleryAssetRow;
+
+CREATE TABLE gallery_tags (
+  id TEXT NOT NULL PRIMARY KEY,
+  created_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  updated_at INTEGER MAPPED BY `const EpochMicros()` NOT NULL,
+  name TEXT NOT NULL,
+  parent_id TEXT REFERENCES gallery_tags (id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
+  full_path TEXT,
+  is_favorite BOOLEAN NOT NULL,
+  media_count INTEGER NOT NULL
+) AS GalleryTagRow;
+
+CREATE TABLE gallery_links (
+  media_id TEXT NOT NULL REFERENCES gallery_assets (id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES gallery_tags (id) ON DELETE CASCADE,
+  PRIMARY KEY (media_id, tag_id)
+);
+
+CREATE TABLE gallery_operations (
+  seq INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  body TEXT NOT NULL,
+  synced BOOLEAN NOT NULL DEFAULT FALSE
+) AS GalleryOperationRow;
+
+CREATE TABLE gallery_library (
+  slot INTEGER NOT NULL PRIMARY KEY CHECK (slot = 1),
+  id TEXT NOT NULL
+) AS GalleryBinding;
+
+CREATE TABLE gallery_positions (
+  slot INTEGER NOT NULL PRIMARY KEY REFERENCES gallery_library (slot) ON DELETE CASCADE,
+  current_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX gallery_assets_order ON gallery_assets (group_id, captured_at, id);
+CREATE INDEX gallery_tags_parent ON gallery_tags (parent_id);
+CREATE INDEX gallery_links_tag ON gallery_links (tag_id);

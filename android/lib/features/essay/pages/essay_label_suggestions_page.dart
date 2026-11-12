@@ -9,8 +9,7 @@ import 'package:torrid/features/chat/providers/chat_providers.dart';
 import 'package:torrid/features/chat/services/chat_api_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/label_tree.dart';
-import 'package:torrid/features/essay/providers/box_provider.dart';
-import 'package:torrid/features/essay/providers/essay_notifier_provider.dart';
+import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_label_suggestions.dart';
 
@@ -41,8 +40,8 @@ class _EssayLabelSuggestionsPageState
 
   void _startBatch() {
     final sample = visibleEssays(
-      ref.read(essayBoxProvider).values,
-      ref.read(labelBoxProvider).values,
+      ref.read(essayStreamProvider).value ?? [],
+      ref.read(labelStreamProvider).value ?? [],
     ).where((essay) => essay.content.trim().isNotEmpty).toList()..shuffle();
     setState(() {
       _results.clear();
@@ -95,8 +94,11 @@ class _EssayLabelSuggestionsPageState
         keepAliveSeconds: 60,
       );
       while (_pending.isNotEmpty) {
-        final essay = ref.read(essayBoxProvider).get(_pending.first);
-        final labels = ref.read(labelBoxProvider).values.toList();
+        final store = ref.read(essayStoreProvider);
+        final (essay, labels) = await store.db.transaction(
+          () async => (await store.essay(_pending.first), await store.labels()),
+        );
+        if (!mounted || token.isCancelled) return;
         final hidden = hiddenLabelIds(labels);
         if (essay == null ||
             essay.content.trim().isEmpty ||
@@ -139,7 +141,7 @@ class _EssayLabelSuggestionsPageState
     var message = '已应用到随笔';
     try {
       await ref
-          .read(essayServiceProvider.notifier)
+          .read(essayStoreProvider)
           .acceptSuggestions(source, title: title, labelIds: labels);
     } catch (error) {
       message = error is StateError
@@ -158,12 +160,9 @@ class _EssayLabelSuggestionsPageState
   @override
   Widget build(BuildContext context) {
     final running = _request != null;
-    final labels =
-        ref.watch(labelStreamProvider).asData?.value ??
-        ref.read(labelBoxProvider).values;
+    final labels = ref.watch(labelStreamProvider).value ?? [];
     final hidden = hiddenLabelIds(labels);
     final paths = ref.watch(idMapProvider);
-    final essayBox = ref.watch(essayBoxProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -264,8 +263,7 @@ class _EssayLabelSuggestionsPageState
             ),
           ),
           for (final result in _results)
-            if ((ref.watch(essayByIdProvider(result.source.id)).asData?.value ??
-                    essayBox.get(result.source.id))
+            if (ref.watch(essayByIdProvider(result.source.id)).value
                 case final essay? when !essay.labels.any(hidden.contains))
               _SuggestionCard(
                 key: ObjectKey(result.source),

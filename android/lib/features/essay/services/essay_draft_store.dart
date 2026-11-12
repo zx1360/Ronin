@@ -1,64 +1,67 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
 import 'package:torrid/core/services/io/io_service.dart';
-import 'package:torrid/core/services/storage/hive_service.dart';
+import 'package:torrid/core/services/storage/app_database.dart';
 import 'package:torrid/features/essay/models/essay.dart';
 import 'package:torrid/features/essay/models/essay_draft.dart';
 
 final essayDraftStoreProvider = Provider(
-  (ref) => EssayDraftStore(Hive.box<String>(HiveService.essayDraftBoxName)),
+  (ref) => EssayDraftStore(ref.watch(appDatabaseProvider)),
 );
 
-final essayDraftsProvider = StreamProvider.autoDispose<List<EssayDraft>>((
-  ref,
-) async* {
-  final store = ref.watch(essayDraftStoreProvider);
-  yield store.all();
-  await for (final _ in store.box.watch()) {
-    yield store.all();
-  }
-});
+final essayDraftsProvider = StreamProvider.autoDispose<List<EssayDraft>>(
+  (ref) => ref.watch(essayDraftStoreProvider).watchDrafts(),
+);
 
 class EssayDraftStore {
-  final Box<String> box;
-  Future<void> _pending = Future.value();
+  final AppDatabase db;
 
-  EssayDraftStore(this.box);
+  EssayDraftStore(this.db);
 
-  List<EssayDraft> all() =>
-      box.values
-          .map(
-            (raw) =>
-                EssayDraft.fromJson(jsonDecode(raw) as Map<String, dynamic>),
-          )
-          .toList()
-        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-
-  EssayDraft? forEssay(String id) {
-    final raw = box.get(id);
-    return raw == null
+  EssayDraft _decode(EssayDraftRow row) => EssayDraft(
+    essay: Essay.fromJson(jsonDecode(row.essay) as Map<String, dynamic>),
+    original: row.original == null
         ? null
-        : EssayDraft.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        : Essay.fromJson(jsonDecode(row.original!) as Map<String, dynamic>),
+    updatedAt: row.editedAt.toLocal(),
+  );
+
+  Stream<List<EssayDraft>> watchDrafts() =>
+      (db.select(db.essayDrafts)
+            ..orderBy([(row) => OrderingTerm.desc(row.editedAt)]))
+          .watch()
+          .map((rows) => rows.map(_decode).toList());
+
+  Future<EssayDraft?> forEssay(String id) async {
+    final row = await (db.select(
+      db.essayDrafts,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    return row == null ? null : _decode(row);
   }
 
-  Future<void> _enqueue(Future<void> Function() action) {
-    final result = _pending.then((_) => action());
-    _pending = result.catchError((Object _) {});
-    return result;
-  }
+  Future<void> save(EssayDraft draft) => db.transaction(() async {
+    final id = draft.essay.id;
+    if (!draft.hasContent && await forEssay(id) == null) return;
+    await db
+        .into(db.essayDrafts)
+        .insertOnConflictUpdate(
+          EssayDraftRow(
+            id: id,
+            editedAt: draft.updatedAt,
+            essay: jsonEncode(draft.essay),
+            original: draft.original == null
+                ? null
+                : jsonEncode(draft.original),
+          ),
+        );
+  });
 
-  Future<void> save(EssayDraft draft) {
-    final raw = jsonEncode(draft.toJson());
-    return _enqueue(() => box.put(draft.essay.id, raw));
-  }
-
-  Future<void> remove(String id) => _enqueue(() => box.delete(id));
-
-  Future<void> flush() => _enqueue(box.flush);
+  Future<void> remove(String id) =>
+      (db.delete(db.essayDrafts)..where((row) => row.id.equals(id))).go();
 
   Future<String> importImage(String draftId, File source) =>
       IoService.importUserImage('essay_drafts/$draftId', source);

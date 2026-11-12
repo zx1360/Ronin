@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 
@@ -11,7 +10,7 @@ part 'sixty_api_provider.g.dart';
 typedef Json = Map<String, dynamic>;
 
 @Riverpod(keepAlive: true)
-SixtyApiClient sixtyApiClient(SixtyApiClientRef ref) {
+SixtyApiClient sixtyApiClient(Ref ref) {
   final client = SixtyApiClient();
   ref.onDispose(client.close);
   return client;
@@ -141,7 +140,7 @@ Future<String> _sentence(
 );
 
 @riverpod
-Future<Json> sixtySeconds(SixtySecondsRef ref, String? date) => _load(
+Future<Json> sixtySeconds(Ref ref, String? date) => _load(
   ref,
   '60s',
   (value) =>
@@ -154,7 +153,7 @@ Future<Json> sixtySeconds(SixtySecondsRef ref, String? date) => _load(
 );
 
 @riverpod
-Future<Json> bingWallpaper(BingWallpaperRef ref) => _load(
+Future<Json> bingWallpaper(Ref ref) => _load(
   ref,
   'bing',
   (value) =>
@@ -165,28 +164,25 @@ Future<Json> bingWallpaper(BingWallpaperRef ref) => _load(
 );
 
 @riverpod
-Future<List<Json>> epicGames(EpicGamesRef ref) => _load(ref, 'epic', _list);
+Future<List<Json>> epicGames(Ref ref) => _load(ref, 'epic', _list);
 
 @riverpod
-Future<List<Json>> toutiaoHot(ToutiaoHotRef ref) =>
-    _load(ref, 'toutiao', _list);
+Future<List<Json>> toutiaoHot(Ref ref) => _load(ref, 'toutiao', _list);
 
 @riverpod
-Future<List<Json>> zhihuHot(ZhihuHotRef ref) => _load(ref, 'zhihu', _list);
+Future<List<Json>> zhihuHot(Ref ref) => _load(ref, 'zhihu', _list);
 
 @riverpod
-Future<List<Json>> baiduTieba(BaiduTiebaRef ref) =>
-    _load(ref, 'baidu/tieba', _list);
+Future<List<Json>> baiduTieba(Ref ref) => _load(ref, 'baidu/tieba', _list);
 
 @riverpod
-Future<String> hitokoto(HitokotoRef ref) =>
-    _sentence(ref, 'hitokoto', 'hitokoto');
+Future<String> hitokoto(Ref ref) => _sentence(ref, 'hitokoto', 'hitokoto');
 
 @riverpod
-Future<String> duanzi(DuanziRef ref) => _sentence(ref, 'duanzi', 'duanzi');
+Future<String> duanzi(Ref ref) => _sentence(ref, 'duanzi', 'duanzi');
 
 @riverpod
-Future<String> fabing(FabingRef ref, String? person) => _sentence(
+Future<String> fabing(Ref ref, String? person) => _sentence(
   ref,
   'fabing',
   'saying',
@@ -194,7 +190,7 @@ Future<String> fabing(FabingRef ref, String? person) => _sentence(
 );
 
 @riverpod
-Future<String> kfcCopy(KfcCopyRef ref) => _sentence(ref, 'kfc', 'kfc');
+Future<String> kfcCopy(Ref ref) => _sentence(ref, 'kfc', 'kfc');
 
 @riverpod
-Future<String> dadJoke(DadJokeRef ref) => _sentence(ref, 'dad-joke', 'content');
+Future<String> dadJoke(Ref ref) => _sentence(ref, 'dad-joke', 'content');
