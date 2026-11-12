@@ -166,12 +166,7 @@ class _NetworkImageWidgetState extends State<NetworkImageWidget> {
 
     File? file;
     try {
-      if (asset.previewPath != null) {
-        file = await widget.storage.getPreviewFile(asset.previewPath!);
-      }
-      if (file == null && asset.thumbPath != null) {
-        file = await widget.storage.getThumbFile(asset.thumbPath!);
-      }
+      file = await widget.storage.getDisplayPreview(asset);
     } catch (e) {
       // 忽略错误, 使用加载指示器
     }

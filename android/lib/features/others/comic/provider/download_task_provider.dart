@@ -5,7 +5,6 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 
@@ -20,20 +19,23 @@ import 'package:torrid/features/others/comic/services/comic_storage.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 final comicDownloadTasksProvider =
-    StateNotifierProvider<ComicDownloadTaskNotifier, List<ComicDownloadTask>>(
-      (ref) => ComicDownloadTaskNotifier(ref),
+    NotifierProvider<ComicDownloadTaskNotifier, List<ComicDownloadTask>>(
+      ComicDownloadTaskNotifier.new,
     );
 
-class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
-  ComicDownloadTaskNotifier(this._ref) : super(const []);
+class ComicDownloadTaskNotifier extends Notifier<List<ComicDownloadTask>> {
+  @override
+  List<ComicDownloadTask> build() {
+    ref.onDispose(_dispose);
+    return const [];
+  }
 
   static const int _maxConcurrentComics = 2;
   static const int _maxConcurrentImagesPerComic = 3;
   static const int _maxTaskRetryCount = 50;
   static const int _maxImageRetryRounds = 2;
 
-  final Ref _ref;
-  ComicStore get _store => _ref.read(comicStoreProvider);
+  ComicStore get _store => ref.read(comicStoreProvider);
 
   /// 初始化只执行一次；并发调用者共享同一个 Future
   Future<void>? _initFuture;
@@ -55,11 +57,12 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   );
 
   Future<void> _loadPersistedTasks() async {
-    state = await _store.downloads();
+    final saved = await _store.downloads();
+    if (!ref.mounted) return;
 
     final now = _nowMs;
     // 应用重启时，运行中的任务恢复为排队中。
-    state = state.map((task) {
+    state = saved.map((task) {
       if (task.status == ComicDownloadTaskStatus.running) {
         return task.copyWith(
           status: ComicDownloadTaskStatus.queued,
@@ -204,6 +207,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   }
 
   void _schedule() {
+    if (!ref.mounted) return;
     if (_initFuture == null || _isScheduling) return;
 
     _isScheduling = true;
@@ -259,6 +263,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     } on _TaskCanceledException {
       // 取消属于预期控制流，这里不额外处理。
     } catch (e, st) {
+      if (!ref.mounted) return;
       AppLogger().error('漫画下载任务失败: $taskId, error: $e');
       AppLogger().error(st.toString());
 
@@ -300,8 +305,10 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
     } finally {
       _runningTaskIds.remove(taskId);
       _taskCancelTokens.remove(taskId);
-      await _persistNow();
-      _schedule();
+      if (ref.mounted) {
+        await _persistNow();
+        _schedule();
+      }
     }
   }
 
@@ -312,7 +319,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
       throw _TaskCanceledException();
     }
 
-    final apiClient = _ref.read(apiClientManagerProvider);
+    final apiClient = ref.read(apiClientManagerProvider);
 
     final manifestToken = CancelToken();
     _registerCancelToken(taskId, manifestToken);
@@ -616,6 +623,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   }
 
   ComicDownloadTask? _taskById(String taskId) {
+    if (!ref.mounted) return null;
     return _firstTaskWhere((task) => task.taskId == taskId);
   }
 
@@ -663,7 +671,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
   Future<void> _persistNow() async {
     _persistTimer?.cancel();
     _persistTimer = null;
-    await _store.saveDownloads(state);
+    if (ref.mounted) await _store.saveDownloads(state);
   }
 
   void _setupRetryTimer() {
@@ -690,8 +698,7 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
   int get _nowMs => DateTime.now().millisecondsSinceEpoch;
 
-  @override
-  void dispose() {
+  void _dispose() {
     _retryTimer?.cancel();
     _persistTimer?.cancel();
 
@@ -705,7 +712,6 @@ class ComicDownloadTaskNotifier extends StateNotifier<List<ComicDownloadTask>> {
 
     _taskCancelTokens.clear();
     _runningTaskIds.clear();
-    super.dispose();
   }
 }
 

@@ -31,13 +31,39 @@ func main() {
 	mdOut := flag.String("md", filepath.Join("references", "generated", "api", "routes.md"), "path to output routes markdown")
 	flag.Parse()
 
-	_ = config.Load()
-	if config.AppConf.StaticDir == "" {
-		config.AppConf.StaticDir = "static"
+	snapshot, err := collectRoutes()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to collect routes: %v\n", err)
+		os.Exit(1)
 	}
 
-	r := router.SetupRouter()
-	routeInfos := r.Routes()
+	if err := writeJSON(*jsonOut, snapshot); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write json: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := writeMarkdown(*mdOut, snapshot); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write markdown: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("route snapshot written: %s, %s\n", *jsonOut, *mdOut)
+}
+
+func collectRoutes() (routeSnapshot, error) {
+	dir, err := os.MkdirTemp("", "monarch-route-export-")
+	if err != nil {
+		return routeSnapshot{}, err
+	}
+	defer os.RemoveAll(dir)
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), nil, 0o600); err != nil {
+		return routeSnapshot{}, err
+	}
+	config.AppConf.StaticDir = dir
+	config.AppConf.DataDir = dir
+	config.OpsConf.WebDir = dir
+
+	routeInfos := router.SetupRouter().Routes()
 	routes := make([]routeRef, 0, len(routeInfos))
 	for _, item := range routeInfos {
 		routes = append(routes, routeRef{
@@ -54,19 +80,7 @@ func main() {
 		return routes[i].Path < routes[j].Path
 	})
 
-	snapshot := routeSnapshot{Routes: routes}
-
-	if err := writeJSON(*jsonOut, snapshot); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to write json: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := writeMarkdown(*mdOut, snapshot); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to write markdown: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("route snapshot written: %s, %s\n", *jsonOut, *mdOut)
+	return routeSnapshot{Routes: routes}, nil
 }
 
 func writeJSON(path string, snapshot routeSnapshot) error {

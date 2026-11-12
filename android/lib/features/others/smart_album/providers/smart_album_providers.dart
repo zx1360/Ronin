@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart' show DateTimeRange;
-import 'package:flutter_riverpod/flutter_riverpod.dart' show FutureProvider;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/features/others/ai/models/ai_search_models.dart';
 import 'package:torrid/features/others/ai/services/ai_api_service.dart';
@@ -107,8 +107,10 @@ class SmartAlbumController extends _$SmartAlbumController {
   @override
   SmartAlbumState build() {
     ref.watch(aiApiProvider);
-    ref.listen(immichMediaUpdateProvider, (_, update) {
-      if (update == null || (_query == null && state.filters.count == 0)) return;
+    ref.listen(immichEditsProvider.select((edits) => edits.media), (_, update) {
+      if (update == null || (_query == null && state.filters.count == 0)) {
+        return;
+      }
       if ((update.changesVisibility && !state.includeDeleted) ||
           state.loading ||
           state.loadingMore) {
@@ -117,7 +119,10 @@ class SmartAlbumController extends _$SmartAlbumController {
         _updateAssets(update.assets);
       }
     });
-    ref.listen(immichTagRevisionProvider, (_, __) {
+    ref.listen(immichEditsProvider.select((edits) => edits.tagRevision), (
+      _,
+      __,
+    ) {
       if (state.filters.tagIds.isNotEmpty) unawaited(reload());
     });
     ref.onDispose(() {

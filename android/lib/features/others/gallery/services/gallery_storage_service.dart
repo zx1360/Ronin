@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/features/others/gallery/models/media_asset.dart';
 
 class GalleryStorageService {
   GalleryStorageService(this.libraryId);
@@ -45,6 +46,15 @@ class GalleryStorageService {
 
   Future<File?> getPreviewFile(String path) async =>
       _ifPresent(await _file('Previews', path));
+
+  Future<File?> getDisplayPreview(MediaAsset asset) async {
+    if (asset.previewPath case final path?) {
+      final file = await getPreviewFile(path);
+      if (file != null) return file;
+    }
+    if (asset.thumbPath case final path?) return getThumbFile(path);
+    return null;
+  }
 
   Future<GalleryStorageStats> getStorageStats() async {
     final directory = await IoService.offlineDirectory('gallery');

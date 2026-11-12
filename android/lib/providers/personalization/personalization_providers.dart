@@ -1,29 +1,23 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:torrid/core/services/io/io_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 
-/// 个性化服务单例Provider
-final personalizationServiceProvider = Provider<PersonalizationService>((ref) {
-  return PersonalizationService();
-});
+final appSettingsProvider = NotifierProvider<AppSettingsNotifier, AppSettings>(
+  AppSettingsNotifier.new,
+);
 
-/// 当前设置状态Provider
-final appSettingsProvider = StateNotifierProvider<AppSettingsNotifier, AppSettings>((ref) {
-  final service = ref.watch(personalizationServiceProvider);
-  return AppSettingsNotifier(service);
-});
+class AppSettingsNotifier extends Notifier<AppSettings> {
+  final _service = PersonalizationService();
 
-class AppSettingsNotifier extends StateNotifier<AppSettings> {
-  final PersonalizationService _service;
-
-  AppSettingsNotifier(this._service) : super(_service.getSettings());
+  @override
+  AppSettings build() => _service.getSettings();
 
   /// 刷新设置
   void refresh() {
-    state = _service.getSettings();
+    if (ref.mounted) state = _service.getSettings();
   }
 
   /// 添加背景图片
@@ -98,17 +92,20 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
   }
 }
 
-/// 背景图片文件列表Provider
-final backgroundImagesProvider = FutureProvider<List<File>>((ref) async {
-  final service = ref.watch(personalizationServiceProvider);
-  // 监听设置变化以自动刷新
-  ref.watch(appSettingsProvider);
-  return service.getImageFiles(PersonalizationImageType.background);
+final backgroundImagesProvider = FutureProvider.autoDispose<List<File>>((ref) {
+  final keys = ref.watch(
+    appSettingsProvider.select((settings) => settings.backgroundImages),
+  );
+  return _imageFiles(keys);
 });
 
-/// 侧边栏图片文件列表Provider
-final sidebarImagesProvider = FutureProvider<List<File>>((ref) async {
-  final service = ref.watch(personalizationServiceProvider);
-  ref.watch(appSettingsProvider);
-  return service.getImageFiles(PersonalizationImageType.sidebar);
+final sidebarImagesProvider = FutureProvider.autoDispose<List<File>>((ref) {
+  final keys = ref.watch(
+    appSettingsProvider.select((settings) => settings.sidebarImages),
+  );
+  return _imageFiles(keys);
 });
+
+Future<List<File>> _imageFiles(List<String> keys) async => (await Future.wait(
+  keys.map(IoService.getImageFile),
+)).whereType<File>().toList();

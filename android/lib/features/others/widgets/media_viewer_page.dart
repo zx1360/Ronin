@@ -6,7 +6,7 @@ import 'package:photo_view/photo_view.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
-import 'package:torrid/features/others/gallery/widgets/main_widgets/video_player_widget.dart';
+import 'package:torrid/features/others/gallery/widgets/main_widgets/gallery_video.dart';
 import 'package:torrid/features/others/services/media_share_service.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
@@ -151,7 +151,7 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
                 );
               }
               return SafeArea(
-                child: VideoPlayerWidget(
+                child: GalleryVideo(
                   key: ValueKey('viewer_video_${item.id}'),
                   asset: item,
                   autoPlay: true,

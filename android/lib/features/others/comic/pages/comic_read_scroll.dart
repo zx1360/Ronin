@@ -13,7 +13,7 @@ import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
 
-import 'package:torrid/features/others/comic/services/save_service.dart';
+import 'package:torrid/core/services/storage/public_storage_service.dart';
 
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/comic_image.dart';
@@ -451,13 +451,14 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         startIndex: range.startIndex,
         endIndex: range.endIndex,
       );
-      final saved = await ComicSaverService.saveImageBytesToPublic(
-        mergedBytes,
-        filename,
+      final saved = await PublicStorageService.saveBytes(
+        subDir: PublicStorageService.dirComic,
+        fileName: filename,
+        bytes: mergedBytes,
       );
 
       if (!mounted) return;
-      if (saved) {
+      if (saved != null) {
         displaySnackBar(context, "图片已保存: $filename");
       } else {
         displaySnackBar(context, '保存失败');
@@ -512,13 +513,14 @@ class _ComicScrollPageState extends ConsumerState<ComicScrollPage>
         endOffset: endOffset,
       );
 
-      final saved = await ComicSaverService.saveImageBytesToPublic(
-        mergedBytes,
-        fileName,
+      final saved = await PublicStorageService.saveBytes(
+        subDir: PublicStorageService.dirComic,
+        fileName: fileName,
+        bytes: mergedBytes,
       );
 
       if (!mounted) return;
-      if (saved) {
+      if (saved != null) {
         displaySnackBar(context, "图片已保存: $fileName");
       } else {
         displaySnackBar(context, '保存失败');

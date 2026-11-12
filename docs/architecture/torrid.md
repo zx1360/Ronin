@@ -21,6 +21,8 @@ main
 | `providers/` | Riverpod 级别的网络配置、ApiClient、存储/进度派生 |
 | `features/` | 按功能拆分的页面、provider、service、model、widget |
 
+Riverpod 负责依赖、查询和业务动作。Gallery 浏览设置与下载筛选分组持久化，下载使用启动时读取的筛选快照，组内浏览位置只保留在当前会话。根作用域关闭 provider 自动重试，页面失去可见性时由 Riverpod 暂停订阅，写入和同步通过业务动作管理生命周期。
+
 顶层 GoRouter 路由见 [routes.dart](../../android/lib/app/routes/routes.dart)。`/others` 下的漫画、画廊、相册和智能相册是页面内 `Navigator.push` 的二级功能，不要误以为它们都是顶层深链路。
 
 首页点击背景展开左侧菜单，保留背景、侧栏与座右铭配置；首页自身处理返回键，先关闭菜单，再应用双击退出。媒体入口使用共享 Material 卡片，支持大字体单列布局。
@@ -41,7 +43,7 @@ flowchart LR
 - [NetworkConfigManager](../../android/lib/providers/network_config/network_config_provider.dart) 负责多主机、激活项、API key 和 mDNS 发现结果。
 - [ApiClientManager](../../android/lib/providers/api_client/api_client_provider.dart) 监听网络配置派生 `ApiClient`；不要在页面中手动推送 ApiClient。
 - [ApiClient](../../android/lib/core/services/network/api_client.dart) 统一 Dio、证书、header、GET 重试、二进制和 NDJSON 流。
-- 启动页初始化证书与本地存储，失败可重试且不清数据；公共 HTTPS 使用系统 CA，内置后端证书仅按证书内容精确放行主机名不匹配。切换网络配置时关闭旧 ApiClient，页面读请求随 provider 释放取消。
+- 启动页初始化证书与本地存储，失败可重试且不清数据。公共 HTTPS 使用系统 CA，Dart 与 Android 原生播放器共用 `res/raw/server.crt`，仅匹配内置证书时允许主机名不匹配。切换网络配置时关闭旧 ApiClient，页面读请求随 provider 释放取消。
 - 网络错误通过 `ApiClient.mapError` 转为可读信息，业务请求由各功能的 service/provider 处理。
 
 服务端 mDNS 只广播 HTTPS 端口；发现后端上保存的 host/port 不会自动切换激活项。
@@ -64,6 +66,8 @@ flowchart LR
 文件操作统一经过 [IoService](../../android/lib/core/services/io/io_service.dart)：用户文件、离线文件和临时文件边界分开，导入使用唯一文件名与同盘暂存后重命名。`img_storage/booklet|essay|chat/...` 等同步键仍与后端兼容，映射到内部 `media/booklet|essay|chat/...`；不保存绝对用户图片路径。旧外部附件目录不自动迁移，重装后从后端恢复打卡、随笔与偏好；草稿、聊天和回顾仅存本机，卸载会丢失。
 
 公共导出走 Android MediaStore：图片进入 `Pictures/torrid/`，视频进入 `Movies/torrid/`，不覆盖同名文件。Android 10+ 无需存储权限；更早版本仅请求普通存储权限。画廊/视频先流式下载到隔离暂存文件，退出页面取消下载；后台仅执行当前导出操作，不新增常驻服务。
+
+可丢弃的网络图片由 `cached_network_image` 使用 `DefaultCacheManager` 缓存，图库预览、漫画下载、用户附件和导出文件按各自生命周期管理。阅读和画廊共用 [MediaVideoPlayer](../../android/lib/core/widgets/media/media_video_player.dart)。阅读视频自动循环，全屏沿用当前控制器。画廊原片走带鉴权的网络流，本地预览用于加载占位。隐藏或进入后台时暂停，切换来源或退出时释放播放器。
 
 ## 4. 功能域与后端映射
 
@@ -118,4 +122,4 @@ flowchart LR
 2. 更新对应 `features/*/services`、model 和 provider。
 3. 对 503、空列表、字段缺失、流中断做降级。
 4. 如果涉及 Gallery 写入，确认服务端权威和缓存更新顺序没有反转。
-5. 在 Android 目录运行 `dart run build_runner build`、`flutter analyze` 和 `flutter test`。
+5. 在根目录运行 `pwsh -File verify.ps1 -Scope android`。

@@ -12,7 +12,7 @@ import 'package:torrid/features/others/comic/models/chapter_info.dart';
 import 'package:torrid/features/others/comic/models/comic_info.dart';
 import 'package:torrid/features/others/comic/provider/notifier_provider.dart';
 import 'package:torrid/features/others/comic/provider/online_status_provider.dart';
-import 'package:torrid/features/others/comic/services/save_service.dart';
+import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/bottom_bar.dart';
 import 'package:torrid/features/others/comic/widgets/comic_browse/top_bar.dart';
 import 'package:torrid/core/services/debug/logging_service.dart';
@@ -155,23 +155,28 @@ class _ComicReadPageState extends ConsumerState<ComicReadPage>
           "第${_currentImageIndex + 1}页."
           "$safeExt";
 
-      bool saved;
+      final SavedMedia? saved;
       if (widget.isLocal) {
         final sourceFile = File(imagePath);
         if (!await sourceFile.exists()) {
           throw Exception('图片文件不存在');
         }
-        saved = await ComicSaverService.saveFlipImageToPublic(
-          sourceFile.path,
-          fileName,
+        saved = await PublicStorageService.copyFile(
+          subDir: PublicStorageService.dirComic,
+          sourceFilePath: sourceFile.path,
+          fileName: fileName,
         );
       } else {
         final bytes = await _fetchOnlineImageBytes(imagePath);
-        saved = await ComicSaverService.saveImageBytesToPublic(bytes, fileName);
+        saved = await PublicStorageService.saveBytes(
+          subDir: PublicStorageService.dirComic,
+          fileName: fileName,
+          bytes: bytes,
+        );
       }
 
       if (!mounted) return;
-      if (saved) {
+      if (saved != null) {
         displaySnackBar(context, "图片已保存: $fileName");
       } else {
         displaySnackBar(context, '保存失败');

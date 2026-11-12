@@ -1,8 +1,3 @@
-/// 缓存管理状态提供器
-///
-/// 提供缓存信息状态和清理操作
-library;
-
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/storage/cache_service.dart';
 
@@ -48,8 +43,10 @@ class CacheManager extends _$CacheManager {
   @override
   CacheState build() {
     // 初始加载缓存信息
-    Future.microtask(() => refresh());
-    return CacheState(config: CacheService().config);
+    Future.microtask(() async {
+      if (ref.mounted) await refresh();
+    });
+    return CacheState(config: CacheConfig.fromPrefs());
   }
 
   /// 刷新缓存信息
@@ -57,56 +54,44 @@ class CacheManager extends _$CacheManager {
     state = state.copyWith(isLoading: true, clearMessage: true);
 
     try {
-      final info = await CacheService().getCacheInfo();
-      final config = CacheService().config;
-      state = state.copyWith(info: info, config: config, isLoading: false);
+      final info = await const CacheService().getCacheInfo();
+      if (ref.mounted) state = state.copyWith(info: info, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, message: '获取缓存信息失败: $e');
+      if (ref.mounted) {
+        state = state.copyWith(isLoading: false, message: '获取缓存信息失败: $e');
+      }
     }
   }
 
   /// 更新缓存配置
   Future<void> updateConfig(CacheConfig newConfig) async {
-    await CacheService().updateConfig(newConfig);
-    state = state.copyWith(config: newConfig, message: '配置已更新');
+    await newConfig.saveToPrefs();
+    if (!ref.mounted) return;
+    state = state.copyWith(config: CacheConfig.fromPrefs(), message: '配置已更新');
   }
 
-  /// 清理图片缓存
-  Future<void> clearImageCache() async {
+  Future<void> clearImageCache() =>
+      _clear(const CacheService().clearImageCache, '图片缓存已清理');
+
+  Future<void> clearTempCache() =>
+      _clear(const CacheService().clearTempCache, '临时文件已清理');
+
+  Future<void> clearAllCache() =>
+      _clear(const CacheService().clearAllCache, '所有缓存已清理');
+
+  Future<void> _clear(Future<void> Function() clear, String success) async {
+    if (state.isClearing) return;
     state = state.copyWith(isClearing: true, clearMessage: true);
-
     try {
-      await CacheService().clearImageCache();
-      await refresh();
-      state = state.copyWith(isClearing: false, message: '图片缓存已清理');
-    } catch (e) {
-      state = state.copyWith(isClearing: false, message: '清理失败: $e');
-    }
-  }
-
-  /// 清理临时缓存
-  Future<void> clearTempCache() async {
-    state = state.copyWith(isClearing: true, clearMessage: true);
-
-    try {
-      await CacheService().clearTempCache();
-      await refresh();
-      state = state.copyWith(isClearing: false, message: '临时缓存已清理');
-    } catch (e) {
-      state = state.copyWith(isClearing: false, message: '清理失败: $e');
-    }
-  }
-
-  /// 清理所有缓存
-  Future<void> clearAllCache() async {
-    state = state.copyWith(isClearing: true, clearMessage: true);
-
-    try {
-      await CacheService().clearAllCache();
-      await refresh();
-      state = state.copyWith(isClearing: false, message: '所有缓存已清理');
-    } catch (e) {
-      state = state.copyWith(isClearing: false, message: '清理失败: $e');
+      await clear();
+      final info = await const CacheService().getCacheInfo();
+      if (ref.mounted) {
+        state = state.copyWith(info: info, isClearing: false, message: success);
+      }
+    } catch (error) {
+      if (ref.mounted) {
+        state = state.copyWith(isClearing: false, message: '清理失败：$error');
+      }
     }
   }
 }

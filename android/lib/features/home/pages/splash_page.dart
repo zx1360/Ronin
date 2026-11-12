@@ -80,8 +80,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
         rethrow;
       }
       await ref.read(comicDownloadTasksProvider.notifier).initialize();
-      await CacheService().init();
-      unawaited(CacheService().performStartupCleanup());
+      unawaited(const CacheService().performStartupCleanup());
 
       final service = PersonalizationService();
       _backgroundPath = service.getRandomBackgroundImage();

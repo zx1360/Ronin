@@ -20,7 +20,7 @@ final class ComicServiceProvider
         argument: null,
         retry: null,
         name: r'comicServiceProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -41,7 +41,7 @@ final class ComicServiceProvider
   }
 }
 
-String _$comicServiceHash() => r'6e21b83d8245e2d5c24609e161e3544f171db07f';
+String _$comicServiceHash() => r'6c82c7c1f3c13519bd306d7795e1629627268f5c';
 
 abstract class _$ComicService extends $Notifier<ComicStore> {
   ComicStore build();

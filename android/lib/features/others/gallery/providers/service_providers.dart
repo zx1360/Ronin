@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
 import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
@@ -20,4 +19,10 @@ GalleryStorageService galleryStorage(Ref ref) {
   return GalleryStorageService(ref.watch(galleryDatabaseProvider).libraryId);
 }
 
-final galleryFilesRevisionProvider = StateProvider<int>((ref) => 0);
+@Riverpod(keepAlive: true)
+class GalleryFilesRevision extends _$GalleryFilesRevision {
+  @override
+  int build() => 0;
+
+  void changed() => state++;
+}

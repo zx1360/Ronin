@@ -23,9 +23,10 @@ class ApiException implements Exception {
 
 // 通过riverpod提供此实例以使同一时间只有一个Dio实例.
 class ApiClient {
-  final Dio _dio = Dio();
+  final Dio _dio = CertTrust.createDio();
   final String baseUrl;
   final String? apiKey;
+  late final Map<String, String> headers;
 
   ApiClient({
     required this.baseUrl,
@@ -38,8 +39,10 @@ class ApiClient {
     }
     _dio.options.connectTimeout = const Duration(seconds: 8);
     _dio.options.receiveTimeout = const Duration(seconds: 15);
-    // 配置 Dio 信任自签证书
-    _dio.httpClientAdapter = CertTrust.createAdapter();
+    final key = apiKey;
+    headers = key == null || key.isEmpty
+        ? const {}
+        : Map.unmodifiable({'X-API-Key': key});
     _dio.options.headers.addAll(headers);
     // 统一请求生命周期：幂等 GET 请求在连接类错误时自动重试
     if (retryConnections) _dio.interceptors.add(_RetryInterceptor(_dio));
@@ -75,14 +78,6 @@ class ApiClient {
       }
     }
     return ApiException(error.toString(), cause: error);
-  }
-
-  /// 获取请求头（包含 API Key，用于第三方库如 CachedNetworkImage）
-  Map<String, String> get headers {
-    if (apiKey != null && apiKey!.isNotEmpty) {
-      return {'X-API-Key': apiKey!};
-    }
-    return {};
   }
 
   // GET请求

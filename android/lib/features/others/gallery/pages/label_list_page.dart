@@ -76,7 +76,8 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
       appBar: AppBar(
         title: Text(_selectMode ? '选择标签' : '标签管理'),
         actions: [
-          if (_selectMode && ref.watch(galleryActiveGroupProvider) == null)
+          if (_selectMode &&
+              ref.watch(galleryGroupProvider.select((group) => group == null)))
             _buildAutoApplyToggle(),
           IconButton(
             icon: Icon(allExpanded ? Icons.unfold_less : Icons.unfold_more),
@@ -169,15 +170,20 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
 
   /// 标签自动套用开关（仅在打标签模式下显示）
   Widget _buildAutoApplyToggle() {
-    final isEnabled = ref.watch(galleryTagAutoApplyEnabledProvider);
+    final isEnabled = ref.watch(
+      galleryBrowseSettingsProvider.select(
+        (settings) => settings.autoApplyTags,
+      ),
+    );
     return IconButton(
       icon: Icon(
         isEnabled ? Icons.auto_fix_high : Icons.auto_fix_off,
         color: isEnabled ? Colors.blue : null,
       ),
       tooltip: isEnabled ? '自动套用: 开' : '自动套用: 关',
-      onPressed: () =>
-          ref.read(galleryTagAutoApplyEnabledProvider.notifier).toggle(),
+      onPressed: () => ref
+          .read(galleryBrowseSettingsProvider.notifier)
+          .setAutoApplyTags(!isEnabled),
     );
   }
 
@@ -413,10 +419,9 @@ class _LabelListPageState extends ConsumerState<LabelListPage> {
 
   /// 切换选中状态（打标签模式下立即写入）
   Future<void> _toggleSelection(String tagId) async {
-    final current =
-        (ref.read(currentMediaTagsProvider).value ?? const <Tag>[])
-            .map((t) => t.id)
-            .toList();
+    final current = (ref.read(currentMediaTagsProvider).value ?? const <Tag>[])
+        .map((t) => t.id)
+        .toList();
     if (!current.remove(tagId)) current.add(tagId);
     try {
       await ref.read(currentMediaTagsProvider.notifier).setTags(current);

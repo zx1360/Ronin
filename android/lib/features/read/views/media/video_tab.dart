@@ -1,26 +1,28 @@
-import 'package:chewie/chewie.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/core/services/storage/public_storage_service.dart';
 import 'package:torrid/core/utils/file_relates.dart';
-import 'package:torrid/features/read/models/random_media_api.dart';
+import 'package:torrid/features/read/models/random_media_models.dart';
+import 'package:torrid/features/read/models/random_media_sources.dart';
+import 'package:torrid/features/read/services/media_url_resolver.dart';
 import 'package:torrid/features/read/services/media_error_helper.dart';
 import 'package:torrid/features/read/widgets/common.dart';
 import 'package:torrid/features/read/widgets/media_source_picker.dart';
-import 'package:torrid/core/constants/spacing.dart';
+import 'package:torrid/core/widgets/media/media_video_player.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:video_player/video_player.dart';
 
-class VideoTab extends ConsumerStatefulWidget {
-  const VideoTab({super.key});
+class VideoTab extends StatefulWidget {
+  const VideoTab({super.key, required this.active});
+
+  final bool active;
 
   @override
-  ConsumerState<VideoTab> createState() => _VideoTabState();
+  State<VideoTab> createState() => _VideoTabState();
 }
 
-class _VideoTabState extends ConsumerState<VideoTab>
+class _VideoTabState extends State<VideoTab>
     with AutomaticKeepAliveClientMixin {
   int _groupIndex = 0;
   int _sourceIndex = 0;
@@ -31,10 +33,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
   CancelToken? _downloadCancelToken;
   String? _error;
 
-  VideoPlayerController? _videoController;
-  ChewieController? _chewieController;
-  bool _playerReady = false;
-  String? _playerError;
+  int _videoRequest = 0;
 
   MediaApiGroup get _group => kVideoGroups[_groupIndex];
   RandomMediaSource get _source => _group.sources[_sourceIndex];
@@ -45,16 +44,7 @@ class _VideoTabState extends ConsumerState<VideoTab>
   @override
   void dispose() {
     _downloadCancelToken?.cancel();
-    _disposePlayer();
     super.dispose();
-  }
-
-  void _disposePlayer() {
-    _chewieController?.dispose();
-    _videoController?.dispose();
-    _chewieController = null;
-    _videoController = null;
-    _playerReady = false;
   }
 
   @override
@@ -75,13 +65,11 @@ class _VideoTabState extends ConsumerState<VideoTab>
             onChanged: _loading
                 ? null
                 : (group, source) {
-                    _disposePlayer();
                     setState(() {
                       _groupIndex = group;
                       _sourceIndex = source;
                       _videoUrl = null;
                       _error = null;
-                      _playerError = null;
                     });
                   },
           ),
@@ -149,7 +137,16 @@ class _VideoTabState extends ConsumerState<VideoTab>
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: _buildPlayer(),
+          child: MediaVideoPlayer(
+            key: ValueKey(_videoRequest),
+            uri: Uri.parse(_videoUrl!),
+            headers: {'User-Agent': kUserAgent, ...?_source.extraHeaders},
+            active: widget.active,
+            autoPlay: true,
+            looping: true,
+            allowFullscreen: true,
+            openInBrowser: () => _openInBrowser(_videoUrl!),
+          ),
         ),
         const SizedBox(height: AppSpacing.xs),
         SelectableText(
@@ -162,91 +159,24 @@ class _VideoTabState extends ConsumerState<VideoTab>
     );
   }
 
-  Widget _buildPlayer() {
-    if (_playerError != null) {
-      return Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 40),
-            const SizedBox(height: AppSpacing.sm),
-            Text('视频加载失败', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: AppSpacing.sm),
-            FilledButton.tonal(
-              onPressed: () => _openInBrowser(_videoUrl!),
-              child: const Text('在浏览器中打开'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (!_playerReady || _chewieController == null) {
-      return Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.center,
-        child: const CircularProgressIndicator(),
-      );
-    }
-
-    final ar = _videoController!.value.aspectRatio;
-    return AspectRatio(
-      aspectRatio: ar > 0 ? ar : 16 / 9,
-      child: Chewie(controller: _chewieController!),
-    );
-  }
-
   Future<void> _fetchVideo() async {
     if (_loading) return;
     setState(() {
       _loading = true;
       _error = null;
       _videoUrl = null;
-      _playerError = null;
+      _videoRequest++;
     });
-    _disposePlayer();
 
     try {
       final url = await MediaUrlResolver.fetchMediaUrl(_source);
       if (!mounted) return;
       setState(() => _videoUrl = url);
-      await _initPlayer(url);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = MediaErrorHelper.toUserMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _initPlayer(String url) async {
-    try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
-      _videoController = controller;
-      await controller.initialize();
-      if (!mounted) return;
-      _chewieController = ChewieController(
-        videoPlayerController: controller,
-        autoPlay: true,
-        looping: true,
-        showOptions: false,
-      );
-      setState(() => _playerReady = true);
-    } catch (_) {
-      if (mounted) {
-        _disposePlayer();
-        setState(() => _playerError = '视频暂时无法播放，请尝试更换内容');
-      }
     }
   }
 

@@ -6,10 +6,7 @@ import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// 自签证书信任管理
-///
-/// 加载 assets/cert/server.crt 并配置全局 HttpOverrides,
-/// 使 Image.network / CachedNetworkImage 等也能访问自签 HTTPS 服务器.
+/// Dart 网络请求与 Android 播放器共用内置后端证书。
 class CertTrust {
   CertTrust._();
 
@@ -20,7 +17,9 @@ class CertTrust {
   /// 应在 main() 中 WidgetsFlutterBinding.ensureInitialized() 之后调用.
   static Future<void> init() async {
     if (_securityContext != null) return;
-    final certBytes = await rootBundle.load('assets/cert/server.crt');
+    final certBytes = await rootBundle.load(
+      'android/app/src/main/res/raw/server.crt',
+    );
     final bytes = certBytes.buffer.asUint8List(
       certBytes.offsetInBytes,
       certBytes.lengthInBytes,

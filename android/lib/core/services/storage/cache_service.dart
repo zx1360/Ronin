@@ -1,11 +1,3 @@
-/// 缓存管理服务
-///
-/// 提供应用缓存的统一管理，包括：
-/// - 缓存大小计算
-/// - 自动清理（按时间/容量）
-/// - 手动清理
-library;
-
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -45,6 +37,9 @@ class CacheConfig {
 
   /// 保存配置到偏好设置
   Future<void> saveToPrefs() async {
+    if (expireDays <= 0 || maxSizeMB <= 0) {
+      throw const FormatException('缓存期限和容量必须大于零');
+    }
     final prefs = PrefsService().prefs;
     await prefs.setInt('cache_expire_days', expireDays);
     await prefs.setInt('cache_max_size_mb', maxSizeMB);
@@ -93,27 +88,10 @@ class CacheInfo {
 }
 
 class CacheService {
-  static final CacheService _instance = CacheService._();
-  CacheService._();
-  factory CacheService() => _instance;
+  const CacheService();
 
   static const temporaryNames = ['media_share', 'media_export'];
   static const temporaryRetention = Duration(days: 1);
-
-  CacheConfig _config = const CacheConfig();
-  CacheConfig get config => _config;
-
-  Future<void> init() async {
-    _config = CacheConfig.fromPrefs();
-  }
-
-  Future<void> updateConfig(CacheConfig value) async {
-    if (value.expireDays <= 0 || value.maxSizeMB <= 0) {
-      throw const FormatException('缓存期限和容量必须大于零');
-    }
-    await value.saveToPrefs();
-    _config = value;
-  }
 
   Future<CacheInfo> getCacheInfo() async => CacheInfo(
     imageCacheSize: await _directorySize(await _imageDirectory()),
@@ -153,20 +131,19 @@ class CacheService {
   }
 
   Future<void> performStartupCleanup() async {
-    if (!_config.autoCleanEnabled) return;
+    final config = CacheConfig.fromPrefs();
+    if (!config.autoCleanEnabled) return;
     try {
-      await _cleanTemporary(Duration(days: _config.expireDays));
+      await _cleanTemporary(Duration(days: config.expireDays));
       var imageSize = await _directorySize(await _imageDirectory());
       if (imageSize == 0) return;
       final manager = DefaultCacheManager();
       await manager.store.getCacheSize();
       final budget = math.max(
         0,
-        _config.maxSizeMB * 1024 * 1024 - await _temporarySize(),
+        config.maxSizeMB * 1024 * 1024 - await _temporarySize(),
       );
-      final cutoff = DateTime.now().subtract(
-        Duration(days: _config.expireDays),
-      );
+      final cutoff = DateTime.now().subtract(Duration(days: config.expireDays));
       final entries = await manager.config.repo.getAllObjects();
       entries.sort(
         (first, second) => (first.touched ?? DateTime(1970)).compareTo(

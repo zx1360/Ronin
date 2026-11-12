@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:path/path.dart' as path;
@@ -130,22 +129,6 @@ class PersonalizationService {
           return false;
         }
       });
-
-  Future<List<File>> getImageFiles(PersonalizationImageType type) async {
-    final settings = getSettings();
-    final keys = switch (type) {
-      PersonalizationImageType.background => settings.backgroundImages,
-      PersonalizationImageType.sidebar => settings.sidebarImages,
-      PersonalizationImageType.avatar => [
-        if (settings.avatarPath != null) settings.avatarPath!,
-      ],
-    };
-    return (await Future.wait(
-      keys.map(getImageFile),
-    )).whereType<File>().toList();
-  }
-
-  Future<File?> getImageFile(String key) => IoService.getImageFile(key);
 
   String? _choose(List<String> items) =>
       items.isEmpty ? null : items[_random.nextInt(items.length)];
