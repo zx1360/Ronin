@@ -11,6 +11,7 @@
 - `appDatabaseProvider` 持有唯一业务库。Riverpod 按业务分组查询和设置，页面用 `select` 订阅所需字段，临时交互留在页面。简单设置经 `PrefsService` 使用 SharedPreferencesWithCache。
 - 根 `ProviderScope` 关闭自动重试。读请求可随 provider 释放取消，写入与同步由业务动作负责，等待后访问 provider 前检查生命周期。
 - 随笔/打卡先上传再拉取增量，按 `updated_at` 合并；随笔关联标签单独用 `labels_updated_at`。每批数据、tombstone 和按主机隔离的游标同事务提交。统计从数据派生。
+- 时迹以本机为操作入口，备份按记录版本合并并校验后端快照修订号。计时锚点只在本机使用，启动时逐条确认未结束的计时。
 - 随笔草稿与图片仅存本机独立空间；编辑正式随笔时保留原文至保存成功。“隐藏”标签子树默认不展示，AI 回顾始终排除。
 
 ## 网络与媒体
@@ -20,7 +21,7 @@
 - Gallery 工作副本与操作队列绑定服务端图库 ID，预览文件也按图库隔离。`GalleryWriteBuffer` 同事务提交本地编辑与操作，服务端确认后清理。在线相册写入走 `retryServerWrite`。
 - 标注经 `MediaAssetList` 提交操作，查询流更新界面。清本机缓存走 `GalleryLocalDataController`。
 - 标签树复用 `models/tag_tree.dart`；AI 标签与人工标签隔离。AI 503 时入口/结果块降级，错误文案走 `aiFriendlyError`，模型与能力名来自服务端。
-- 阅读、Gallery 和全屏查看共用 `MediaVideoPlayer`（`video_player`）。画廊原片携带鉴权头，本地预览单独读取。全应用竖屏，媒体旋转在视图内处理；标签浮层命中用 `globalToLocal`，布局尺寸用 `LayoutBuilder`。
+- Gallery 和全屏查看共用 `MediaVideoPlayer`（`video_player`）。画廊原片携带鉴权头，本地预览单独读取。全应用竖屏，媒体旋转在视图内处理；标签浮层命中用 `globalToLocal`，布局尺寸用 `LayoutBuilder`。
 
 ## 对话与回顾
 

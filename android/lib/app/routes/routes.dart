@@ -11,7 +11,7 @@ import 'package:torrid/features/chat/pages/review_page.dart';
 import 'package:torrid/features/chat/pages/review_presets_page.dart';
 import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
-import 'package:torrid/features/read/pages/read_page.dart';
+import 'package:torrid/features/trace/trace_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
@@ -86,11 +86,10 @@ final List<RouteBase> routes = [
     ],
   ),
 
-  // 阅读页,
   GoRoute(
-    path: "/news",
-    name: "news",
-    builder: (context, state) => const ReadPage(),
+    path: '/trace',
+    name: 'trace',
+    builder: (context, state) => const TracePage(),
   ),
 
   // 其他页.

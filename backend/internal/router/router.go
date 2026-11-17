@@ -57,6 +57,8 @@ func SetupRouter() *gin.Engine {
 		// 用户数据相关
 		userDataGroup := api.Group("/user-data")
 		{
+			userDataGroup.GET("/trace/backup", data_handler.GetTraceBackup)
+			userDataGroup.PUT("/trace/backup", data_handler.PutTraceBackup)
 			userDataGroup.GET("/sync/:module", data_handler.SyncHandler)
 			userDataGroup.POST("/sync/:module", data_handler.BackupHandler)
 			userDataGroup.POST("/edit/:module", data_handler.EditHandler)

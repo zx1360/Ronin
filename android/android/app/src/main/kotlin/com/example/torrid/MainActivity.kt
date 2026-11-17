@@ -2,6 +2,8 @@ package ax.puzzled.torrid
 
 import android.content.ClipData
 import android.content.Intent
+import android.os.SystemClock
+import android.provider.Settings
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -9,15 +11,36 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.security.cert.CertificateFactory
+import java.util.UUID
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.HostnameVerifier
 
 class MainActivity : FlutterActivity() {
+    private val traceDeviceKey by lazy {
+        val file = File(noBackupFilesDir, "trace-clock-id")
+        file.takeIf { it.isFile }?.readText()
+            ?: UUID.randomUUID().toString().also { file.writeText(it) }
+    }
+
     companion object {
         private val platformHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "torrid/trace_clock")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "read") {
+                    val boot = Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT, -1)
+                    val bootKey = if (boot < 0) null else runCatching { "$traceDeviceKey:$boot" }.getOrNull()
+                    result.success(mapOf(
+                        "bootKey" to bootKey,
+                        "elapsedMs" to SystemClock.elapsedRealtime(),
+                        "wallMs" to System.currentTimeMillis(),
+                    ))
+                } else {
+                    result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "torrid/public_media")
             .setMethodCallHandler { call, result ->
                 if (call.method == "saveFile") {

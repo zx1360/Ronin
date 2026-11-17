@@ -57,7 +57,7 @@ class _HomePageState extends ConsumerState<HomePage>
       icon: Icons.chat_bubble_outline,
       route: "chat",
     ),
-    const ButtonInfo(name: "阅读", icon: Icons.newspaper, route: "news"),
+    const ButtonInfo(name: '时迹', icon: Icons.timelapse_rounded, route: 'trace'),
     const ButtonInfo(
       name: "其他",
       icon: Icons.account_tree_rounded,

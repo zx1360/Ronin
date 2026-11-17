@@ -80,6 +80,7 @@ class TransferActionButton extends ConsumerWidget {
       return switch (action.target) {
         TransferTarget.booklet => Icons.check_circle,
         TransferTarget.essay => Icons.note,
+        TransferTarget.trace => Icons.timelapse,
         TransferTarget.preferences => Icons.tune,
         _ => Icons.download,
       };

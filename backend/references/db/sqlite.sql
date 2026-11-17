@@ -270,6 +270,12 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS trace_backup (
+    id       INTEGER PRIMARY KEY CHECK (id = 1),
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    snapshot TEXT NOT NULL CHECK (json_valid(snapshot))
+);
+
 -- =====================================================
 -- updated_at 自动维护（AFTER UPDATE + 守卫；显式赋值时不覆盖）
 -- =====================================================

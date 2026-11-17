@@ -36,7 +36,7 @@ class DataTransferPage extends ConsumerWidget {
         // 同步操作区
         _buildSection(
           title: '双向同步',
-          subtitle: '随笔与打卡按更新时间合并，删除标记同步；偏好从服务器恢复',
+          subtitle: '随笔、打卡和时迹双向合并，偏好从服务器恢复',
           children: const [_SyncSection()],
         ),
 
@@ -45,7 +45,7 @@ class DataTransferPage extends ConsumerWidget {
         // 备份操作区
         _buildSection(
           title: '备份到服务器',
-          subtitle: '随笔与打卡双向合并；偏好仍整体上传',
+          subtitle: '随笔、打卡和时迹双向合并，偏好整体上传',
           children: const [_BackupSection()],
         ),
 
@@ -206,6 +206,14 @@ class _SyncSection extends ConsumerWidget {
         TransferActionButton(
           action: TransferAction(
             type: TransferType.sync,
+            target: TransferTarget.trace,
+            label: '同步时迹',
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TransferActionButton(
+          action: TransferAction(
+            type: TransferType.sync,
             target: TransferTarget.preferences,
             label: "同步偏好",
           ),
@@ -246,6 +254,14 @@ class _BackupSection extends ConsumerWidget {
             type: TransferType.backup,
             target: TransferTarget.essay,
             label: "备份随笔",
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TransferActionButton(
+          action: TransferAction(
+            type: TransferType.backup,
+            target: TransferTarget.trace,
+            label: '备份时迹',
           ),
         ),
         const SizedBox(height: AppSpacing.sm),

@@ -42,7 +42,7 @@ final class TransferControllerProvider
 }
 
 String _$transferControllerHash() =>
-    r'39547e4b0a5d1781989f1c5015cece605f474f24';
+    r'3653c8c8c5d62d45db9c878e98aa016367b3da04';
 
 abstract class _$TransferController extends $Notifier<TransferProgress> {
   TransferProgress build();

@@ -16,6 +16,8 @@ import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
 import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
 import 'package:torrid/features/home/widgets/default_background.dart';
+import 'package:torrid/features/trace/trace_store.dart';
+import 'package:torrid/features/trace/trace_timing.dart';
 
 /// 启动屏
 ///
@@ -88,6 +90,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
           ? null
           : await IoService.getImageFile(_backgroundPath!);
       _hasCustomBg = _backgroundFile != null;
+      if (mounted) await recoverTrace(context, ref.read(traceStoreProvider));
       if (mounted) {
         context.replaceNamed(
           "home",
