@@ -16,12 +16,10 @@ import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
 import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
 import 'package:torrid/features/home/widgets/default_background.dart';
+import 'package:torrid/features/trace/trace_store.dart';
+import 'package:torrid/features/trace/trace_timing.dart';
 
-/// 启动屏
-///
-/// 行为：
-/// - 无自定义背景图 → 沿用原有默认背景（logo + 文字）
-/// - 有自定义背景图 → 纯图片背景 + 右下角柔和"加载中"指示，跳转后 HomePage 使用同一张图
+/// 启动屏和首页共用同一张自定义背景图。
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
 
@@ -34,22 +32,18 @@ class _SplashPageState extends ConsumerState<SplashPage>
   /// 是否有自定义背景图（null=尚未判定，等 prefs 就绪后确定）
   bool? _hasCustomBg;
 
-  /// 选中的背景图相对路径
   String? _backgroundPath;
 
-  /// 已加载的背景图文件
   File? _backgroundFile;
   Object? _startupError;
   bool _initializing = false;
 
-  /// 加载指示器动画控制器
   late final AnimationController _loadingAnimCtrl;
 
   @override
   void initState() {
     super.initState();
 
-    // 加载指示器动画：柔和呼吸式淡入淡出
     _loadingAnimCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -64,7 +58,6 @@ class _SplashPageState extends ConsumerState<SplashPage>
     super.dispose();
   }
 
-  /// 初始化操作，完成后跳转到 HomePage
   Future<void> _initialize() async {
     if (_initializing) return;
     _initializing = true;
@@ -88,6 +81,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
           ? null
           : await IoService.getImageFile(_backgroundPath!);
       _hasCustomBg = _backgroundFile != null;
+      if (mounted) await recoverTrace(context, ref.read(traceStoreProvider));
       if (mounted) {
         context.replaceNamed(
           "home",
@@ -120,9 +114,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 背景层
         _buildBackground(),
-        // 加载指示器（仅在有自定义背景时显示）
         if (showLoadingHint)
           Positioned(right: 28, bottom: 48, child: _buildLoadingIndicator()),
         if (_startupError != null)
@@ -157,14 +149,11 @@ class _SplashPageState extends ConsumerState<SplashPage>
     );
   }
 
-  /// 构建背景
   Widget _buildBackground() {
-    // 尚未判定（prefs 未就绪）或无自定义背景 → 默认背景
     if (_hasCustomBg != true) {
       return const BackgroundWidget();
     }
 
-    // 有自定义背景：已加载则显示图片，否则显示纯色占位
     if (_backgroundFile != null) {
       return Image.file(
         _backgroundFile!,
@@ -178,12 +167,10 @@ class _SplashPageState extends ConsumerState<SplashPage>
     return _buildPlaceholder();
   }
 
-  /// 纯色占位背景（图片加载中）
   Widget _buildPlaceholder() {
     return Container(color: AppTheme.surface);
   }
 
-  /// 柔和淡入淡出的加载指示器
   Widget _buildLoadingIndicator() {
     return FadeTransition(
       opacity: _loadingAnimCtrl,

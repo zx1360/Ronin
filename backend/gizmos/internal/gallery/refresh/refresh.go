@@ -17,7 +17,6 @@ import (
 	"monarch/internal/galleryfs"
 )
 
-// Config refresh 模式配置。
 type Config struct {
 	MediaDir      string
 	ThumbsDir     string
@@ -28,7 +27,6 @@ type Config struct {
 	ResizeThumb   int
 }
 
-// Stats refresh 统计信息。
 type Stats struct {
 	TotalRecords   int64
 	MissingSources int64
@@ -37,7 +35,6 @@ type Stats struct {
 	FailedRecords  int64
 }
 
-// sizePlan 派生图尺寸计划。
 type sizePlan struct {
 	runResizeThumb   bool
 	runResizePreview bool
@@ -45,20 +42,17 @@ type sizePlan struct {
 	previewSize      int
 }
 
-// regenerateRequest 单个资产的派生图生成意图。
 type regenerateRequest struct {
 	needThumb   bool
 	needPreview bool
 }
 
-// Refresher refresh 执行器。
 type Refresher struct {
 	config     Config
 	sizePlan   sizePlan
 	repository *repository.Repository
 }
 
-// NewRefresher 创建 refresh 执行器。
 func NewRefresher(cfg Config) (*Refresher, error) {
 	if cfg.Concurrency <= 0 {
 		cfg.Concurrency = 4

@@ -32,13 +32,14 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
     '../../../features/chat/services/chat.drift',
     '../../../features/others/comic/services/comic.drift',
     '../../../features/others/gallery/services/gallery.drift',
+    '../../../features/trace/trace.drift',
   },
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -52,6 +53,35 @@ class AppDatabase extends _$AppDatabase {
           updatedAt: DateTime.fromMillisecondsSinceEpoch(1, isUtc: true),
         ),
       );
+    }),
+    onUpgrade: (migrator, from, to) => transaction(() async {
+      if (from < 2) {
+        await migrator.createTable(traceScenes);
+        await migrator.createTable(traceItems);
+        await migrator.createTable(traceTags);
+        await migrator.createTable(traceSessions);
+        await migrator.createIndex(traceSessionsRunning);
+      } else {
+        if (from < 3) {
+          await migrator.addColumn(traceSessions, traceSessions.anchorWallMs);
+        }
+        if (from < 4) {
+          await migrator.alterTable(
+            TableMigration(
+              traceScenes,
+              newColumns: [traceScenes.deletion],
+              columnTransformer: {
+                traceScenes.color: const CustomExpression<String>(
+                  "printf('#%06X', color & 16777215)",
+                ),
+              },
+            ),
+          );
+        }
+        if (from < 5) {
+          await migrator.addColumn(traceItems, traceItems.deletion);
+        }
+      }
     }),
     beforeOpen: (_) => customStatement('PRAGMA foreign_keys = ON'),
   );

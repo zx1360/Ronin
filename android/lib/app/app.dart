@@ -13,7 +13,6 @@ class MyApp extends StatelessWidget {
       title: "torrid",
       theme: AppTheme.bookTheme(),
 
-      // 关联路由配置
       routerDelegate: router.routerDelegate,
       routeInformationParser: router.routeInformationParser,
       routeInformationProvider: router.routeInformationProvider,

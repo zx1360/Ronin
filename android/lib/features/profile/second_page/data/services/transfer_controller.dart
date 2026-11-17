@@ -13,6 +13,8 @@ import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/services/essay_contract.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
+import 'package:torrid/features/trace/trace_backup.dart';
+import 'package:torrid/features/trace/trace_store.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
@@ -46,6 +48,7 @@ class TransferController extends _$TransferController {
         ? [
             TransferTarget.booklet,
             TransferTarget.essay,
+            TransferTarget.trace,
             TransferTarget.preferences,
           ]
         : [target];
@@ -53,11 +56,12 @@ class TransferController extends _$TransferController {
       final client = ref.read(apiClientManagerProvider);
       final results = <TransferResult>[];
       for (final item in targets) {
-        results.add(
-          await (type == TransferType.sync || item != TransferTarget.preferences
-              ? _sync(item, client)
-              : _backup(item, client)),
-        );
+        results.add(await (switch (item) {
+          TransferTarget.trace => _syncTrace(type, client),
+          TransferTarget.preferences when type == TransferType.backup =>
+            _backup(item, client),
+          _ => _sync(item, client),
+        }));
       }
       return results.length == 1
           ? results.single
@@ -76,6 +80,38 @@ class TransferController extends _$TransferController {
 
   void reset() {
     if (!_running) state = TransferProgress.idle();
+  }
+
+  Future<TransferResult> _syncTrace(TransferType type, ApiClient client) async {
+    final started = DateTime.now();
+    _updateState(
+      type: type,
+      target: TransferTarget.trace,
+      status: TransferStatus.inProgress,
+      message: '正在合并时迹备份…',
+    );
+    try {
+      await syncTraceBackup(
+        ref.read(traceStoreProvider),
+        client,
+        checkConnection: () {
+          if (!identical(ref.read(apiClientManagerProvider), client)) {
+            throw const ApiException('服务器连接已切换，请重试同步');
+          }
+        },
+      );
+      _completeTransfer(true, '时迹已同步并备份');
+      return TransferResult.success(
+        message: '时迹已同步并备份',
+        successCount: 1,
+      )._withElapsed(started);
+    } catch (error) {
+      final message = ApiClient.mapError(error).message;
+      _completeTransfer(false, '时迹同步失败', null, message);
+      return TransferResult.failed(
+        message: '时迹同步失败 · $message',
+      )._withElapsed(started);
+    }
   }
 
   Future<TransferResult> _sync(TransferTarget target, ApiClient client) async {
@@ -147,7 +183,7 @@ class TransferController extends _$TransferController {
         TransferTarget.preferences => preferenceImagePaths(
           Map<String, dynamic>.from(data['preferences'] as Map),
         ),
-        TransferTarget.all => throw StateError('请指定数据模块'),
+        _ => throw StateError('该模块不使用附件传输'),
       };
       final images = _imagePaths(target, paths, relativeDir);
       final directory = await IoService.userDirectory(relativeDir);
@@ -182,8 +218,8 @@ class TransferController extends _$TransferController {
             await restorePreferences(
               Map<String, dynamic>.from(data['preferences'] as Map),
             );
-          case TransferTarget.all:
-            throw StateError('请指定数据模块');
+          default:
+            throw StateError('该模块不使用附件传输');
         }
       });
       if (target == TransferTarget.preferences) {
@@ -256,7 +292,7 @@ class TransferController extends _$TransferController {
           await ref.read(bookletStoreProvider).snapshot(),
         TransferTarget.essay => await ref.read(essayStoreProvider).snapshot(),
         TransferTarget.preferences => _preferenceSnapshot(),
-        TransferTarget.all => throw StateError('请指定数据模块'),
+        _ => throw StateError('该模块不使用附件传输'),
       };
       final root = target == TransferTarget.preferences
           ? 'preferences'

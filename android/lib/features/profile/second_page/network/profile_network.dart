@@ -4,15 +4,6 @@ import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/providers/network_config/network_config_provider.dart';
 
-/// 网络设置页面
-///
-/// 提供服务器连接配置，包括：
-/// - API Key 设置
-/// - 服务器地址配置（IP/端口）与多配置管理
-/// - 局域网服务发现
-///
-/// 每个配置的连接状态由 [serverReachableProvider] 按地址派生，页面重建不会
-/// 造成状态错位或重复探测.
 class ProfileNetwork extends ConsumerStatefulWidget {
   const ProfileNetwork({super.key});
 
@@ -56,7 +47,6 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        // API Key 设置
         _buildSection(
           title: 'API Key',
           children: [
@@ -66,7 +56,6 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
 
         const SizedBox(height: AppSpacing.lg),
 
-        // 服务器配置
         _buildSection(
           title: '服务器配置',
           trailing: Row(
@@ -125,7 +114,6 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
 
         const SizedBox(height: AppSpacing.lg),
 
-        // 说明
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           child: Text(
@@ -227,7 +215,6 @@ class _ProfileNetworkState extends ConsumerState<ProfileNetwork> {
   }
 }
 
-/// 单个服务器配置项
 class _ServerConfigTile extends ConsumerStatefulWidget {
   final int index;
   final HostConfig config;
@@ -317,7 +304,6 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题行
           Row(
             children: [
               Text(
@@ -350,7 +336,6 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // IP地址输入
           TextField(
             controller: _hostController,
             decoration: const InputDecoration(
@@ -367,7 +352,6 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // 端口输入
           TextField(
             controller: _portController,
             decoration: const InputDecoration(
@@ -384,7 +368,6 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // 操作按钮
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -449,7 +432,6 @@ class _ServerConfigTileState extends ConsumerState<_ServerConfigTile> {
   }
 }
 
-/// 连接状态标签
 class _StatusLabel extends StatelessWidget {
   final Color color;
   final String text;

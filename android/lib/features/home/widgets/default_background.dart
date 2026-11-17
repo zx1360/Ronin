@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 
-/// 默认背景组件
-/// 供 SplashPage 和 HomePage 共用，确保视觉一致性
 class DefaultBackground extends StatelessWidget {
   const DefaultBackground({super.key});
 
@@ -27,7 +25,6 @@ class DefaultBackground extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 应用 logo 图标
             Container(
               width: 100,
               height: 100,
@@ -76,7 +73,6 @@ class DefaultBackground extends StatelessWidget {
   }
 }
 
-/// 自定义图片背景组件
 /// 支持文件图片加载，加载失败时显示默认背景
 class CustomImageBackground extends StatelessWidget {
   final File imageFile;
@@ -95,8 +91,6 @@ class CustomImageBackground extends StatelessWidget {
   }
 }
 
-/// 背景组件工厂
-/// 根据是否有自定义图片文件返回相应背景组件
 class BackgroundWidget extends StatelessWidget {
   final File? imageFile;
 

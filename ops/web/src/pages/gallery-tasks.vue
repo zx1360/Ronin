@@ -73,7 +73,7 @@ export default {
     };
 
     return {
-      state, tasks, error, loading, starting, hasRunning, canStart, currentMode, MODES,
+      state, error, starting, hasRunning, canStart, currentMode, MODES,
       start, poller,
     };
   },

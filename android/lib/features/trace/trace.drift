@@ -1,0 +1,43 @@
+CREATE TABLE trace_scenes (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  archived BOOLEAN NOT NULL DEFAULT FALSE,
+  version INTEGER NOT NULL,
+  deletion TEXT CHECK (deletion IN ('keep', 'erase'))
+);
+
+CREATE TABLE trace_items (
+  id TEXT NOT NULL PRIMARY KEY,
+  scene_id TEXT NOT NULL REFERENCES trace_scenes(id),
+  name TEXT NOT NULL,
+  archived BOOLEAN NOT NULL DEFAULT FALSE,
+  version INTEGER NOT NULL,
+  deletion TEXT CHECK (deletion IN ('keep', 'erase'))
+);
+
+CREATE TABLE trace_tags (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  archived BOOLEAN NOT NULL DEFAULT FALSE,
+  version INTEGER NOT NULL
+);
+
+CREATE TABLE trace_sessions (
+  id TEXT NOT NULL PRIMARY KEY,
+  scene_id TEXT NOT NULL REFERENCES trace_scenes(id),
+  item_id TEXT REFERENCES trace_items(id),
+  tag_ids_json TEXT NOT NULL DEFAULT '[]',
+  note TEXT NOT NULL DEFAULT '',
+  started_ms INTEGER NOT NULL,
+  ended_ms INTEGER CHECK (ended_ms >= started_ms),
+  deleted BOOLEAN NOT NULL DEFAULT FALSE,
+  version INTEGER NOT NULL,
+  boot_key TEXT,
+  anchor_elapsed_ms INTEGER,
+  anchor_duration_ms INTEGER,
+  anchor_wall_ms INTEGER
+);
+
+CREATE INDEX trace_sessions_running ON trace_sessions (scene_id)
+  WHERE ended_ms IS NULL AND deleted = FALSE;

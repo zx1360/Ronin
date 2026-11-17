@@ -1,4 +1,3 @@
-// dialogs.dart 文件
 import 'package:flutter/material.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/app_border_radius.dart';
@@ -16,8 +15,6 @@ class DialogOption {
   });
 }
 
-/// 弹出一个带有多个选项按钮的模态对话框。
-/// [options] 参数接收一个 DialogOption 对象的列表，用于动态生成按钮。
 Future<DialogOption?> showOptionsDialog({
   required BuildContext context,
   required String title,

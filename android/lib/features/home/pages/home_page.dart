@@ -41,7 +41,6 @@ class _HomePageState extends ConsumerState<HomePage>
 
   bool _isMenuOpen = false;
 
-  // 个性化配置
   final PersonalizationService _personalizationService =
       PersonalizationService();
   String _motto = '';
@@ -57,7 +56,7 @@ class _HomePageState extends ConsumerState<HomePage>
       icon: Icons.chat_bubble_outline,
       route: "chat",
     ),
-    const ButtonInfo(name: "阅读", icon: Icons.newspaper, route: "news"),
+    const ButtonInfo(name: '时迹', icon: Icons.timelapse_rounded, route: 'trace'),
     const ButtonInfo(
       name: "其他",
       icon: Icons.account_tree_rounded,
@@ -84,11 +83,9 @@ class _HomePageState extends ConsumerState<HomePage>
       end: 0.5,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
-    // 初始化个性化配置（首次加载）
     _reloadPersonalization(initial: true);
   }
 
-  /// 重新加载个性化配置（背景、侧边栏、座右铭）
   Future<void> _reloadPersonalization({bool initial = false}) async {
     final generation = ++_personalizationLoad;
     final path = initial && widget.bgPath?.isNotEmpty == true
@@ -114,7 +111,6 @@ class _HomePageState extends ConsumerState<HomePage>
     super.dispose();
   }
 
-  /// 切换菜单的显示与隐藏，并控制动画播放
   void _toggleMenu() {
     setState(() {
       _isMenuOpen = !_isMenuOpen;
@@ -152,7 +148,6 @@ class _HomePageState extends ConsumerState<HomePage>
         backgroundColor: AppTheme.background,
         body: Stack(
           children: [
-            // 1. 主内容区域（背景）
             Semantics(
               label: '打开侧边菜单',
               button: true,
@@ -167,7 +162,6 @@ class _HomePageState extends ConsumerState<HomePage>
               ),
             ),
 
-            // 2. 背景遮罩
             IgnorePointer(
               ignoring: !_isMenuOpen,
               child: FadeTransition(
@@ -179,7 +173,6 @@ class _HomePageState extends ConsumerState<HomePage>
               ),
             ),
 
-            // 3. 侧边菜单
             ExcludeSemantics(
               excluding: !_isMenuOpen,
               child: IgnorePointer(
@@ -196,12 +189,10 @@ class _HomePageState extends ConsumerState<HomePage>
     );
   }
 
-  /// 构建主背景
   Widget _buildMainBackground() {
     return BackgroundWidget(imageFile: _bgFile);
   }
 
-  /// 构建侧边菜单
   Widget _buildSideMenu(double menuWidth, double height) {
     return Container(
       width: menuWidth,
@@ -210,7 +201,6 @@ class _HomePageState extends ConsumerState<HomePage>
       child: Column(
         children: [
           const SizedBox(height: _largeSpacing),
-          // 座右铭
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: _mediumSpacing,
@@ -281,9 +271,7 @@ class _HomePageState extends ConsumerState<HomePage>
     );
   }
 
-  /// 构建侧边菜单装饰
   BoxDecoration _buildSideMenuDecoration() {
-    // 如果有自定义侧边栏图片
     if (_sidebarFile != null) {
       return BoxDecoration(
         image: DecorationImage(
@@ -306,7 +294,6 @@ class _HomePageState extends ConsumerState<HomePage>
       );
     }
 
-    // 默认简约样式（无背景图）
     return BoxDecoration(
       color: AppTheme.surfaceContainer,
       boxShadow: [

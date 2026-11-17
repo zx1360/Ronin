@@ -4,17 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 )
 
-// 网页运维端（ops）的偏好
-//
-// 存在 `DATA_DIR/ops_web.json`。
-// 字段用指针表示"本次请求未涉及该项"，便于界面做局部更新。
-// 例外是 AiPaused：它不只是界面偏好，服务端启动时按它决定任务队列的初始状态。
-
-// OpsSettings 网页运维端偏好（读取后一律已填充为具体值）。
+// OpsSettings 用指针区分局部更新中缺省的字段。
 type OpsSettings struct {
 	AutoRefreshSeconds *int  `json:"auto_refresh_seconds,omitempty"` // 仪表盘概览轮询间隔（秒）
 	AiRefreshSeconds   *int  `json:"ai_refresh_seconds,omitempty"`   // AI 页轮询间隔（秒）
@@ -24,13 +17,11 @@ type OpsSettings struct {
 	AiPaused *bool `json:"ai_paused,omitempty"`
 }
 
-// 偏好的默认值与合法范围。
 const (
 	defaultAutoRefresh = 10
 	defaultAiRefresh   = 3
 	defaultLogLines    = 800
-	// 队列初始为暂停：批处理会长时间吃满 CPU/GPU，不应在用户没表态时随服务启动自动开跑。
-	defaultAiPaused = true
+	defaultAiPaused    = true
 
 	minAutoRefresh = 5
 	maxAutoRefresh = 3600
@@ -46,14 +37,12 @@ var opsSettingsKeys = []string{
 	"confirm_destructive", "ai_paused",
 }
 
-// OpsStore 串行化对网页端偏好文件的读写。
 type OpsStore struct {
 	path string
 	mu   sync.RWMutex
 	cur  OpsSettings
 }
 
-// NewOpsStore 创建偏好存储（Load 之前使用默认值）。
 func NewOpsStore(path string) *OpsStore {
 	return &OpsStore{path: path, cur: defaultOpsSettings()}
 }
@@ -80,28 +69,25 @@ func (s *OpsStore) Load() error {
 		return fmt.Errorf("网页端偏好取值非法 (%s): %w", s.path, err)
 	}
 	applyOpsSettings(&s.cur, loaded)
-	if len(missingOpsKeys(raw)) > 0 {
+	if hasMissingOpsKey(raw) {
 		return s.saveLocked()
 	}
 	return nil
 }
 
-// missingOpsKeys 返回文件里缺少的已知键；解析失败时不追加写入（Load 已就此报错）。
-func missingOpsKeys(raw []byte) []string {
+func hasMissingOpsKey(raw []byte) bool {
 	var present map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &present); err != nil {
-		return nil
+		return false
 	}
-	var missing []string
 	for _, key := range opsSettingsKeys {
 		if _, ok := present[key]; !ok {
-			missing = append(missing, key)
+			return true
 		}
 	}
-	return missing
+	return false
 }
 
-// Snapshot 返回当前偏好的副本。
 func (s *OpsStore) Snapshot() OpsSettings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -128,29 +114,10 @@ func (s *OpsStore) Update(update OpsSettings) error {
 	return nil
 }
 
-// Path 返回偏好文件路径（供界面展示，便于备份）。
 func (s *OpsStore) Path() string { return s.path }
 
-// saveLocked 原子写入（先写临时文件再改名，避免中断留下半截 JSON）。
 func (s *OpsStore) saveLocked() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
-		return fmt.Errorf("创建偏好目录失败: %w", err)
-	}
-	raw, err := json.MarshalIndent(filledOpsSettings(s.cur), "", "  ")
-	if err != nil {
-		return fmt.Errorf("序列化网页端偏好失败: %w", err)
-	}
-	raw = append(raw, '\n')
-
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0644); err != nil {
-		return fmt.Errorf("写入网页端偏好失败: %w", err)
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("保存网页端偏好失败: %w", err)
-	}
-	return nil
+	return saveJSON(s.path, "网页端偏好", filledOpsSettings(s.cur))
 }
 
 func defaultOpsSettings() OpsSettings {

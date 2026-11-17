@@ -14,6 +14,7 @@ enum TransferTarget {
   all, // 所有数据
   booklet, // 打卡数据
   essay, // 随笔数据
+  trace,
   preferences, // 偏好数据
 }
 
@@ -21,6 +22,7 @@ extension TransferTargetName on TransferTarget {
   String get displayName => switch (this) {
     TransferTarget.booklet => '打卡',
     TransferTarget.essay => '随笔',
+    TransferTarget.trace => '时迹',
     TransferTarget.preferences => '偏好',
     TransferTarget.all => '所有',
   };

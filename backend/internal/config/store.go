@@ -23,7 +23,6 @@ type RuntimeConfig struct {
 	VLMModel           *string   `json:"vlm_model,omitempty"`         // 标注/对话选定的模型；空 = 尚未选定
 }
 
-// ConfigStore 串行化对配置文件的读写。
 type ConfigStore struct {
 	path     string
 	defaults AiConfig
@@ -116,34 +115,35 @@ func (s *ConfigStore) ApplyTo(cfg *AiConfig) {
 	applySnapshotTo(cfg, snapshot)
 }
 
-// saveLocked 原子写入配置文件（先写临时文件再改名，避免中断留下半截 JSON）。
 func (s *ConfigStore) saveLocked() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
-		return fmt.Errorf("创建配置目录失败: %w", err)
-	}
-	raw, err := json.MarshalIndent(struct {
+	return saveJSON(s.path, "AI 配置", struct {
 		Runtime RuntimeConfig `json:"runtime"`
-	}{Runtime: s.runtime}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("序列化 AI 配置失败: %w", err)
-	}
-	raw = append(raw, '\n')
+	}{Runtime: s.runtime})
+}
 
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0644); err != nil {
-		return fmt.Errorf("写入 AI 配置失败: %w", err)
+// 同目录暂存后替换，避免中断留下半截 JSON。
+func saveJSON(path, label string, value any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("创建%s目录失败: %w", label, err)
 	}
-	if err := os.Rename(tmp, s.path); err != nil {
+	raw, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化%s失败: %w", label, err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(raw, '\n'), 0644); err != nil {
+		return fmt.Errorf("写入%s失败: %w", label, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("保存 AI 配置失败: %w", err)
+		return fmt.Errorf("保存%s失败: %w", label, err)
 	}
 	return nil
 }
 
-// Path 返回配置文件路径（供状态接口展示，便于用户直接备份）。
 func (s *ConfigStore) Path() string { return s.path }
 
-// defaultRuntime 由 .env 推导出的基准值构造完整默认配置。
 func defaultRuntime(cfg AiConfig) RuntimeConfig {
 	idle := int(cfg.IdleTimeout.Seconds())
 	job := int(cfg.JobTimeout.Seconds())
@@ -228,7 +228,6 @@ func validateRuntime(update RuntimeConfig) error {
 	return nil
 }
 
-// applySnapshotTo 把运行时快照写入引擎使用的配置副本。
 func applySnapshotTo(cfg *AiConfig, runtime RuntimeConfig) {
 	if runtime.IdleTimeoutSeconds != nil {
 		cfg.IdleTimeout = seconds(*runtime.IdleTimeoutSeconds)

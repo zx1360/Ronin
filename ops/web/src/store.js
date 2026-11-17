@@ -1,8 +1,3 @@
-// 全局状态：引导信息（密钥/偏好/路径/能力）、路由、通知与二次确认。
-//
-// 偏好由服务端持有（static/data/ops_web.json），页面只在内存中镜像一份，
-// 不写 localStorage 等浏览器存储。
-
 import { reactive } from 'vue';
 import { api, setApiKey } from './api.js';
 
@@ -18,7 +13,6 @@ export const state = reactive({
   connecting: false,
   bootError: '',
   apiKey: '',
-  // 字段名与服务端 ops_web.json 一致（snake_case），不要另起一套命名
   settings: {
     auto_refresh_seconds: 10,
     ai_refresh_seconds: 3,
@@ -45,13 +39,11 @@ export function parseRoute() {
   return path === '/logs' ? '/tasks' : path || '/dashboard';
 }
 
-/** 切换页面（写入 hash，由 hashchange 统一驱动视图）。 */
 export function navigate(path) {
   if (window.location.hash === `#${path}`) return;
   window.location.hash = path;
 }
 
-/** 从服务端取回网页端引导信息；失败时页面显示明确原因而不是空白。 */
 export async function bootstrap() {
   if (state.connecting) return;
   state.connecting = true;
@@ -82,7 +74,6 @@ export async function saveSettings(update) {
   return state.settings;
 }
 
-/** 弹出提示（自动消失）。 */
 export function toast(message, kind = 'info') {
   const id = Date.now() + Math.random();
   state.toasts.push({ id, message: String(message), kind });
@@ -104,7 +95,6 @@ export function confirmAction(message, { title = '请确认', danger = false } =
   });
 }
 
-/** 关闭确认框（供对话框组件调用）。 */
 export function resolveDialog(ok) {
   const dialog = state.dialog;
   state.dialog = null;

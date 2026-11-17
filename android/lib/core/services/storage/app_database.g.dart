@@ -3,6 +3,1899 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
+class TraceScenes extends Table with TableInfo<TraceScenes, TraceScene> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  TraceScenes(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL PRIMARY KEY',
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _archivedMeta = const VerificationMeta(
+    'archived',
+  );
+  late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
+    'archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT FALSE',
+    defaultValue: const CustomExpression('FALSE'),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _deletionMeta = const VerificationMeta(
+    'deletion',
+  );
+  late final GeneratedColumn<String> deletion = GeneratedColumn<String>(
+    'deletion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (deletion IN (\'keep\', \'erase\'))',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    color,
+    archived,
+    version,
+    deletion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'trace_scenes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TraceScene> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_colorMeta);
+    }
+    if (data.containsKey('archived')) {
+      context.handle(
+        _archivedMeta,
+        archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    if (data.containsKey('deletion')) {
+      context.handle(
+        _deletionMeta,
+        deletion.isAcceptableOrUnknown(data['deletion']!, _deletionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TraceScene map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TraceScene(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      deletion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deletion'],
+      ),
+    );
+  }
+
+  @override
+  TraceScenes createAlias(String alias) {
+    return TraceScenes(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class TraceScene extends DataClass implements Insertable<TraceScene> {
+  final String id;
+  final String name;
+  final String color;
+  final bool archived;
+  final int version;
+  final String? deletion;
+  const TraceScene({
+    required this.id,
+    required this.name,
+    required this.color,
+    required this.archived,
+    required this.version,
+    this.deletion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['color'] = Variable<String>(color);
+    map['archived'] = Variable<bool>(archived);
+    map['version'] = Variable<int>(version);
+    if (!nullToAbsent || deletion != null) {
+      map['deletion'] = Variable<String>(deletion);
+    }
+    return map;
+  }
+
+  TraceScenesCompanion toCompanion(bool nullToAbsent) {
+    return TraceScenesCompanion(
+      id: Value(id),
+      name: Value(name),
+      color: Value(color),
+      archived: Value(archived),
+      version: Value(version),
+      deletion: deletion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletion),
+    );
+  }
+
+  factory TraceScene.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TraceScene(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      color: serializer.fromJson<String>(json['color']),
+      archived: serializer.fromJson<bool>(json['archived']),
+      version: serializer.fromJson<int>(json['version']),
+      deletion: serializer.fromJson<String?>(json['deletion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'color': serializer.toJson<String>(color),
+      'archived': serializer.toJson<bool>(archived),
+      'version': serializer.toJson<int>(version),
+      'deletion': serializer.toJson<String?>(deletion),
+    };
+  }
+
+  TraceScene copyWith({
+    String? id,
+    String? name,
+    String? color,
+    bool? archived,
+    int? version,
+    Value<String?> deletion = const Value.absent(),
+  }) => TraceScene(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    color: color ?? this.color,
+    archived: archived ?? this.archived,
+    version: version ?? this.version,
+    deletion: deletion.present ? deletion.value : this.deletion,
+  );
+  TraceScene copyWithCompanion(TraceScenesCompanion data) {
+    return TraceScene(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      color: data.color.present ? data.color.value : this.color,
+      archived: data.archived.present ? data.archived.value : this.archived,
+      version: data.version.present ? data.version.value : this.version,
+      deletion: data.deletion.present ? data.deletion.value : this.deletion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceScene(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('archived: $archived, ')
+          ..write('version: $version, ')
+          ..write('deletion: $deletion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, color, archived, version, deletion);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TraceScene &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.color == this.color &&
+          other.archived == this.archived &&
+          other.version == this.version &&
+          other.deletion == this.deletion);
+}
+
+class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> color;
+  final Value<bool> archived;
+  final Value<int> version;
+  final Value<String?> deletion;
+  final Value<int> rowid;
+  const TraceScenesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.color = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.version = const Value.absent(),
+    this.deletion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TraceScenesCompanion.insert({
+    required String id,
+    required String name,
+    required String color,
+    this.archived = const Value.absent(),
+    required int version,
+    this.deletion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       color = Value(color),
+       version = Value(version);
+  static Insertable<TraceScene> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? color,
+    Expression<bool>? archived,
+    Expression<int>? version,
+    Expression<String>? deletion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (color != null) 'color': color,
+      if (archived != null) 'archived': archived,
+      if (version != null) 'version': version,
+      if (deletion != null) 'deletion': deletion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TraceScenesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? color,
+    Value<bool>? archived,
+    Value<int>? version,
+    Value<String?>? deletion,
+    Value<int>? rowid,
+  }) {
+    return TraceScenesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      color: color ?? this.color,
+      archived: archived ?? this.archived,
+      version: version ?? this.version,
+      deletion: deletion ?? this.deletion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (archived.present) {
+      map['archived'] = Variable<bool>(archived.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (deletion.present) {
+      map['deletion'] = Variable<String>(deletion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceScenesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('archived: $archived, ')
+          ..write('version: $version, ')
+          ..write('deletion: $deletion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class TraceItems extends Table with TableInfo<TraceItems, TraceItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  TraceItems(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL PRIMARY KEY',
+  );
+  static const VerificationMeta _sceneIdMeta = const VerificationMeta(
+    'sceneId',
+  );
+  late final GeneratedColumn<String> sceneId = GeneratedColumn<String>(
+    'scene_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL REFERENCES trace_scenes(id)',
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _archivedMeta = const VerificationMeta(
+    'archived',
+  );
+  late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
+    'archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT FALSE',
+    defaultValue: const CustomExpression('FALSE'),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _deletionMeta = const VerificationMeta(
+    'deletion',
+  );
+  late final GeneratedColumn<String> deletion = GeneratedColumn<String>(
+    'deletion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (deletion IN (\'keep\', \'erase\'))',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sceneId,
+    name,
+    archived,
+    version,
+    deletion,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'trace_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TraceItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('scene_id')) {
+      context.handle(
+        _sceneIdMeta,
+        sceneId.isAcceptableOrUnknown(data['scene_id']!, _sceneIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sceneIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('archived')) {
+      context.handle(
+        _archivedMeta,
+        archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    if (data.containsKey('deletion')) {
+      context.handle(
+        _deletionMeta,
+        deletion.isAcceptableOrUnknown(data['deletion']!, _deletionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TraceItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TraceItem(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      sceneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scene_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      deletion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deletion'],
+      ),
+    );
+  }
+
+  @override
+  TraceItems createAlias(String alias) {
+    return TraceItems(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class TraceItem extends DataClass implements Insertable<TraceItem> {
+  final String id;
+  final String sceneId;
+  final String name;
+  final bool archived;
+  final int version;
+  final String? deletion;
+  const TraceItem({
+    required this.id,
+    required this.sceneId,
+    required this.name,
+    required this.archived,
+    required this.version,
+    this.deletion,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['scene_id'] = Variable<String>(sceneId);
+    map['name'] = Variable<String>(name);
+    map['archived'] = Variable<bool>(archived);
+    map['version'] = Variable<int>(version);
+    if (!nullToAbsent || deletion != null) {
+      map['deletion'] = Variable<String>(deletion);
+    }
+    return map;
+  }
+
+  TraceItemsCompanion toCompanion(bool nullToAbsent) {
+    return TraceItemsCompanion(
+      id: Value(id),
+      sceneId: Value(sceneId),
+      name: Value(name),
+      archived: Value(archived),
+      version: Value(version),
+      deletion: deletion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletion),
+    );
+  }
+
+  factory TraceItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TraceItem(
+      id: serializer.fromJson<String>(json['id']),
+      sceneId: serializer.fromJson<String>(json['scene_id']),
+      name: serializer.fromJson<String>(json['name']),
+      archived: serializer.fromJson<bool>(json['archived']),
+      version: serializer.fromJson<int>(json['version']),
+      deletion: serializer.fromJson<String?>(json['deletion']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'scene_id': serializer.toJson<String>(sceneId),
+      'name': serializer.toJson<String>(name),
+      'archived': serializer.toJson<bool>(archived),
+      'version': serializer.toJson<int>(version),
+      'deletion': serializer.toJson<String?>(deletion),
+    };
+  }
+
+  TraceItem copyWith({
+    String? id,
+    String? sceneId,
+    String? name,
+    bool? archived,
+    int? version,
+    Value<String?> deletion = const Value.absent(),
+  }) => TraceItem(
+    id: id ?? this.id,
+    sceneId: sceneId ?? this.sceneId,
+    name: name ?? this.name,
+    archived: archived ?? this.archived,
+    version: version ?? this.version,
+    deletion: deletion.present ? deletion.value : this.deletion,
+  );
+  TraceItem copyWithCompanion(TraceItemsCompanion data) {
+    return TraceItem(
+      id: data.id.present ? data.id.value : this.id,
+      sceneId: data.sceneId.present ? data.sceneId.value : this.sceneId,
+      name: data.name.present ? data.name.value : this.name,
+      archived: data.archived.present ? data.archived.value : this.archived,
+      version: data.version.present ? data.version.value : this.version,
+      deletion: data.deletion.present ? data.deletion.value : this.deletion,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceItem(')
+          ..write('id: $id, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('name: $name, ')
+          ..write('archived: $archived, ')
+          ..write('version: $version, ')
+          ..write('deletion: $deletion')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, sceneId, name, archived, version, deletion);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TraceItem &&
+          other.id == this.id &&
+          other.sceneId == this.sceneId &&
+          other.name == this.name &&
+          other.archived == this.archived &&
+          other.version == this.version &&
+          other.deletion == this.deletion);
+}
+
+class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
+  final Value<String> id;
+  final Value<String> sceneId;
+  final Value<String> name;
+  final Value<bool> archived;
+  final Value<int> version;
+  final Value<String?> deletion;
+  final Value<int> rowid;
+  const TraceItemsCompanion({
+    this.id = const Value.absent(),
+    this.sceneId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.version = const Value.absent(),
+    this.deletion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TraceItemsCompanion.insert({
+    required String id,
+    required String sceneId,
+    required String name,
+    this.archived = const Value.absent(),
+    required int version,
+    this.deletion = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       sceneId = Value(sceneId),
+       name = Value(name),
+       version = Value(version);
+  static Insertable<TraceItem> custom({
+    Expression<String>? id,
+    Expression<String>? sceneId,
+    Expression<String>? name,
+    Expression<bool>? archived,
+    Expression<int>? version,
+    Expression<String>? deletion,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sceneId != null) 'scene_id': sceneId,
+      if (name != null) 'name': name,
+      if (archived != null) 'archived': archived,
+      if (version != null) 'version': version,
+      if (deletion != null) 'deletion': deletion,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TraceItemsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? sceneId,
+    Value<String>? name,
+    Value<bool>? archived,
+    Value<int>? version,
+    Value<String?>? deletion,
+    Value<int>? rowid,
+  }) {
+    return TraceItemsCompanion(
+      id: id ?? this.id,
+      sceneId: sceneId ?? this.sceneId,
+      name: name ?? this.name,
+      archived: archived ?? this.archived,
+      version: version ?? this.version,
+      deletion: deletion ?? this.deletion,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sceneId.present) {
+      map['scene_id'] = Variable<String>(sceneId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (archived.present) {
+      map['archived'] = Variable<bool>(archived.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (deletion.present) {
+      map['deletion'] = Variable<String>(deletion.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('name: $name, ')
+          ..write('archived: $archived, ')
+          ..write('version: $version, ')
+          ..write('deletion: $deletion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class TraceTags extends Table with TableInfo<TraceTags, TraceTag> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  TraceTags(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL PRIMARY KEY',
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _archivedMeta = const VerificationMeta(
+    'archived',
+  );
+  late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
+    'archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT FALSE',
+    defaultValue: const CustomExpression('FALSE'),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, archived, version];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'trace_tags';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TraceTag> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('archived')) {
+      context.handle(
+        _archivedMeta,
+        archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TraceTag map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TraceTag(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+    );
+  }
+
+  @override
+  TraceTags createAlias(String alias) {
+    return TraceTags(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class TraceTag extends DataClass implements Insertable<TraceTag> {
+  final String id;
+  final String name;
+  final bool archived;
+  final int version;
+  const TraceTag({
+    required this.id,
+    required this.name,
+    required this.archived,
+    required this.version,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['archived'] = Variable<bool>(archived);
+    map['version'] = Variable<int>(version);
+    return map;
+  }
+
+  TraceTagsCompanion toCompanion(bool nullToAbsent) {
+    return TraceTagsCompanion(
+      id: Value(id),
+      name: Value(name),
+      archived: Value(archived),
+      version: Value(version),
+    );
+  }
+
+  factory TraceTag.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TraceTag(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      archived: serializer.fromJson<bool>(json['archived']),
+      version: serializer.fromJson<int>(json['version']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'archived': serializer.toJson<bool>(archived),
+      'version': serializer.toJson<int>(version),
+    };
+  }
+
+  TraceTag copyWith({String? id, String? name, bool? archived, int? version}) =>
+      TraceTag(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        archived: archived ?? this.archived,
+        version: version ?? this.version,
+      );
+  TraceTag copyWithCompanion(TraceTagsCompanion data) {
+    return TraceTag(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      archived: data.archived.present ? data.archived.value : this.archived,
+      version: data.version.present ? data.version.value : this.version,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceTag(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('archived: $archived, ')
+          ..write('version: $version')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, archived, version);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TraceTag &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.archived == this.archived &&
+          other.version == this.version);
+}
+
+class TraceTagsCompanion extends UpdateCompanion<TraceTag> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<bool> archived;
+  final Value<int> version;
+  final Value<int> rowid;
+  const TraceTagsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.version = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TraceTagsCompanion.insert({
+    required String id,
+    required String name,
+    this.archived = const Value.absent(),
+    required int version,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       version = Value(version);
+  static Insertable<TraceTag> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<bool>? archived,
+    Expression<int>? version,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (archived != null) 'archived': archived,
+      if (version != null) 'version': version,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TraceTagsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<bool>? archived,
+    Value<int>? version,
+    Value<int>? rowid,
+  }) {
+    return TraceTagsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      archived: archived ?? this.archived,
+      version: version ?? this.version,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (archived.present) {
+      map['archived'] = Variable<bool>(archived.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceTagsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('archived: $archived, ')
+          ..write('version: $version, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class TraceSessions extends Table with TableInfo<TraceSessions, TraceSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  TraceSessions(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL PRIMARY KEY',
+  );
+  static const VerificationMeta _sceneIdMeta = const VerificationMeta(
+    'sceneId',
+  );
+  late final GeneratedColumn<String> sceneId = GeneratedColumn<String>(
+    'scene_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL REFERENCES trace_scenes(id)',
+  );
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  late final GeneratedColumn<String> itemId = GeneratedColumn<String>(
+    'item_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'REFERENCES trace_items(id)',
+  );
+  static const VerificationMeta _tagIdsJsonMeta = const VerificationMeta(
+    'tagIdsJson',
+  );
+  late final GeneratedColumn<String> tagIdsJson = GeneratedColumn<String>(
+    'tag_ids_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT \'[]\'',
+    defaultValue: const CustomExpression('\'[]\''),
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT \'\'',
+    defaultValue: const CustomExpression('\'\''),
+  );
+  static const VerificationMeta _startedMsMeta = const VerificationMeta(
+    'startedMs',
+  );
+  late final GeneratedColumn<int> startedMs = GeneratedColumn<int>(
+    'started_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _endedMsMeta = const VerificationMeta(
+    'endedMs',
+  );
+  late final GeneratedColumn<int> endedMs = GeneratedColumn<int>(
+    'ended_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (ended_ms >= started_ms)',
+  );
+  static const VerificationMeta _deletedMeta = const VerificationMeta(
+    'deleted',
+  );
+  late final GeneratedColumn<bool> deleted = GeneratedColumn<bool>(
+    'deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT FALSE',
+    defaultValue: const CustomExpression('FALSE'),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL',
+  );
+  static const VerificationMeta _bootKeyMeta = const VerificationMeta(
+    'bootKey',
+  );
+  late final GeneratedColumn<String> bootKey = GeneratedColumn<String>(
+    'boot_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _anchorElapsedMsMeta = const VerificationMeta(
+    'anchorElapsedMs',
+  );
+  late final GeneratedColumn<int> anchorElapsedMs = GeneratedColumn<int>(
+    'anchor_elapsed_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _anchorDurationMsMeta = const VerificationMeta(
+    'anchorDurationMs',
+  );
+  late final GeneratedColumn<int> anchorDurationMs = GeneratedColumn<int>(
+    'anchor_duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  static const VerificationMeta _anchorWallMsMeta = const VerificationMeta(
+    'anchorWallMs',
+  );
+  late final GeneratedColumn<int> anchorWallMs = GeneratedColumn<int>(
+    'anchor_wall_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sceneId,
+    itemId,
+    tagIdsJson,
+    note,
+    startedMs,
+    endedMs,
+    deleted,
+    version,
+    bootKey,
+    anchorElapsedMs,
+    anchorDurationMs,
+    anchorWallMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'trace_sessions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TraceSession> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('scene_id')) {
+      context.handle(
+        _sceneIdMeta,
+        sceneId.isAcceptableOrUnknown(data['scene_id']!, _sceneIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sceneIdMeta);
+    }
+    if (data.containsKey('item_id')) {
+      context.handle(
+        _itemIdMeta,
+        itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta),
+      );
+    }
+    if (data.containsKey('tag_ids_json')) {
+      context.handle(
+        _tagIdsJsonMeta,
+        tagIdsJson.isAcceptableOrUnknown(
+          data['tag_ids_json']!,
+          _tagIdsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('started_ms')) {
+      context.handle(
+        _startedMsMeta,
+        startedMs.isAcceptableOrUnknown(data['started_ms']!, _startedMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedMsMeta);
+    }
+    if (data.containsKey('ended_ms')) {
+      context.handle(
+        _endedMsMeta,
+        endedMs.isAcceptableOrUnknown(data['ended_ms']!, _endedMsMeta),
+      );
+    }
+    if (data.containsKey('deleted')) {
+      context.handle(
+        _deletedMeta,
+        deleted.isAcceptableOrUnknown(data['deleted']!, _deletedMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    if (data.containsKey('boot_key')) {
+      context.handle(
+        _bootKeyMeta,
+        bootKey.isAcceptableOrUnknown(data['boot_key']!, _bootKeyMeta),
+      );
+    }
+    if (data.containsKey('anchor_elapsed_ms')) {
+      context.handle(
+        _anchorElapsedMsMeta,
+        anchorElapsedMs.isAcceptableOrUnknown(
+          data['anchor_elapsed_ms']!,
+          _anchorElapsedMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('anchor_duration_ms')) {
+      context.handle(
+        _anchorDurationMsMeta,
+        anchorDurationMs.isAcceptableOrUnknown(
+          data['anchor_duration_ms']!,
+          _anchorDurationMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('anchor_wall_ms')) {
+      context.handle(
+        _anchorWallMsMeta,
+        anchorWallMs.isAcceptableOrUnknown(
+          data['anchor_wall_ms']!,
+          _anchorWallMsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TraceSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TraceSession(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      sceneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scene_id'],
+      )!,
+      itemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_id'],
+      ),
+      tagIdsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tag_ids_json'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      )!,
+      startedMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}started_ms'],
+      )!,
+      endedMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ended_ms'],
+      ),
+      deleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}deleted'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      bootKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}boot_key'],
+      ),
+      anchorElapsedMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}anchor_elapsed_ms'],
+      ),
+      anchorDurationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}anchor_duration_ms'],
+      ),
+      anchorWallMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}anchor_wall_ms'],
+      ),
+    );
+  }
+
+  @override
+  TraceSessions createAlias(String alias) {
+    return TraceSessions(attachedDatabase, alias);
+  }
+
+  @override
+  bool get dontWriteConstraints => true;
+}
+
+class TraceSession extends DataClass implements Insertable<TraceSession> {
+  final String id;
+  final String sceneId;
+  final String? itemId;
+  final String tagIdsJson;
+  final String note;
+  final int startedMs;
+  final int? endedMs;
+  final bool deleted;
+  final int version;
+  final String? bootKey;
+  final int? anchorElapsedMs;
+  final int? anchorDurationMs;
+  final int? anchorWallMs;
+  const TraceSession({
+    required this.id,
+    required this.sceneId,
+    this.itemId,
+    required this.tagIdsJson,
+    required this.note,
+    required this.startedMs,
+    this.endedMs,
+    required this.deleted,
+    required this.version,
+    this.bootKey,
+    this.anchorElapsedMs,
+    this.anchorDurationMs,
+    this.anchorWallMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['scene_id'] = Variable<String>(sceneId);
+    if (!nullToAbsent || itemId != null) {
+      map['item_id'] = Variable<String>(itemId);
+    }
+    map['tag_ids_json'] = Variable<String>(tagIdsJson);
+    map['note'] = Variable<String>(note);
+    map['started_ms'] = Variable<int>(startedMs);
+    if (!nullToAbsent || endedMs != null) {
+      map['ended_ms'] = Variable<int>(endedMs);
+    }
+    map['deleted'] = Variable<bool>(deleted);
+    map['version'] = Variable<int>(version);
+    if (!nullToAbsent || bootKey != null) {
+      map['boot_key'] = Variable<String>(bootKey);
+    }
+    if (!nullToAbsent || anchorElapsedMs != null) {
+      map['anchor_elapsed_ms'] = Variable<int>(anchorElapsedMs);
+    }
+    if (!nullToAbsent || anchorDurationMs != null) {
+      map['anchor_duration_ms'] = Variable<int>(anchorDurationMs);
+    }
+    if (!nullToAbsent || anchorWallMs != null) {
+      map['anchor_wall_ms'] = Variable<int>(anchorWallMs);
+    }
+    return map;
+  }
+
+  TraceSessionsCompanion toCompanion(bool nullToAbsent) {
+    return TraceSessionsCompanion(
+      id: Value(id),
+      sceneId: Value(sceneId),
+      itemId: itemId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(itemId),
+      tagIdsJson: Value(tagIdsJson),
+      note: Value(note),
+      startedMs: Value(startedMs),
+      endedMs: endedMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedMs),
+      deleted: Value(deleted),
+      version: Value(version),
+      bootKey: bootKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bootKey),
+      anchorElapsedMs: anchorElapsedMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(anchorElapsedMs),
+      anchorDurationMs: anchorDurationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(anchorDurationMs),
+      anchorWallMs: anchorWallMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(anchorWallMs),
+    );
+  }
+
+  factory TraceSession.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TraceSession(
+      id: serializer.fromJson<String>(json['id']),
+      sceneId: serializer.fromJson<String>(json['scene_id']),
+      itemId: serializer.fromJson<String?>(json['item_id']),
+      tagIdsJson: serializer.fromJson<String>(json['tag_ids_json']),
+      note: serializer.fromJson<String>(json['note']),
+      startedMs: serializer.fromJson<int>(json['started_ms']),
+      endedMs: serializer.fromJson<int?>(json['ended_ms']),
+      deleted: serializer.fromJson<bool>(json['deleted']),
+      version: serializer.fromJson<int>(json['version']),
+      bootKey: serializer.fromJson<String?>(json['boot_key']),
+      anchorElapsedMs: serializer.fromJson<int?>(json['anchor_elapsed_ms']),
+      anchorDurationMs: serializer.fromJson<int?>(json['anchor_duration_ms']),
+      anchorWallMs: serializer.fromJson<int?>(json['anchor_wall_ms']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'scene_id': serializer.toJson<String>(sceneId),
+      'item_id': serializer.toJson<String?>(itemId),
+      'tag_ids_json': serializer.toJson<String>(tagIdsJson),
+      'note': serializer.toJson<String>(note),
+      'started_ms': serializer.toJson<int>(startedMs),
+      'ended_ms': serializer.toJson<int?>(endedMs),
+      'deleted': serializer.toJson<bool>(deleted),
+      'version': serializer.toJson<int>(version),
+      'boot_key': serializer.toJson<String?>(bootKey),
+      'anchor_elapsed_ms': serializer.toJson<int?>(anchorElapsedMs),
+      'anchor_duration_ms': serializer.toJson<int?>(anchorDurationMs),
+      'anchor_wall_ms': serializer.toJson<int?>(anchorWallMs),
+    };
+  }
+
+  TraceSession copyWith({
+    String? id,
+    String? sceneId,
+    Value<String?> itemId = const Value.absent(),
+    String? tagIdsJson,
+    String? note,
+    int? startedMs,
+    Value<int?> endedMs = const Value.absent(),
+    bool? deleted,
+    int? version,
+    Value<String?> bootKey = const Value.absent(),
+    Value<int?> anchorElapsedMs = const Value.absent(),
+    Value<int?> anchorDurationMs = const Value.absent(),
+    Value<int?> anchorWallMs = const Value.absent(),
+  }) => TraceSession(
+    id: id ?? this.id,
+    sceneId: sceneId ?? this.sceneId,
+    itemId: itemId.present ? itemId.value : this.itemId,
+    tagIdsJson: tagIdsJson ?? this.tagIdsJson,
+    note: note ?? this.note,
+    startedMs: startedMs ?? this.startedMs,
+    endedMs: endedMs.present ? endedMs.value : this.endedMs,
+    deleted: deleted ?? this.deleted,
+    version: version ?? this.version,
+    bootKey: bootKey.present ? bootKey.value : this.bootKey,
+    anchorElapsedMs: anchorElapsedMs.present
+        ? anchorElapsedMs.value
+        : this.anchorElapsedMs,
+    anchorDurationMs: anchorDurationMs.present
+        ? anchorDurationMs.value
+        : this.anchorDurationMs,
+    anchorWallMs: anchorWallMs.present ? anchorWallMs.value : this.anchorWallMs,
+  );
+  TraceSession copyWithCompanion(TraceSessionsCompanion data) {
+    return TraceSession(
+      id: data.id.present ? data.id.value : this.id,
+      sceneId: data.sceneId.present ? data.sceneId.value : this.sceneId,
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      tagIdsJson: data.tagIdsJson.present
+          ? data.tagIdsJson.value
+          : this.tagIdsJson,
+      note: data.note.present ? data.note.value : this.note,
+      startedMs: data.startedMs.present ? data.startedMs.value : this.startedMs,
+      endedMs: data.endedMs.present ? data.endedMs.value : this.endedMs,
+      deleted: data.deleted.present ? data.deleted.value : this.deleted,
+      version: data.version.present ? data.version.value : this.version,
+      bootKey: data.bootKey.present ? data.bootKey.value : this.bootKey,
+      anchorElapsedMs: data.anchorElapsedMs.present
+          ? data.anchorElapsedMs.value
+          : this.anchorElapsedMs,
+      anchorDurationMs: data.anchorDurationMs.present
+          ? data.anchorDurationMs.value
+          : this.anchorDurationMs,
+      anchorWallMs: data.anchorWallMs.present
+          ? data.anchorWallMs.value
+          : this.anchorWallMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceSession(')
+          ..write('id: $id, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('itemId: $itemId, ')
+          ..write('tagIdsJson: $tagIdsJson, ')
+          ..write('note: $note, ')
+          ..write('startedMs: $startedMs, ')
+          ..write('endedMs: $endedMs, ')
+          ..write('deleted: $deleted, ')
+          ..write('version: $version, ')
+          ..write('bootKey: $bootKey, ')
+          ..write('anchorElapsedMs: $anchorElapsedMs, ')
+          ..write('anchorDurationMs: $anchorDurationMs, ')
+          ..write('anchorWallMs: $anchorWallMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    sceneId,
+    itemId,
+    tagIdsJson,
+    note,
+    startedMs,
+    endedMs,
+    deleted,
+    version,
+    bootKey,
+    anchorElapsedMs,
+    anchorDurationMs,
+    anchorWallMs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TraceSession &&
+          other.id == this.id &&
+          other.sceneId == this.sceneId &&
+          other.itemId == this.itemId &&
+          other.tagIdsJson == this.tagIdsJson &&
+          other.note == this.note &&
+          other.startedMs == this.startedMs &&
+          other.endedMs == this.endedMs &&
+          other.deleted == this.deleted &&
+          other.version == this.version &&
+          other.bootKey == this.bootKey &&
+          other.anchorElapsedMs == this.anchorElapsedMs &&
+          other.anchorDurationMs == this.anchorDurationMs &&
+          other.anchorWallMs == this.anchorWallMs);
+}
+
+class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
+  final Value<String> id;
+  final Value<String> sceneId;
+  final Value<String?> itemId;
+  final Value<String> tagIdsJson;
+  final Value<String> note;
+  final Value<int> startedMs;
+  final Value<int?> endedMs;
+  final Value<bool> deleted;
+  final Value<int> version;
+  final Value<String?> bootKey;
+  final Value<int?> anchorElapsedMs;
+  final Value<int?> anchorDurationMs;
+  final Value<int?> anchorWallMs;
+  final Value<int> rowid;
+  const TraceSessionsCompanion({
+    this.id = const Value.absent(),
+    this.sceneId = const Value.absent(),
+    this.itemId = const Value.absent(),
+    this.tagIdsJson = const Value.absent(),
+    this.note = const Value.absent(),
+    this.startedMs = const Value.absent(),
+    this.endedMs = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.version = const Value.absent(),
+    this.bootKey = const Value.absent(),
+    this.anchorElapsedMs = const Value.absent(),
+    this.anchorDurationMs = const Value.absent(),
+    this.anchorWallMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TraceSessionsCompanion.insert({
+    required String id,
+    required String sceneId,
+    this.itemId = const Value.absent(),
+    this.tagIdsJson = const Value.absent(),
+    this.note = const Value.absent(),
+    required int startedMs,
+    this.endedMs = const Value.absent(),
+    this.deleted = const Value.absent(),
+    required int version,
+    this.bootKey = const Value.absent(),
+    this.anchorElapsedMs = const Value.absent(),
+    this.anchorDurationMs = const Value.absent(),
+    this.anchorWallMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       sceneId = Value(sceneId),
+       startedMs = Value(startedMs),
+       version = Value(version);
+  static Insertable<TraceSession> custom({
+    Expression<String>? id,
+    Expression<String>? sceneId,
+    Expression<String>? itemId,
+    Expression<String>? tagIdsJson,
+    Expression<String>? note,
+    Expression<int>? startedMs,
+    Expression<int>? endedMs,
+    Expression<bool>? deleted,
+    Expression<int>? version,
+    Expression<String>? bootKey,
+    Expression<int>? anchorElapsedMs,
+    Expression<int>? anchorDurationMs,
+    Expression<int>? anchorWallMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sceneId != null) 'scene_id': sceneId,
+      if (itemId != null) 'item_id': itemId,
+      if (tagIdsJson != null) 'tag_ids_json': tagIdsJson,
+      if (note != null) 'note': note,
+      if (startedMs != null) 'started_ms': startedMs,
+      if (endedMs != null) 'ended_ms': endedMs,
+      if (deleted != null) 'deleted': deleted,
+      if (version != null) 'version': version,
+      if (bootKey != null) 'boot_key': bootKey,
+      if (anchorElapsedMs != null) 'anchor_elapsed_ms': anchorElapsedMs,
+      if (anchorDurationMs != null) 'anchor_duration_ms': anchorDurationMs,
+      if (anchorWallMs != null) 'anchor_wall_ms': anchorWallMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TraceSessionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? sceneId,
+    Value<String?>? itemId,
+    Value<String>? tagIdsJson,
+    Value<String>? note,
+    Value<int>? startedMs,
+    Value<int?>? endedMs,
+    Value<bool>? deleted,
+    Value<int>? version,
+    Value<String?>? bootKey,
+    Value<int?>? anchorElapsedMs,
+    Value<int?>? anchorDurationMs,
+    Value<int?>? anchorWallMs,
+    Value<int>? rowid,
+  }) {
+    return TraceSessionsCompanion(
+      id: id ?? this.id,
+      sceneId: sceneId ?? this.sceneId,
+      itemId: itemId ?? this.itemId,
+      tagIdsJson: tagIdsJson ?? this.tagIdsJson,
+      note: note ?? this.note,
+      startedMs: startedMs ?? this.startedMs,
+      endedMs: endedMs ?? this.endedMs,
+      deleted: deleted ?? this.deleted,
+      version: version ?? this.version,
+      bootKey: bootKey ?? this.bootKey,
+      anchorElapsedMs: anchorElapsedMs ?? this.anchorElapsedMs,
+      anchorDurationMs: anchorDurationMs ?? this.anchorDurationMs,
+      anchorWallMs: anchorWallMs ?? this.anchorWallMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sceneId.present) {
+      map['scene_id'] = Variable<String>(sceneId.value);
+    }
+    if (itemId.present) {
+      map['item_id'] = Variable<String>(itemId.value);
+    }
+    if (tagIdsJson.present) {
+      map['tag_ids_json'] = Variable<String>(tagIdsJson.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (startedMs.present) {
+      map['started_ms'] = Variable<int>(startedMs.value);
+    }
+    if (endedMs.present) {
+      map['ended_ms'] = Variable<int>(endedMs.value);
+    }
+    if (deleted.present) {
+      map['deleted'] = Variable<bool>(deleted.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (bootKey.present) {
+      map['boot_key'] = Variable<String>(bootKey.value);
+    }
+    if (anchorElapsedMs.present) {
+      map['anchor_elapsed_ms'] = Variable<int>(anchorElapsedMs.value);
+    }
+    if (anchorDurationMs.present) {
+      map['anchor_duration_ms'] = Variable<int>(anchorDurationMs.value);
+    }
+    if (anchorWallMs.present) {
+      map['anchor_wall_ms'] = Variable<int>(anchorWallMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TraceSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('itemId: $itemId, ')
+          ..write('tagIdsJson: $tagIdsJson, ')
+          ..write('note: $note, ')
+          ..write('startedMs: $startedMs, ')
+          ..write('endedMs: $endedMs, ')
+          ..write('deleted: $deleted, ')
+          ..write('version: $version, ')
+          ..write('bootKey: $bootKey, ')
+          ..write('anchorElapsedMs: $anchorElapsedMs, ')
+          ..write('anchorDurationMs: $anchorDurationMs, ')
+          ..write('anchorWallMs: $anchorWallMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class GalleryAssets extends Table
     with TableInfo<GalleryAssets, GalleryAssetRow> {
   @override
@@ -7683,6 +9576,14 @@ class SyncDeletionsCompanion extends UpdateCompanion<SyncDeletion> {
 
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
+  late final TraceScenes traceScenes = TraceScenes(this);
+  late final TraceItems traceItems = TraceItems(this);
+  late final TraceTags traceTags = TraceTags(this);
+  late final TraceSessions traceSessions = TraceSessions(this);
+  late final Index traceSessionsRunning = Index(
+    'trace_sessions_running',
+    'CREATE INDEX trace_sessions_running ON trace_sessions (scene_id) WHERE ended_ms IS NULL AND deleted = FALSE',
+  );
   late final GalleryAssets galleryAssets = GalleryAssets(this);
   late final GalleryTags galleryTags = GalleryTags(this);
   late final GalleryLinks galleryLinks = GalleryLinks(this);
@@ -7733,6 +9634,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
+    traceScenes,
+    traceItems,
+    traceTags,
+    traceSessions,
+    traceSessionsRunning,
     galleryAssets,
     galleryTags,
     galleryLinks,

@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:torrid/features/others/gallery/models/media_asset.dart';
@@ -19,14 +19,12 @@ class PreviewWindowWidget extends ConsumerStatefulWidget {
 
   /// 旋转角度 (0, 1, 2, 3 表示 0°, 90°, 180°, 270° CW)
   final int rotationQuarterTurns;
-  final double minBottom;
 
   const PreviewWindowWidget({
     super.key,
     this.size = 80,
     this.onTap,
     this.rotationQuarterTurns = 0,
-    this.minBottom = 8,
   });
 
   @override
@@ -35,8 +33,8 @@ class PreviewWindowWidget extends ConsumerStatefulWidget {
 }
 
 class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
-  /// 小窗位置（相对于屏幕右下角的偏移）
-  Offset _position = const Offset(16, 120);
+  /// 相对于可拖动区域右下角的偏移。
+  Offset _position = const Offset(16, 24);
 
   /// 缩略图文件（本地）
   File? _thumbFile;
@@ -51,8 +49,6 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
   Widget build(BuildContext context) {
     final nextAsset = ref.watch(nextMediaAssetProvider);
 
-    // 如果没有下一个媒体文件，返回不可见的 Positioned
-    // 保持 Stack 中始终返回 Positioned 类型，避免父数据不一致导致布局异常
     if (nextAsset == null) {
       // 清理缩略图状态
       if (_lastAssetId != null) {
@@ -60,11 +56,7 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
         _thumbFile = null;
         _isLoadingThumb = false;
       }
-      return Positioned(
-        right: _position.dx,
-        bottom: _position.dy,
-        child: const SizedBox.shrink(),
-      );
+      return const SizedBox.shrink();
     }
 
     // 预加载本地缩略图
@@ -73,7 +65,7 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
       _loadLocalThumb(nextAsset);
     }
 
-    return _buildDraggableWindow(context, nextAsset);
+    return _buildDraggableWindow(nextAsset);
   }
 
   /// 加载本地缩略图
@@ -122,32 +114,39 @@ class _PreviewWindowWidgetState extends ConsumerState<PreviewWindowWidget> {
     }
   }
 
-  Widget _buildDraggableWindow(BuildContext context, MediaAsset nextAsset) {
-    final screenSize = MediaQuery.sizeOf(context);
-    final maxRight = math.max(8.0, screenSize.width - widget.size - 8);
-    final maxBottom = math.max(8.0, screenSize.height - widget.size - 8);
-    final minBottom = math.min(widget.minBottom, maxBottom);
-    final right = _position.dx.clamp(8.0, maxRight);
-    final bottom = _position.dy.clamp(minBottom, maxBottom);
-
-    return Positioned(
-      right: right,
-      bottom: bottom,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          setState(() {
-            _position = Offset(
-              (right - details.delta.dx).clamp(8.0, maxRight),
-              (bottom - details.delta.dy).clamp(minBottom, maxBottom),
-            );
-          });
-        },
-        onTap: () {
-          // 跳转到下一个文件
-          widget.onTap?.call();
-        },
-        child: _buildWindowContent(nextAsset),
-      ),
+  Widget _buildDraggableWindow(MediaAsset nextAsset) {
+    final content = _buildWindowContent(nextAsset);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const margin = 8.0;
+        final maxRight = constraints.maxWidth - widget.size - margin;
+        final maxBottom = constraints.maxHeight - widget.size - margin;
+        if (maxRight < margin || maxBottom < margin) {
+          return const SizedBox.shrink();
+        }
+        Offset clamp(Offset position) => Offset(
+          position.dx.clamp(margin, maxRight),
+          position.dy.clamp(margin, maxBottom),
+        );
+        final position = clamp(_position);
+        return Stack(
+          children: [
+            Positioned(
+              right: position.dx,
+              bottom: position.dy,
+              child: GestureDetector(
+                dragStartBehavior: DragStartBehavior.down,
+                onPanUpdate: (details) {
+                  final next = clamp(clamp(_position) - details.delta);
+                  if (next != _position) setState(() => _position = next);
+                },
+                onTap: widget.onTap,
+                child: content,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

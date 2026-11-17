@@ -16,12 +16,10 @@ import (
 	"monarch/gizmos/internal/gallery/model"
 )
 
-// Scanner 文件扫描器
 type Scanner struct {
 	rootDir string
 }
 
-// NewScanner 创建新的扫描器
 func NewScanner(rootDir string) *Scanner {
 	return &Scanner{rootDir: rootDir}
 }
@@ -68,9 +66,7 @@ func (s *Scanner) ScanDir(ctx context.Context) (<-chan string, <-chan error) {
 	return pathChan, errChan
 }
 
-// ExtractFileInfo 提取文件信息
 func (s *Scanner) ExtractFileInfo(filePath string) (*model.FileInfo, error) {
-	// 获取文件信息
 	stat, err := os.Stat(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("获取文件信息失败: %w", err)
@@ -79,16 +75,13 @@ func (s *Scanner) ExtractFileInfo(filePath string) (*model.FileInfo, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	fileName := filepath.Base(filePath)
 
-	// 计算文件哈希
 	hash, err := s.calculateHash(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("计算文件哈希失败: %w", err)
 	}
 
-	// 获取文件日期（优先级: EXIF > 修改时间 > 创建时间）
 	capturedAt := s.extractCapturedAt(filePath, stat)
 
-	// 判断文件类型
 	isVideo := model.IsVideo(ext)
 	isAnimated := model.IsAnimatedImage(ext)
 	mimeType := model.GetMimeType(ext)
@@ -121,7 +114,6 @@ func (s *Scanner) calculateHash(filePath string) ([]byte, error) {
 	return hasher.Sum(nil), nil
 }
 
-// extractCapturedAt 提取文件日期
 // 优先级: EXIF 拍摄时间 > min(修改时间, 创建时间)
 func (s *Scanner) extractCapturedAt(filePath string, stat os.FileInfo) time.Time {
 	ext := strings.ToLower(filepath.Ext(filePath))
@@ -133,13 +125,11 @@ func (s *Scanner) extractCapturedAt(filePath string, stat os.FileInfo) time.Time
 		}
 	}
 
-	// 获取修改时间
 	modTime := stat.ModTime()
 
 	// 获取创建时间（Windows 特有）
 	createTime := getCreationTime(stat)
 
-	// 返回较早的时间
 	if createTime.Before(modTime) && !createTime.IsZero() {
 		return createTime
 	}
@@ -159,7 +149,6 @@ func (s *Scanner) extractExifTime(filePath string) (time.Time, error) {
 		return time.Time{}, err
 	}
 
-	// 尝试获取原始拍摄时间
 	dt, err := x.DateTime()
 	if err == nil {
 		return dt, nil

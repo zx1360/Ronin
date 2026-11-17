@@ -23,13 +23,10 @@ class _ProfilePageState extends State<ProfilePage> {
         elevation: 1,
       ),
 
-      // 主内容区域
       body: ListView(
         children: [
-          // 用户信息区域
           UserTile(),
 
-          // 设置区域
           SectionTile(
             title: "设置",
             children: settingPages
@@ -37,7 +34,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 .toList(),
           ),
 
-          // 关于区域
           SectionTile(
             title: "关于",
             children: aboutPages
@@ -45,7 +41,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 .toList(),
           ),
 
-          // 底部间距
           const SizedBox(height: 20),
         ],
       ),

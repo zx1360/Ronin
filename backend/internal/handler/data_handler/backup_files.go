@@ -103,7 +103,10 @@ func (b *backupFiles) commit(writeData func() error) (err error) {
 			e.installed = true
 		}
 	}
-	return writeData()
+	if writeData != nil {
+		return writeData()
+	}
+	return nil
 }
 
 func (b *backupFiles) close() {

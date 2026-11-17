@@ -1,7 +1,6 @@
 // Package comix_repo 提供 comix 爬虫管理所需的直查库访问（毫秒级）。
 //
 // 职责边界：Go 端负责**所有查询 + 删除**（桌面端数据直查库），
-// Python 端只保留爬虫操作（search/add/add-url/download/update-check/clean/init）。
 // 数据模型与 comix CLI 的 JSON 输出保持一致，客户端（桌面端）无需感知数据来源变化。
 package comix_repo
 

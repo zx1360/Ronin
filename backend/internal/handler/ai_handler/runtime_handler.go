@@ -152,7 +152,6 @@ func ListCapabilities(c *gin.Context) {
 	})
 }
 
-// GetSettings 处理 GET /API/ai/settings（保留旧路径，语义与 /capabilities 的 settings 段一致）。
 func GetSettings(c *gin.Context) {
 	e := engine(c)
 	if e == nil {

@@ -13,27 +13,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SyncHandler 处理数据同步请求
 func SyncHandler(c *gin.Context) {
 	moduleName := c.Param("module")
-	moduleConfig := FindModuleConfigByName(moduleName)
-
-	if moduleConfig == nil {
+	if !validModule(moduleName) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "模块未找到"})
 		return
 	}
 
-	if moduleConfig.IsDB {
-		syncFromDB(c, moduleName)
+	if moduleName == "preferences" {
+		syncPreferences(c)
 		return
 	}
-
-	// 原有 JSON 文件模式（preferences 等）
-	syncFromFiles(c, moduleConfig)
+	syncFromDB(c, moduleName)
 }
 
 func syncFromDB(c *gin.Context, moduleName string) {
-	if c.Query("sync_version") != "2" {
+	if c.Query("sync_version") != strconv.Itoa(data_repo.SyncVersion) {
 		c.JSON(http.StatusConflict, gin.H{"error": "请更新客户端后使用增量合并同步（sync_version=2）"})
 		return
 	}
@@ -62,26 +57,19 @@ func syncFromDB(c *gin.Context, moduleName string) {
 	c.JSON(http.StatusOK, data)
 }
 
-// syncFromFiles 从 JSON 文件读取数据（保留原有逻辑，用于 preferences 等）
-func syncFromFiles(c *gin.Context, moduleConfig *ModuleConfig) {
+func syncPreferences(c *gin.Context) {
 	backupMu.Lock()
 	defer backupMu.Unlock()
-	mergedData := make(map[string]interface{})
-	for _, filePath := range moduleConfig.JSONFiles {
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败: " + err.Error()})
-			return
-		}
-
-		data, err := readPreferences(content)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "解析文件 " + filepath.Base(filePath) + " 失败: " + err.Error()})
-			return
-		}
-
-		mergedData[fileKey(filePath)] = data
+	filePath := preferencesPath()
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败: " + err.Error()})
+		return
 	}
-
-	c.JSON(http.StatusOK, mergedData)
+	data, err := readPreferences(content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "解析文件 " + filepath.Base(filePath) + " 失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"preferences": data})
 }

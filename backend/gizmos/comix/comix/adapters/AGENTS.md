@@ -1,14 +1,6 @@
 # 站点适配器
 
-继承 `BaseAdapter`，实现 `search`、`get_chapters`、`_fetch_chapter_image_urls`。
-下载/重试/原子提交复用基类与 `util/common.py`；候选用 `normalize_match` 标注 exact/fuzzy。
-新增站点在 `__init__.py` 注册（顺序即尝试顺序），`comix init` 登记站点。
+实现 `BaseAdapter` 的 `search`、`get_chapters` 和 `_fetch_chapter_image_urls`。用 `normalize_match` 标记候选，下载与线路复用基类，Playwright 通过 `reader()` 打开。新增适配器在 `__init__.py` 注册，顺序决定尝试顺序。
 
-| code | 关键约束 |
-| --- | --- |
-| manhuayu | Playwright，优先 chapter_images，回退滚动采集；搜索相关度弱 |
-| nicemh | Playwright，优先 chapter_images，回退网络响应；允许缺页 |
-| morui | requests，chapterImages + CDN；章节标题去“连载 ”前缀 |
-| xmanhua | requests + packer 解码；必须桌面 UA，否则没有桌面章节列表；标题繁体 |
-
-Requests 和 Playwright 共用 `BaseAdapter` 的站点线路配置。浏览器通过 `reader()` 打开。
+- manhuayu / nicemh 先读 `chapter_images`，回退路径分别为滚动采集和网络响应。nicemh 允许缺页。
+- morui 从 `chapterImages` 读取 CDN 路径。xmanhua 用桌面 UA 获取章节列表，并解码 packer。

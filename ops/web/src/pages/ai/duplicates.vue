@@ -1,12 +1,6 @@
 <script>
 import { useSelection } from '../../selection.js';
-// pHash 近重复：分组展示、组内多选、标记软删除、标记「非重复」与恢复。
-//
-// 分组计算是内存全量扫描，代价不低，因此与桌面端一致：由用户点击触发。
-// 软删除只改数据库标记，磁盘文件仍在（真正落盘由 Gallery CLI 的 execute 执行）。
-//
-// 一页可能有上千张近重复图：默认每组只渲染前几张预览，分组本身也分批渲染，
-// 否则一次挂上几千个 .media-tile 会连缩略图请求一起拖垮浏览器。
+// 全库去重按需计算，折叠组限制缩略图请求量。
 
 import { ref, computed } from 'vue';
 import { useApi, assetUrl } from '../../api.js';
@@ -180,13 +174,11 @@ export default {
         distance: group.distance,
         count: group.items.length,
         allItems: group.items,
-        // 折叠时只挂前 PREVIEW_COUNT 张，缩略图请求随之减少
         items: expanded ? group.items : group.items.slice(0, PREVIEW_COUNT),
         hiddenCount: Math.max(0, group.items.length - PREVIEW_COUNT),
         expanded,
         toggleExpand: () => { group.expanded = !group.expanded; },
         selectedCount: chosen.length,
-        // 预览走 gallery 文件流：只读查看，不进画廊页
         preview: first ? assetUrl('/API/gallery/' + first.id + '/file') : '',
       };
     }));

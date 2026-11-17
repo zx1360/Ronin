@@ -1,7 +1,7 @@
 import { ref, onMounted } from 'vue';
 import { useApi, assetUrl } from '../api.js';
 import { toast } from '../store.js';
-import { applySyncDelta } from './user-data-sync.js';
+import { applySyncDelta, syncCollections, syncVersion } from './user-data-sync.js';
 
 export const moods = [
   { value: 'happy', label: '🥳 开心' }, { value: 'calm', label: '😌 平静' },
@@ -18,13 +18,13 @@ export const imageUrl = (path) => {
 
 export function useUserData(module) {
   const api = useApi();
-  const names = module === 'essay' ? ['labels', 'essays'] : ['styles', 'records'];
+  const names = syncCollections(module);
   const data = ref(Object.fromEntries(names.map((name) => [name, []])));
   const loading = ref(false), busy = ref(false), error = ref('');
   let cursor = 0;
   async function pull() {
     let result;
-    const path = `/API/user-data/sync/${module}?sync_version=2`;
+    const path = `/API/user-data/sync/${module}?sync_version=${syncVersion}`;
     try {
       result = await api.get(`${path}&after=${cursor}`);
     } catch (e) {
@@ -51,7 +51,7 @@ export function useUserData(module) {
     busy.value = true;
     error.value = '';
     try {
-      const payload = { sync_version: 2, ...changes, base_cursor: baseCursor };
+      const payload = { sync_version: syncVersion, ...changes, base_cursor: baseCursor };
       let body = payload;
       if (files.size) {
         body = new FormData();

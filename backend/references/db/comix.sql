@@ -1,8 +1,5 @@
 -- 漫画域建表真源；Monarch 与 comix init 均在写事务内执行。
 
--- =====================================================
--- comix：漫画爬虫（原 comix schema，与 comix Python 项目共用）
--- =====================================================
 
 CREATE TABLE IF NOT EXISTS comic_sites (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,8 +82,7 @@ CREATE TABLE IF NOT EXISTS comic_aliases (
     UNIQUE (comic_id, name)
 );
 
--- comic 基表的 updated_at 由 Python 侧显式维护（沿用原有 `updated_at = now()` 写法），
--- 这里同样加守卫触发器，避免两侧行为不一致。
+-- 显式写入的 updated_at 优先于触发器时间。
 CREATE TRIGGER IF NOT EXISTS trg_comics_updated_at AFTER UPDATE ON comics FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at
 BEGIN

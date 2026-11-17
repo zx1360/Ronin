@@ -1,11 +1,15 @@
 enum ComicDownloadTaskStatus {
-  queued,
-  running,
-  paused,
-  retryWaiting,
-  completed,
-  failed,
-  canceled,
+  queued('排队中'),
+  running('下载中'),
+  paused('已暂停'),
+  retryWaiting('等待重试'),
+  completed('已完成'),
+  failed('失败'),
+  canceled('已取消');
+
+  const ComicDownloadTaskStatus(this.label);
+
+  final String label;
 }
 
 class ComicDownloadTask {
@@ -75,13 +79,6 @@ class ComicDownloadTask {
         status == ComicDownloadTaskStatus.canceled;
   }
 
-  bool get hasActiveWork {
-    return status == ComicDownloadTaskStatus.queued ||
-        status == ComicDownloadTaskStatus.running ||
-        status == ComicDownloadTaskStatus.paused ||
-        status == ComicDownloadTaskStatus.retryWaiting;
-  }
-
   bool get canResume {
     return status == ComicDownloadTaskStatus.paused ||
         status == ComicDownloadTaskStatus.failed ||
@@ -135,34 +132,17 @@ class ComicDownloadTask {
     );
   }
 
-  static ComicDownloadTaskStatus statusFromName(String value) {
-    switch (value) {
-      case 'queued':
-        return ComicDownloadTaskStatus.queued;
-      case 'running':
-        return ComicDownloadTaskStatus.running;
-      case 'paused':
-        return ComicDownloadTaskStatus.paused;
-      case 'retryWaiting':
-        return ComicDownloadTaskStatus.retryWaiting;
-      case 'completed':
-        return ComicDownloadTaskStatus.completed;
-      case 'failed':
-        return ComicDownloadTaskStatus.failed;
-      case 'canceled':
-        return ComicDownloadTaskStatus.canceled;
-      default:
-        return ComicDownloadTaskStatus.queued;
-    }
-  }
-
   factory ComicDownloadTask.fromJson(Map<String, dynamic> json) {
+    final statusName = json['status'] as String?;
     return ComicDownloadTask(
       taskId: json['task_id'] as String? ?? '',
       comicId: json['comic_id'] as String? ?? '',
       comicName: json['comic_name'] as String? ?? '',
       coverImage: json['cover_image'] as String? ?? '',
-      status: statusFromName(json['status'] as String? ?? 'queued'),
+      status: ComicDownloadTaskStatus.values.firstWhere(
+        (status) => status.name == statusName,
+        orElse: () => ComicDownloadTaskStatus.queued,
+      ),
       totalChapters: json['total_chapters'] as int? ?? 0,
       completedChapters: json['completed_chapters'] as int? ?? 0,
       totalImages: json['total_images'] as int? ?? 0,
@@ -194,26 +174,5 @@ class ComicDownloadTask {
       'updated_at_ms': updatedAtMs,
       'next_retry_at_ms': nextRetryAtMs,
     };
-  }
-}
-
-extension ComicDownloadTaskStatusX on ComicDownloadTaskStatus {
-  String get label {
-    switch (this) {
-      case ComicDownloadTaskStatus.queued:
-        return '排队中';
-      case ComicDownloadTaskStatus.running:
-        return '下载中';
-      case ComicDownloadTaskStatus.paused:
-        return '已暂停';
-      case ComicDownloadTaskStatus.retryWaiting:
-        return '等待重试';
-      case ComicDownloadTaskStatus.completed:
-        return '已完成';
-      case ComicDownloadTaskStatus.failed:
-        return '失败';
-      case ComicDownloadTaskStatus.canceled:
-        return '已取消';
-    }
   }
 }

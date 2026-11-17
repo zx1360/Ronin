@@ -24,7 +24,6 @@ import (
 	"monarch/internal/service/db"
 )
 
-// Config 流水线配置
 type Config struct {
 	RawDir      string // 原始文件目录
 	MediaDir    string // 媒体存储目录
@@ -35,7 +34,6 @@ type Config struct {
 	BatchSize   int    // 批量写入大小
 }
 
-// Pipeline 流水线
 type Pipeline struct {
 	config     Config
 	scanner    *scanner.Scanner
@@ -43,7 +41,6 @@ type Pipeline struct {
 	repository *repository.Repository
 }
 
-// Stats 统计信息
 type Stats struct {
 	TotalFiles     int64
 	ProcessedFiles int64
@@ -53,7 +50,6 @@ type Stats struct {
 	EditedFiles    int64
 }
 
-// NewPipeline 创建新的流水线
 func NewPipeline(config Config) *Pipeline {
 	if config.Concurrency <= 0 {
 		config.Concurrency = 4
@@ -70,20 +66,17 @@ func NewPipeline(config Config) *Pipeline {
 	}
 }
 
-// RunExecution 运行执行流水线
-// Phase A: 处理软删除 → 文件移入 trash → 物理删除 DB 记录
-// Phase B: 处理编辑 → 应用编辑 → 原文件移入 trash → 新文件写回 → 重建缩略图/预览图 → DB UPDATE
+// RunExecution 先处理软删除，再应用编辑并更新派生图。
 func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (stats *Stats, err error) {
 	log.Println("========== 开始执行流水线 ==========")
 
 	stats = &Stats{}
 
-	// 确保目录存在
 	if err := os.MkdirAll(p.config.DeletedDir, 0755); err != nil {
 		return nil, fmt.Errorf("创建删除目录失败: %w", err)
 	}
 
-	// ========== Phase A: 处理删除 ==========
+	// 处理删除
 	log.Println("--- Phase A: 处理删除 ---")
 
 	dbCtx, cancel := db.GetLongCtx()
@@ -150,7 +143,7 @@ func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (stats *
 		p.removeAssetDerivatives(asset)
 	}
 
-	// ========== Phase B: 处理编辑 ==========
+	// 处理编辑
 	log.Println("--- Phase B: 处理编辑 ---")
 
 	editedAssets, err := p.repository.GetEditedAssets(dbCtx)
@@ -176,7 +169,6 @@ func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (stats *
 		}
 	}
 
-	// 清理空目录
 	p.cleanEmptyDirs()
 	if stats.FailedFiles > 0 {
 		return stats, fmt.Errorf("%d 项未能完成，请查看任务日志", stats.FailedFiles)
@@ -189,7 +181,6 @@ func (p *Pipeline) RunExecution(ctx context.Context, pruneMissing bool) (stats *
 	return stats, nil
 }
 
-// processEditedAsset 处理单个编辑资产
 func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAsset) (err error) {
 	if asset.EditParams == nil {
 		return fmt.Errorf("编辑参数为空")
@@ -197,7 +188,6 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 
 	log.Printf("处理编辑: %s (edit_params=%s)", asset.FilePath, *asset.EditParams)
 
-	// 确定编辑类型
 	var editType struct {
 		Type string `json:"type"`
 	}
@@ -205,19 +195,16 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 		return fmt.Errorf("解析编辑类型失败: %w", err)
 	}
 
-	// 源文件路径
 	relative, ok := galleryfs.RelativePath(asset.FilePath)
 	if !ok {
 		return fmt.Errorf("原件路径无效: %q", asset.FilePath)
 	}
 	srcPath := filepath.Join(p.config.MediaDir, relative)
 
-	// 生成临时文件路径
 	ext := filepath.Ext(asset.FilePath)
 	tmpPath := filepath.Join(os.TempDir(), fmt.Sprintf("gallery_edit_%s%s", asset.ID.String(), ext))
 	defer os.Remove(tmpPath)
 
-	// 应用编辑到临时文件
 	var editErr error
 	switch editType.Type {
 	case "image":
@@ -242,7 +229,6 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 		return fmt.Errorf("%s 编辑失败: %w", editType.Type, editErr)
 	}
 
-	// 移动原文件到 trash
 	yearMonth := filepath.Dir(asset.FilePath)
 	if yearMonth == "." {
 		yearMonth = "unknown"
@@ -287,20 +273,17 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 	if err := copyFileData(tmpPath, srcPath); err != nil {
 		return fmt.Errorf("新文件写回失败: %w", err)
 	}
-	// 重新计算 hash
 	newHash, err := galleryfs.HashFile(srcPath)
 	if err != nil {
 		return fmt.Errorf("计算新 hash 失败: %w", err)
 	}
 
-	// 获取新文件大小
 	newInfo, err := os.Stat(srcPath)
 	if err != nil {
 		return fmt.Errorf("获取新文件信息失败: %w", err)
 	}
 	newSize := newInfo.Size()
 
-	// 确定新的 MIME type
 	baseName := filepath.Base(asset.FilePath)
 	extLower := strings.ToLower(filepath.Ext(baseName))
 	newMime := model.GetMimeType(extLower)
@@ -319,7 +302,6 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 		}
 	}
 
-	// 重建缩略图和预览图
 	fileInfo := &model.FileInfo{
 		FileName:   baseName,
 		Extension:  extLower,
@@ -334,7 +316,6 @@ func (p *Pipeline) processEditedAsset(ctx context.Context, asset *model.MediaAss
 		log.Printf("预览图已重建: %s", processResult.PreviewPath)
 	}
 
-	// 更新 asset 并写入数据库
 	now := time.Now()
 	asset.UpdatedAt = now
 	asset.Hash = newHash
@@ -450,7 +431,6 @@ func (p *Pipeline) moveToDeleted(filePath string) error {
 	return moveFile(filePath, dst)
 }
 
-// cleanEmptyDirs 清理空目录
 func (p *Pipeline) cleanEmptyDirs() {
 	for _, dir := range []string{p.config.MediaDir, p.config.ThumbsDir, p.config.PreviewDir} {
 		p.cleanEmptyDirsRecursive(dir)
@@ -467,7 +447,7 @@ func (p *Pipeline) cleanEmptyDirsRecursive(rootDir string) {
 		return nil
 	})
 
-	// WalkDir 是深度优先，父目录必然排在子目录之后，倒序即"先子后父"
+	// WalkDir 先访问父目录，倒序后先清理子目录。
 	for i := len(dirs) - 1; i >= 0; i-- {
 		dir := dirs[i]
 		entries, err := os.ReadDir(dir)
@@ -480,7 +460,6 @@ func (p *Pipeline) cleanEmptyDirsRecursive(rootDir string) {
 	}
 }
 
-// ensureDirectories 确保所有必需目录存在
 func (p *Pipeline) ensureDirectories() error {
 	dirs := []string{
 		p.config.RawDir,

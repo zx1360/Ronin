@@ -1,8 +1,4 @@
 <script>
-// 仪表盘：服务状态、数据库可达性与各目录用量。
-//
-// 数据来自 /API/ops/overview（服务端按 TTL 缓存目录用量），按偏好里的间隔轮询。
-
 import { ref, onMounted } from 'vue';
 import { useApi } from '../api.js';
 import { state } from '../store.js';

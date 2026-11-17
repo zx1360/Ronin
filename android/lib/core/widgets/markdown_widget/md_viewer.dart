@@ -4,22 +4,15 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'md_style_sheet.dart';
 
-/// Markdown 内容查看器
-/// 支持渲染各种 Markdown 元素：标题、列表、代码块、表格、引用等
 class MdViewer extends StatelessWidget {
-  /// Markdown 文本内容
   final String data;
 
-  /// 是否可选择文本
   final bool selectable;
 
-  /// 是否显示滚动条
   final bool shrinkWrap;
 
-  /// 自定义样式表（可选）
   final MarkdownStyleSheet? styleSheet;
 
-  /// 自定义内边距
   final EdgeInsets? padding;
 
   /// 链接点击回调（可选，默认使用 url_launcher）
@@ -55,7 +48,6 @@ class MdViewer extends StatelessWidget {
     return markdownWidget;
   }
 
-  /// 默认链接点击处理
   void _defaultOnTapLink(String text, String? href, String title) async {
     if (href == null || href.isEmpty) return;
 
@@ -65,7 +57,6 @@ class MdViewer extends StatelessWidget {
     }
   }
 
-  /// 构建图片组件
   Widget _buildImage(Uri uri, String? title, String? alt) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -112,7 +103,6 @@ class MdViewer extends StatelessWidget {
     );
   }
 
-  /// 构建复选框组件
   Widget _buildCheckbox(bool checked) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
@@ -125,8 +115,6 @@ class MdViewer extends StatelessWidget {
   }
 }
 
-/// 代码语法高亮器
-/// 提供基础的代码语法高亮效果
 class _CodeSyntaxHighlighter extends SyntaxHighlighter {
   final BuildContext context;
 
@@ -136,7 +124,6 @@ class _CodeSyntaxHighlighter extends SyntaxHighlighter {
   TextSpan format(String source) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 基础颜色配置
     final textColor = isDark ? Colors.grey[300]! : Colors.grey[800]!;
     final keywordColor = isDark ? Colors.purple[300]! : Colors.purple[700]!;
     final stringColor = isDark ? Colors.green[300]! : Colors.green[700]!;
@@ -182,7 +169,6 @@ class _CodeSyntaxHighlighter extends SyntaxHighlighter {
     void addBufferAsText() {
       if (buffer.isNotEmpty) {
         final text = buffer.toString();
-        // 检查是否为关键字
         if (keywords.contains(text)) {
           spans.add(
             TextSpan(
@@ -194,7 +180,6 @@ class _CodeSyntaxHighlighter extends SyntaxHighlighter {
             ),
           );
         }
-        // 检查是否为数字
         else if (RegExp(r'^-?\d+\.?\d*$').hasMatch(text)) {
           spans.add(
             TextSpan(

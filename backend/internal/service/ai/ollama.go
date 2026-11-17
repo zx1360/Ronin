@@ -523,8 +523,6 @@ type ChatEvent struct {
 const defaultTemperature = 0.7
 
 // Chat 执行一次多轮对话并把增量结果推给 onEvent（nil 表示只消费不回调）。
-//
-// 流式而非一次性返回：思考链与回答都要逐字出现，否则首字节要等几十秒。
 func (o *Ollama) Chat(ctx context.Context, model string, messages []ChatMessage, opt ChatOptions, onEvent func(ChatEvent) error) error {
 	o.beginRequest()
 	defer o.endRequest()

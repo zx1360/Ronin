@@ -1,6 +1,4 @@
 <script>
-// 应用入口：装配侧边导航、顶部状态栏与页面路由。
-
 import { computed, onMounted, onUnmounted } from 'vue';
 import { state, bootstrap, navigate, parseRoute, canLeave } from './store.js';
 import Toasts from './components/Toasts.vue';
@@ -14,7 +12,6 @@ import HelpPage from './pages/help.vue';
 import BookletPage from './pages/booklet.vue';
 import EssayPage from './pages/essay.vue';
 
-/** 导航项：顺序即侧边栏顺序。 */
 export const routes = [
   { path: '/dashboard', group: '运行与维护', label: '工作台', component: DashboardPage },
   { path: '/tasks', group: '运行与维护', label: '任务中心', component: TasksPage },

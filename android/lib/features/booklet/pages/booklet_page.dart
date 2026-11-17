@@ -29,17 +29,13 @@ class _BookletPageState extends ConsumerState<BookletPage> {
 
   /// 尚未落库的空记录按日期缓存：避免每次 build 都生成新 id（会造成同日多条记录）
   final Map<String, Record> _draftRecords = {};
-  // 用以呈现渲染的数据
   List<Task> _tasks = [];
   Map<String, dynamic> _stats = {};
   final List<bool> _completions = [];
-  // 控制消息输入框的控制器
   late TextEditingController _messageController;
   late FocusNode _focusNode;
-  // routine的数据操作Notifier
   BookletStore? _server;
   bool _saving = false;
-  // 往期打卡补签相关.
   DateTime targetDate = DateTime(
     DateTime.now().year,
     DateTime.now().month,
@@ -73,7 +69,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     }
   }
 
-  // # record变动(任务完成情况, 标题/描述, 留言)
   Future<void> toggleCompletion(String taskId, bool completed) async {
     final record = _targetRecord;
     if (record == null) return;
@@ -84,21 +79,18 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     );
   }
 
-  // # 保存消息到记录
   Future<void> saveMessage() async {
     final record = _targetRecord;
     if (record == null || _latestStyle == null) return;
     await _persist(record.copyWith(message: _messageController.text));
   }
 
-  // # 更新心情记录
   Future<void> updateMood(MoodType? mood) async {
     final record = _targetRecord;
     if (record == null) return;
     await _persist(record.copyWith(mood: mood, clearMood: mood == null));
   }
 
-  // # 选择要操作的打卡日期.
   Future<void> selectDate(DateTimeRange? dateRange) async {
     if (dateRange == null) return;
     final selectedDate = await showDatePicker(
@@ -117,7 +109,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     }
   }
 
-  // 初始化, (读取数据)
   @override
   void initState() {
     super.initState();
@@ -128,9 +119,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
   @override
   Widget build(BuildContext context) {
     _server = ref.watch(bookletStoreProvider);
-    // 响应式数据获取.
     _latestStyle = ref.watch(latestStyleProvider);
-    // 如果有style记录或变动, 则(重新)绑定一系列数据监听.
     if (_latestStyle != null) {
       final persisted = ref.watch(recordByDateProvider(targetDate: targetDate));
       _targetRecord = persisted ?? _recordFor(_latestStyle!);
@@ -152,12 +141,9 @@ class _BookletPageState extends ConsumerState<BookletPage> {
       }
     }
 
-    // 日期范围, 打卡补签等相关.
     final dateRange = ref.watch(styleDateRangeProvider(style: _latestStyle));
 
-    // UI
     return Scaffold(
-      // 顶部栏
       appBar: AppBar(
         title: Text(
           "日常打卡",
@@ -191,12 +177,10 @@ class _BookletPageState extends ConsumerState<BookletPage> {
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
 
-      // 内容
       body: Container(
         color: Colors.yellow.shade50,
         child: Column(
           children: [
-            // 统计信息卡片, 点击可以查看总览
             GestureDetector(
               onTap: () async {
                 await Navigator.push(
@@ -209,7 +193,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
               child: Topbar(stats: _stats),
             ),
 
-            // 任务列表
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -237,7 +220,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
               ),
             ),
 
-            // 留言栏
             if (_latestStyle != null)
               Container(
                 margin: const EdgeInsets.all(12),
@@ -257,7 +239,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 消息输入框
                     TextField(
                       controller: _messageController,
                       focusNode: _focusNode,
@@ -285,7 +266,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                       },
                     ),
                     const SizedBox(height: 6),
-                    // 心情选择器和保存按钮 - 根据是否为今日区分显示
                     Row(
                       children: [
                         // 今日：可选择心情；往期：只读显示（如有）
@@ -305,7 +285,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                                       )
                                     : const SizedBox.shrink()),
                         ),
-                        // 保存按钮
                         ElevatedButton(
                           onPressed: _saving ? null : saveMessage,
                           style: ElevatedButton.styleFrom(
@@ -332,7 +311,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     );
   }
 
-  // 释放资源
   @override
   void dispose() {
     _messageController.dispose();

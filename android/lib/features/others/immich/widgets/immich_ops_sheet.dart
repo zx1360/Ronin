@@ -8,7 +8,6 @@ import 'package:torrid/features/others/gallery/models/media_asset.dart';
 import 'package:torrid/features/others/gallery/models/tag.dart';
 import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
 import 'package:torrid/features/others/immich/providers/immich_providers.dart';
-import 'package:torrid/features/others/immich/widgets/immich_dialogs.dart';
 import 'package:torrid/features/others/immich/widgets/immich_media_grid.dart';
 import 'package:torrid/features/others/immich/widgets/immich_tag_picker.dart';
 
@@ -234,24 +233,22 @@ class _LeadPickerDialogState extends State<_LeadPickerDialog> {
 // 单张媒体详情
 
 /// 单张媒体详情底部弹窗
-Future<void> showImmichMediaDetail(
+Future<MediaAsset?> showImmichMediaDetail(
   BuildContext context, {
-  required String mediaId,
   required MediaAsset fallback,
 }) {
-  return showModalBottomSheet<void>(
+  return showModalBottomSheet<MediaAsset>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _MediaDetailSheet(mediaId: mediaId, fallback: fallback),
+    builder: (_) => _MediaDetailSheet(fallback: fallback),
   );
 }
 
 class _MediaDetailSheet extends ConsumerStatefulWidget {
-  final String mediaId;
   final MediaAsset fallback;
 
-  const _MediaDetailSheet({required this.mediaId, required this.fallback});
+  const _MediaDetailSheet({required this.fallback});
 
   @override
   ConsumerState<_MediaDetailSheet> createState() => _MediaDetailSheetState();
@@ -275,7 +272,11 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
     try {
       final result = await ref
           .read(galleryApiProvider)
-          .queryMedia(ids: [widget.mediaId], includeDeleted: true, limit: 1);
+          .queryMedia(
+            ids: [widget.fallback.id],
+            includeDeleted: true,
+            limit: 1,
+          );
       final asset = result.mediaAssets.firstOrNull;
       if (asset == null) throw StateError('媒体已不存在');
       if (!mounted) return;
@@ -299,7 +300,7 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
     try {
       final detail = await ref
           .read(aiApiProvider)
-          .fetchMediaDetail(widget.mediaId);
+          .fetchMediaDetail(widget.fallback.id);
       if (mounted) setState(() => _aiDetail = detail);
     } catch (_) {}
   }
@@ -512,25 +513,18 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
             ],
             const Divider(height: 24),
             Row(
+              spacing: 8,
               children: [
+                OutlinedButton.icon(
+                  onPressed: busy ? null : () => Navigator.pop(context, asset),
+                  icon: const Icon(Icons.image_search, size: 18),
+                  label: const Text('以图搜图'),
+                ),
                 if (asset.isDeleted)
                   OutlinedButton.icon(
-                    onPressed: canEdit ? () => _setDeleted(asset, false) : null,
+                    onPressed: canEdit ? () => _restore(asset) : null,
                     icon: const Icon(Icons.restore, size: 18),
                     label: const Text('恢复'),
-                  )
-                else
-                  OutlinedButton.icon(
-                    onPressed: canEdit ? () => _setDeleted(asset, true) : null,
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      size: 18,
-                      color: Colors.red,
-                    ),
-                    label: const Text(
-                      '标记待删除',
-                      style: TextStyle(color: Colors.red),
-                    ),
                   ),
               ],
             ),
@@ -600,16 +594,11 @@ class _MediaDetailSheetState extends ConsumerState<_MediaDetailSheet> {
     );
   }
 
-  Future<void> _setDeleted(MediaAsset asset, bool deleted) async {
-    if (deleted && !await confirmAlbumDeletion(context, 1)) return;
-    if (!mounted) return;
-    await _run(
-      () => ref.read(immichActionsProvider.notifier).setDeleted([
-        asset.id,
-      ], deleted),
-      ok: deleted ? '已标记待删除' : '已恢复',
-    );
-  }
+  Future<void> _restore(MediaAsset asset) => _run(
+    () =>
+        ref.read(immichActionsProvider.notifier).setDeleted([asset.id], false),
+    ok: '已恢复',
+  );
 
   void _snack(String message) {
     if (!mounted) return;

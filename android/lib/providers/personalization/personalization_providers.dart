@@ -15,77 +15,65 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
   @override
   AppSettings build() => _service.getSettings();
 
-  /// 刷新设置
   void refresh() {
     if (ref.mounted) state = _service.getSettings();
   }
 
-  /// 添加背景图片
   Future<bool> addBackgroundImage(List<int> bytes, String fileName) async {
     final result = await _service.addBackgroundImage(bytes, fileName);
     if (result) refresh();
     return result;
   }
 
-  /// 删除背景图片
   Future<bool> removeBackgroundImage(String path) async {
     final result = await _service.removeBackgroundImage(path);
     if (result) refresh();
     return result;
   }
 
-  /// 添加侧边栏图片
   Future<bool> addSidebarImage(List<int> bytes, String fileName) async {
     final result = await _service.addSidebarImage(bytes, fileName);
     if (result) refresh();
     return result;
   }
 
-  /// 删除侧边栏图片
   Future<bool> removeSidebarImage(String path) async {
     final result = await _service.removeSidebarImage(path);
     if (result) refresh();
     return result;
   }
 
-  /// 添加座右铭
   Future<void> addMotto(String motto) async {
     await _service.addMotto(motto);
     refresh();
   }
 
-  /// 更新座右铭
   Future<void> updateMotto(int index, String motto) async {
     await _service.updateMotto(index, motto);
     refresh();
   }
 
-  /// 删除座右铭
   Future<void> removeMotto(int index) async {
     await _service.removeMotto(index);
     refresh();
   }
 
-  /// 更新昵称
   Future<void> updateNickname(String nickname) async {
     await _service.updateNickname(nickname);
     refresh();
   }
 
-  /// 更新签名
   Future<void> updateSignature(String signature) async {
     await _service.updateSignature(signature);
     refresh();
   }
 
-  /// 更新头像
   Future<bool> updateAvatar(List<int> bytes, String fileName) async {
     final result = await _service.updateAvatar(bytes, fileName);
     if (result) refresh();
     return result;
   }
 
-  /// 清除头像
   Future<void> clearAvatar() async {
     await _service.clearAvatar();
     refresh();

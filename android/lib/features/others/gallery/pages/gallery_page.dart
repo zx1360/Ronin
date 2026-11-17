@@ -61,7 +61,6 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
   static const _barBackgroundColor = Color(0x40000000);
   static const _bottomBarHeight = 56.0;
   static const _tagBarHeight = 40.0;
-  static const _playbackControlsClearance = 88.0;
 
   bool _barsVisible = true;
 
@@ -145,8 +144,9 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
 
     final showBars =
         _barsVisible || currentMedia == null || currentMedia.isDeleted;
+    final safe = MediaQuery.paddingOf(context);
     final bottomInset =
-        MediaQuery.paddingOf(context).bottom +
+        safe.bottom +
         (showBars
             ? _bottomBarHeight + (currentMedia == null ? 0 : _tagBarHeight)
             : 0);
@@ -200,14 +200,19 @@ class _GalleryPageState extends ConsumerState<GalleryPage> {
                   (settings) => settings.previewWindow,
                 ),
               ))
-                PreviewWindowWidget(
-                  onTap: _goToNext,
-                  rotationQuarterTurns: _quarterTurns,
-                  minBottom:
-                      bottomInset +
-                      (currentMedia?.isVideo == true && _quarterTurns.isEven
-                          ? _playbackControlsClearance
-                          : 8),
+                Positioned.fill(
+                  top:
+                      safe.top +
+                      (currentMedia?.isVideo == true
+                          ? 4 + kMinInteractiveDimension
+                          : 0),
+                  bottom: bottomInset,
+                  left: safe.left,
+                  right: safe.right,
+                  child: PreviewWindowWidget(
+                    onTap: _goToNext,
+                    rotationQuarterTurns: _quarterTurns,
+                  ),
                 ),
               Positioned.fill(
                 child: TagDragOverlay(

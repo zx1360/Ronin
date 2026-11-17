@@ -15,8 +15,9 @@ import 'package:torrid/features/essay/services/essay_draft_store.dart';
 import 'package:torrid/features/essay/services/essay_store.dart';
 
 void main() {
+  const contractDir = '../backend/data/contracts';
   final fixture =
-      jsonDecode(File('../contracts/user_data.json').readAsStringSync())
+      jsonDecode(File('$contractDir/user_data.json').readAsStringSync())
           as Map<String, dynamic>;
   late AppDatabase db;
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
@@ -253,7 +254,7 @@ void main() {
 
   test('对话信息使用服务端契约', () {
     final data =
-        jsonDecode(File('../contracts/ai.json').readAsStringSync())['chat_info']
+        jsonDecode(File('$contractDir/ai.json').readAsStringSync())['chat_info']
             as Map<String, dynamic>;
     final info = ChatServerInfo.fromJson(data);
     expect(info.model, data['model']);

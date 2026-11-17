@@ -12,12 +12,9 @@ import {
   validateRange,
 } from './helpers.js';
 
-/** 建立漫画页的共享状态；必须在组件的 setup() 中调用（内部注册 onMounted/onUnmounted）。 */
 export function useComixBoard() {
   const api = useApi();
   const unwrap = (payload) => payload.data;
-
-  // ---- comix 集成可用性 ----
 
   const config = ref(null);
   const configError = ref('');
@@ -66,8 +63,6 @@ export function useComixBoard() {
       initRunning.value = false;
     }
   };
-
-  // ---- 站点列表 ----
 
   const sites = ref([]);
   const sitesError = ref('');
@@ -125,7 +120,6 @@ export function useComixBoard() {
     }
   }, { interval: () => 2, enabled: () => hasWork.value });
 
-  /** 登记刚提交的任务，并立刻启动/续期轮询。 */
   const trackSubmitted = async (ids) => {
     const list = (ids || []).filter(Boolean);
     if (list.length) {
@@ -135,7 +129,6 @@ export function useComixBoard() {
     await poller.trigger();
   };
 
-  /** 启动一个异步 comix 任务，返回 task_id。 */
   const startTask = async (endpoint, body, label) => {
     const data = unwrap(await api.post(`/API/comix/${endpoint}`, body, { timeoutMs: 60000 }));
     const taskId = data && typeof data.task_id === 'string' ? data.task_id : '';
@@ -144,8 +137,6 @@ export function useComixBoard() {
     await trackSubmitted([taskId]);
     return taskId;
   };
-
-  // ---- Tab 1：网址下载 ----
 
   const urlInput = ref('');
   const latestInput = ref('');
@@ -194,8 +185,6 @@ export function useComixBoard() {
       submitting.value = false;
     }
   };
-
-  // ---- Tab 2：漫画库 ----
 
   const comics = ref([]);
   const comicsError = ref('');
@@ -328,31 +317,18 @@ export function useComixBoard() {
     }
   };
 
-  const togglePublic = async (comic) => {
-    const next = comic.is_public !== true;
-    const ok = await confirmAction(`将「${comic.title}」设为${next ? '公开' : '隐藏'}？`, {
+  const toggleComicFlag = async (comic, field) => {
+    const next = comic[field] !== true;
+    const action = field === 'is_public'
+      ? `设为${next ? '公开' : '隐藏'}`
+      : `标记为${next ? '已读' : '未读'}`;
+    const ok = await confirmAction(`将「${comic.title}」${action}？`, {
       title: '更新书库管理字段',
     });
     if (!ok) return;
     try {
-      await api.put(`/API/comic/comic-info/${comic.comic_id}`, { is_public: next });
-      toast(`「${comic.title}」已设为${next ? '公开' : '隐藏'}`, 'success');
-    } catch (err) {
-      if (api.signal.aborted) return;
-      toast(`更新失败: ${err.message}`, 'error');
-    }
-    await loadComics();
-  };
-
-  const toggleReaded = async (comic) => {
-    const next = comic.readed !== true;
-    const ok = await confirmAction(`将「${comic.title}」标记为${next ? '已读' : '未读'}？`, {
-      title: '更新书库管理字段',
-    });
-    if (!ok) return;
-    try {
-      await api.put(`/API/comic/comic-info/${comic.comic_id}`, { readed: next });
-      toast(`「${comic.title}」已标记为${next ? '已读' : '未读'}`, 'success');
+      await api.put(`/API/comic/comic-info/${comic.comic_id}`, { [field]: next });
+      toast(`「${comic.title}」已${action}`, 'success');
     } catch (err) {
       if (api.signal.aborted) return;
       toast(`更新失败: ${err.message}`, 'error');
@@ -450,13 +426,12 @@ export function useComixBoard() {
   onMounted(() => {
     loadConfig();
     loadSites();
-    loadComics();
     poller.trigger();
   });
 
   return {
     onTabChange,
-    config, configError, initRunning, comixAvailable, comixMessage, comixPython, comixRoot,
+    configError, initRunning, comixAvailable, comixMessage, comixPython, comixRoot,
     loadConfig, runInit,
     sites, sitesError, loadSites,
     tasksError,
@@ -464,7 +439,7 @@ export function useComixBoard() {
     comics, comicsError, comicsLoading, keyword, statusFilter, filteredComics, loadComics,
     checkDownload, checkLatest, runUpdateCheck, runClean,
     downloadTarget, downloadForm, downloadError, openDownload, submitDownload,
-    togglePublic, toggleReaded, removeComic,
+    toggleComicFlag, removeComic,
     chaptersComic, chapters, chaptersError, chaptersLoading, chapterKeyword,
     chapterDoneCount, chapterFailedCount, filteredChapters, openChapters, closeChapters,
   };

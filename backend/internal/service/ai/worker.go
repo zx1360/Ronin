@@ -70,7 +70,6 @@ func (e *Engine) reconcileOnce() time.Duration {
 		}
 		inserted += n
 	}
-	// 已有产物由用户显式重生成，补队列不重排历史结果。
 	if inserted > 0 {
 		log.Printf("[AI] 入库自动入队 %d 条任务（能力: %v）", inserted, autoCaps)
 		e.Wake()

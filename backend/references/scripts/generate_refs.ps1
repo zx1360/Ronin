@@ -1,10 +1,4 @@
-# 生成跨端契约快照（路由表 + CLI 帮助）。
-#
-# 真源永远是 Go 代码，任何时刻重跑本脚本即可得到最新契约。
-# 输出统一落在 references/generated/ 下，repositories 里只需维护本脚本。
-#
-#   .\generate_refs.ps1          生成/刷新 references/generated/
-#   .\generate_refs.ps1 -Check   只校验磁盘上的快照是否与当前代码一致，不写文件（验收用）
+# 导出路由与 CLI 帮助到 references/generated/，-Check 只校验。
 param(
     [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
     [switch]$Check

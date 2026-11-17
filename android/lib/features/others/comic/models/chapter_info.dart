@@ -3,8 +3,6 @@ import 'package:torrid/core/utils/util.dart';
 
 part 'chapter_info.g.dart';
 
-// 章节元数据
-
 @JsonSerializable(fieldRename: FieldRename.snake)
 class ChapterInfo {
   final String id;
@@ -15,12 +13,8 @@ class ChapterInfo {
 
   final String dirName;
 
+  /// 图片路径与宽高，键为 path、width、height。
   @JsonKey(defaultValue: [])
-  // {
-  //   'path': file.path,
-  //   'width': size.width,
-  //   'height': size.height,
-  // }
   final List<Map<String, dynamic>> images;
 
   final int imageCount;
@@ -64,7 +58,6 @@ class ChapterInfo {
     );
   }
 
-  /// 序列化
   factory ChapterInfo.fromJson(Map<String, dynamic> json) =>
       _$ChapterInfoFromJson(json);
   Map<String, dynamic> toJson() => _$ChapterInfoToJson(this);

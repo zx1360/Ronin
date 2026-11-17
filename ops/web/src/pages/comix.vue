@@ -32,7 +32,6 @@ export default {
       <button @click="navigate('/tasks')">任务与日志 ↗</button>
     </div>
 
-    <!-- ============ 网址下载 ============ -->
     <template v-if="tab === 'url'">
       <Card title="网址下载">
         <div class="col">
@@ -120,7 +119,6 @@ export default {
       </details>
     </template>
 
-    <!-- ============ 漫画库 ============ -->
     <template v-else-if="tab === 'library'">
       <Card title="漫画库">
         <template #actions>
@@ -186,8 +184,8 @@ export default {
                         :title="comic.is_legacy ? 'legacy 资源不参与追更' : '追更检查'"
                         @click="runUpdateCheck(comic, false)">追更</button>
                 <button class="sm" @click="openChapters(comic)">章节</button>
-                <button class="sm" @click="togglePublic(comic)">{{ comic.is_public ? '隐藏' : '公开' }}</button>
-                <button class="sm" @click="toggleReaded(comic)">{{ comic.readed ? '标未读' : '标已读' }}</button>
+                <button class="sm" @click="toggleComicFlag(comic, 'is_public')">{{ comic.is_public ? '隐藏' : '公开' }}</button>
+                <button class="sm" @click="toggleComicFlag(comic, 'readed')">{{ comic.readed ? '标未读' : '标已读' }}</button>
                 <button class="sm danger" @click="removeComic(comic)">删除</button>
               </div>
             </div>

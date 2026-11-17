@@ -11,7 +11,7 @@ import 'package:torrid/features/chat/pages/review_page.dart';
 import 'package:torrid/features/chat/pages/review_presets_page.dart';
 import 'package:torrid/features/essay/pages/browse_page.dart';
 import 'package:torrid/features/home/pages/splash_page.dart';
-import 'package:torrid/features/read/pages/read_page.dart';
+import 'package:torrid/features/trace/trace_page.dart';
 import 'package:torrid/features/others/pages/others_page.dart';
 import 'package:torrid/features/profile/datas/nav_tile_datas.dart';
 
@@ -21,17 +21,12 @@ import 'package:torrid/features/profile/second_page/user/profile_user.dart';
 import 'package:torrid/features/profile/second_page/preferences/background_setting_page.dart';
 import 'package:torrid/features/profile/second_page/preferences/motto_setting_page.dart';
 
-// 页面路径声明文件.
 final List<RouteBase> routes = [
-  // #### 无内容页面
-  // 启动屏.
   GoRoute(
     path: "/splash",
     name: "splash",
     builder: (context, state) => const BackHandler(child: SplashPage()),
   ),
-  // 栈底页: 桌面页
-  // HOME页.
   GoRoute(
     path: "/home",
     name: "home",
@@ -41,22 +36,18 @@ final List<RouteBase> routes = [
     },
   ),
 
-  // #### 主要页
-  // 积微页, 打卡
   GoRoute(
     path: "/booklet",
     name: "booklet",
     builder: (context, state) => const BookletPage(),
   ),
 
-  // 随笔页,
   GoRoute(
     path: "/essay",
     name: "essay",
     builder: (context, state) => const EssayBrowsePage(),
   ),
 
-  // 对话页（本地 AI 聊天）
   GoRoute(
     path: "/chat",
     name: "chat",
@@ -65,19 +56,16 @@ final List<RouteBase> routes = [
       return ChatPage(args: extra is ChatLaunchArgs ? extra : null);
     },
     routes: [
-      // 对话设置（二级页）
       GoRoute(
         path: "settings",
         name: "chat_settings",
         builder: (context, state) => const ChatSettingsPage(),
       ),
-      // 近期回顾（二级页）
       GoRoute(
         path: "review",
         name: "chat_review",
         builder: (context, state) => const ReviewPage(),
       ),
-      // 回顾的角色与语气预设
       GoRoute(
         path: "review/presets",
         name: "chat_review_presets",
@@ -86,21 +74,18 @@ final List<RouteBase> routes = [
     ],
   ),
 
-  // 阅读页,
   GoRoute(
-    path: "/news",
-    name: "news",
-    builder: (context, state) => const ReadPage(),
+    path: '/trace',
+    name: 'trace',
+    builder: (context, state) => const TracePage(),
   ),
 
-  // 其他页.
   GoRoute(
     path: "/others",
     name: "others",
     builder: (context, state) => const OthersPage(),
   ),
 
-  // #### 个人页(偏好设置及数据相关)
   GoRoute(
     path: '/profile',
     name: 'profile',
@@ -111,19 +96,16 @@ final List<RouteBase> routes = [
         name: 'profile_user',
         builder: (context, state) => const ProfileUser(),
       ),
-      // 背景图片设置
       GoRoute(
         path: 'background',
         name: 'profile_background',
         builder: (context, state) => const BackgroundSettingPage(),
       ),
-      // 座右铭设置
       GoRoute(
         path: 'motto',
         name: 'profile_motto',
         builder: (context, state) => const MottoSettingPage(),
       ),
-      // 其他二级设置页.
       ...settingPages.map(
         (config) => GoRoute(
           path: config.path,

@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
-import 'package:torrid/core/models/mood.dart';
 import 'package:torrid/core/utils/util.dart';
 
 class CheckinCalendar extends StatelessWidget {
   final Style? style;
   final List<Record> records;
 
-  /// 选中的任务ID，用于筛选日历展示单个任务的完成情况
   final String? selectedTaskId;
   const CheckinCalendar({
     super.key,
@@ -18,8 +16,6 @@ class CheckinCalendar extends StatelessWidget {
     this.selectedTaskId,
   });
 
-  /// 构建星期标题（一 ~ 日）
-  /// [label]：星期文本（如"一"）
   Widget _buildWeekDayLabel(String label) {
     return Expanded(
       child: Center(
@@ -31,88 +27,24 @@ class CheckinCalendar extends StatelessWidget {
     );
   }
 
-  /// 获取打卡日历的日期范围（当前样式的第一条记录 ~ 最后一条记录）
-  DateTimeRange _getCalendarDateRange() {
-    if (records.isEmpty) {
-      return DateTimeRange(start: getTodayDate(), end: getTodayDate());
-    }
-    // 相关记录已按日期倒序，最早日期=最后一条记录，最晚日期=第一条记录
-    final earliestDate = dateOnly(records.last.date);
-    final latestDate = dateOnly(records.first.date);
-    return DateTimeRange(start: earliestDate, end: latestDate);
-  }
-
-  /// 根据日期获取打卡状态（返回颜色索引，对应checkInColors）
-  /// [date]：目标日期
-  /// 当 selectedTaskId 不为空时，仅判断该任务的完成情况
-  int _getCheckInStatusIndex(DateTime date) {
-    if (style == null) return 0;
-
-    final targetRecords = records.where(
-      (record) => isSameDay(record.date, date),
-    );
-    if (targetRecords.isEmpty) {
-      return 0;
-    }
-    final targetRecord = targetRecords.first;
-
-    // 单任务筛选模式
+  int _statusIndex(Record? record, int taskCount) {
+    if (record == null) return 0;
     if (selectedTaskId != null) {
-      final isCompleted = targetRecord.taskCompletion[selectedTaskId] ?? false;
-      return isCompleted ? 1 : 5; // 完成=绿色，未完成=红色
+      return record.taskCompletion[selectedTaskId] == true ? 1 : 5;
     }
 
-    // 计算未完成任务数
-    final totalTasks = style!.tasks.length;
-    final completedCount = targetRecord.taskCompletion.values
-        .where((v) => v)
-        .length;
-    final incompleteCount = totalTasks - completedCount;
-
-    // 根据未完成数返回颜色索引
-    return switch (incompleteCount) {
-      0 => 1, // 全完成
-      1 => 2, // 差1个
-      2 => 3, // 差2个
-      3 => 4, // 差3个
-      4 => 5, // 差4个（最多5个任务）
-      _ => 0,
-    };
+    final completed = record.taskCompletion.values.where((done) => done).length;
+    final incomplete = taskCount - completed;
+    return incomplete >= 0 && incomplete <= 4 ? incomplete + 1 : 0;
   }
 
-  /// 检查日期是否有留言
-  /// [date]：目标日期
-  bool _hasMessage(DateTime date) {
-    if (style == null) return false;
-
-    final targetRecord = records.firstWhere(
-      (r) => isSameDay(r.date, date),
-      orElse: () => Record.empty(style: style!, date: date),
-    );
-    return targetRecord.message.isNotEmpty;
-  }
-
-  /// 获取日期对应的心情记录
-  /// [date]：目标日期
-  MoodType? _getMood(DateTime date) {
-    if (style == null) return null;
-
-    final targetRecords = records.where((r) => isSameDay(r.date, date));
-    if (targetRecords.isEmpty) return null;
-    return targetRecords.first.mood;
-  }
-
-  /// 打开日期详情弹窗（展示该日期的打卡记录和任务完成情况）
-  /// [context]：弹窗宿主上下文
-  /// [date]：目标日期
-  void _openDateDetailDialog(BuildContext context, DateTime date) {
-    if (style == null) return;
-
-    final targetRecord = records.firstWhere(
-      (r) => isSameDay(r.date, date),
-      orElse: () => Record.empty(style: style!, date: date),
-    );
-
+  void _openDateDetailDialog(
+    BuildContext context,
+    DateTime date,
+    Record record,
+    Style style,
+  ) {
+    final mood = record.mood;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -123,50 +55,41 @@ class CheckinCalendar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 心情展示（如有）
-              if (targetRecord.mood != null)
+              if (mood != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Row(
                     children: [
                       Text('今日心情：', style: noteSmall),
                       const SizedBox(width: 8),
-                      Text(
-                        targetRecord.mood!.emoji,
-                        style: const TextStyle(fontSize: 20),
-                      ),
+                      Text(mood.emoji, style: const TextStyle(fontSize: 20)),
                       const SizedBox(width: 6),
                       Text(
-                        targetRecord.mood!.description,
-                        style: noteText.copyWith(
-                          color: targetRecord.mood!.color,
-                        ),
+                        mood.description,
+                        style: noteText.copyWith(color: mood.color),
                       ),
                     ],
                   ),
                 ),
 
-              // 留言展示（如有）
-              if (targetRecord.message.isNotEmpty)
+              if (record.message.isNotEmpty)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('打卡留言：', style: noteSmall),
                     const SizedBox(height: 4),
                     Text(
-                      targetRecord.message,
+                      record.message,
                       style: noteText.copyWith(fontStyle: FontStyle.italic),
                     ),
                     const SizedBox(height: 12),
                   ],
                 ),
 
-              // 任务完成情况
               Text('任务完成情况：', style: noteSmall),
               const SizedBox(height: 8),
-              ...style!.tasks.map((task) {
-                final isCompleted =
-                    targetRecord.taskCompletion[task.id] ?? false;
+              ...style.tasks.map((task) {
+                final isCompleted = record.taskCompletion[task.id] ?? false;
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -192,7 +115,6 @@ class CheckinCalendar extends StatelessWidget {
                             Text(
                               task.description,
                               style: noteSmall,
-                              // maxLines: 1,
                               overflow: TextOverflow.visible,
                             ),
                         ],
@@ -202,8 +124,7 @@ class CheckinCalendar extends StatelessWidget {
                 );
               }),
 
-              // 无记录提示
-              if (targetRecord.taskCompletion.isEmpty)
+              if (record.taskCompletion.isEmpty)
                 Text('无打卡记录', style: noteSmall),
             ],
           ),
@@ -223,100 +144,75 @@ class CheckinCalendar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final style = this.style;
     if (style == null) {
       return const Center(child: Text('请先选择或创建打卡计划'));
     }
 
-    final dateRange = _getCalendarDateRange();
-    final totalDays = dateRange.end.difference(dateRange.start).inDays + 1;
-    final dates = List.generate(
-      totalDays,
-      (i) => dateRange.start.add(Duration(days: i)),
-    );
+    final recordsByDate = <DateTime, Record>{};
+    for (final record in records) {
+      recordsByDate.putIfAbsent(dateOnly(record.date), () => record);
+    }
+    // 调用方按日期倒序传入记录。
+    final today = getTodayDate();
+    final start = records.isEmpty ? today : dateOnly(records.last.date);
+    final end = records.isEmpty ? today : dateOnly(records.first.date);
+    final totalDays = end.difference(start).inDays + 1;
 
-    // 按月份分组（key: 月份文本，value: 该月所有日期）
-    final Map<String, List<DateTime>> monthGroups = {};
-    for (final date in dates) {
-      final monthKey = monthFormatter.format(date);
-      if (!monthGroups.containsKey(monthKey)) {
-        monthGroups[monthKey] = [];
-      }
-      monthGroups[monthKey]!.add(date);
+    final monthGroups = <String, List<DateTime>>{};
+    for (var i = 0; i < totalDays; i++) {
+      final date = start.add(Duration(days: i));
+      monthGroups.putIfAbsent(monthFormatter.format(date), () => []).add(date);
     }
 
-    // 月份倒序展示
     return Column(
       children: monthGroups.entries.toList().reversed.map((monthEntry) {
         final month = monthEntry.key;
         final monthDates = monthEntry.value;
-        // 计算该月第一天的星期偏移（周一→0，周二→1，...，周日→6）
-        final firstDay = monthDates.first;
-        final offset = firstDay.weekday - 1; // DateTime.weekday: 1=周一，7=周日
+        final offset = monthDates.first.weekday - 1;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 月份标题
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(month, style: noteTitle),
             ),
 
-            // 星期标题（一 ~ 日）
             Row(
               children: [
-                _buildWeekDayLabel('一'),
-                _buildWeekDayLabel('二'),
-                _buildWeekDayLabel('三'),
-                _buildWeekDayLabel('四'),
-                _buildWeekDayLabel('五'),
-                _buildWeekDayLabel('六'),
-                _buildWeekDayLabel('日'),
+                for (final day in const ['一', '二', '三', '四', '五', '六', '日'])
+                  _buildWeekDayLabel(day),
               ],
             ),
 
-            // 日期网格（补空格子实现星期对齐）
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7, // 7列（对应星期）
-                childAspectRatio: 1.2, // 方格宽高比
+                crossAxisCount: 7,
+                childAspectRatio: 1.2,
                 crossAxisSpacing: 4,
                 mainAxisSpacing: 4,
               ),
-              itemCount: offset + monthDates.length, // 总格子数=偏移数+当月天数
+              itemCount: offset + monthDates.length,
               itemBuilder: (context, index) {
-                // 偏移范围内的格子为空（用于对齐星期）
-                if (index < offset) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      color: Colors.transparent,
-                    ),
-                  );
-                }
+                if (index < offset) return const SizedBox.shrink();
 
-                // 计算当前日期（偏移后）
                 final date = monthDates[index - offset];
-                final statusIndex = _getCheckInStatusIndex(date);
-                final hasMessage = _hasMessage(date);
-                final mood = _getMood(date);
-                // 获取目标记录（判断是否有打卡数据）
-                final targetRecord = records.firstWhere(
-                  (r) => isSameDay(r.date, date),
-                  orElse: () => Record.empty(style: style!, date: date),
-                );
+                final record = recordsByDate[dateOnly(date)];
+                final statusIndex = _statusIndex(record, style.tasks.length);
+                final hasMessage = record?.message.isNotEmpty == true;
+                final mood = record?.mood;
 
                 return GestureDetector(
-                  // 无记录且无留言时，不触发弹窗
-                  onTap: (statusIndex == 0 && targetRecord.message == "")
+                  onTap: (record == null || (statusIndex == 0 && !hasMessage))
                       ? null
-                      : () => _openDateDetailDialog(context, date),
+                      : () =>
+                            _openDateDetailDialog(context, date, record, style),
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      // 日期方格
                       Container(
                         decoration: BoxDecoration(
                           color: checkInColors[statusIndex],
@@ -340,7 +236,6 @@ class CheckinCalendar extends StatelessWidget {
                         ),
                       ),
 
-                      // 留言标记（右上角小圆点）
                       if (hasMessage)
                         Positioned(
                           top: 2,
@@ -354,7 +249,6 @@ class CheckinCalendar extends StatelessWidget {
                             ),
                           ),
                         ),
-                      // 心情图标（左下角）
                       if (mood != null)
                         Positioned(
                           bottom: 2,

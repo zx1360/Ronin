@@ -3,20 +3,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 part 'prefs_service.g.dart';
 
-// 偏好设置数据类.
 @JsonSerializable()
 class AppSettings {
   // 外观相关 - 背景图片（共用于SplashPage/HomePage）
   // 存储相对路径，如 "preferences/background/xxx.jpg"
   List<String> backgroundImages;
 
-  // 外观相关 - 侧边栏背景图片
   List<String> sidebarImages;
 
-  // 座右铭列表
   List<String> mottos;
 
-  // 用户信息
   String nickname;
   String signature;
   // 头像图片路径，为空时使用默认
@@ -31,7 +27,6 @@ class AppSettings {
     this.avatarPath,
   });
 
-  // copyWith方法
   AppSettings copyWith({
     List<String>? backgroundImages,
     List<String>? sidebarImages,
@@ -51,7 +46,6 @@ class AppSettings {
     );
   }
 
-  // 偏好默认值
   factory AppSettings.defaultValue() {
     return AppSettings(
       backgroundImages: [],
@@ -63,7 +57,6 @@ class AppSettings {
     );
   }
 
-  // json序列化/反序列化.
   factory AppSettings.fromJson(dynamic json) => _$AppSettingsFromJson(json);
   Map<String, dynamic> toJson() => _$AppSettingsToJson(this);
 }

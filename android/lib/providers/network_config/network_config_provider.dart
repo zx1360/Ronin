@@ -1,11 +1,3 @@
-/// 网络配置管理Provider
-///
-/// 提供服务器连接配置的统一管理，支持：
-/// - 多服务器配置 (增删改切换)
-/// - mDNS 自动服务发现
-/// - 单个地址的连通性状态 (serverReachableProvider)
-library;
-
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -17,10 +9,7 @@ import 'package:uuid/uuid.dart';
 
 part 'network_config_provider.g.dart';
 
-/// 主机配置
-///
-/// [id] 是稳定标识: 列表项身份、连通性缓存键都基于它,
-/// 避免增删配置后按下标复用组件造成状态错位.
+/// 用稳定 ID 标识列表项，增删配置时保留对应连接状态。
 class HostConfig {
   final String id;
   final String host;
@@ -56,7 +45,6 @@ class HostConfig {
   bool get isValid => host.isNotEmpty && port.isNotEmpty;
 }
 
-/// 网络配置状态
 class NetworkConfigState {
   final String apiKey;
   final List<HostConfig> configs;
@@ -92,7 +80,6 @@ class NetworkConfigState {
     );
   }
 
-  /// 获取当前活跃的配置
   HostConfig? get activeConfig {
     if (activeIndex >= 0 && activeIndex < configs.length) {
       return configs[activeIndex];
@@ -108,7 +95,6 @@ class NetworkConfigState {
   }
 }
 
-/// 网络配置管理Provider
 @Riverpod(keepAlive: true)
 class NetworkConfigManager extends _$NetworkConfigManager {
   static const String _hostsKey = 'PC_HOST_LIST';
@@ -120,10 +106,7 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     return _loadState();
   }
 
-  /// 同步读取持久化配置并组装状态
-  ///
-  /// 本 Provider 是服务器连接配置的唯一真相源；[ApiClientManager] 通过监听本状态
-  /// 派生 ApiClient，任何手动推送都会与之冲突。
+  /// ApiClientManager 监听此状态并派生客户端。
   NetworkConfigState _loadState() {
     try {
       final prefs = PrefsService().prefs;
@@ -141,7 +124,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
 
       if (configs.isEmpty) configs.add(HostConfig.create());
 
-      // 确保 activeIndex 在有效范围内
       if (activeIndex < 0 || activeIndex >= configs.length) {
         activeIndex = 0;
       }
@@ -156,7 +138,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     }
   }
 
-  /// 持久化配置与激活下标
   Future<void> _persist() async {
     final prefs = PrefsService().prefs;
     await prefs.setString(
@@ -166,14 +147,12 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     await prefs.setInt(_activeIndexKey, state.activeIndex);
   }
 
-  /// 保存API Key
   Future<void> saveApiKey(String apiKey) async {
     final trimmedKey = apiKey.trim();
     await PrefsService().prefs.setString("API_KEY", trimmedKey);
     state = state.copyWith(apiKey: trimmedKey, message: 'API Key已保存');
   }
 
-  /// 保存配置
   Future<void> saveConfig(int index, String host, String port) async {
     if (index < 0 || index >= state.configs.length) return;
 
@@ -187,7 +166,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     state = state.copyWith(message: '配置已保存');
   }
 
-  /// 激活配置
   Future<void> activateConfig(int index) async {
     if (index < 0 || index >= state.configs.length) return;
     if (index == state.activeIndex) return;
@@ -197,7 +175,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     state = state.copyWith(message: '已切换到该配置');
   }
 
-  /// 添加配置
   Future<void> addConfig() async {
     final newConfigs = List<HostConfig>.from(state.configs)
       ..add(HostConfig.create());
@@ -205,7 +182,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     await _persist();
   }
 
-  /// 删除配置
   Future<void> removeConfig(int index) async {
     if (index < 0 || index >= state.configs.length) return;
     if (state.configs.length <= 1) return;
@@ -225,12 +201,10 @@ class NetworkConfigManager extends _$NetworkConfigManager {
     state = state.copyWith(message: '配置已删除');
   }
 
-  /// 刷新配置（重新从持久化存储读取）
   Future<void> refresh() async {
     state = _loadState();
   }
 
-  /// 清除消息
   void clearMessage() {
     state = state.copyWith(clearMessage: true);
   }
@@ -255,7 +229,6 @@ class NetworkConfigManager extends _$NetworkConfigManager {
         return discovered;
       }
 
-      // 将发现的服务加入配置 (如不存在)
       int added = 0;
       final existingHosts = state.configs
           .where((c) => c.isValid)

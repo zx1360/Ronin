@@ -31,13 +31,11 @@ class TaskWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 任务相关图片
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: FileImageBuilder(relativeImagePath: imgUrl),
           ),
           const SizedBox(width: 12),
-          // 任务标题和描述等信息
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,7 +54,6 @@ class TaskWidget extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  // maxLines: 2,
                   overflow: TextOverflow.visible,
                   style: TextStyle(
                     color: Colors.grey.shade700,
@@ -69,7 +66,6 @@ class TaskWidget extends StatelessWidget {
               ],
             ),
           ),
-          // 完成状态切换按钮
           Transform.scale(
             scale: 1.2,
             child: Checkbox(

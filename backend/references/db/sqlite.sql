@@ -1,24 +1,7 @@
--- =====================================================
--- Monarch / Gallery 维护的非漫画域；漫画域见同目录 comix.sql
---
--- 设计约定：
---   1. 单文件、应用目录下（backend/data/monarch.db），无外部数据库服务；
---      SQLite 无 schema 概念，comix 的表统一加 `comic_` 前缀避免与其它模块撞名。
---   2. 时间统一存**本机本地时区**的 ISO 文本 'YYYY-MM-DD HH:MM:SS.SSS'：
---      定宽且无时区后缀，字典序即时间序；SQLite 的 date/strftime 可直接解析。
---      日期列存 'YYYY-MM-DD'，Go 侧解析为 UTC 零点（见 AGENTS_DB.md 的取值约定）。
---   3. UUID 存 36 字符小写 TEXT；布尔存 INTEGER 0/1；BLOB 存二进制；
---      对象/数组列存 JSON 文本（vlm_tags 例外：拆到 media_ai_tags，便于按标签索引与聚合）。
---   4. updated_at 由 AFTER UPDATE 触发器维护（SQLite 无 BEFORE 触发器）；
---      触发器带 `NEW.updated_at IS OLD.updated_at` 守卫，显式赋值时不再覆盖，
---      同时避免开启 recursive_triggers 后自递归。
---   5. 写入按单写者模型：WAL 日志 + busy_timeout + _txlock=immediate（连接串控制）。
--- =====================================================
+-- Monarch 和 Gallery 的非漫画 schema。升级入口见 backend/AGENTS_DB.md。
 
 
--- =====================================================
 -- gallery：媒体资产与标签
--- =====================================================
 
 CREATE TABLE IF NOT EXISTS media_assets (
     id           TEXT PRIMARY KEY,
@@ -41,8 +24,7 @@ CREATE TABLE IF NOT EXISTS media_assets (
 
 CREATE INDEX IF NOT EXISTS idx_media_assets_sync_captured ON media_assets (is_deleted, sync_count, captured_at);
 CREATE INDEX IF NOT EXISTS idx_media_assets_captured    ON media_assets (is_deleted, captured_at);
--- 覆盖索引：AI "尚无产物" 统计（CountMediaMissingAll）外层只需 (is_deleted, id)，
--- 覆盖后可完全走索引（实测 3.1s → 0.3s），否则每行都要回表取 id。
+-- AI 缺产物诊断用此覆盖索引扫描未删除媒体。
 CREATE INDEX IF NOT EXISTS idx_media_assets_deleted_id  ON media_assets (is_deleted, id);
 CREATE INDEX IF NOT EXISTS idx_media_assets_updated_at    ON media_assets (updated_at);
 CREATE INDEX IF NOT EXISTS idx_media_assets_group_id      ON media_assets (group_id);
@@ -81,10 +63,7 @@ CREATE TABLE IF NOT EXISTS media_tag_links (
 
 CREATE INDEX IF NOT EXISTS idx_media_tag_links_media_id ON media_tag_links (media_id);
 
--- =====================================================
 -- user_data：随笔与打卡
--- 原 text[] / jsonb 列统一存 JSON 文本，读写整列，语义不变。
--- =====================================================
 
 CREATE TABLE IF NOT EXISTS essay_articles (
     id         TEXT PRIMARY KEY,
@@ -165,13 +144,9 @@ CREATE TABLE IF NOT EXISTS user_data_changes (
 );
 CREATE INDEX IF NOT EXISTS idx_user_data_changes_cursor ON user_data_changes(module, revision);
 
--- =====================================================
 -- ai：本地 AI 处理层
--- =====================================================
 
--- 输入档位 + 执行者指纹（如 `ai1024|ollama:qwen3.5:4b`）：任务与产物都记录它，
--- 用于追溯结果来源与报告配置差异；已有结果仅由用户显式重生成。
--- 既有库由 internal/service/db/migrate.go 补列（见该文件说明）。
+-- input_sig 记录输入档位与执行者，用于追溯产物及报告配置差异。
 CREATE TABLE IF NOT EXISTS media_ai (
     media_id          TEXT PRIMARY KEY REFERENCES media_assets(id) ON DELETE CASCADE,
     phash             INTEGER,   -- 64 位感知哈希；-1 表示无法解码
@@ -185,7 +160,6 @@ CREATE TABLE IF NOT EXISTS media_ai (
 
 CREATE INDEX IF NOT EXISTS idx_media_ai_phash ON media_ai (phash);
 
--- AI 标签：替代 PG 的 ai.media_ai.vlm_tags text[]（数组包含/重叠 → 关系表）。
 CREATE TABLE IF NOT EXISTS media_ai_tags (
     media_id TEXT NOT NULL REFERENCES media_ai(media_id) ON DELETE CASCADE,
     tag      TEXT NOT NULL,
@@ -194,7 +168,7 @@ CREATE TABLE IF NOT EXISTS media_ai_tags (
 
 CREATE INDEX IF NOT EXISTS idx_media_ai_tags_tag ON media_ai_tags (tag);
 
--- 向量：int8 量化存 BLOB，检索在 Go 侧内存精确扫描（无需 pgvector）
+-- 向量为 int8 量化 BLOB，检索由 Go 做精确扫描。
 CREATE TABLE IF NOT EXISTS embeddings (
     media_id   TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
     kind       TEXT NOT NULL,
@@ -234,7 +208,6 @@ CREATE INDEX IF NOT EXISTS idx_faces_media_id  ON faces (media_id);
 CREATE INDEX IF NOT EXISTS idx_faces_person_id ON faces (person_id);
 
 -- 任务队列：一行 = 一个 (能力, 媒体)；UNIQUE 保证重复入队幂等。
--- input_sig 记录本次执行使用的输入档位/执行者，reconcile 只补无任务行的媒体。
 CREATE TABLE IF NOT EXISTS jobs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     capability  TEXT NOT NULL,
@@ -270,9 +243,13 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'))
 );
 
--- =====================================================
+CREATE TABLE IF NOT EXISTS trace_backup (
+    id       INTEGER PRIMARY KEY CHECK (id = 1),
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    snapshot TEXT NOT NULL CHECK (json_valid(snapshot))
+);
+
 -- updated_at 自动维护（AFTER UPDATE + 守卫；显式赋值时不覆盖）
--- =====================================================
 
 CREATE TRIGGER IF NOT EXISTS trg_media_assets_updated_at AFTER UPDATE ON media_assets FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at

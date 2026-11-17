@@ -10,11 +10,8 @@ import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
-/// 图片类型枚举
 enum ImageCategory { background, sidebar }
 
-/// 背景图片设置页面
-/// 管理背景图和侧边栏图
 class BackgroundSettingPage extends ConsumerStatefulWidget {
   const BackgroundSettingPage({super.key});
 
@@ -80,7 +77,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     );
   }
 
-  /// 构建图片网格
   Widget _buildImageGrid(ImageCategory category) {
     final imagesAsync = category == ImageCategory.background
         ? ref.watch(backgroundImagesProvider)
@@ -112,12 +108,10 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
           return _buildEmptyState(category);
         }
 
-        // 单张图片时直接显示
         if (files.length == 1) {
           return _buildSingleImage(files.first, pathFor(files.first), category);
         }
 
-        // 多张图片时显示网格
         return GridView.builder(
           padding: const EdgeInsets.all(AppSpacing.md),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -137,7 +131,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     );
   }
 
-  /// 空状态
   Widget _buildEmptyState(ImageCategory category) {
     final title = category == ImageCategory.background ? '主页背景' : '侧边栏背景';
     return Center(
@@ -166,7 +159,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     );
   }
 
-  /// 单张图片显示
   Widget _buildSingleImage(
     File file,
     String relativePath,
@@ -209,7 +201,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     );
   }
 
-  /// 构建图片卡片
   Widget _buildImageCard(
     File file,
     String relativePath,
@@ -222,7 +213,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 图片
           Image.file(
             file,
             fit: BoxFit.cover,
@@ -231,13 +221,11 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
               child: const Icon(Icons.broken_image, size: 48),
             ),
           ),
-          // 删除按钮
           Positioned(
             top: AppSpacing.xs,
             right: AppSpacing.xs,
             child: _buildDeleteButton(relativePath, category),
           ),
-          // 文件名
           Positioned(
             bottom: 0,
             left: 0,
@@ -264,7 +252,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     );
   }
 
-  /// 删除按钮
   Widget _buildDeleteButton(String relativePath, ImageCategory category) {
     return Material(
       color: Colors.black45,
@@ -280,7 +267,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     );
   }
 
-  /// 选择并添加图片（支持多选）
   Future<void> _pickAndAddImage() async {
     final category = _tabController.index == 0
         ? ImageCategory.background
@@ -344,7 +330,6 @@ class _BackgroundSettingPageState extends ConsumerState<BackgroundSettingPage>
     }
   }
 
-  /// 确认删除
   Future<void> _confirmDelete(
     String relativePath,
     ImageCategory category,

@@ -1,5 +1,3 @@
-/* Northstar 网页运维端样式：深色主题，配色沿用原桌面端 theme.dart */
-
 :root {
   --primary: #dd9b49;
   --primary-soft: #443e34;
@@ -96,7 +94,7 @@ body {
   color: var(--on-surface-variant);
 }
 
-/* ---- 布局 ---- */
+/* 布局 */
 
 .shell {
   display: flex;
@@ -193,7 +191,7 @@ details[open] > summary { margin-bottom: 16px; }
   padding: 20px;
 }
 
-/* ---- 通用元素 ---- */
+/* 通用元素 */
 
 h2.section-title {
   font-size: 15px;
@@ -258,7 +256,7 @@ h2.section-title {
   flex: 1;
 }
 
-/* ---- 表单 ---- */
+/* 表单 */
 
 label.field {
   display: flex;
@@ -337,7 +335,7 @@ button.sm {
   font-size: 12px;
 }
 
-/* ---- 标签/徽标 ---- */
+/* 标签/徽标 */
 
 .badge {
   display: inline-block;
@@ -373,7 +371,7 @@ button.sm {
   color: var(--warning);
 }
 
-/* ---- 标签页 ---- */
+/* 标签页 */
 
 .tabs {
   display: flex;
@@ -397,7 +395,7 @@ button.sm {
   border-bottom-color: var(--primary);
 }
 
-/* ---- 表格 ---- */
+/* 表格 */
 
 table.data {
   width: 100%;
@@ -423,7 +421,7 @@ table.data tr:hover td {
   background: rgba(255, 255, 255, 0.02);
 }
 
-/* ---- 日志 ---- */
+/* 日志 */
 
 .log-view {
   background: #191919;
@@ -451,7 +449,7 @@ table.data tr:hover td {
   color: var(--on-surface);
 }
 
-/* ---- 媒体网格 ---- */
+/* 媒体网格 */
 
 .media-grid {
   display: grid;
@@ -505,7 +503,7 @@ table.data tr:hover td {
   overflow: hidden;
 }
 
-/* ---- 通知与对话框 ---- */
+/* 通知与对话框 */
 
 .toast-host {
   position: fixed;
@@ -568,7 +566,7 @@ table.data tr:hover td {
   margin-top: 18px;
 }
 
-/* ---- 状态提示 ---- */
+/* 状态提示 */
 
 .placeholder {
   padding: 28px;
@@ -596,11 +594,6 @@ table.data tr:hover td {
   background: var(--primary);
 }
 
-/* ---- 大数据量面板 ----
-   数据条数可能远超一屏时，优先「分页 + 主区域滚动 + 表头吸顶」，
-   而不是塞进一个几十像素高的小滚动框。 */
-
-/* 有界滚动面板：确实需要固定高度（分组媒体墙、日志等）时使用 */
 .scroll-panel {
   min-height: 240px;
   max-height: calc(100vh - 300px);
@@ -614,7 +607,6 @@ table.data tr:hover td {
   max-height: calc(100vh - 220px);
 }
 
-/* 工具条：筛选/分页控件整行排列，不挤在卡片标题里 */
 .toolbar {
   display: flex;
   gap: 12px;
@@ -636,7 +628,6 @@ table.data.sticky thead th {
   z-index: 1;
 }
 
-/* 分页条 */
 .pager {
   display: flex;
   align-items: center;
@@ -650,7 +641,6 @@ select[multiple] {
   min-height: 150px;
 }
 
-/* 更宽松的媒体网格（大屏多列、窄屏自动减列） */
 .media-grid.wide {
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
 }

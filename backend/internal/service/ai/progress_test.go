@@ -37,7 +37,7 @@ func TestProgressDoesNotProbe(t *testing.T) {
 			t.Fatal("进度查询探测了 Python 依赖")
 		}
 	}
-	raw, err := os.ReadFile("../../../../contracts/ai.json")
+	raw, err := os.ReadFile("../../../data/contracts/ai.json")
 	if err != nil {
 		t.Fatal(err)
 	}

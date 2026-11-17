@@ -7,16 +7,13 @@ import (
 	"log"
 )
 
-// 旧表按需补列；新增列时同时更新 sqlite.sql，供全新库建表。
-
-// addedColumn 一列的定义。
 type addedColumn struct {
 	table string
 	name  string
 	ddl   string
 }
 
-// addedColumns 为既有库补齐的列，顺序无关。
+// 加列时同步更新 sqlite.sql，为新库直接建表。
 var addedColumns = []addedColumn{
 	{table: "media_assets", name: "last_processed_request", ddl: "last_processed_request TEXT"},
 	{table: "essay_articles", name: "title", ddl: "title TEXT NOT NULL DEFAULT ''"},
@@ -31,7 +28,6 @@ var addedColumns = []addedColumn{
 	{table: "faces", name: "input_sig", ddl: "input_sig TEXT"},
 }
 
-// ensureColumns 补齐缺失的列；表不存在时跳过（该模块未启用）。
 func ensureColumns(ctx context.Context, tx *sql.Tx) error {
 	existing, err := tableColumns(ctx, tx)
 	if err != nil {
@@ -80,7 +76,6 @@ func tableColumns(ctx context.Context, tx *sql.Tx) (map[string]map[string]bool, 
 	return tables, nil
 }
 
-// columnsOf 查询单表列名；表不存在时返回 nil（调用方据 nil 跳过）。
 func columnsOf(ctx context.Context, tx *sql.Tx, table string) (map[string]bool, error) {
 	rows, err := tx.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
 	if err != nil {

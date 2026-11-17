@@ -1,4 +1,3 @@
-/// 传输进度指示器组件
 library;
 
 import 'package:flutter/material.dart';
@@ -7,7 +6,6 @@ import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/features/profile/second_page/data/models/transfer_progress.dart';
 import 'package:torrid/features/profile/second_page/data/services/transfer_controller.dart';
 
-/// 传输进度指示器组件
 class TransferProgressWidget extends ConsumerWidget {
   const TransferProgressWidget({super.key});
 
@@ -56,7 +54,6 @@ class TransferProgressWidget extends ConsumerWidget {
   }
 }
 
-/// 头部组件
 class _Header extends ConsumerWidget {
   final TransferProgress progress;
 
@@ -113,7 +110,6 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// 状态图标
 class _StatusIcon extends StatelessWidget {
   final TransferStatus status;
 
@@ -147,7 +143,6 @@ class _StatusIcon extends StatelessWidget {
   }
 }
 
-/// 进度条
 class _ProgressBar extends StatelessWidget {
   final TransferProgress progress;
 
@@ -196,7 +191,6 @@ class _ProgressBar extends StatelessWidget {
   }
 }
 
-/// 详细信息
 class _Details extends StatelessWidget {
   final TransferProgress progress;
 
@@ -249,7 +243,6 @@ class _Details extends StatelessWidget {
   }
 }
 
-/// 错误信息
 class _ErrorMessage extends StatelessWidget {
   final String message;
 
@@ -282,7 +275,6 @@ class _ErrorMessage extends StatelessWidget {
   }
 }
 
-/// 失败项列表
 class _FailedItemsList extends StatelessWidget {
   final List<FailedItem> items;
 
@@ -339,7 +331,6 @@ class _FailedItemsList extends StatelessWidget {
   }
 }
 
-/// 操作按钮
 class _Actions extends ConsumerWidget {
   final TransferProgress progress;
 

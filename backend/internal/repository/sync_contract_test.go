@@ -61,7 +61,7 @@ func TestOnlineSyncRejectsStaleSnapshotAtomically(t *testing.T) {
 }
 
 func TestUserDataContract(t *testing.T) {
-	raw, err := os.ReadFile("../../../contracts/user_data.json")
+	raw, err := os.ReadFile("../../data/contracts/user_data.json")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,4 +1,3 @@
-// Package repository 负责数据库操作
 package repository
 
 import (
@@ -13,12 +12,10 @@ import (
 	"monarch/internal/service/db"
 )
 
-// Repository 数据库操作仓库
 type Repository struct{}
 
 var ErrAssetChanged = errors.New("媒体在执行期间已变更，请重新执行")
 
-// NewRepository 创建新的仓库实例
 func NewRepository() *Repository {
 	return &Repository{}
 }
@@ -27,7 +24,6 @@ func NewRepository() *Repository {
 const assetColumns = `id, created_at, updated_at, captured_at, file_path, thumb_path,
 	preview_path, hash, size_bytes, mime_type, is_deleted, sync_count, group_id, edit_params`
 
-// HashExists 检查哈希是否已存在
 func (r *Repository) HashExists(ctx context.Context, hash []byte) (bool, error) {
 	var exists bool
 	err := db.Read().QueryRowContext(ctx,
@@ -100,7 +96,6 @@ func scanAssets(rows *sql.Rows) ([]*model.MediaAsset, error) {
 	return assets, rows.Err()
 }
 
-// queryAssets 执行查询并扫描结果。
 func queryAssets(ctx context.Context, query string, args ...any) ([]*model.MediaAsset, error) {
 	rows, err := db.Read().QueryContext(ctx, query, args...)
 	if err != nil {
@@ -110,7 +105,6 @@ func queryAssets(ctx context.Context, query string, args ...any) ([]*model.Media
 	return scanAssets(rows)
 }
 
-// GetDeletedAssets 获取标记为删除的媒体资产
 func (r *Repository) GetDeletedAssets(ctx context.Context) ([]*model.MediaAsset, error) {
 	return queryAssets(ctx, `SELECT `+assetColumns+` FROM media_assets WHERE is_deleted = 1`)
 }
@@ -120,7 +114,6 @@ func (r *Repository) GetGroupedAssets(ctx context.Context, groupID uuid.UUID) ([
 	return queryAssets(ctx, `SELECT `+assetColumns+` FROM media_assets WHERE group_id = ?`, groupID)
 }
 
-// BatchDeleteAssetRecords 批量删除数据库记录
 func (r *Repository) BatchDeleteAssetRecords(ctx context.Context, assets []*model.MediaAsset) error {
 	if len(assets) == 0 {
 		return nil
@@ -149,7 +142,6 @@ func (r *Repository) GetAllAssets(ctx context.Context) ([]*model.MediaAsset, err
 	return queryAssets(ctx, `SELECT `+assetColumns+` FROM media_assets ORDER BY file_path, id`)
 }
 
-// GetActiveAssets 获取未删除的媒体资产
 func (r *Repository) GetActiveAssets(ctx context.Context) ([]*model.MediaAsset, error) {
 	return queryAssets(ctx, `SELECT `+assetColumns+` FROM media_assets WHERE is_deleted = 0 ORDER BY file_path, id`)
 }
@@ -219,7 +211,6 @@ func checkAssetUpdate(result sql.Result, err error) error {
 	return err
 }
 
-// uuidArgs 把 UUID 列表转为 SQL 参数。
 func uuidArgs(ids []uuid.UUID) []any {
 	args := make([]any, len(ids))
 	for i, id := range ids {

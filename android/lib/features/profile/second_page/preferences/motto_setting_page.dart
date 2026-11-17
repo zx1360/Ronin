@@ -6,7 +6,6 @@ import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/providers/personalization/personalization_providers.dart';
 
-/// 座右铭设置页面
 class MottoSettingPage extends ConsumerStatefulWidget {
   const MottoSettingPage({super.key});
 
@@ -35,7 +34,6 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
     );
   }
 
-  /// 空状态
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -58,7 +56,6 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
     );
   }
 
-  /// 座右铭列表
   Widget _buildMottoList(List<String> mottos) {
     return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -69,7 +66,6 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
     );
   }
 
-  /// 座右铭卡片
   Widget _buildMottoCard(String motto, int index, int total) {
     final isOnlyOne = total == 1;
 
@@ -83,10 +79,8 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 引号图标
               Icon(Icons.format_quote, color: AppTheme.primary, size: 24),
               const SizedBox(width: AppSpacing.sm),
-              // 座右铭文本
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,7 +102,6 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
                   ],
                 ),
               ),
-              // 操作按钮
               PopupMenuButton<String>(
                 onSelected: (value) {
                   if (value == 'edit') {
@@ -157,7 +150,6 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
     );
   }
 
-  /// 显示添加对话框
   Future<void> _showAddDialog() async {
     final savedResult = await showTextInputDialog(
       context,
@@ -181,7 +173,6 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
     }
   }
 
-  /// 显示编辑对话框
   Future<void> _showEditDialog(int index, String currentMotto) async {
     final savedResult = await showTextInputDialog(
       context,
@@ -209,7 +200,6 @@ class _MottoSettingPageState extends ConsumerState<MottoSettingPage> {
     }
   }
 
-  /// 确认删除
   Future<void> _confirmDelete(int index, bool isOnlyOne) async {
     if (isOnlyOne) {
       ScaffoldMessenger.of(

@@ -1,11 +1,3 @@
-"""适配器基类：收敛所有爬虫通用逻辑（配置、稳定性、HTTP、下载）。
-
-四个站点适配器只需继承本类并实现站点特有逻辑：
-    search(name)                       -> list[ComicInfo]
-    get_chapters(detail_url)           -> ComicDetail
-    _fetch_chapter_image_urls(url)     -> (list[str], int)  站点解析图片链接
-download_chapter 在基类中统一实现，站点通常无需覆盖。
-"""
 from __future__ import annotations
 
 import os
@@ -44,9 +36,6 @@ class BaseAdapter:
     # 章节图片总数是否必须完整（True=缺图即失败重试，False=警告后继续）
     strict_expected_total: bool = True
 
-    # ------------------------------------------------------------------
-    # 子类必须实现的接口
-    # ------------------------------------------------------------------
     def search(self, name: str) -> List[ComicInfo]:
         raise NotImplementedError(f"{self.code} 未实现 search()")
 
@@ -56,9 +45,6 @@ class BaseAdapter:
     def _fetch_chapter_image_urls(self, chapter_url: str) -> Tuple[List[str], int]:
         raise NotImplementedError(f"{self.code} 未实现 _fetch_chapter_image_urls()")
 
-    # ------------------------------------------------------------------
-    # 通用实现（站点通常无需覆盖）
-    # ------------------------------------------------------------------
     def download_chapter(self, chapter: ChapterInfo, save_dir: str) -> list[dict]:
         with self.session() as session:
             return download_pages_atomic(
@@ -71,9 +57,6 @@ class BaseAdapter:
                 strict_expected_total=self.strict_expected_total,
             )
 
-    # ------------------------------------------------------------------
-    # 通用工具
-    # ------------------------------------------------------------------
     @cached_property
     def proxy(self) -> str | None:
         key = f"COMIX_{self.code.upper()}_ROUTE"
@@ -150,9 +133,7 @@ class BaseAdapter:
         """随机小睡，降低短时高频请求特征。"""
         random_sleep(1.0, 0.8)
 
-    # ------------------------------------------------------------------
     # 常用辅助
-    # ------------------------------------------------------------------
     def normalize_match(self, candidates: List[ComicInfo], name: str) -> List[ComicInfo]:
         """给搜索候选标注命中方式：标题完全一致为 exact，否则 fuzzy。"""
         import re as _re

@@ -1,8 +1,5 @@
-// 漫画页的纯逻辑：任务结果摘要、失败判定、输入校验、状态映射。
-
 import { taskStatusKind, taskStatusText } from '../../utils.js';
 
-/** 漫画页标签。 */
 export const TABS = [
   { value: 'url', label: '网址下载' },
   { value: 'library', label: '漫画库' },
@@ -26,7 +23,7 @@ export function isBusinessError(task) {
 }
 
 /** 失败语义：进程级失败/中断、业务 ok=false、非零退出码都算失败。 */
-export function taskFailure(task) {
+function taskFailure(task) {
   if (!task) return false;
   const exitCode = task.exit_code;
   return (
@@ -44,7 +41,6 @@ export function comixStatusText(task) {
   return taskStatusText(task.status);
 }
 
-/** 任务状态徽标样式。 */
 export function comixStatusKind(task) {
   if (!task) return '';
   if (isBusinessError(task) && task.status === 'finished') return 'error';
@@ -90,7 +86,6 @@ export function taskSummary(task) {
   return '';
 }
 
-/** 追更检查摘要：逐部给出新增章节/进度/站点不可达。 */
 function updateCheckSummary(reports) {
   const parts = [];
   const details = [];
@@ -214,12 +209,10 @@ const CHAPTER_STATUS = {
   pending: ['', '待下'],
 };
 
-/** 章节状态文案。 */
 export function chapterStatusText(status) {
   return (CHAPTER_STATUS[status] || ['', status || '未知'])[1];
 }
 
-/** 章节状态徽标样式。 */
 export function chapterStatusKind(status) {
   return (CHAPTER_STATUS[status] || [''])[0];
 }

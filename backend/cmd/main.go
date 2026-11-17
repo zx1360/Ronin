@@ -1,8 +1,3 @@
-// Monarch HTTP 服务入口。
-//
-// 同时监听两个端口（LOCAL_PORT HTTPS / LOCAL_HTTP_PORT HTTP），接口完全一致；
-// HTTP 监听带 `X-API-Key` 鉴权。网页运维端在 `/ops/`，与本机能力接口一样
-// 只接受回环地址访问。
 package main
 
 import (
@@ -24,8 +19,7 @@ import (
 )
 
 func main() {
-	// 没有命令行参数；保留 flag.Parse() 让 `-h` 能打印用法并退出
-	// （契约快照脚本 references/scripts/generate_refs.ps1 会采集它）。
+	// 解析 -h 供契约快照采集。
 	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -42,8 +36,7 @@ func run(parent context.Context) error {
 		return err
 	}
 
-	// 运行时可调的 AI 配置.
-	// .env 里的同名项只作为首次初始化的种子值。
+	// .env 提供运行时配置的初始值。
 	store := config.NewConfigStore(
 		filepath.Join(config.AppConf.DataDir, "ai_config.json"), config.AiConf)
 	if err := store.Load(); err != nil {
@@ -63,14 +56,11 @@ func run(parent context.Context) error {
 
 	store.ApplyTo(&config.AiConf)
 
-	// AI 处理层：未启用或 ai schema 缺失时自行降级，不影响主服务启动
 	ai.Default = ai.New(store, config.AiConf)
-	// 任务队列的暂停状态随网页端偏好一起持久化：服务重启后不默认开跑
 	ai.Default.SetPauseStore(opsStore)
 	ai.Default.Start(ctx)
 	defer ai.Default.Stop()
 
-	// 被托管的子进程随服务退出一起中断（任务状态只存在内存里，留着也没人管）
 	defer gallery.Manager.Close()
 	defer comix.Manager.Close()
 
