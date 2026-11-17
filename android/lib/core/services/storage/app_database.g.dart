@@ -1147,6 +1147,17 @@ class TraceSessions extends Table with TableInfo<TraceSessions, TraceSession> {
     requiredDuringInsert: false,
     $customConstraints: '',
   );
+  static const VerificationMeta _anchorWallMsMeta = const VerificationMeta(
+    'anchorWallMs',
+  );
+  late final GeneratedColumn<int> anchorWallMs = GeneratedColumn<int>(
+    'anchor_wall_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints: '',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1161,6 +1172,7 @@ class TraceSessions extends Table with TableInfo<TraceSessions, TraceSession> {
     bootKey,
     anchorElapsedMs,
     anchorDurationMs,
+    anchorWallMs,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1260,6 +1272,15 @@ class TraceSessions extends Table with TableInfo<TraceSessions, TraceSession> {
         ),
       );
     }
+    if (data.containsKey('anchor_wall_ms')) {
+      context.handle(
+        _anchorWallMsMeta,
+        anchorWallMs.isAcceptableOrUnknown(
+          data['anchor_wall_ms']!,
+          _anchorWallMsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1317,6 +1338,10 @@ class TraceSessions extends Table with TableInfo<TraceSessions, TraceSession> {
         DriftSqlType.int,
         data['${effectivePrefix}anchor_duration_ms'],
       ),
+      anchorWallMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}anchor_wall_ms'],
+      ),
     );
   }
 
@@ -1342,6 +1367,7 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
   final String? bootKey;
   final int? anchorElapsedMs;
   final int? anchorDurationMs;
+  final int? anchorWallMs;
   const TraceSession({
     required this.id,
     required this.sceneId,
@@ -1355,6 +1381,7 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
     this.bootKey,
     this.anchorElapsedMs,
     this.anchorDurationMs,
+    this.anchorWallMs,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1380,6 +1407,9 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
     }
     if (!nullToAbsent || anchorDurationMs != null) {
       map['anchor_duration_ms'] = Variable<int>(anchorDurationMs);
+    }
+    if (!nullToAbsent || anchorWallMs != null) {
+      map['anchor_wall_ms'] = Variable<int>(anchorWallMs);
     }
     return map;
   }
@@ -1408,6 +1438,9 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
       anchorDurationMs: anchorDurationMs == null && nullToAbsent
           ? const Value.absent()
           : Value(anchorDurationMs),
+      anchorWallMs: anchorWallMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(anchorWallMs),
     );
   }
 
@@ -1429,6 +1462,7 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
       bootKey: serializer.fromJson<String?>(json['boot_key']),
       anchorElapsedMs: serializer.fromJson<int?>(json['anchor_elapsed_ms']),
       anchorDurationMs: serializer.fromJson<int?>(json['anchor_duration_ms']),
+      anchorWallMs: serializer.fromJson<int?>(json['anchor_wall_ms']),
     );
   }
   @override
@@ -1447,6 +1481,7 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
       'boot_key': serializer.toJson<String?>(bootKey),
       'anchor_elapsed_ms': serializer.toJson<int?>(anchorElapsedMs),
       'anchor_duration_ms': serializer.toJson<int?>(anchorDurationMs),
+      'anchor_wall_ms': serializer.toJson<int?>(anchorWallMs),
     };
   }
 
@@ -1463,6 +1498,7 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
     Value<String?> bootKey = const Value.absent(),
     Value<int?> anchorElapsedMs = const Value.absent(),
     Value<int?> anchorDurationMs = const Value.absent(),
+    Value<int?> anchorWallMs = const Value.absent(),
   }) => TraceSession(
     id: id ?? this.id,
     sceneId: sceneId ?? this.sceneId,
@@ -1480,6 +1516,7 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
     anchorDurationMs: anchorDurationMs.present
         ? anchorDurationMs.value
         : this.anchorDurationMs,
+    anchorWallMs: anchorWallMs.present ? anchorWallMs.value : this.anchorWallMs,
   );
   TraceSession copyWithCompanion(TraceSessionsCompanion data) {
     return TraceSession(
@@ -1501,6 +1538,9 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
       anchorDurationMs: data.anchorDurationMs.present
           ? data.anchorDurationMs.value
           : this.anchorDurationMs,
+      anchorWallMs: data.anchorWallMs.present
+          ? data.anchorWallMs.value
+          : this.anchorWallMs,
     );
   }
 
@@ -1518,7 +1558,8 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
           ..write('version: $version, ')
           ..write('bootKey: $bootKey, ')
           ..write('anchorElapsedMs: $anchorElapsedMs, ')
-          ..write('anchorDurationMs: $anchorDurationMs')
+          ..write('anchorDurationMs: $anchorDurationMs, ')
+          ..write('anchorWallMs: $anchorWallMs')
           ..write(')'))
         .toString();
   }
@@ -1537,6 +1578,7 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
     bootKey,
     anchorElapsedMs,
     anchorDurationMs,
+    anchorWallMs,
   );
   @override
   bool operator ==(Object other) =>
@@ -1553,7 +1595,8 @@ class TraceSession extends DataClass implements Insertable<TraceSession> {
           other.version == this.version &&
           other.bootKey == this.bootKey &&
           other.anchorElapsedMs == this.anchorElapsedMs &&
-          other.anchorDurationMs == this.anchorDurationMs);
+          other.anchorDurationMs == this.anchorDurationMs &&
+          other.anchorWallMs == this.anchorWallMs);
 }
 
 class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
@@ -1569,6 +1612,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
   final Value<String?> bootKey;
   final Value<int?> anchorElapsedMs;
   final Value<int?> anchorDurationMs;
+  final Value<int?> anchorWallMs;
   final Value<int> rowid;
   const TraceSessionsCompanion({
     this.id = const Value.absent(),
@@ -1583,6 +1627,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
     this.bootKey = const Value.absent(),
     this.anchorElapsedMs = const Value.absent(),
     this.anchorDurationMs = const Value.absent(),
+    this.anchorWallMs = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TraceSessionsCompanion.insert({
@@ -1598,6 +1643,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
     this.bootKey = const Value.absent(),
     this.anchorElapsedMs = const Value.absent(),
     this.anchorDurationMs = const Value.absent(),
+    this.anchorWallMs = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        sceneId = Value(sceneId),
@@ -1616,6 +1662,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
     Expression<String>? bootKey,
     Expression<int>? anchorElapsedMs,
     Expression<int>? anchorDurationMs,
+    Expression<int>? anchorWallMs,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1631,6 +1678,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
       if (bootKey != null) 'boot_key': bootKey,
       if (anchorElapsedMs != null) 'anchor_elapsed_ms': anchorElapsedMs,
       if (anchorDurationMs != null) 'anchor_duration_ms': anchorDurationMs,
+      if (anchorWallMs != null) 'anchor_wall_ms': anchorWallMs,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1648,6 +1696,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
     Value<String?>? bootKey,
     Value<int?>? anchorElapsedMs,
     Value<int?>? anchorDurationMs,
+    Value<int?>? anchorWallMs,
     Value<int>? rowid,
   }) {
     return TraceSessionsCompanion(
@@ -1663,6 +1712,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
       bootKey: bootKey ?? this.bootKey,
       anchorElapsedMs: anchorElapsedMs ?? this.anchorElapsedMs,
       anchorDurationMs: anchorDurationMs ?? this.anchorDurationMs,
+      anchorWallMs: anchorWallMs ?? this.anchorWallMs,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1706,6 +1756,9 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
     if (anchorDurationMs.present) {
       map['anchor_duration_ms'] = Variable<int>(anchorDurationMs.value);
     }
+    if (anchorWallMs.present) {
+      map['anchor_wall_ms'] = Variable<int>(anchorWallMs.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1727,6 +1780,7 @@ class TraceSessionsCompanion extends UpdateCompanion<TraceSession> {
           ..write('bootKey: $bootKey, ')
           ..write('anchorElapsedMs: $anchorElapsedMs, ')
           ..write('anchorDurationMs: $anchorDurationMs, ')
+          ..write('anchorWallMs: $anchorWallMs, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();

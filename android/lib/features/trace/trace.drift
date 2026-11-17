@@ -33,7 +33,8 @@ CREATE TABLE trace_sessions (
   version INTEGER NOT NULL,
   boot_key TEXT,
   anchor_elapsed_ms INTEGER,
-  anchor_duration_ms INTEGER
+  anchor_duration_ms INTEGER,
+  anchor_wall_ms INTEGER
 );
 
 CREATE INDEX trace_sessions_running ON trace_sessions (scene_id)

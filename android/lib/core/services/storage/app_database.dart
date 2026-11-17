@@ -40,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -64,6 +64,8 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createTable(traceSessions);
         await migrator.createIndex(traceSessionsRunning);
         await _seedTraceScenes();
+      } else if (from < 3) {
+        await migrator.addColumn(traceSessions, traceSessions.anchorWallMs);
       }
     }),
     beforeOpen: (_) => customStatement('PRAGMA foreign_keys = ON'),

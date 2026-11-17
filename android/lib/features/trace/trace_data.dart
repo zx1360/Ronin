@@ -1,6 +1,11 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
+
+typedef TraceDetails = ({String? itemId, Set<String> tagIds, String note});
+
+const emptyTraceDetails = (itemId: null, tagIds: <String>{}, note: '');
 
 class TraceData {
   TraceData(this.scenes, this.items, this.tags, this.sessions);
@@ -13,10 +18,11 @@ class TraceData {
   late final sceneById = {for (final scene in scenes) scene.id: scene};
   late final itemById = {for (final item in items) item.id: item};
   late final tagById = {for (final tag in tags) tag.id: tag};
-  late final tagIdsBySession = {
-    for (final session in sessions)
-      session.id: decodeTraceTags(session.tagIdsJson),
-  };
+  final _tagsBySession = <String, Set<String>>{};
+  Set<String> tagsFor(TraceSession session) => _tagsBySession.putIfAbsent(
+    session.id,
+    () => decodeTraceTags(session.tagIdsJson),
+  );
   late final active = sessions
       .where((s) => s.endedMs == null && !s.deleted)
       .toList();
@@ -92,9 +98,7 @@ class TraceData {
           !data.sceneById.containsKey(session.sceneId) ||
           (session.itemId != null &&
               data.itemById[session.itemId]?.sceneId != session.sceneId) ||
-          data.tagIdsBySession[session.id]!.any(
-            (id) => !data.tagById.containsKey(id),
-          )) {
+          data.tagsFor(session).any((id) => !data.tagById.containsKey(id))) {
         throw const FormatException('时迹备份包含无效计时记录');
       }
     }
@@ -113,7 +117,17 @@ class TraceData {
       {...row}
         ..remove('boot_key')
         ..remove('anchor_elapsed_ms')
-        ..remove('anchor_duration_ms');
+        ..remove('anchor_duration_ms')
+        ..remove('anchor_wall_ms');
+}
+
+extension TraceSessionClock on TraceSession {
+  TraceSession withClockOf(TraceSession? source) => copyWith(
+    bootKey: Value(source?.bootKey),
+    anchorElapsedMs: Value(source?.anchorElapsedMs),
+    anchorDurationMs: Value(source?.anchorDurationMs),
+    anchorWallMs: Value(source?.anchorWallMs),
+  );
 }
 
 Set<String> decodeTraceTags(String value) =>

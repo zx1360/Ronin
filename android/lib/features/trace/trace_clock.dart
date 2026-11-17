@@ -43,6 +43,10 @@ class TraceClock {
           elapsedMs! -
           session.anchorElapsedMs!;
     }
-    return math.max(session.anchorDurationMs ?? 0, wallMs - session.startedMs);
+    final anchorWall = session.anchorWallMs;
+    final previous = session.anchorDurationMs ?? 0;
+    return anchorWall == null
+        ? math.max(previous, wallMs - session.startedMs)
+        : previous + math.max(0, wallMs - anchorWall);
   }
 }
