@@ -57,3 +57,8 @@ backend/backups/
 
 # 隔离验收运行目录
 .acceptance-*/
+
+/.optimization-check-*/
+/.refactor-check/
+/cert/
+/comic_index.json
