@@ -8,7 +8,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:torrid/core/services/storage/storage_types.dart';
 import 'package:torrid/features/essay/models/label.dart';
-import 'package:torrid/features/trace/trace_defaults.dart';
 
 part 'app_database.g.dart';
 
@@ -40,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -54,7 +53,6 @@ class AppDatabase extends _$AppDatabase {
           updatedAt: DateTime.fromMillisecondsSinceEpoch(1, isUtc: true),
         ),
       );
-      await _seedTraceScenes();
     }),
     onUpgrade: (migrator, from, to) => transaction(() async {
       if (from < 2) {
@@ -63,26 +61,27 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createTable(traceTags);
         await migrator.createTable(traceSessions);
         await migrator.createIndex(traceSessionsRunning);
-        await _seedTraceScenes();
-      } else if (from < 3) {
-        await migrator.addColumn(traceSessions, traceSessions.anchorWallMs);
+      } else {
+        if (from < 3) {
+          await migrator.addColumn(traceSessions, traceSessions.anchorWallMs);
+        }
+        if (from < 4) {
+          await migrator.alterTable(
+            TableMigration(
+              traceScenes,
+              newColumns: [traceScenes.deletion],
+              columnTransformer: {
+                traceScenes.color: const CustomExpression<String>(
+                  "printf('#%06X', color & 16777215)",
+                ),
+              },
+            ),
+          );
+        }
       }
     }),
     beforeOpen: (_) => customStatement('PRAGMA foreign_keys = ON'),
   );
-
-  Future<void> _seedTraceScenes() => batch((batch) {
-    batch.insertAll(traceScenes, [
-      for (final (index, name) in traceSceneNames.indexed)
-        TraceScene(
-          id: '00000000-0000-4000-8000-00000000000$index',
-          name: name,
-          color: traceColors[index],
-          archived: false,
-          version: 0,
-        ),
-    ]);
-  });
 
   Future<void> initialize() async {
     await customSelect('SELECT 1').getSingle();

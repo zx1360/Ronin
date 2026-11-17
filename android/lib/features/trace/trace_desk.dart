@@ -132,8 +132,10 @@ class _TraceDeskState extends State<TraceDesk> {
   Widget build(BuildContext context) {
     final data = widget.data;
     final activeIds = data.active.map((s) => s.sceneId).toSet();
-    final scenes = data.scenes.where((s) => !s.archived).toList();
-    final recent = data.history.firstOrNull;
+    final scenes = data.catalogScenes.where((s) => !s.archived).toList();
+    final recent = data.history
+        .where((row) => data.sceneById[row.sceneId]?.deletion == null)
+        .firstOrNull;
     final recentScene = data.sceneById[recent?.sceneId];
     final item = data.itemById[recent?.itemId];
     final recentItem = item?.archived == false ? item : null;
@@ -166,7 +168,7 @@ class _TraceDeskState extends State<TraceDesk> {
                   child: Row(
                     spacing: 10,
                     children: [
-                      TraceDot(recentScene.color),
+                      TraceDot(traceSceneColor(recentScene.color)),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,7 +291,7 @@ class _SceneTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    TraceDot(scene.color, size: 8),
+                    TraceDot(traceSceneColor(scene.color), size: 8),
                     const SizedBox(height: 6),
                     Text(
                       scene.name,
@@ -627,7 +629,7 @@ class _RunningCard extends StatelessWidget {
           Row(
             spacing: 7,
             children: [
-              const TraceDot(0xffe2bd84),
+              const TraceDot(Color(0xffe2bd84)),
               Expanded(
                 child: Text(
                   item == null ? scene.name : '${scene.name} · $item',

@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import 'trace_clock.dart';
 import 'trace_data.dart';
+import 'trace_scene.dart';
 
 final traceStoreProvider = Provider(
   (ref) => TraceStore(ref.watch(appDatabaseProvider)),
@@ -63,31 +64,35 @@ class TraceStore {
       db.select(db.traceSessions)
         ..where((s) => s.endedMs.isNull() & s.deleted.equals(false));
 
-  Future<List<TraceSession>> running({bool importedOnly = false}) =>
-      (_running()
-            ..where(
-              (s) => importedOnly
-                  ? s.anchorDurationMs.isNull()
-                  : const Constant(true),
-            )
-            ..orderBy([(s) => OrderingTerm.asc(s.startedMs)]))
-          .get();
+  Future<List<TraceSession>> running({bool importedOnly = false}) {
+    final query = _running()..orderBy([(s) => OrderingTerm.asc(s.startedMs)]);
+    if (importedOnly) {
+      final removed = db.selectOnly(db.traceScenes)
+        ..addColumns([db.traceScenes.id])
+        ..where(db.traceScenes.deletion.isNotNull());
+      query.where(
+        (s) => s.anchorDurationMs.isNull() | s.sceneId.isInQuery(removed),
+      );
+    }
+    return query.get();
+  }
 
-  Future<String> sceneName(String id) async => (await (db.select(
-    db.traceScenes,
-  )..where((s) => s.id.equals(id))).getSingle()).name;
+  Future<TraceScene> sceneById(String id) =>
+      (db.select(db.traceScenes)..where((s) => s.id.equals(id))).getSingle();
 
   Future<TraceScene> saveScene({
     TraceScene? scene,
     required String name,
-    required int color,
+    required String color,
     bool? archived,
   }) {
     final table = db.traceScenes;
+    final canonicalColor = traceColorHex(color);
+    if (canonicalColor == null) throw ArgumentError('请输入有效的六位颜色值');
     final row = TraceScene(
       id: scene?.id ?? _uuid.v4(),
       name: _name(name),
-      color: color,
+      color: canonicalColor,
       archived: archived ?? scene?.archived ?? false,
       version: _nextVersion(scene?.version),
     );
@@ -96,20 +101,55 @@ class TraceStore {
       row,
       scene == null
           ? null
-          : table.id.equals(scene.id) & table.version.equals(scene.version),
+          : table.id.equals(scene.id) &
+                table.version.equals(scene.version) &
+                table.deletion.isNull(),
     );
     if (archived != true) return write();
     return db.transaction(() async {
-      if (await (_running()
-                ..where((s) => s.sceneId.equals(row.id))
-                ..limit(1))
-              .getSingleOrNull() !=
-          null) {
-        throw StateError('请先结束这个场景的计时');
-      }
+      await _ensureSceneIdle(row.id);
       return write();
     });
   }
+
+  Future<void> deleteScene(TraceScene scene, TraceSceneDeletion mode) =>
+      db.transaction(() async {
+        await _ensureSceneIdle(scene.id);
+        final table = db.traceScenes;
+        await _writeCatalog(
+          table,
+          scene.copyWith(
+            archived: true,
+            deletion: Value(mode.name),
+            version: _nextVersion(scene.version),
+          ),
+          table.id.equals(scene.id) &
+              table.version.equals(scene.version) &
+              table.deletion.isNull(),
+        );
+        if (mode == TraceSceneDeletion.erase) await _eraseDeletedSceneRecords();
+      });
+
+  Future<void> _ensureSceneIdle(String sceneId) async {
+    if (await (_running()
+              ..where((s) => s.sceneId.equals(sceneId))
+              ..limit(1))
+            .getSingleOrNull() !=
+        null) {
+      throw StateError('请先结束这个场景的计时');
+    }
+  }
+
+  Future<int> _eraseDeletedSceneRecords() => db.customUpdate(
+    """UPDATE trace_sessions SET deleted = 1, note = '', item_id = NULL,
+        tag_ids_json = '[]', ended_ms = started_ms,
+        boot_key = NULL, anchor_elapsed_ms = NULL, anchor_duration_ms = NULL,
+        anchor_wall_ms = NULL, version = MAX(version + 1, ?)
+      WHERE deleted = 0 AND scene_id IN (SELECT id FROM trace_scenes WHERE deletion = 'erase')""",
+    variables: [Variable<int>(_nextVersion(null))],
+    updates: {db.traceSessions},
+    updateKind: UpdateKind.update,
+  );
 
   Future<TraceItem> saveItem(
     String sceneId,
@@ -125,13 +165,18 @@ class TraceStore {
       archived: archived ?? item?.archived ?? false,
       version: _nextVersion(item?.version),
     );
-    return _writeCatalog(
-      table,
-      row,
-      item == null
-          ? null
-          : table.id.equals(item.id) & table.version.equals(item.version),
-    );
+    return db.transaction(() async {
+      if ((await sceneById(row.sceneId)).deletion != null) {
+        throw StateError('场景已删除');
+      }
+      return _writeCatalog(
+        table,
+        row,
+        item == null
+            ? null
+            : table.id.equals(item.id) & table.version.equals(item.version),
+      );
+    });
   }
 
   Future<TraceTag> saveTag(String name, {TraceTag? tag, bool? archived}) {
@@ -177,10 +222,14 @@ class TraceStore {
     final clock = await readClock();
     return db.transaction(() async {
       final available =
-          await (db.select(db.traceScenes)
-                ..where((s) => s.id.equals(sceneId) & s.archived.equals(false)))
+          await (db.select(db.traceScenes)..where(
+                (s) =>
+                    s.id.equals(sceneId) &
+                    s.archived.equals(false) &
+                    s.deletion.isNull(),
+              ))
               .getSingleOrNull();
-      if (available == null) throw StateError('场景已归档');
+      if (available == null) throw StateError('场景已归档或删除');
       if (await (_running()
                 ..where((s) => s.sceneId.equals(sceneId))
                 ..limit(1))
@@ -211,16 +260,17 @@ class TraceStore {
 
   Future<TraceSession> resume(TraceSession session, {int? durationMs}) async {
     final clock = await readClock();
-    return _updateSession(
-      session,
-      (current) => current.copyWith(
+    return _updateSession(session, (current) async {
+      if ((await sceneById(current.sceneId)).deletion != null) {
+        throw StateError('场景已删除，请结束或丢弃这次计时');
+      }
+      return current.copyWith(
         bootKey: Value(clock.bootKey),
         anchorElapsedMs: Value(clock.elapsedMs),
         anchorDurationMs: Value(durationMs ?? clock.durationMs(current)),
         anchorWallMs: Value(clock.wallMs),
-      ),
-      runningOnly: true,
-    );
+      );
+    }, runningOnly: true);
   }
 
   Future<TraceSession> stop(TraceSession session) async {
@@ -380,6 +430,11 @@ class TraceStore {
           remote.scenes,
           (row) => row.id,
           (row) => row.version,
+          priority: (row) => switch (row.deletion) {
+            'erase' => 2,
+            'keep' => 1,
+            _ => 0,
+          },
         ),
         merge(
           db.traceItems,
@@ -419,6 +474,9 @@ class TraceStore {
         ),
       );
     });
+    if (await _eraseDeletedSceneRecords() > 0) {
+      return _read(includeDeleted: true);
+    }
     return upload ? snapshot : null;
   });
 

@@ -5,7 +5,8 @@ import 'package:torrid/core/services/storage/app_database.dart';
 import 'package:torrid/core/widgets/async_value_widget/async_value_widget.dart';
 
 import 'trace_data.dart';
-import 'trace_defaults.dart';
+import 'trace_color_picker.dart';
+import 'trace_scene.dart';
 import 'trace_store.dart';
 import 'trace_timing.dart';
 import 'trace_ui.dart';
@@ -38,11 +39,15 @@ class TraceCatalogPage extends ConsumerWidget {
                 empty: '添加常用场景，在计时页快速开始。',
                 add: () => _editScene(context, store),
                 archived: [
-                  for (final scene in data.scenes.where((s) => s.archived))
+                  for (final scene in data.catalogScenes.where(
+                    (s) => s.archived,
+                  ))
                     _sceneRow(context, data, scene),
                 ],
                 children: [
-                  for (final scene in data.scenes.where((s) => !s.archived))
+                  for (final scene in data.catalogScenes.where(
+                    (s) => !s.archived,
+                  ))
                     _sceneRow(context, data, scene),
                 ],
               ),
@@ -69,7 +74,7 @@ class TraceCatalogPage extends ConsumerWidget {
 
   Widget _sceneRow(BuildContext context, TraceData data, TraceScene scene) =>
       ListTile(
-        leading: TraceDot(scene.color, size: 12),
+        leading: TraceDot(traceSceneColor(scene.color), size: 12),
         title: Text(scene.name),
         subtitle: Text(
           '${data.itemsIn(scene.id).where((i) => !i.archived).length} 个事项',
@@ -117,7 +122,8 @@ class _SceneCatalog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final watch = ref.watch(traceDataProvider);
     final store = ref.watch(traceStoreProvider);
-    final scene = watch.value?.sceneById[sceneId];
+    final current = watch.value?.sceneById[sceneId];
+    final scene = current?.deletion == null ? current : null;
     return Scaffold(
       appBar: AppBar(
         title: Text(scene?.name ?? '场景'),
@@ -134,6 +140,22 @@ class _SceneCatalog extends ConsumerWidget {
                 PopupMenuItem(
                   onTap: () => _toggleScene(context, store, scene),
                   child: Text(scene.archived ? '恢复场景' : '归档场景'),
+                ),
+                PopupMenuItem(
+                  onTap: () => _deleteScene(
+                    context,
+                    store,
+                    scene,
+                    watch.value!.history
+                        .where((row) => row.sceneId == scene.id)
+                        .length,
+                  ),
+                  child: Text(
+                    '删除场景',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -166,7 +188,7 @@ class _SceneCatalog extends ConsumerWidget {
               child: Row(
                 spacing: 9,
                 children: [
-                  TraceDot(scene.color),
+                  TraceDot(traceSceneColor(scene.color)),
                   Expanded(child: Text(scene.archived ? '已归档' : '累计投入')),
                   Text(
                     traceDuration(data.totals.scenes[scene.id] ?? 0),
@@ -227,6 +249,55 @@ class _SceneCatalog extends ConsumerWidget {
       );
     }
   }
+
+  Future<void> _deleteScene(
+    BuildContext context,
+    TraceStore store,
+    TraceScene scene,
+    int count,
+  ) async {
+    final TraceSceneDeletion? mode;
+    if (count == 0) {
+      final confirmed = await confirmTraceDiscard(
+        context,
+        '删除「${scene.name}」？',
+        '删除后无法恢复此场景。',
+        action: '删除场景',
+      );
+      mode = confirmed ? TraceSceneDeletion.keep : null;
+    } else {
+      mode = await showDialog<TraceSceneDeletion>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('删除「${scene.name}」？'),
+          content: Text('此场景有 $count 条历史记录。可归入「其他」，也可和场景一起永久删除。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, TraceSceneDeletion.erase),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('删除场景和记录'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, TraceSceneDeletion.keep),
+              child: const Text('记录归入「其他」'),
+            ),
+          ],
+        ),
+      );
+    }
+    final selection = mode;
+    if (!context.mounted || selection == null) return;
+    await traceAction(context, () async {
+      await store.deleteScene(scene, selection);
+      if (context.mounted) Navigator.pop(context);
+    });
+  }
 }
 
 Future<bool> _confirmArchive(BuildContext context, String name) =>
@@ -285,6 +356,7 @@ class _CatalogList extends StatelessWidget {
           child: TracePanel(
             padding: EdgeInsets.zero,
             child: ExpansionTile(
+              key: const PageStorageKey('trace-archived-expanded'),
               title: Text('已归档（${archived.length}）'),
               shape: const Border(),
               collapsedShape: const Border(),
@@ -352,7 +424,7 @@ class _SceneDialog extends StatefulWidget {
 
 class _SceneDialogState extends State<_SceneDialog> {
   late final _name = TextEditingController(text: widget.scene?.name);
-  late int _color = widget.scene?.color ?? traceColors.first;
+  late String _color = widget.scene?.color ?? traceDefaultColor;
   bool _saving = false;
   String? _error;
 
@@ -397,25 +469,19 @@ class _SceneDialogState extends State<_SceneDialog> {
           autofocus: true,
           enabled: !_saving,
         ),
-        const Text('场景颜色'),
-        Wrap(
-          spacing: 7,
-          children: [
-            for (final (index, color) in traceColors.indexed)
-              IconButton.filled(
-                tooltip: const ['陶土', '鸢尾', '松绿', '雾蓝', '莓红', '麦金'][index],
-                style: IconButton.styleFrom(
-                  backgroundColor: Color(color),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: _saving
-                    ? null
-                    : () => setState(() => _color = color),
-                icon: _color == color
-                    ? const Icon(Icons.check)
-                    : const SizedBox.shrink(),
-              ),
-          ],
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: TraceDot(traceSceneColor(_color), size: 24),
+          title: const Text('场景颜色'),
+          subtitle: Text(_color),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: _saving
+              ? null
+              : () async {
+                  FocusScope.of(context).unfocus();
+                  final color = await pickTraceColor(context, _color);
+                  if (mounted && color != null) setState(() => _color = color);
+                },
         ),
         if (_error case final error?)
           Text(

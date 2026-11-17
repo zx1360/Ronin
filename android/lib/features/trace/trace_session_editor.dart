@@ -51,6 +51,7 @@ class _EditorState extends ConsumerState<_Editor> {
   });
 
   Future<void> _pickItem(TraceData data, TraceStore store) async {
+    final editableCatalog = data.sceneById[widget.sceneId]?.deletion == null;
     final choices = data
         .itemsIn(widget.sceneId)
         .where((item) => !item.archived || item.id == _item);
@@ -84,15 +85,16 @@ class _EditorState extends ConsumerState<_Editor> {
                 ],
               ),
             ),
-            SafeArea(
-              top: false,
-              minimum: const EdgeInsets.all(12),
-              child: TextButton.icon(
-                onPressed: () => Navigator.pop(context, '+'),
-                icon: const Icon(Icons.add),
-                label: const Text('新建事项'),
+            if (editableCatalog)
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.all(12),
+                child: TextButton.icon(
+                  onPressed: () => Navigator.pop(context, '+'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('新建事项'),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -187,6 +189,10 @@ class _EditorState extends ConsumerState<_Editor> {
     final data = watch.value;
     final store = ref.watch(traceStoreProvider);
     final scene = data?.sceneById[widget.sceneId];
+    final titleScene = scene == null || _starting
+        ? scene
+        : data!.historySceneFor(scene.id);
+    final unavailable = scene?.archived == true || scene?.deletion != null;
     final theme = Theme.of(context);
     return PopScope<TraceSession>(
       canPop: !_dirty && !_busy,
@@ -224,7 +230,7 @@ class _EditorState extends ConsumerState<_Editor> {
         bottomNavigationBar: SafeArea(
           minimum: const EdgeInsets.fromLTRB(20, 8, 20, 14),
           child: FilledButton.icon(
-            onPressed: _busy || scene == null || (_starting && scene.archived)
+            onPressed: _busy || scene == null || (_starting && unavailable)
                 ? null
                 : () => _save(store),
             icon: Icon(
@@ -262,10 +268,10 @@ class _EditorState extends ConsumerState<_Editor> {
                         Row(
                           spacing: 9,
                           children: [
-                            TraceDot(scene.color),
+                            TraceDot(traceSceneColor(titleScene!.color)),
                             Expanded(
                               child: Text(
-                                scene.name,
+                                titleScene.name,
                                 style: theme.textTheme.headlineSmall,
                               ),
                             ),
@@ -302,10 +308,10 @@ class _EditorState extends ConsumerState<_Editor> {
                       ],
                     ),
                   ),
-                  if (_starting && scene.archived)
+                  if (_starting && unavailable)
                     const Padding(
                       padding: EdgeInsets.only(top: 8),
-                      child: Text('场景已归档，可在管理页恢复。'),
+                      child: Text('该场景当前无法开始计时。'),
                     ),
                   const SizedBox(height: 16),
                   TracePanel(

@@ -33,7 +33,8 @@ class TraceReport {
     final rows = <({TraceSession session, int duration, DateTime day})>[];
     var total = 0;
     for (final session in data.history) {
-      if ((filters.scene != null && session.sceneId != filters.scene) ||
+      final sceneId = data.historySceneFor(session.sceneId).id;
+      if ((filters.scene != null && sceneId != filters.scene) ||
           (filters.item != null &&
               (session.itemId ?? traceNoItem) != filters.item) ||
           (filters.tag != null &&
@@ -54,7 +55,7 @@ class TraceReport {
         day: traceDay(traceDate(math.max(from ?? start, start))),
       ));
       final key = filters.scene == null
-          ? session.sceneId
+          ? sceneId
           : session.itemId ?? traceNoItem;
       distribution.update(
         key,

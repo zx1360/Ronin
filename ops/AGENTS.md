@@ -1,15 +1,8 @@
 # Northstar
 
-`web/` 使用 Vue SFC + JavaScript + Vite；`web/dist/` 由 Monarch 在 `/ops/` 托管，仅回环可访问。构建使用 npm 锁文件，正式运行无需 Node 或 CDN。
-架构见 `../docs/architecture/northstar.md`。
+`web/` 是 Vue SFC + Vite 源码。Monarch 将 `web/dist/` 挂载在 `/ops/`，网页及 `/API/ops/local/*` 仅允许回环访问。Northstar 负责本机随笔、打卡和后端运维，数据写入及本机进程由 Monarch 处理。
 
-- `src/App.vue`：hash 路由/导航；`api.js`：同源请求与 `assetUrl`；`store.js`：引导/偏好/通知/确认；`components/*.vue`：共享组件；`composables.js`：`usePolling` 与离开守卫。
-- 页面在 `src/pages/`，复杂标签页拆到同名目录；模板所需派生值在 setup 中计算，界面使用中文。
-- 启动只调用一次 `/API/ops/local/bootstrap` 获取密钥、偏好和路径。密钥只放内存，图片用 `assetUrl`；不写 localStorage/cookie。
-- 偏好由服务端 `ops_web.json` 持有，沿用 snake_case 字段，通过 `saveSettings` 局部更新。
-- 破坏性操作使用 `confirmAction`（遵守用户关闭确认的偏好）；HTTP 错误、`ok:false`、空数据须有可读反馈。
-- 任务、日志、AI 页仅在有活动时轮询；仪表盘按偏好刷新。统一用 `usePolling`，卸载后不得续期或发起请求。
-- booklet/essay 复用 user-data 增量协议；随笔草稿及图片仅存浏览器 IndexedDB，正式原文保留至保存成功。
-- 大列表分页/加载更多；分组默认折叠，展开后才挂载缩略图；表头吸顶与滚动样式复用 `assets/app.css`。
-- API 真源在后端，按 `../backend/references/generated/api/routes.md` 定位处理函数核对结构。
-- 根目录执行 `pwsh -File verify.ps1 -Scope ops -OpsBase http://127.0.0.1:<隔离端口>`；不传地址只构建和测试。开发可在 `web/` 执行 `npm run watch`，仍通过 Monarch 访问。
+- 页面在 `web/src/pages/`；同源请求和媒体地址复用 `api.js`，偏好及破坏性操作确认复用 `store.js`。启动时从 `/API/ops/local/bootstrap` 获取密钥，仅在内存中保存。
+- 随笔和打卡沿用 user-data 增量协议。随笔草稿及其图片存于浏览器 IndexedDB，正式原文保留至保存成功。
+- 使用 `usePolling`，离开页面后停止续期。任务、日志和 AI 页面仅按活动状态轮询，仪表盘按偏好刷新。
+- API 真源在 `../backend/internal/router/`。在仓库根目录运行 `pwsh -File verify.ps1 -Scope ops`，浏览器验收通过 `-OpsBase` 指定隔离实例。

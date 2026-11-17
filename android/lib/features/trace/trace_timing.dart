@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
 
+import 'trace_scene.dart';
 import 'trace_store.dart';
 import 'trace_ui.dart';
 
@@ -241,7 +242,7 @@ Future<bool> recoverTrace(
   final clock = await store.readClock();
   var changed = false;
   for (final (index, session) in sessions.indexed) {
-    final name = await store.sceneName(session.sceneId);
+    final scene = await store.sceneById(session.sceneId);
     if (!context.mounted) return changed;
     final updated = await showDialog<bool>(
       context: context,
@@ -251,7 +252,8 @@ Future<bool> recoverTrace(
         child: _RecoveryDialog(
           store: store,
           session: session,
-          name: name,
+          name: scene.deletion == null ? scene.name : traceOtherSceneName,
+          canResume: scene.deletion == null,
           suggestedMs: clock.durationMs(session),
           estimated: !clock.matches(session),
           position: sessions.length == 1
@@ -270,6 +272,7 @@ class _RecoveryDialog extends StatefulWidget {
     required this.store,
     required this.session,
     required this.name,
+    required this.canResume,
     required this.suggestedMs,
     required this.estimated,
     this.position,
@@ -278,6 +281,7 @@ class _RecoveryDialog extends StatefulWidget {
   final TraceStore store;
   final TraceSession session;
   final String name;
+  final bool canResume;
   final int suggestedMs;
   final bool estimated;
   final String? position;
@@ -395,19 +399,21 @@ class _RecoveryDialogState extends State<_RecoveryDialog> {
                   : () => _commit(() => widget.store.finish(_session, _ms)),
               child: const Text('结束并保存'),
             ),
-            const SizedBox(height: 6),
-            OutlinedButton(
-              onPressed: _busy
-                  ? null
-                  : () => _commit(
-                      () => widget.store.resume(
-                        _session,
-                        durationMs: _ms == widget.suggestedMs ? null : _ms,
+            if (widget.canResume) ...[
+              const SizedBox(height: 6),
+              OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () => _commit(
+                        () => widget.store.resume(
+                          _session,
+                          durationMs: _ms == widget.suggestedMs ? null : _ms,
+                        ),
+                        changed: false,
                       ),
-                      changed: false,
-                    ),
-              child: const Text('继续计时'),
-            ),
+                child: const Text('继续计时'),
+              ),
+            ],
             Wrap(
               alignment: WrapAlignment.spaceBetween,
               children: [

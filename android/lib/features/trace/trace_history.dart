@@ -6,6 +6,7 @@ import 'package:torrid/core/services/storage/app_database.dart';
 
 import 'trace_data.dart';
 import 'trace_report.dart';
+import 'trace_scene.dart';
 import 'trace_session_editor.dart';
 import 'trace_timing.dart';
 import 'trace_ui.dart';
@@ -32,6 +33,32 @@ class _TraceHistoryState extends State<TraceHistory>
 
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void didUpdateWidget(covariant TraceHistory oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final data = widget.data;
+    if (identical(oldWidget.data, data)) return;
+    var sceneId = _filters.scene;
+    if (data.sceneById[sceneId]?.deletion == TraceSceneDeletion.keep.name) {
+      sceneId = traceOtherSceneId;
+    }
+    if (sceneId != null &&
+        !data.historyScenes.any((scene) => scene.id == sceneId)) {
+      sceneId = null;
+    }
+    final itemId = _filters.item;
+    _filters = (
+      scene: sceneId,
+      item:
+          itemId == null ||
+              itemId == traceNoItem ||
+              data.historyItemsIn(sceneId).any((item) => item.id == itemId)
+          ? itemId
+          : null,
+      tag: _filters.tag,
+    );
+  }
 
   void _setFilters(TraceFilters filters) => setState(() {
     _filters = filters;
@@ -98,7 +125,7 @@ class _TraceHistoryState extends State<TraceHistory>
     };
     final report = TraceReport.build(data, range, _filters, today);
     final labelDate = DateFormat('yyyy.MM.dd');
-    final scene = data.sceneById[_filters.scene];
+    final scene = data.historySceneById(_filters.scene);
     final item = data.itemById[_filters.item];
     final tag = data.tagById[_filters.tag];
     final distribution = _expanded
@@ -242,10 +269,11 @@ class _TraceHistoryState extends State<TraceHistory>
                       for (final row in distribution)
                         _DistributionRow(
                           label: scene == null
-                              ? data.sceneById[row.key]!.name
+                              ? data.historySceneById(row.key)!.name
                               : data.itemById[row.key]?.name ?? '仅场景',
-                          color: Color(
-                            scene?.color ?? data.sceneById[row.key]!.color,
+                          color: traceSceneColor(
+                            scene?.color ??
+                                data.historySceneById(row.key)!.color,
                           ),
                           duration: row.value,
                           total: report.total,
@@ -347,7 +375,7 @@ class _FilterSheetState extends State<_FilterSheet> {
   Widget build(BuildContext context) {
     final data = widget.data;
     final scene = _current.scene;
-    final items = scene == null ? data.items : data.itemsIn(scene);
+    final items = data.historyItemsIn(scene);
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -362,7 +390,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               '场景',
               scene,
               {
-                for (final s in data.scenes)
+                for (final s in data.historyScenes)
                   s.id: '${s.name}${s.archived ? '（已归档）' : ''}',
               },
               (id) => setState(
@@ -377,7 +405,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                 traceNoItem: '仅场景',
                 for (final i in items)
                   i.id:
-                      '${scene == null ? '${data.sceneById[i.sceneId]?.name} · ' : ''}${i.name}',
+                      '${scene == null ? '${data.historySceneFor(i.sceneId).name} · ' : ''}${i.name}',
               },
               (id) => setState(
                 () => _current = (scene: scene, item: id, tag: _current.tag),
@@ -521,7 +549,7 @@ class _DistributionRow extends StatelessWidget {
             Row(
               spacing: 8,
               children: [
-                TraceDot(color.toARGB32()),
+                TraceDot(color),
                 Expanded(
                   child: Text(
                     label,
@@ -559,7 +587,7 @@ class _HistoryEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = row.session;
-    final scene = data.sceneById[session.sceneId]!;
+    final scene = data.historySceneFor(session.sceneId);
     final item = data.itemById[session.itemId]?.name;
     final labels = data
         .tagsFor(session)
@@ -580,7 +608,8 @@ class _HistoryEntry extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => openTraceEditor(context, scene.id, session: session),
+          onTap: () =>
+              openTraceEditor(context, session.sceneId, session: session),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -589,7 +618,7 @@ class _HistoryEntry extends StatelessWidget {
                 Row(
                   spacing: 8,
                   children: [
-                    TraceDot(scene.color),
+                    TraceDot(traceSceneColor(scene.color)),
                     Expanded(
                       child: Text(
                         item == null ? scene.name : '${scene.name} · $item',

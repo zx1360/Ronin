@@ -1,9 +1,10 @@
 CREATE TABLE trace_scenes (
   id TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
-  color INTEGER NOT NULL,
+  color TEXT NOT NULL,
   archived BOOLEAN NOT NULL DEFAULT FALSE,
-  version INTEGER NOT NULL
+  version INTEGER NOT NULL,
+  deletion TEXT CHECK (deletion IN ('keep', 'erase'))
 );
 
 CREATE TABLE trace_items (

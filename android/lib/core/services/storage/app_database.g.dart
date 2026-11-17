@@ -27,11 +27,11 @@ class TraceScenes extends Table with TableInfo<TraceScenes, TraceScene> {
     $customConstraints: 'NOT NULL',
   );
   static const VerificationMeta _colorMeta = const VerificationMeta('color');
-  late final GeneratedColumn<int> color = GeneratedColumn<int>(
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
     'color',
     aliasedName,
     false,
-    type: DriftSqlType.int,
+    type: DriftSqlType.string,
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL',
   );
@@ -58,8 +58,26 @@ class TraceScenes extends Table with TableInfo<TraceScenes, TraceScene> {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL',
   );
+  static const VerificationMeta _deletionMeta = const VerificationMeta(
+    'deletion',
+  );
+  late final GeneratedColumn<String> deletion = GeneratedColumn<String>(
+    'deletion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (deletion IN (\'keep\', \'erase\'))',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, name, color, archived, version];
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    color,
+    archived,
+    version,
+    deletion,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -107,6 +125,12 @@ class TraceScenes extends Table with TableInfo<TraceScenes, TraceScene> {
     } else if (isInserting) {
       context.missing(_versionMeta);
     }
+    if (data.containsKey('deletion')) {
+      context.handle(
+        _deletionMeta,
+        deletion.isAcceptableOrUnknown(data['deletion']!, _deletionMeta),
+      );
+    }
     return context;
   }
 
@@ -125,7 +149,7 @@ class TraceScenes extends Table with TableInfo<TraceScenes, TraceScene> {
         data['${effectivePrefix}name'],
       )!,
       color: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
+        DriftSqlType.string,
         data['${effectivePrefix}color'],
       )!,
       archived: attachedDatabase.typeMapping.read(
@@ -136,6 +160,10 @@ class TraceScenes extends Table with TableInfo<TraceScenes, TraceScene> {
         DriftSqlType.int,
         data['${effectivePrefix}version'],
       )!,
+      deletion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deletion'],
+      ),
     );
   }
 
@@ -151,24 +179,29 @@ class TraceScenes extends Table with TableInfo<TraceScenes, TraceScene> {
 class TraceScene extends DataClass implements Insertable<TraceScene> {
   final String id;
   final String name;
-  final int color;
+  final String color;
   final bool archived;
   final int version;
+  final String? deletion;
   const TraceScene({
     required this.id,
     required this.name,
     required this.color,
     required this.archived,
     required this.version,
+    this.deletion,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
-    map['color'] = Variable<int>(color);
+    map['color'] = Variable<String>(color);
     map['archived'] = Variable<bool>(archived);
     map['version'] = Variable<int>(version);
+    if (!nullToAbsent || deletion != null) {
+      map['deletion'] = Variable<String>(deletion);
+    }
     return map;
   }
 
@@ -179,6 +212,9 @@ class TraceScene extends DataClass implements Insertable<TraceScene> {
       color: Value(color),
       archived: Value(archived),
       version: Value(version),
+      deletion: deletion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletion),
     );
   }
 
@@ -190,9 +226,10 @@ class TraceScene extends DataClass implements Insertable<TraceScene> {
     return TraceScene(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
-      color: serializer.fromJson<int>(json['color']),
+      color: serializer.fromJson<String>(json['color']),
       archived: serializer.fromJson<bool>(json['archived']),
       version: serializer.fromJson<int>(json['version']),
+      deletion: serializer.fromJson<String?>(json['deletion']),
     );
   }
   @override
@@ -201,24 +238,27 @@ class TraceScene extends DataClass implements Insertable<TraceScene> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
-      'color': serializer.toJson<int>(color),
+      'color': serializer.toJson<String>(color),
       'archived': serializer.toJson<bool>(archived),
       'version': serializer.toJson<int>(version),
+      'deletion': serializer.toJson<String?>(deletion),
     };
   }
 
   TraceScene copyWith({
     String? id,
     String? name,
-    int? color,
+    String? color,
     bool? archived,
     int? version,
+    Value<String?> deletion = const Value.absent(),
   }) => TraceScene(
     id: id ?? this.id,
     name: name ?? this.name,
     color: color ?? this.color,
     archived: archived ?? this.archived,
     version: version ?? this.version,
+    deletion: deletion.present ? deletion.value : this.deletion,
   );
   TraceScene copyWithCompanion(TraceScenesCompanion data) {
     return TraceScene(
@@ -227,6 +267,7 @@ class TraceScene extends DataClass implements Insertable<TraceScene> {
       color: data.color.present ? data.color.value : this.color,
       archived: data.archived.present ? data.archived.value : this.archived,
       version: data.version.present ? data.version.value : this.version,
+      deletion: data.deletion.present ? data.deletion.value : this.deletion,
     );
   }
 
@@ -237,13 +278,14 @@ class TraceScene extends DataClass implements Insertable<TraceScene> {
           ..write('name: $name, ')
           ..write('color: $color, ')
           ..write('archived: $archived, ')
-          ..write('version: $version')
+          ..write('version: $version, ')
+          ..write('deletion: $deletion')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, color, archived, version);
+  int get hashCode => Object.hash(id, name, color, archived, version, deletion);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -252,15 +294,17 @@ class TraceScene extends DataClass implements Insertable<TraceScene> {
           other.name == this.name &&
           other.color == this.color &&
           other.archived == this.archived &&
-          other.version == this.version);
+          other.version == this.version &&
+          other.deletion == this.deletion);
 }
 
 class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
   final Value<String> id;
   final Value<String> name;
-  final Value<int> color;
+  final Value<String> color;
   final Value<bool> archived;
   final Value<int> version;
+  final Value<String?> deletion;
   final Value<int> rowid;
   const TraceScenesCompanion({
     this.id = const Value.absent(),
@@ -268,14 +312,16 @@ class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
     this.color = const Value.absent(),
     this.archived = const Value.absent(),
     this.version = const Value.absent(),
+    this.deletion = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TraceScenesCompanion.insert({
     required String id,
     required String name,
-    required int color,
+    required String color,
     this.archived = const Value.absent(),
     required int version,
+    this.deletion = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -284,9 +330,10 @@ class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
   static Insertable<TraceScene> custom({
     Expression<String>? id,
     Expression<String>? name,
-    Expression<int>? color,
+    Expression<String>? color,
     Expression<bool>? archived,
     Expression<int>? version,
+    Expression<String>? deletion,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -295,6 +342,7 @@ class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
       if (color != null) 'color': color,
       if (archived != null) 'archived': archived,
       if (version != null) 'version': version,
+      if (deletion != null) 'deletion': deletion,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -302,9 +350,10 @@ class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
   TraceScenesCompanion copyWith({
     Value<String>? id,
     Value<String>? name,
-    Value<int>? color,
+    Value<String>? color,
     Value<bool>? archived,
     Value<int>? version,
+    Value<String?>? deletion,
     Value<int>? rowid,
   }) {
     return TraceScenesCompanion(
@@ -313,6 +362,7 @@ class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
       color: color ?? this.color,
       archived: archived ?? this.archived,
       version: version ?? this.version,
+      deletion: deletion ?? this.deletion,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -327,13 +377,16 @@ class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
       map['name'] = Variable<String>(name.value);
     }
     if (color.present) {
-      map['color'] = Variable<int>(color.value);
+      map['color'] = Variable<String>(color.value);
     }
     if (archived.present) {
       map['archived'] = Variable<bool>(archived.value);
     }
     if (version.present) {
       map['version'] = Variable<int>(version.value);
+    }
+    if (deletion.present) {
+      map['deletion'] = Variable<String>(deletion.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -349,6 +402,7 @@ class TraceScenesCompanion extends UpdateCompanion<TraceScene> {
           ..write('color: $color, ')
           ..write('archived: $archived, ')
           ..write('version: $version, ')
+          ..write('deletion: $deletion, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();

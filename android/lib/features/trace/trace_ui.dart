@@ -76,28 +76,31 @@ class TracePanel extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: color,
-      border: Border.all(color: traceLine),
+  Widget build(BuildContext context) => Material(
+    color: color,
+    shape: RoundedRectangleBorder(
+      side: const BorderSide(color: traceLine),
       borderRadius: BorderRadius.circular(20),
     ),
-    child: child,
+    clipBehavior: Clip.antiAlias,
+    child: Padding(padding: padding, child: child),
   );
 }
+
+Color traceSceneColor(String hex) =>
+    Color(0xff000000 | int.parse(hex.substring(1), radix: 16));
 
 class TraceDot extends StatelessWidget {
   const TraceDot(this.color, {super.key, this.size = 9});
 
-  final int color;
+  final Color color;
   final double size;
 
   @override
   Widget build(BuildContext context) => Container(
     width: size,
     height: size,
-    decoration: BoxDecoration(color: Color(color), shape: BoxShape.circle),
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
 }
 

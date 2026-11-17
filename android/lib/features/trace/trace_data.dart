@@ -3,12 +3,22 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
 
+import 'trace_scene.dart';
+
 typedef TraceDetails = ({String? itemId, Set<String> tagIds, String note});
 
 const emptyTraceDetails = (itemId: null, tagIds: <String>{}, note: '');
 
 class TraceData {
   TraceData(this.scenes, this.items, this.tags, this.sessions);
+
+  static const otherScene = TraceScene(
+    id: traceOtherSceneId,
+    name: traceOtherSceneName,
+    color: traceDefaultColor,
+    archived: false,
+    version: 0,
+  );
 
   final List<TraceScene> scenes;
   final List<TraceItem> items;
@@ -18,6 +28,48 @@ class TraceData {
   late final sceneById = {for (final scene in scenes) scene.id: scene};
   late final itemById = {for (final item in items) item.id: item};
   late final tagById = {for (final tag in tags) tag.id: tag};
+  late final _touchedScenes = {
+    ...items.map((item) => item.sceneId),
+    for (final session in sessions)
+      if (!session.deleted) session.sceneId,
+  };
+  late final catalogScenes = scenes
+      .where(
+        (scene) =>
+            scene.deletion == null &&
+            (scene.version != 0 ||
+                !isTraceLegacyPreset(scene.id) ||
+                _touchedScenes.contains(scene.id)),
+      )
+      .toList();
+
+  // 保留原始场景与事项关系，删除标记统一决定回顾归类。
+  TraceScene historySceneFor(String sceneId) {
+    final scene = sceneById[sceneId]!;
+    return scene.deletion == TraceSceneDeletion.keep.name ? otherScene : scene;
+  }
+
+  TraceScene? historySceneById(String? sceneId) =>
+      sceneId == traceOtherSceneId ? otherScene : sceneById[sceneId];
+
+  late final historyScenes = [
+    ...catalogScenes,
+    if (history.any(
+      (row) => historySceneFor(row.sceneId).id == traceOtherSceneId,
+    ))
+      otherScene,
+  ];
+
+  late final _historicalItems = {for (final row in history) row.itemId};
+
+  Iterable<TraceItem> historyItemsIn(String? sceneId) => items.where((item) {
+    final deletion = sceneById[item.sceneId]?.deletion;
+    if (deletion == TraceSceneDeletion.erase.name ||
+        (deletion != null && !_historicalItems.contains(item.id))) {
+      return false;
+    }
+    return sceneId == null || historySceneFor(item.sceneId).id == sceneId;
+  });
   final _tagsBySession = <String, Set<String>>{};
   Set<String> tagsFor(TraceSession session) => _tagsBySession.putIfAbsent(
     session.id,
@@ -37,7 +89,7 @@ class TraceData {
     for (final session in history) {
       final duration = session.endedMs! - session.startedMs;
       scenes.update(
-        session.sceneId,
+        historySceneFor(session.sceneId).id,
         (ms) => ms + duration,
         ifAbsent: () => duration,
       );
@@ -58,7 +110,17 @@ class TraceData {
             .map((row) => parse(row as Map<String, dynamic>))
             .toList();
     final data = TraceData(
-      rows('scenes', TraceScene.fromJson),
+      rows('scenes', (row) {
+        final color = switch (row['color']) {
+          int value when value >= 0 && value <= 0xffffffff => traceColorFromRgb(
+            value,
+          ),
+          String value => traceColorHex(value),
+          _ => null,
+        };
+        if (color == null) throw const FormatException('时迹备份包含无效的场景颜色');
+        return TraceScene.fromJson({...row, 'color': color});
+      }),
       rows('items', TraceItem.fromJson),
       rows('tags', TraceTag.fromJson),
       rows('sessions', (row) {
@@ -73,10 +135,12 @@ class TraceData {
         data.scenes.any(
           (s) =>
               s.id.isEmpty ||
+              s.id == traceOtherSceneId ||
               s.name.trim().isEmpty ||
               s.version < 0 ||
-              s.color < 0 ||
-              s.color > 0xffffffff,
+              (s.deletion != null &&
+                  (s.deletion != TraceSceneDeletion.keep.name &&
+                      s.deletion != TraceSceneDeletion.erase.name)),
         ) ||
         data.items.any(
           (i) =>
