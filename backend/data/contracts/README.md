@@ -1,5 +1,7 @@
 # 三端契约
 
+这里存放随仓库版本管理的验收样例，供 Go、Android 和 Ops 测试读取。
+
 执行：`pwsh -File backend/tools/check_contracts.ps1`；`-Scope backend|android|ops` 可只检查一端。检查只使用临时数据库，无需启动后端。
 
 - `user_data.json`：服务端与本机版本合并、删除竞争、重复提交、日历日与时刻。相同更新时间保留服务端记录；删除与记录同时间时删除优先。

@@ -6,7 +6,7 @@ const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), '
 const load = (path) => import(`data:text/javascript;base64,${readFileSync(new URL(path, import.meta.url)).toString('base64')}`);
 const { applySyncDelta } = await load('../web/src/pages/user-data-sync.js');
 const { mergeProgress } = await load('../web/src/pages/ai/state.js');
-const fixture = read('../../contracts/user_data.json');
+const fixture = read('../../backend/data/contracts/user_data.json');
 
 for (const item of fixture.merge_cases) {
   test(item.name, () => {
@@ -33,7 +33,7 @@ test('完整读取清除旧缓存', () => {
   assert.deepEqual(result.data, { labels: [], essays: [] });
 });
 test('进度更新保留诊断、模型与就绪信息', () => {
-  const { diagnostics, progress } = read('../../contracts/ai.json');
+  const { diagnostics, progress } = read('../../backend/data/contracts/ai.json');
   const result = mergeProgress(diagnostics, progress);
   assert.equal(result.media_total, 100);
   assert.equal(result.person_count, 7);

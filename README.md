@@ -47,6 +47,6 @@ Android 通过局域网 HTTPS 和 API 密钥连接 Monarch。Northstar 只接受
 ## 备份与开发
 
 - 停止 Monarch 和相关 CLI 后，可从仓库根目录运行 `python backend/tools/backup_local.py --output backend/backups/manual-001`，备份数据库、附件和配置。脚本依赖 `python-dotenv`。画廊、漫画原文件以及仅存于手机或浏览器的数据需另行备份。 [备份脚本](backend/tools/backup_local.py)
-- 从仓库根目录运行 `pwsh -File verify.ps1 -Scope android` 验收 Android。也可选择 `backend`、`ops` 或 `contracts`。 [仓库约定](docs/architecture/instructions.md) · [跨端契约](contracts/README.md)
+- 从仓库根目录运行 `pwsh -File verify.ps1 -Scope android` 验收 Android。也可选择 `backend`、`ops` 或 `contracts`。 [仓库约定](docs/architecture/instructions.md) · [跨端契约](backend/data/contracts/README.md)
 
 本项目采用 [MIT 许可证](LICENSE)。
