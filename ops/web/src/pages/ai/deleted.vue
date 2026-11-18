@@ -1,9 +1,6 @@
 <script>
 import { useSelection } from '../../selection.js';
-// 已软删除：清单与取消软删除。
-//
-// 本页只改数据库标记，不碰任何文件——真正的删除仍由 Gallery CLI 的 execute 执行。
-// 软删除项可能有几百上千条，所以按批累加加载：单批条数写清、总量与已加载量都显示出来。
+// 恢复软删除只修改标记，原文件由 Gallery execute 处理。
 
 import { ref, computed } from 'vue';
 import { useApi } from '../../api.js';
@@ -70,7 +67,6 @@ export default {
 
     const selectAll = () => select(items.value.map((item) => item.id));
 
-    /** 取消软删除（恢复）：本页只改标记，不涉及文件。 */
     const restore = async (ids) => {
       if (!ids.length) return;
       busy.value = true;

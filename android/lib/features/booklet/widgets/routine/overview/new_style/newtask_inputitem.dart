@@ -15,10 +15,6 @@ class NewTask {
   }
 }
 
-/// 构建任务输入项（新建样式时的单个任务表单）
-/// [task]：task对象.
-/// [onDelete]：删除任务回调
-/// [onSelectImage]：选择图片回调
 Widget inputItem({
   required NewTask task,
   required int index,
@@ -35,7 +31,6 @@ Widget inputItem({
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 任务标题输入（必填）
         TextField(
           controller: task.titleCtrl,
           style: noteText,
@@ -55,7 +50,6 @@ Widget inputItem({
         ),
         const SizedBox(height: 8),
 
-        // 任务描述输入（可选）
         TextField(
           controller: task.descCtrl,
           style: noteText,
@@ -76,7 +70,6 @@ Widget inputItem({
         ),
         const SizedBox(height: 8),
 
-        // 图片选择区域
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -91,7 +84,6 @@ Widget inputItem({
             ),
             Spacer(),
 
-            // 图片预览区域
             task.imagePath.isNotEmpty
                 ? Expanded(
                     child: Container(
@@ -110,7 +102,6 @@ Widget inputItem({
           ],
         ),
 
-        // 删除任务按钮
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(

@@ -1,13 +1,4 @@
-/// 标签树的公共工具：分组、扁平化、搜索命中与祖先判断。
-///
-/// 相册页(immich)、标签列表页与快速打标签浮层共用这一份：遍历与排序规则很容易
-/// 走偏（例如把被过滤掉的中间层误判为可放置目标而形成树环）。
-library;
-
 import 'package:torrid/features/others/gallery/models/tag.dart';
-
-/// 同级排序：按名称。
-int compareTagsByName(Tag a, Tag b) => a.name.compareTo(b.name);
 
 /// 同级排序：按完整路径（层级内等价于按名称，跨层时更符合阅读顺序）。
 int compareTagsByPath(Tag a, Tag b) =>
@@ -41,7 +32,7 @@ Map<String, List<Tag>> groupTagsByParent(
   int Function(Tag, Tag) compare = compareTagsByMediaCount,
   bool hideFavorites = false,
 }) {
-  final byId = {for (final tag in tags) tag.id: tag};
+  final byId = tagIndex(tags);
   final map = <String, List<Tag>>{};
   for (final tag in tags) {
     if (hideFavorites && tag.isFavorite) continue;

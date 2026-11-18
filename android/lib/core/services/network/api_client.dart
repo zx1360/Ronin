@@ -21,7 +21,6 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-// 通过riverpod提供此实例以使同一时间只有一个Dio实例.
 class ApiClient {
   final Dio _dio = CertTrust.createDio();
   final String baseUrl;
@@ -33,7 +32,6 @@ class ApiClient {
     this.apiKey,
     bool retryConnections = true,
   }) {
-    // 只有当 baseUrl 非空时才设置，避免无效 URL 错误
     if (baseUrl.isNotEmpty) {
       _dio.options.baseUrl = baseUrl;
     }
@@ -80,7 +78,6 @@ class ApiClient {
     return ApiException(error.toString(), cause: error);
   }
 
-  // GET请求
   Future<Response> get(
     String path, {
     Map<String, dynamic>? queryParams,
@@ -124,7 +121,6 @@ class ApiClient {
     options: Options(receiveTimeout: const Duration(minutes: 2)),
   );
 
-  /// POST请求，直接发送 JSON body (Content-Type: application/json)
   Future<Response> postJson(
     String path, {
     required Map<String, dynamic> data,
@@ -144,7 +140,6 @@ class ApiClient {
     );
   }
 
-  /// PUT请求，直接发送 JSON body
   Future<Response> putJson(
     String path, {
     required Map<String, dynamic> data,
@@ -158,7 +153,6 @@ class ApiClient {
     );
   }
 
-  /// PATCH请求，直接发送 JSON body（部分更新语义）
   Future<Response> patchJson(
     String path, {
     required Map<String, dynamic> data,
@@ -172,7 +166,6 @@ class ApiClient {
     );
   }
 
-  /// DELETE请求
   Future<Response> delete(
     String path, {
     Map<String, dynamic>? queryParams,
@@ -217,13 +210,11 @@ class ApiClient {
     ProgressCallback? onSendProgress,
   }) async {
     final formData = FormData();
-    // 加入json数据
     if (jsonData != null) {
       jsonData.forEach((key, value) {
         formData.fields.add(MapEntry(key, value));
       });
     }
-    // 加入文件数据
     if (files != null) {
       for (var file in files) {
         formData.files.add(
@@ -237,7 +228,6 @@ class ApiClient {
         );
       }
     }
-    // 发送请求
     return _dio.post(
       path,
       data: formData,

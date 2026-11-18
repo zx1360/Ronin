@@ -1,13 +1,9 @@
 import { onScopeDispose } from 'vue';
 
-// 请求层：网页端与 Monarch 同源，所有接口都走相对路径。
-//
-// 生产模式下 /API/* 需要 X-API-Key；密钥由 /API/ops/local/bootstrap 下发
-// （仅本机回环可访问），页面不落盘、不写用户目录。
+// bootstrap 的 API 密钥仅保存在页面内存。
 
 let apiKey = '';
 
-/** 设置后续请求使用的 API 密钥（引导阶段调用一次）。 */
 export function setApiKey(key) {
   apiKey = (key || '').trim();
 }
@@ -18,7 +14,6 @@ export function assetUrl(path) {
   return `${path}${path.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(apiKey)}`;
 }
 
-/** 接口异常：把 HTTP 状态码与服务端 error 文案归一化为可读信息。 */
 export class ApiError extends Error {
   constructor(message, status, body) {
     super(message);
@@ -108,7 +103,6 @@ function createApi(signal) {
 
 export const api = createApi();
 
-// 页面请求沿用同一请求封装，仅绑定组件生命周期。
 export function useApi() {
   const controller = new AbortController();
   onScopeDispose(() => controller.abort());

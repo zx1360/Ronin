@@ -81,10 +81,8 @@ def normalize_title(title: str) -> str:
     text = re.sub(r"[\s\-—_|/\\:：()（）\[\]【】.。·、，,！!？?~～*＊]", "", text)
     return text
 
-
-# ---------------------------------------------------------------------------
 # 站点
-# ---------------------------------------------------------------------------
+
 
 def register_site(code: str, name: str, base_url: str) -> int:
     """注册或更新站点适配器，返回 comic_sites.id。"""
@@ -120,10 +118,8 @@ def get_site_by_code(code: str) -> Optional[dict]:
         row = conn.execute("SELECT * FROM comic_sites WHERE code = ?", (code,)).fetchone()
     return _site_row(row)
 
-
-# ---------------------------------------------------------------------------
 # 漫画
-# ---------------------------------------------------------------------------
+
 
 def insert_comic(
     title: str,
@@ -255,10 +251,8 @@ def delete_comic(comic_id: int) -> bool:
     with connect() as conn:
         return conn.execute("DELETE FROM comics WHERE id = ?", (comic_id,)).rowcount > 0
 
-
-# ---------------------------------------------------------------------------
 # 章节
-# ---------------------------------------------------------------------------
+
 
 def insert_chapters(comic_id: int, site_id: int, chapters: Iterable[dict]) -> list[dict]:
     """批量插入章节，返回 [{chapter_no, chapter_id, title, url, inserted, renumbered}]。
@@ -416,6 +410,7 @@ def list_chapters(comic_id: int) -> list[dict]:
 
 
 def chapters_to_download(comic_id: int) -> list[dict]:
+    """按章节序号返回未完成或缺图的章节。"""
     with connect() as conn:
         return conn.execute(
             """
@@ -428,10 +423,8 @@ def chapters_to_download(comic_id: int) -> list[dict]:
             (comic_id,),
         ).fetchall()
 
-
-# ---------------------------------------------------------------------------
 # 下载任务
-# ---------------------------------------------------------------------------
+
 
 def start_task(comic_id: int, chapter_id: int) -> None:
     with connect() as conn:
@@ -494,10 +487,7 @@ def recover_running_tasks(comic_id: int | None = None) -> int:
     with connect() as conn:
         return conn.execute(sql, args).rowcount
 
-
-# ---------------------------------------------------------------------------
 # 图片记录（供 Go/Flutter 系统读取图片路径与宽高）
-# ---------------------------------------------------------------------------
 
 
 def set_cover_image(comic_id: int, cover_path: str) -> None:

@@ -5,8 +5,6 @@ import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
 
 /// 构建Style下拉选择框（支持滚动，按创建时间倒序）
-/// [currentStyle]：当前选中的样式
-/// [onStyleChanged]：样式切换回调
 class StyleDropdown extends ConsumerWidget {
   final Style? currentStyle;
   final void Function(String?) onStyleChanged;
@@ -63,9 +61,6 @@ class StyleDropdown extends ConsumerWidget {
   }
 }
 
-/// 构建单个统计项（概览卡片内部使用）
-/// [title]：统计项标题
-/// [value]：统计项数值
 Widget buildStatItem(String title, String value) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,8 +77,6 @@ Widget buildStatItem(String title, String value) {
   );
 }
 
-/// 构建打卡计划信息卡片（展示核心统计数据）
-/// [currentStyle]：当前选中的样式（为空时不显示）
 class CompactStyleOverview extends ConsumerWidget {
   final Style? currentStyle;
   const CompactStyleOverview({super.key, required this.currentStyle});

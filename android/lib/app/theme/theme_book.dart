@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // 颜色常量（遵循 Material 3 命名规范）
   static const Color primary = Color(0xFF8B5A2B); // 主色调：温暖棕褐色
   static const Color onPrimary = Color(0xFFFFFFFF); // 主色上的文本色
   static const Color primaryContainer = Color(0xFFE8E2D3); // 主色容器
@@ -82,16 +81,11 @@ class AppTheme {
     );
 
     return ThemeData(
-      // 基础配置
       brightness: Brightness.light,
       colorScheme: colorScheme,
       useMaterial3: true,
-
-      // 背景色
       scaffoldBackgroundColor: colorScheme.surface,
       canvasColor: colorScheme.surface,
-
-      // 卡片样式
       cardTheme: CardThemeData(
         color: colorScheme.surfaceContainer,
         elevation: 2,
@@ -100,10 +94,7 @@ class AppTheme {
         ),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
-
-      // 文本样式
       textTheme: TextTheme(
-        // 标题样式
         headlineLarge: TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.bold,
@@ -119,8 +110,6 @@ class AppTheme {
           fontWeight: FontWeight.bold,
           color: colorScheme.onSurface,
         ),
-
-        // 标题文本
         titleLarge: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
@@ -136,8 +125,6 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: colorScheme.onSurface,
         ),
-
-        // 正文
         bodyLarge: TextStyle(
           fontSize: 16,
           color: colorScheme.onSurface,
@@ -150,8 +137,6 @@ class AppTheme {
           fontSize: 12,
           color: colorScheme.onSurfaceVariant,
         ),
-
-        // 标签
         labelLarge: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w500,
@@ -181,8 +166,6 @@ class AppTheme {
           color: colorScheme.onPrimary,
         ),
       ),
-
-      // 按钮样式
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colorScheme.primary,
@@ -218,8 +201,6 @@ class AppTheme {
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
       ),
-
-      // 输入框样式
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -254,8 +235,6 @@ class AppTheme {
         filled: true,
         fillColor: colorScheme.surfaceContainer,
       ),
-
-      // 滑块样式
       sliderTheme: SliderThemeData(
         activeTrackColor: colorScheme.primary,
         inactiveTrackColor: colorScheme.surfaceContainerHighest,
@@ -269,8 +248,6 @@ class AppTheme {
           fontWeight: FontWeight.bold,
         ),
       ),
-
-      // 开关样式
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -285,8 +262,6 @@ class AppTheme {
           return colorScheme.surfaceContainerHighest;
         }),
       ),
-
-      // 复选框样式
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -300,8 +275,6 @@ class AppTheme {
           borderRadius: BorderRadius.circular(4),
         ),
       ),
-
-      // 单选按钮样式
       radioTheme: RadioThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -311,15 +284,11 @@ class AppTheme {
         }),
         overlayColor: WidgetStateProperty.all(colorScheme.primary.withAlpha(51)),
       ),
-
-      // 进度指示器样式
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: colorScheme.primary,
         circularTrackColor: colorScheme.surfaceContainerHighest,
         linearTrackColor: colorScheme.surfaceContainerHighest,
       ),
-
-      // 对话框样式
       dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surfaceContainer,
         titleTextStyle: TextStyle(
@@ -336,8 +305,6 @@ class AppTheme {
         ),
         elevation: 4,
       ),
-
-      // 底部导航栏样式
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: colorScheme.surfaceContainer,
         selectedItemColor: colorScheme.primary,
@@ -347,8 +314,6 @@ class AppTheme {
         elevation: 8,
         type: BottomNavigationBarType.fixed,
       ),
-
-      // 底部Sheet样式
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: colorScheme.surfaceContainer,
         shape: const RoundedRectangleBorder(
@@ -356,16 +321,12 @@ class AppTheme {
         ),
         elevation: 8,
       ),
-
-      // 浮动按钮样式
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
         elevation: 4,
         shape: const CircleBorder(),
       ),
-
-      // 分割线样式
       dividerTheme: DividerThemeData(
         color: colorScheme.outline.withAlpha(77),
         thickness: 1,

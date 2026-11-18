@@ -1,30 +1,10 @@
 # Torrid
 
-仅面向 Android 的 Flutter 应用。架构见 `../docs/architecture/torrid.md`。
-`lib/app/` 管路由/主题，`core/` 管通用设施，`features/` 按业务组织；顶层用 GoRouter，`/others` 下的功能页用 `Navigator.push`。
-
-## 开发与存储
-
-- Dart 3.12 / Flutter 3.44，Drift、Riverpod 与 DTO 统一使用 `dart run build_runner build` 生成。不手改 `*.g.dart`。
-- SQLite 随应用打包，由 `sqlite3` 的构建钩子获取并校验。GitHub Release 需要代理时，给构建进程设置 `HTTPS_PROXY`。
-- 根目录运行 `pwsh -File verify.ps1 -Scope android`，执行依赖解析、生成、analyze、测试和 debug APK 构建。
-- `appDatabaseProvider` 持有唯一业务库。Riverpod 按业务分组查询和设置，页面用 `select` 订阅所需字段，临时交互留在页面。简单设置经 `PrefsService` 使用 SharedPreferencesWithCache。
-- 根 `ProviderScope` 关闭自动重试。读请求可随 provider 释放取消，写入与同步由业务动作负责，等待后访问 provider 前检查生命周期。
-- 随笔/打卡先上传再拉取增量，按 `updated_at` 合并；随笔关联标签单独用 `labels_updated_at`。每批数据、tombstone 和按主机隔离的游标同事务提交。统计从数据派生。
-- 时迹以本机为操作入口，备份按记录版本合并并校验后端快照修订号。计时锚点只在本机使用，启动时逐条确认未结束的计时。
-- 随笔草稿与图片仅存本机独立空间；编辑正式随笔时保留原文至保存成功。“隐藏”标签子树默认不展示，AI 回顾始终排除。
-
-## 网络与媒体
-
-- 连接配置唯一真源是 `providers/network_config/`，`ApiClientManager` 监听派生客户端，页面不手动推送。
-- 网络错误统一走 `ApiClient.mapError`。Dart 与 Android 原生网络共用 `android/app/src/main/res/raw/server.crt`，mDNS 发现 HTTPS 端口。
-- Gallery 工作副本与操作队列绑定服务端图库 ID，预览文件也按图库隔离。`GalleryWriteBuffer` 同事务提交本地编辑与操作，服务端确认后清理。在线相册写入走 `retryServerWrite`。
-- 标注经 `MediaAssetList` 提交操作，查询流更新界面。清本机缓存走 `GalleryLocalDataController`。
-- 标签树复用 `models/tag_tree.dart`；AI 标签与人工标签隔离。AI 503 时入口/结果块降级，错误文案走 `aiFriendlyError`，模型与能力名来自服务端。
-- Gallery 和全屏查看共用 `MediaVideoPlayer`（`video_player`）。画廊原片携带鉴权头，本地预览单独读取。全应用竖屏，媒体旋转在视图内处理；标签浮层命中用 `globalToLocal`，布局尺寸用 `LayoutBuilder`。
-
-## 对话与回顾
-
-- 共用 `chat_api_service.dart` 的 NDJSON 解析；`notice` 提示，`aborted` 显示可继续的中断状态。流式消息只在贴底时自动滚动，一轮结束/失败才落库。
-- 会话与回顾历史仅存本机；手机图片压到长边 1280，删会话须清附件，库内媒体仅传 `media_id`。入口复用 `chat_entry.dart`。
-- 回顾统计/抽样在后端，端上消费 `stats → delta`，固定关闭思考；预设以服务端为准，本地镜像支持离线，整体推送成功后才更新镜像。
+- 仅 Android。`lib/app/` 管主题和 GoRouter，`core/` 管共享设施，`features/` 按业务组织。`/others` 下用 `Navigator.push`。
+- `appDatabaseProvider` 持有唯一业务库，简单设置走 `PrefsService`。Drift、Riverpod 和 DTO 由 `dart run build_runner build` 生成。SQLite 由构建钩子获取并校验，必要时给构建进程设置 `HTTPS_PROXY`。
+- 随笔和积微先上传再拉增量。记录、删除标记和按主机隔离的游标同事务提交。随笔标签版本独立，草稿与图片存本机。隐藏标签子树默认隐藏且排除于 AI 回顾。
+- 时迹按记录版本合并并校验备份修订号。计时锚点仅用于本机，启动时确认未结束的计时。
+- 网络配置真源是 `providers/network_config/`，`ApiClientManager` 跟随派生客户端。错误用 `ApiClient.mapError`，Dart 和原生网络共用 `res/raw/server.crt`。根 ProviderScope 关闭自动重试，读请求随 provider 释放可取消。
+- Gallery 的工作副本、预览和操作队列按图库 ID 隔离。用 `GalleryWriteBuffer` 同事务提交编辑和队列，确认后清理。在线相册写入走 `retryServerWrite`。标签树、视频分别复用 `tag_tree.dart`、`MediaVideoPlayer`。旋转在媒体视图内处理。
+- 对话和回顾共用 NDJSON 解析，处理 `notice`、`aborted` 和 503。历史仅存本机，结束或失败时落库，删会话清附件。图库图片只传 `media_id`。回顾预设整体提交成功后更新本地镜像。
+- 验收用 `pwsh -File verify.ps1 -Scope android`。

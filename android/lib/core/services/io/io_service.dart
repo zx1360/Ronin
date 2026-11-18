@@ -35,7 +35,7 @@ class IoService {
         final root = Directory(
           path.join((await getApplicationSupportDirectory()).path, 'media'),
         );
-        // 同步键保持兼容，磁盘目录不再绑定服务端的 img_storage 布局。
+        // 同步键使用服务端路径格式，磁盘位置由本机映射。
         return safePath(root, relative.replaceFirst(entry.key, entry.value));
       }
     }

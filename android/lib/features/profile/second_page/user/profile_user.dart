@@ -15,7 +15,6 @@ import 'package:torrid/features/booklet/providers/providers.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart'
     as essay_status;
 
-/// 用户信息编辑页面
 class ProfileUser extends ConsumerStatefulWidget {
   const ProfileUser({super.key});
 
@@ -40,11 +39,9 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
               children: [
-                // 头像区域
                 _buildAvatarSection(settings.avatarPath),
                 const SizedBox(height: AppSpacing.lg),
 
-                // 昵称
                 _buildEditableField(
                   label: '昵称',
                   value: settings.nickname,
@@ -53,7 +50,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
                 ),
                 const SizedBox(height: AppSpacing.md),
 
-                // 签名
                 _buildEditableField(
                   label: '签名',
                   value: settings.signature,
@@ -62,7 +58,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // 使用数据概览
                 _buildUsageOverview(),
               ],
             ),
@@ -77,7 +72,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     );
   }
 
-  /// 头像区域
   Widget _buildAvatarSection(String? avatarPath) {
     return Column(
       children: [
@@ -85,7 +79,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
           onTap: _showAvatarOptions,
           child: Stack(
             children: [
-              // 头像
               Container(
                 width: 120,
                 height: 120,
@@ -105,7 +98,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
                 ),
                 child: ClipOval(child: _buildAvatarImage(avatarPath)),
               ),
-              // 编辑按钮
               Positioned(
                 bottom: 0,
                 right: 0,
@@ -135,7 +127,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     );
   }
 
-  /// 构建头像图片
   Widget _buildAvatarImage(String? avatarPath) {
     if (avatarPath != null && avatarPath.isNotEmpty) {
       return FutureBuilder<File?>(
@@ -155,7 +146,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     return _defaultAvatar();
   }
 
-  /// 默认头像
   Widget _defaultAvatar() {
     return Image.asset(
       'assets/icons/six.ico',
@@ -167,7 +157,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     );
   }
 
-  /// 可编辑字段
   Widget _buildEditableField({
     required String label,
     required String value,
@@ -188,14 +177,11 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     );
   }
 
-  /// 使用数据概览
   Widget _buildUsageOverview() {
-    // 打卡数据
     final latestStyle = ref.watch(latestStyleProvider);
     final allStyles = ref.watch(allStylesProvider);
     final allRecords = ref.watch(allRecordsProvider);
 
-    // 随笔数据
     final yearSummaries = ref.watch(essay_status.summariesProvider);
 
     final totalEssayCount = yearSummaries.fold<int>(
@@ -229,7 +215,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
             ),
             const Divider(height: 24),
 
-            // 打卡模块统计
             _buildSectionLabel(Icons.check_circle_outline, '打卡'),
             const SizedBox(height: 8),
             Row(
@@ -262,7 +247,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
 
             const SizedBox(height: 16),
 
-            // 随笔模块统计
             _buildSectionLabel(Icons.edit_note, '随笔'),
             const SizedBox(height: 8),
             Row(
@@ -342,7 +326,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     return number.toString();
   }
 
-  /// 显示头像选项
   Future<void> _showAvatarOptions() async {
     final settings = ref.read(appSettingsProvider);
     final hasCustomAvatar = settings.avatarPath != null;
@@ -385,7 +368,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     }
   }
 
-  /// 选择头像
   Future<void> _pickAvatar() async {
     try {
       final XFile? picked = await _picker.pickImage(
@@ -423,7 +405,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     }
   }
 
-  /// 重置头像
   Future<void> _resetAvatar() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -453,7 +434,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     }
   }
 
-  /// 编辑昵称
   Future<void> _editNickname(String currentNickname) async {
     final savedResult = await showTextInputDialog(
       context,
@@ -476,7 +456,6 @@ class _ProfileUserState extends ConsumerState<ProfileUser> {
     }
   }
 
-  /// 编辑签名
   Future<void> _editSignature(String currentSignature) async {
     final savedResult = await showTextInputDialog(
       context,

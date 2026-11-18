@@ -12,8 +12,6 @@ import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/task.dart';
 
-/// 历来打卡信息总览页面
-/// 展示当前样式的打卡统计、日历视图，支持切换样式和创建新样式
 class BookletOverviewPage extends ConsumerStatefulWidget {
   const BookletOverviewPage({super.key});
 
@@ -40,8 +38,6 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
     });
   }
 
-  /// 切换选中的样式（下拉框回调）
-  /// [newStyle]：新选中的样式
   void _onStyleChanged(String? newStyleId) {
     if (newStyleId == null || newStyleId == _currentStyle?.id) return;
     setState(() {
@@ -75,17 +71,14 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 响应式数据
     Map<String, int> taskCompletionCounts = {};
     if (_currentStyle != null) {
       _relatedRecords = ref.watch(recordsByStyleIdProvider(_currentStyle!.id));
-      // 获取所有任务的完成次数
       taskCompletionCounts = ref.watch(
         allTaskCompletionCountsProvider(_currentStyle!.id),
       );
     }
 
-    // UI
     return Scaffold(
       body: Container(
         color: const Color(0xFFF5F0E1),
@@ -100,7 +93,6 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             children: [
-              // 页面标题
               Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
               Align(
                 alignment: Alignment.centerLeft,
@@ -118,7 +110,6 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
               ),
               const SizedBox(height: 20),
 
-              // 顶部操作栏（样式选择 + 新建按钮）
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -145,11 +136,9 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
               ),
               const SizedBox(height: 20),
 
-              // 打卡计划概览卡片
               CompactStyleOverview(currentStyle: _currentStyle),
               const SizedBox(height: 6),
 
-              // 打卡样式的任务展示（点击可筛选日历）
               if (_currentStyle != null) ...[
                 Row(
                   children: [
@@ -211,7 +200,6 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
 
               const SizedBox(height: 18),
 
-              // 打卡记录日历
               Text(
                 _selectedTaskId != null
                     ? '「${_selectedTaskTitle()}」完成记录'

@@ -1,5 +1,3 @@
-// AI 页各标签共用的小工具：字段兜底、进度换算、任务文案、库内文件定位。
-
 import { api, assetUrl } from '../../api.js';
 import { state, toast } from '../../store.js';
 
@@ -9,7 +7,6 @@ export function capabilityLabel(capabilities, name) {
   return (found && found.label) || name || '';
 }
 
-/** 数值兜底：接口字段缺失或类型异常时按 0 处理。 */
 export function num(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -32,7 +29,6 @@ export function doneCount(done, total) {
   return all > 0 ? Math.min(value, all) : value;
 }
 
-/** 取库内相对路径的文件名。 */
 export function baseName(filePath) {
   const parts = String(filePath || '').split(/[/\\]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : '';

@@ -1,9 +1,4 @@
 <script>
-// 任务队列：/API/ai/jobs 的列表与进度，按能力/状态过滤，支持一键重试失败项。
-//
-// 能力过滤项来自服务端状态（capabilities），端上不硬编码能力清单。
-// 单页条数由服务端 limit/offset 承担：队列可能有上万条，一次全量渲染既慢又没意义。
-
 import { ref, computed, watch, onMounted } from 'vue';
 import { useApi } from '../../api.js';
 import { state, toast } from '../../store.js';
@@ -69,7 +64,6 @@ export default {
         jobs.value = Array.isArray(data && data.jobs) ? data.jobs : [];
         total.value = num(data && data.total);
         error.value = '';
-        // 队列变短（失败项被重排等）时当前页可能已越界，退回末页
         if (!clamping && !jobs.value.length && page.value > lastPage.value) {
           clamping = true;
           page.value = lastPage.value;
@@ -84,7 +78,6 @@ export default {
       }
     };
 
-    // 只有确实有活可看（有排队/运行中的任务）时才轮询
     const poller = usePolling(load, {
       interval: () => state.settings.ai_refresh_seconds || 3,
       enabled: () => props.active && !props.aiDisabled,
@@ -123,13 +116,11 @@ export default {
       poller.trigger();
     };
 
-    /** 筛选条件变化：命中集合变了，页码必须回到第 1 页。 */
     const applyFilter = () => {
       page.value = 1;
       poller.trigger();
     };
 
-    /** 每页条数变化同理：页码语义已经不同。 */
     const changePageSize = () => {
       page.value = 1;
       poller.trigger();

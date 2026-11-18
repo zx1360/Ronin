@@ -1,8 +1,3 @@
-"""下载调度：搜索候选、选源、增量下载、更新检查、删除。
-
-无状态设计：每个函数独立完成一次操作并返回可 JSON 序列化的 dict，
-不保存任何会话状态；CLI 与后续 Go HTTP 服务都通过本层调用。
-"""
 from __future__ import annotations
 
 import shutil
@@ -17,11 +12,6 @@ from .adapters import all_adapters, get_adapter
 from .models import ChapterInfo
 
 
-def _storage_path(rel_dir: str) -> str:
-    """把 DB 中的 rel_dir 解析为存储根下的绝对路径（见 config.storage_path）。"""
-    return config.storage_path(rel_dir)
-
-
 class CandidateChoiceRequired(Exception):
     """多候选时未指定选择，携带候选列表供上层展示/选择。"""
 
@@ -34,17 +24,13 @@ class NotFound(Exception):
     """未找到匹配结果。"""
 
 
-# ---------------------------------------------------------------------------
-# 孤儿回收（进程被中断后的自愈）
-# ---------------------------------------------------------------------------
-
 def _cleanup_downloading_dirs(rel_dir: str) -> int:
     """删除某漫画目录下遗留的 *.downloading 临时目录，返回清理数量。
 
     下载进程被 kill/断电时，.downloading 目录可能残留（图片下载到一半，
     未提交未清理）。每次下载开始前调用，保证不会读到半截章节。
     """
-    comic_root = Path(_storage_path(rel_dir))
+    comic_root = Path(config.storage_path(rel_dir))
     if not comic_root.is_dir():
         return 0
     count = 0
@@ -71,19 +57,11 @@ def cleanup() -> dict:
     return {"recovered_tasks": tasks, "removed_temp_dirs": dirs}
 
 
-# ---------------------------------------------------------------------------
-# 站点注册
-# ---------------------------------------------------------------------------
-
 def ensure_sites() -> None:
     """将全部适配器注册进 site 表（幂等）。"""
     for ad in all_adapters():
         db.register_site(ad.code, ad.name, ad.base_url)
 
-
-# ---------------------------------------------------------------------------
-# 搜索与候选
-# ---------------------------------------------------------------------------
 
 def search_all(name: str, per_site: int = 10) -> dict:
     """全站搜索，返回候选列表与各站错误信息。
@@ -128,10 +106,8 @@ def _resolve_candidate(
         return candidates[0]
     raise CandidateChoiceRequired(candidates)
 
-
-# ---------------------------------------------------------------------------
 # 添加漫画
-# ---------------------------------------------------------------------------
+
 
 def _register_comic(site_code: str, detail, download: bool, range_spec: str | None,
                     latest_n: int | None) -> dict:
@@ -220,17 +196,15 @@ def add_by_url(
     range_spec: Optional[str] = None,
     latest_n: Optional[int] = None,
 ) -> dict:
-    """按详情页 URL 直接添加漫画（跳过搜索，便于迁移与已知链接添加）。"""
+    """跳过搜索，按详情页 URL 添加漫画。"""
     ensure_sites()
     if not get_adapter(site_code):
         raise NotFound(f"未知站点: {site_code}")
     detail = get_adapter(site_code).get_chapters(detail_url)
     return _register_comic(site_code, detail, download, range_spec, latest_n)
 
-
-# ---------------------------------------------------------------------------
 # 下载（增量）
-# ---------------------------------------------------------------------------
+
 
 def _parse_range(range_spec: Optional[str]) -> Optional[set[int]]:
     """解析章节区间："1-5,8,10-12" -> {1,2,3,4,5,8,10,11,12}。
@@ -302,21 +276,19 @@ def download_comic(
         "site_total": 0, "registered": 0, "added": 0, "renumbered": 0, "error": "",
     }
 
-    want = {ch["id"]: ch for ch in db.chapters_to_download(comic_id)}
-    if chapter_ids is not None:
-        allow = set(chapter_ids)
-        want = {i: ch for i, ch in want.items() if i in allow}
-    if not retry_failed:
-        want = {i: ch for i, ch in want.items() if ch["status"] != "failed"}
-
-    no_range = _parse_range(range_spec)
-    if no_range is not None:
-        want = {i: ch for i, ch in want.items() if ch["chapter_no"] in no_range}
+    chapters = db.chapters_to_download(comic_id)
+    allowed_ids = set(chapter_ids) if chapter_ids is not None else None
+    chapter_numbers = _parse_range(range_spec)
+    remaining = [
+        ch for ch in chapters
+        if (allowed_ids is None or ch["id"] in allowed_ids)
+        and (retry_failed or ch["status"] != "failed")
+        and (chapter_numbers is None or ch["chapter_no"] in chapter_numbers)
+    ]
     if latest_n is not None and latest_n > 0:
-        sorted_want = sorted(want.values(), key=lambda ch: ch["chapter_no"])
-        want = {ch["id"]: ch for ch in sorted_want[-latest_n:]}
+        remaining = remaining[-latest_n:]
 
-    if not want:
+    if not remaining:
         _ensure_cover_image(comic_id)
         return {
             "comic_id": comic_id,
@@ -335,7 +307,7 @@ def download_comic(
         chapter = ChapterInfo(chapter_no=ch["chapter_no"], title=ch["title"], url=ch["url"])
         db.start_task(comic_id, ch["id"])
         try:
-            images = adapter.download_chapter(chapter, _storage_path(ch["rel_dir"]))
+            images = adapter.download_chapter(chapter, config.storage_path(ch["rel_dir"]))
             db.finish_download(ch["id"], images)
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
@@ -347,28 +319,21 @@ def download_comic(
                 "title": ch["title"], "ok": True, "pages": len(images),
                 "rel_dir": ch["rel_dir"], "error": ""}
 
-    # 失败章节整章重试一轮（沿用原脚本的稳定性策略）
-    # 注意：每轮失败收集到 round_failures，避免在重试轮被清空导致
-    # 最终失败章节丢失在 JSON 结果中（两轮都失败的才计入最终 failures）。
-    remaining = list(want.values())
-    for round_no in (1, 2):
-        if not remaining:
-            break
-        round_failures = []
+    # 失败章节整章重试一轮，报告最终结果。
+    for last_attempt in (False, True):
+        retry_ids = set()
         with ThreadPoolExecutor(max_workers=adapter.max_workers) as pool:
-            future_map = {pool.submit(_download, ch): ch for ch in remaining}
-            round_results = []
-            for future in as_completed(future_map):
-                r = future.result()
-                round_results.append(r)
-        for r in round_results:
-            if r["ok"]:
-                results.append(r)
-            else:
-                round_failures.append(r)
-        remaining = [ch for ch in remaining if ch["id"] in {f["chapter_id"] for f in round_failures}]
-        if round_no == 2:
-            failures.extend(round_failures)
+            for future in as_completed([pool.submit(_download, ch) for ch in remaining]):
+                result = future.result()
+                if result["ok"]:
+                    results.append(result)
+                elif last_attempt:
+                    failures.append(result)
+                else:
+                    retry_ids.add(result["chapter_id"])
+        if not retry_ids:
+            break
+        remaining = [ch for ch in remaining if ch["id"] in retry_ids]
 
     results.sort(key=lambda r: r["chapter_no"])
     # 封面维护：cover_image 为空时取已下载章节（最小 chapter_no）的第一张图
@@ -414,11 +379,11 @@ def _sync_chapters_from_site(comic: dict, adapter) -> dict:
         comic["id"], comic["site_id"], [asdict(ch) for ch in detail.chapters]
     )
     info["site_total"] = len(detail.chapters)
-    info["registered"] = len(db.list_chapters(comic["id"]))
+    chapters_now = db.list_chapters(comic["id"])
+    info["registered"] = len(chapters_now)
     info["added"] = sum(1 for o in outcomes if o["inserted"])
     info["renumbered"] = sum(1 for o in outcomes if o["renumbered"])
     if info["added"] or info["renumbered"]:
-        chapters_now = db.list_chapters(comic["id"])
         db.update_comic_meta(
             comic["id"],
             title=comic["title"],
@@ -432,17 +397,12 @@ def _sync_chapters_from_site(comic: dict, adapter) -> dict:
 
 
 def _ensure_cover_image(comic_id: int) -> str:
-    """为封面为空的漫画补第一章第一图路径。
-
-    comics.cover_image 是普通列（不是视图投影），必须由下载/导入路径显式维护，
-    不能依赖查询时动态计算（相关子查询在 JOIN 放大后会导致查询超时）。
-    返回最终封面路径（空串表示无可用图，例如章节全部失败/未下载）。
-    """
-    if db.get_cover_image(comic_id):
-        return db.get_cover_image(comic_id)
-    cover = db.first_image_of_comic(comic_id)
-    if cover:
-        db.set_cover_image(comic_id, cover)
+    """封面写入普通列，避免读书库时逐部查询首图。"""
+    cover = db.get_cover_image(comic_id)
+    if not cover:
+        cover = db.first_image_of_comic(comic_id)
+        if cover:
+            db.set_cover_image(comic_id, cover)
     return cover
 
 
@@ -485,10 +445,6 @@ def _cover_file_exists(rel_path: str) -> bool:
     rel = rel_path[7:] if rel_path.startswith("comics/") else rel_path
     return (Path(config.COMIC_STORAGE_ROOT) / rel).is_file()
 
-
-# ---------------------------------------------------------------------------
-# 更新检查
-# ---------------------------------------------------------------------------
 
 def check_updates(comic_id: Optional[int] = None, all_comics: bool = False,
                   download: bool = False, latest_n: Optional[int] = None) -> dict:
@@ -611,10 +567,6 @@ def check_updates(comic_id: Optional[int] = None, all_comics: bool = False,
     return {"reports": reports}
 
 
-# ---------------------------------------------------------------------------
-# 章节校正与封面修复
-# ---------------------------------------------------------------------------
-
 def sync_comics(comic_id: Optional[int] = None, all_comics: bool = False,
                 fix_covers: bool = True, register: bool = True,
                 force_covers: bool = False) -> dict:
@@ -703,10 +655,8 @@ def sync_comics(comic_id: Optional[int] = None, all_comics: bool = False,
         summary["covers"] = repair_covers(comic_id)
     return summary
 
-
-# ---------------------------------------------------------------------------
 # 删除与查询
-# ---------------------------------------------------------------------------
+
 
 def delete_comic(comic_id: int, keep_files: bool = False) -> dict:
     """删除漫画：默认同时删除 DB 记录与本地文件；keep_files=True 仅删记录。"""
@@ -716,7 +666,7 @@ def delete_comic(comic_id: int, keep_files: bool = False) -> dict:
 
     files_removed = False
     if not keep_files:
-        root = Path(_storage_path(comic["rel_dir"]))
+        root = Path(config.storage_path(comic["rel_dir"]))
         if root.exists():
             shutil.rmtree(root, ignore_errors=True)
         files_removed = True

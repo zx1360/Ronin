@@ -86,7 +86,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
         : null;
     final downloadTasks = ref.watch(comicDownloadTasksProvider);
     final activeDownloadTaskCount = downloadTasks
-        .where((task) => task.hasActiveWork)
+        .where((task) => !task.isTerminal)
         .length;
 
     return Scaffold(

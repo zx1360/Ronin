@@ -17,8 +17,6 @@ export default {
     const form = ref(null);
     const dirty = ref(false);
 
-    // ---- 处理配置 ----
-
     /** 从服务端配置镜像表单；用户正在编辑（dirty）时不覆盖，避免轮询打断输入。 */
     const applyRuntime = (source) => {
       if (!source) return;

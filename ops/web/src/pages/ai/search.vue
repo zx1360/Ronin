@@ -1,9 +1,5 @@
 <script>
-// 检索：文本搜图 / 以图搜图（本地上传或库内相似媒体），带结构化筛选与媒体 AI 结果详情。
-//
-// 筛选口径与后端 /API/ai/search 一致：tag_ids 为人工标签、vlm_tags 为 AI 标签
-// （只读，与人工标签物理隔离）、person_ids、mime_type、from/to。
-// 一页 60 条由服务端 limit/offset 分页，命中数可能远多于 60，故结果区自己滚动并支持续取。
+// tag_ids 是人工标签，vlm_tags 是只读的 AI 标签。
 
 import { ref, computed, onUnmounted } from 'vue';
 import { useApi } from '../../api.js';
@@ -126,7 +122,6 @@ export default {
       label: (person.name || '未命名') + '（' + num(person.face_count) + ' 张）',
     })));
 
-    /** 组查询串：与 Dart 客户端的参数名保持一致（空值不下发）。 */
     const buildQuery = (withText) => {
       const params = new URLSearchParams({ mode: mode.value || 'auto', limit: PAGE_SIZE });
       const text = query.value.trim();
@@ -141,7 +136,6 @@ export default {
       return params;
     };
 
-    /** 写入结果；append 为真时续接在既有列表之后。返回本次新增条数。 */
     const applyResult = (data, append) => {
       const list = Array.isArray(data && data.hits) ? data.hits : [];
       if (append) {
@@ -292,7 +286,6 @@ export default {
       }
     };
 
-    /** search / image 支持 offset 续取；similar 接口无 offset，不显示分页条。 */
     const pageable = computed(() => resultSource.value === 'search' || resultSource.value === 'image');
 
     const hasMore = computed(() => pageable.value && lastPageFull.value && nextOffset.value < total.value);

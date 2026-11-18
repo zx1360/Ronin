@@ -1,6 +1,4 @@
 <script>
-// 设置：界面偏好（写回服务端 static/data/ops_web.json）与服务端信息只读展示。
-
 import { ref, computed, onMounted } from 'vue';
 import { state, saveSettings, toast, bootstrap } from '../store.js';
 import Card from '../components/Card.vue';
@@ -9,7 +7,6 @@ import Badge from '../components/Badge.vue';
 export default {
   components: { Card, Badge },
   setup() {
-    // 字段名与服务端 JSON（ops_web.json）保持一致，避免两套命名互相覆盖
     const form = ref({
       auto_refresh_seconds: 10,
       ai_refresh_seconds: 3,

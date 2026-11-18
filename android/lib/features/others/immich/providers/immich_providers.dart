@@ -156,10 +156,7 @@ class ImmichMediaPage {
 
 const int _kPageSize = 60;
 
-/// AI 标签清单（只读，用于筛选）。
-///
-/// 依赖稳定，故用普通 Provider 而非代码生成。AI 层未初始化、未连接或尚未产出
-/// VLM 标签时返回空列表——页面据此隐藏 AI 标签入口，而不是抛错打断整个相册页。
+/// AI 不可用或暂无产物时返回空列表，页面据此隐藏 AI 标签入口。
 final immichAiTagsProvider = FutureProvider<List<AiTagCount>>((ref) async {
   try {
     return await ref.watch(aiApiProvider).fetchTags();

@@ -1,9 +1,5 @@
 <script>
-// 概览：能力就绪/输入档位/进度、按能力重试与重生成、模型进程启停、
-// 运行时信息、VLM 标注模型切换与运行时可调配置。
-//
-// 能力名称、说明、档位、执行者与候选全部来自服务端（status / capabilities），
-// 端上只渲染列表，不硬编码能力语义。
+// 能力档位、执行者和模型候选来自服务端状态。
 
 import { ref, computed } from 'vue';
 import { useApi } from '../../api.js';
@@ -157,8 +153,6 @@ export default {
         + ' · 重试上限 ' + num(source.max_attempts);
     });
 
-    // 候选模型就是本机已安装的模型（/API/ai/capabilities 下发，按名称排序）；
-    // 不可达时列表为空，界面先把"服务没起"说清楚，而不是列一堆点不动的名字。
     const vlmCandidates = computed(() => {
       const cap = (props.capabilities || []).find((item) => item && item.capability === 'vlm');
       const list = cap && Array.isArray(cap.executor_candidates) ? cap.executor_candidates : [];
@@ -190,8 +184,6 @@ export default {
     const inAuto = (name) => autoCapabilities.value.indexOf(name) >= 0;
 
     const failureCap = ref('');
-
-    // ---- 能力卡片动作 ----
 
     const retryFailed = (card) => act('', async () => {
       const data = await api.post('/API/ai/retry', { capability: card.name });

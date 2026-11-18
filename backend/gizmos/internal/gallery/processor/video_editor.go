@@ -10,11 +10,6 @@ import (
 	"strings"
 )
 
-// VideoEditParams 视频编辑参数
-//
-// 时间单位统一为**秒**（trim_start_sec / trim_end_sec），由客户端按真实时长计算。
-// trim_start_frame / trim_end_frame / fps 为旧版（帧数）协议的遗留字段，
-// 仅当秒数为空时才作为后备解析，新客户端不应再写入。
 type VideoEditParams struct {
 	Type string `json:"type"`
 
@@ -31,20 +26,8 @@ type VideoEditParams struct {
 	FPS            float64 `json:"fps"`
 }
 
-// ApplyVideoEdit 对视频应用剪辑（裁剪起止点），结果写入 dstPath
-//
-// 剪辑语义：
-//   - 仅 start > 0          → 从 start 秒剪到结尾
-//   - 仅 end > 0            → 从 0 剪到 end 秒
-//   - start 与 end 均 > 0   → 剪取 [start, end) 区间
-//   - 两者均 <= 0           → 无操作，返回 ErrNoOp
-//
-// 实现要点：
-//   - `-ss` 放在 `-i` 之前（输入侧 seek），快进到目标附近再重新编码，
-//     起止点帧级准确，且解码开销远小于输出侧 seek；
-//   - 重新编码（H.264 + AAC）保证任意容器/编码都能得到时间轴正确的输出，
-//     避免 `-c copy` 在非关键帧处剪切导致的画面黑帧、音画不同步等；
-//   - 两轨时间戳归零（setpts / aresample），避免负起始时间戳造成黑屏与音画错位。
+// ApplyVideoEdit 剪取 [start, end)。非正结束秒数表示剪到结尾。
+// 输入侧 seek 加重新编码实现帧级剪切，两轨时间戳从零开始。
 func ApplyVideoEdit(ctx context.Context, srcPath, dstPath string, editParamsJSON string) error {
 	var params VideoEditParams
 	if err := json.Unmarshal([]byte(editParamsJSON), &params); err != nil {
@@ -55,7 +38,6 @@ func ApplyVideoEdit(ctx context.Context, srcPath, dstPath string, editParamsJSON
 		return fmt.Errorf("非视频编辑参数: %s", params.Type)
 	}
 
-	// 解析起止秒数（优先秒数，其次旧版帧数/帧率换算）
 	startSec := params.TrimStartSec
 	endSec := params.TrimEndSec
 	if startSec <= 0 && params.TrimStartFrame > 0 && params.FPS > 0 {
@@ -65,7 +47,6 @@ func ApplyVideoEdit(ctx context.Context, srcPath, dstPath string, editParamsJSON
 		endSec = float64(params.TrimEndFrame) / params.FPS
 	}
 
-	// 参数合理性校验
 	if startSec < 0 {
 		startSec = 0
 	}

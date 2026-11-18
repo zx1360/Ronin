@@ -23,7 +23,6 @@ import (
 	"monarch/internal/handler/util_handler"
 )
 
-// SetupRouter 构建全部路由与中间件。
 func SetupRouter() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.LoggerWithFormatter(func(p gin.LogFormatterParams) string {
@@ -41,7 +40,6 @@ func SetupRouter() *gin.Engine {
 		r.Static("/static/img_storage/"+module, filepath.Join(config.AppConf.DataDir, "img_storage", module))
 	}
 
-	// 网页运维端（ops）：由后端内置 HTTP 服务托管，仅本机可打开
 	setupOpsWeb(r)
 
 	r.GET("/", func(c *gin.Context) {
@@ -51,10 +49,8 @@ func SetupRouter() *gin.Engine {
 		})
 	})
 
-	// API路由, 数据/操作
 	api := r.Group("/API")
 	{
-		// 用户数据相关
 		userDataGroup := api.Group("/user-data")
 		{
 			userDataGroup.GET("/trace/backup", data_handler.GetTraceBackup)
@@ -66,16 +62,12 @@ func SetupRouter() *gin.Engine {
 			userDataGroup.POST("/check-images/:module", data_handler.CheckImagesHandler)
 		}
 
-		// 漫画读取与修改。
 		comicGroup := api.Group("/comic")
 		{
-			// 漫画列表 & 详情
 			comicGroup.GET("/comic-info", comic_handler.FetchAllComicInfos)
 			comicGroup.GET("/comic-info/:comic-id", comic_handler.FetchChaptersWithComicId)
 			comicGroup.PUT("/comic-info/:comic-id", comic_handler.UpdateComic)
-			// 章节详情
 			comicGroup.GET("/chapter-info/:chapter-id", comic_handler.FetchImagesWithChapterId)
-			// 下载整本漫画到本地
 			comicGroup.GET("/download/:comic-id", comic_handler.DownloadComic)
 		}
 
@@ -100,29 +92,23 @@ func SetupRouter() *gin.Engine {
 			comixGroup.POST("/tasks/:task-id/stop", comix_handler.StopTask)
 		}
 
-		// 媒体浏览相关
 		galleryGroup := api.Group("/gallery", gallery_handler.CheckLibrary)
 		{
 			galleryGroup.GET("/library", gallery_handler.FetchLibrary)
-			// 标签树与标签写操作（服务端权威）
 			galleryGroup.GET("/tags", gallery_handler.FetchAllTags)
 			galleryGroup.POST("/tags", gallery_handler.CreateTag)
 			galleryGroup.PUT("/tags/:id", gallery_handler.UpdateTag)
 			galleryGroup.DELETE("/tags/:id", gallery_handler.DeleteTag)
-			// 媒体查询与媒体标注/标签关系操作
 			galleryGroup.GET("/media", gallery_handler.QueryMedia)
 			galleryGroup.PATCH("/media", gallery_handler.PatchMedia)
 			galleryGroup.POST("/media/tags", gallery_handler.BatchMediaTags)
 			galleryGroup.PUT("/media/:id/tags", gallery_handler.SetMediaTags)
 			// 获取一批次的媒体资产 + 全量标签 + 对应的标签关联（客户端本地缓存下载）
 			galleryGroup.GET("/batch", gallery_handler.FetchBatch)
-			// 获取服务端媒体库总览统计
 			galleryGroup.GET("/overview", gallery_handler.FetchOverview)
-			// 下载文件接口
 			galleryGroup.GET("/:id/:type", gallery_handler.FetchMediaAsset)
 		}
 
-		// 工具api
 		api.GET("/test", util_handler.Test) // 免鉴权
 		api.GET("/ops/overview", util_handler.SystemOverview)
 
@@ -205,9 +191,6 @@ func comicImagesOnly(c *gin.Context) {
 	c.Next()
 }
 
-// setupOpsWeb 托管网页运维端静态资源（/ops/），并重定向到目录形式的首页。
-//
-// 页面与它的本机能力接口一样仅限本机打开：网页端要调用只允许回环的接口，
 func setupOpsWeb(r *gin.Engine) {
 	webDir := config.OpsConf.WebDir
 	if webDir == "" {

@@ -1,4 +1,3 @@
-/// 数据传输页面
 library;
 
 import 'package:flutter/material.dart';
@@ -9,12 +8,6 @@ import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/features/profile/second_page/data/data_transfer.dart';
 import 'package:torrid/providers/network_config/network_config_provider.dart';
 
-/// 数据传输页面
-///
-/// 提供数据同步和备份的统一入口，包括：
-/// - 服务器连接状态显示
-/// - 传输进度显示
-/// - 同步/备份操作按钮
 class DataTransferPage extends ConsumerWidget {
   const DataTransferPage({super.key});
 
@@ -25,15 +18,12 @@ class DataTransferPage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        // 服务器连接状态卡片
         _ServerStatusCard(configState: configState),
 
         const SizedBox(height: AppSpacing.lg),
 
-        // 传输进度
         const TransferProgressWidget(),
 
-        // 同步操作区
         _buildSection(
           title: '双向同步',
           subtitle: '随笔、打卡和时迹双向合并，偏好从服务器恢复',
@@ -42,7 +32,6 @@ class DataTransferPage extends ConsumerWidget {
 
         const SizedBox(height: AppSpacing.lg),
 
-        // 备份操作区
         _buildSection(
           title: '备份到服务器',
           subtitle: '随笔、打卡和时迹双向合并，偏好整体上传',
@@ -98,7 +87,6 @@ class DataTransferPage extends ConsumerWidget {
   }
 }
 
-/// 服务器连接状态卡片
 class _ServerStatusCard extends StatelessWidget {
   final NetworkConfigState configState;
 
@@ -114,7 +102,6 @@ class _ServerStatusCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           children: [
-            // 状态图标
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -131,7 +118,6 @@ class _ServerStatusCard extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.md),
 
-            // 状态信息
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,7 +141,6 @@ class _ServerStatusCard extends StatelessWidget {
               ),
             ),
 
-            // 配置按钮
             TextButton(
               onPressed: () {
                 context.pushNamed('profile_network');
@@ -169,7 +154,6 @@ class _ServerStatusCard extends StatelessWidget {
   }
 }
 
-/// 同步操作区
 class _SyncSection extends ConsumerWidget {
   const _SyncSection();
 
@@ -223,7 +207,6 @@ class _SyncSection extends ConsumerWidget {
   }
 }
 
-/// 备份操作区
 class _BackupSection extends ConsumerWidget {
   const _BackupSection();
 

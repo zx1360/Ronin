@@ -106,7 +106,6 @@ func (t chatTuning) resolve(e *ai.Engine) (string, ai.ChatOptions, error) {
 	return modelName, options, nil
 }
 
-// chatRequest POST /API/ai/chat 请求体。
 type chatRequest struct {
 	Messages []chatMessage `json:"messages"`
 	JSON     bool          `json:"json"`
@@ -124,7 +123,6 @@ type chatMessage struct {
 // Chat 处理 POST /API/ai/chat：流式多轮对话。
 //
 // 响应为 NDJSON（每行一个事件）：`{"type":"thinking"|"delta"|"done"|"error",...}`。
-// 不做一次性返回：思考链与回答都要逐字出现，否则首字节要等几十秒。
 // 该接口不读写 ai schema，只依赖 Ollama 与 gallery 媒体文件。
 func Chat(c *gin.Context) {
 	e := engine(c)

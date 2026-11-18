@@ -3,8 +3,6 @@ import 'package:torrid/core/utils/util.dart';
 
 part 'comic_info.g.dart';
 
-// 漫画元数据
-
 @JsonSerializable(fieldRename: FieldRename.snake)
 class ComicInfo {
   final String id;
@@ -61,7 +59,6 @@ class ComicInfo {
     );
   }
 
-  // 序列化
   factory ComicInfo.fromJson(Map<String, dynamic> json) =>
       _$ComicInfoFromJson(json);
   Map<String, dynamic> toJson() => _$ComicInfoToJson(this);

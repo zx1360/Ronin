@@ -1,4 +1,3 @@
-// 全局返回拦截器组件
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -20,10 +19,8 @@ class _BackHandlerState extends State<BackHandler> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // 控制是否允许系统默认的返回行为
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) async {
-        // 如果已经完成了弹出，则不需要处理
         if (didPop) return;
 
         if (widget.onBack?.call() ?? false) {
@@ -31,7 +28,6 @@ class _BackHandlerState extends State<BackHandler> {
           return;
         }
 
-        // 第二次点击，退出应用
         final now = DateTime.now();
         if (_lastPressedTime != null &&
             now.difference(_lastPressedTime!) <= BackHandler._exitTimeout) {
@@ -39,7 +35,6 @@ class _BackHandlerState extends State<BackHandler> {
           return;
         }
 
-        // 第一次点击，显示提示
         _lastPressedTime = now;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

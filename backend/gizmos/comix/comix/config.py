@@ -1,11 +1,4 @@
-"""全局配置。
-
-数据库文件与漫画存储根目录由 **Ronin 后端根目录的 .env**（backend/.env）统一持有，
-Go 服务调用本 CLI 时会直接注入 `MONARCH_DB_FILE` / `COMIC_STORAGE_ROOT` 环境变量；
-本文件的两级 .env 加载只是为了让 comix 能独立运行（调试/运维脚本）。
-
-加载顺序：显式环境变量、backend/.env、comix/.env。
-"""
+"""配置优先级为环境变量、backend/.env、comix/.env。"""
 from __future__ import annotations
 
 import os
@@ -13,9 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# comix 项目根（comix 包的上一级）：backend/gizmos/comix
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# Ronin 后端根（backend/）：数据库与存储根配置的真源
 BACKEND_ROOT = PROJECT_ROOT.parent.parent
 
 load_dotenv(BACKEND_ROOT / ".env")
@@ -29,8 +20,6 @@ def _resolve(raw: str, default: Path) -> str:
         path = BACKEND_ROOT / path
     return str(path.resolve())
 
-
-# 单文件 SQLite 数据库（与 Monarch、gizmos 共用）
 DB_FILE = _resolve(
     os.getenv("MONARCH_DB_FILE") or os.getenv("DB_FILE", ""),
     BACKEND_ROOT / "data" / "monarch.db",
@@ -45,7 +34,6 @@ COMIC_STORAGE_ROOT = _resolve(
     BACKEND_ROOT.parent / "_static" / "comics",
 )
 
-# 下载并发与稳定性配置
 load_dotenv(PROJECT_ROOT / ".env")
 COMIX_MAX_WORKERS = int(os.getenv("COMIX_MAX_WORKERS", "2"))
 IMG_TIMEOUT_SEC = int(os.getenv("IMG_TIMEOUT_SEC", "20"))

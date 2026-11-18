@@ -1,7 +1,5 @@
 <script>
 import { useSelection } from '../../selection.js';
-// 人物分组：改名、合并、删除、查看人脸、人工纠正与增量/重新聚类。
-
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useApi } from '../../api.js';
 import { toast, confirmAction } from '../../store.js';

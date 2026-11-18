@@ -1,8 +1,5 @@
 <script>
-// AI 媒体处理：能力就绪与进度、任务队列、人物分组、检索、近重复与软删除。
-//
-// 进入/手动刷新时取诊断与配置；活动期间仅轮询 /API/ai/progress。
-// 各标签页只在被选中时挂载，自带加载与空态提示。
+// 页面进入或手动刷新时取诊断，自动刷新只读取轻量进度。
 
 import { ref, computed, watch, onMounted } from 'vue';
 import { useApi } from '../api.js';
@@ -46,7 +43,6 @@ export default {
     });
     const capabilities = computed(() => status.value?.capabilities || []);
 
-    /** 是否还有值得持续观察的活动（排队中/批次执行中/侧车或自拉 Ollama 在跑）。 */
     const active = computed(() => {
       const source = status.value;
       if (!source) return false;
@@ -60,7 +56,6 @@ export default {
       return !!(source.ollama && source.ollama.owned_server === true);
     });
 
-    /** 拉取一次页面状态；silent 用于轮询，失败只在角落里小声提示，不打扰也不刷屏。 */
     let diagnostics = true;
     let refreshModels = false;
     const load = async () => {
@@ -121,7 +116,6 @@ export default {
       if (next === 0 && previous > 0 && !disabled.value) refresh();
     });
 
-    /** 统一的动作通道：忙标记 + 成功提示 + 重新拉取状态；失败提示具体原因。 */
     const run = async (notice, action) => {
       if (busy.value) return false;
       busy.value = true;

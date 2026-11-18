@@ -130,7 +130,7 @@ class _TaskCard extends ConsumerWidget {
                     icon: const Icon(Icons.play_arrow_rounded),
                     label: const Text('继续'),
                   ),
-                if (task.hasActiveWork)
+                if (!task.isTerminal)
                   TextButton.icon(
                     onPressed: () async {
                       final removeFiles = await _askCancelMode(context);

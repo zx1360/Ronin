@@ -10,12 +10,10 @@ class ProgressService extends _$ProgressService {
     return Progress.empty();
   }
 
-  // 初始化进度对象
   void setProgress(Progress progress) {
     state = progress;
   }
 
-  // 修改进度.
   void increaseProgress({
     required int current,
     required String currentMessage,
@@ -23,7 +21,6 @@ class ProgressService extends _$ProgressService {
     state = state.copyWith(current: current, currentMessage: currentMessage);
   }
 
-  // 状态充值
   void resetStatus(){
     state=Progress.empty();
   }

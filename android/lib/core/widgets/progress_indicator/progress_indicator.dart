@@ -8,15 +8,12 @@ class ProgressIndicatorWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 监听进度状态变化
     final progress = ref.watch(progressServiceProvider);
 
-    // 如果没有进度信息或总数为0，不显示组件
     if (progress.total == 0 && progress.message.isEmpty) {
       return Center(child: CircularProgressIndicator(),);
     }
 
-    // 计算进度百分比
     final double progressValue = progress.total > 0
         ? progress.current / progress.total
         : 0.0;
@@ -40,7 +37,6 @@ class ProgressIndicatorWidget extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 主要进度信息
             if (progress.message.isNotEmpty)
               Text(
                 progress.message,
@@ -50,7 +46,6 @@ class ProgressIndicatorWidget extends ConsumerWidget {
         
             const SizedBox(height: 12),
         
-            // 进度条
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
@@ -63,11 +58,9 @@ class ProgressIndicatorWidget extends ConsumerWidget {
         
             const SizedBox(height: 8),
         
-            // 进度详情
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // 百分比和当前任务信息
                 Expanded(
                   child: Text(
                     progress.total > 0
@@ -78,7 +71,6 @@ class ProgressIndicatorWidget extends ConsumerWidget {
                   ),
                 ),
         
-                // 进度计数器 (当前/总数)
                 if (progress.total > 0)
                   Text(
                     '${progress.current}/${progress.total}',

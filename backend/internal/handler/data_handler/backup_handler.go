@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"monarch/internal/repository/data_repo"
@@ -29,14 +28,16 @@ func EditHandler(c *gin.Context) {
 }
 
 func backup(c *gin.Context, guarded bool) {
-	cfg := FindModuleConfigByName(c.Param("module"))
-	if cfg == nil {
+	module := c.Param("module")
+	if !validModule(module) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "模块未找到"})
 		return
 	}
+	preferences := module == "preferences"
+	imageDir := moduleImageDir(module)
 	var payload map[string]json.RawMessage
 	if c.ContentType() == "application/json" {
-		if !cfg.IsDB || c.ShouldBindJSON(&payload) != nil || payload == nil {
+		if preferences || c.ShouldBindJSON(&payload) != nil || payload == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "需要用户数据对象"})
 			return
 		}
@@ -53,23 +54,23 @@ func backup(c *gin.Context, guarded bool) {
 	}
 	if guarded {
 		var cursor *int64
-		if !cfg.IsDB || json.Unmarshal(payload["base_cursor"], &cursor) != nil || cursor == nil {
+		if preferences || json.Unmarshal(payload["base_cursor"], &cursor) != nil || cursor == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "在线编辑必须提供读取快照的 base_cursor"})
 			return
 		}
 	}
 	var receipt *[]data_repo.EssayReceipt
-	if cfg.Name == "essay" && c.Query("receipt") == "1" {
+	if module == "essay" && c.Query("receipt") == "1" {
 		receipt = new([]data_repo.EssayReceipt)
 	}
-	writeData, refs, err := prepareBackup(cfg, payload, receipt)
+	writeData, refs, err := prepareBackup(module, payload, receipt)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	backupMu.Lock()
 	defer backupMu.Unlock()
-	files, err := newBackupFiles(filepath.Dir(cfg.ImageDir))
+	files, err := newBackupFiles(filepath.Dir(imageDir))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -80,7 +81,7 @@ func backup(c *gin.Context, guarded bool) {
 		uploads = c.Request.MultipartForm.File["files"]
 	}
 	for _, file := range uploads {
-		if file.Filename != filepath.Base(file.Filename) || !filepath.IsLocal(file.Filename) || file.Filename == "." || strings.ContainsAny(file.Filename, "/\\") || file.Size == 0 {
+		if !validImageName(file.Filename) || file.Size == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的图片文件: " + file.Filename})
 			return
 		}
@@ -88,7 +89,8 @@ func backup(c *gin.Context, guarded bool) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "上传图片未被数据引用: " + file.Filename})
 			return
 		}
-		if old, err := os.ReadFile(filepath.Join(cfg.ImageDir, file.Filename)); err == nil && len(old) > 0 {
+		path := filepath.Join(imageDir, file.Filename)
+		if old, err := os.ReadFile(path); err == nil && len(old) > 0 {
 			incoming, err := file.Open()
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -105,7 +107,7 @@ func backup(c *gin.Context, guarded bool) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取已有图片失败: " + err.Error()})
 			return
 		}
-		if err := files.add(filepath.Join(cfg.ImageDir, file.Filename), func(path string) error {
+		if err := files.add(path, func(path string) error {
 			return c.SaveUploadedFile(file, path)
 		}); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "暂存图片失败: " + err.Error()})
@@ -113,7 +115,7 @@ func backup(c *gin.Context, guarded bool) {
 		}
 	}
 	for name := range refs {
-		path := filepath.Join(cfg.ImageDir, name)
+		path := filepath.Join(imageDir, name)
 		if !files.contains(path) {
 			if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "缺少引用图片: " + name})
@@ -121,16 +123,14 @@ func backup(c *gin.Context, guarded bool) {
 			}
 		}
 	}
-	for _, path := range cfg.JSONFiles {
-		if err := files.add(path, func(staged string) error {
-			return os.WriteFile(staged, payload[fileKey(path)], 0o644)
+	if preferences {
+		if err := files.add(preferencesPath(), func(staged string) error {
+			return os.WriteFile(staged, payload["preferences"], 0o644)
 		}); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-	}
-	if cfg.Name == "preferences" {
-		if err := files.removeUnusedImages(cfg.ImageDir, refs); err != nil {
+		if err := files.removeUnusedImages(imageDir, refs); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "准备清理偏好图片失败: " + err.Error()})
 			return
 		}
@@ -150,8 +150,8 @@ func backup(c *gin.Context, guarded bool) {
 	c.JSON(http.StatusOK, response)
 }
 
-func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage, receipt *[]data_repo.EssayReceipt) (func() error, map[string]bool, error) {
-	switch cfg.Name {
+func prepareBackup(module string, payload map[string]json.RawMessage, receipt *[]data_repo.EssayReceipt) (func() error, map[string]bool, error) {
+	switch module {
 	case "booklet", "essay":
 		raw, err := json.Marshal(payload)
 		if err != nil {
@@ -164,11 +164,11 @@ func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage, receip
 		if data.SyncVersion != data_repo.SyncVersion {
 			return nil, nil, fmt.Errorf("请更新客户端后使用增量合并同步（sync_version=2）")
 		}
-		refs, err := data.Images(cfg.Name)
+		refs, err := data.Images(module)
 		if err != nil {
 			return nil, nil, err
 		}
-		return func() error { return data_repo.MergeSyncWithReceipt(cfg.Name, data, receipt) }, refs, nil
+		return func() error { return data_repo.MergeSyncWithReceipt(module, data, receipt) }, refs, nil
 	case "preferences":
 		prefs, err := readPreferences(payload["preferences"])
 		if err != nil {
@@ -182,13 +182,8 @@ func prepareBackup(cfg *ModuleConfig, payload map[string]json.RawMessage, receip
 		if err != nil {
 			return nil, nil, err
 		}
-		return func() error { return nil }, refs, nil
+		return nil, refs, nil
 	default:
-		return nil, nil, fmt.Errorf("不支持的模块: %s", cfg.Name)
+		return nil, nil, fmt.Errorf("不支持的模块: %s", module)
 	}
-}
-
-func fileKey(path string) string {
-	name := filepath.Base(path)
-	return name[:len(name)-len(filepath.Ext(name))]
 }

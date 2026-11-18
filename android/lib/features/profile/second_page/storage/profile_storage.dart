@@ -4,9 +4,6 @@ import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/constants/spacing.dart';
 import 'package:torrid/providers/storage/cache_provider.dart';
 
-/// 存储设置页面
-///
-/// 展示应用缓存占用情况，提供手动清理功能和缓存配置
 class ProfileStorage extends ConsumerWidget {
   const ProfileStorage({super.key});
 
@@ -17,7 +14,6 @@ class ProfileStorage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        // 缓存概览卡片
         _CacheOverviewCard(
           cacheState: cacheState,
           onClearAll: () => _confirmClearAll(context, ref),
@@ -25,7 +21,6 @@ class ProfileStorage extends ConsumerWidget {
 
         const SizedBox(height: AppSpacing.lg),
 
-        // 缓存详情分区
         _buildSection(
           title: '缓存详情',
           children: [
@@ -69,7 +64,6 @@ class ProfileStorage extends ConsumerWidget {
 
         const SizedBox(height: AppSpacing.lg),
 
-        // 自动清理设置分区
         _buildSection(
           title: '自动清理',
           children: [
@@ -85,7 +79,6 @@ class ProfileStorage extends ConsumerWidget {
 
         const SizedBox(height: AppSpacing.lg),
 
-        // 刷新按钮
         Center(
           child: TextButton.icon(
             onPressed: cacheState.isLoading
@@ -102,7 +95,6 @@ class ProfileStorage extends ConsumerWidget {
           ),
         ),
 
-        // 消息提示
         if (cacheState.message != null)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.md),
@@ -208,7 +200,6 @@ class ProfileStorage extends ConsumerWidget {
   }
 }
 
-/// 缓存概览卡片
 class _CacheOverviewCard extends StatelessWidget {
   final CacheState cacheState;
   final VoidCallback? onClearAll;
@@ -223,7 +214,6 @@ class _CacheOverviewCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           children: [
-            // 缓存总量显示
             Row(
               children: [
                 Container(
@@ -268,7 +258,6 @@ class _CacheOverviewCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                // 清理按钮
                 ElevatedButton.icon(
                   onPressed: cacheState.isClearing ? null : onClearAll,
                   icon: cacheState.isClearing
@@ -290,7 +279,6 @@ class _CacheOverviewCard extends StatelessWidget {
               ],
             ),
 
-            // 容量指示条
             if (!cacheState.isLoading) ...[
               const SizedBox(height: AppSpacing.md),
               _buildCapacityIndicator(cacheState),
@@ -343,7 +331,6 @@ class _CacheOverviewCard extends StatelessWidget {
   }
 }
 
-/// 缓存详情列表项
 class _CacheDetailTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -401,7 +388,6 @@ class _CacheDetailTile extends StatelessWidget {
   }
 }
 
-/// 自动清理开关
 class _AutoCleanToggleTile extends ConsumerWidget {
   final CacheState cacheState;
 
@@ -425,7 +411,6 @@ class _AutoCleanToggleTile extends ConsumerWidget {
   }
 }
 
-/// 过期天数设置
 class _ExpireDaysTile extends ConsumerWidget {
   final CacheState cacheState;
 
@@ -461,7 +446,6 @@ class _ExpireDaysTile extends ConsumerWidget {
   }
 }
 
-/// 容量上限设置
 class _MaxSizeTile extends ConsumerWidget {
   final CacheState cacheState;
 

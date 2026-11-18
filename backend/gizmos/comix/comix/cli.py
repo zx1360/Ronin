@@ -29,11 +29,6 @@ from . import db, scheduler
 from .scheduler import CandidateChoiceRequired, NotFound
 
 
-
-# ---------------------------------------------------------------------------
-# 输出
-# ---------------------------------------------------------------------------
-
 def _json_default(obj):
     """datetime/date 序列化为 ISO 字符串，其余交给标准 JSON。"""
     if isinstance(obj, (datetime, date)):
@@ -56,10 +51,6 @@ def log(msg: str) -> None:
     """进度日志 → stderr（不污染 JSON stdout）。"""
     print(msg, file=sys.stderr, flush=True)
 
-
-# ---------------------------------------------------------------------------
-# 命令实现
-# ---------------------------------------------------------------------------
 
 def cmd_init(args) -> None:
     db.init_db()
@@ -204,11 +195,6 @@ def cmd_sync(args) -> None:
     emit_ok(result)
 
 
-
-# ---------------------------------------------------------------------------
-# 参数解析
-# ---------------------------------------------------------------------------
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="comix",
@@ -313,7 +299,6 @@ def main(argv: list[str] | None = None) -> int:
             traceback.print_exc()
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

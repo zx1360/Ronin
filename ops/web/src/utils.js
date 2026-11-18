@@ -1,6 +1,3 @@
-// 展示层格式化工具：时间、体积、状态文案。
-
-/** 字节数转为可读体积。 */
 export function formatBytes(bytes) {
   const value = Number(bytes);
   if (!Number.isFinite(value) || value <= 0) return '0 B';
@@ -32,16 +29,6 @@ export function formatClock(value) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-/** 耗时文本（毫秒）。 */
-export function formatDuration(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return '—';
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds} 秒`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} 分 ${seconds % 60} 秒`;
-  return `${Math.floor(minutes / 60)} 时 ${minutes % 60} 分`;
-}
-
 const TASK_STATUS_TEXT = {
   queued: '排队中',
   running: '运行中',
@@ -52,12 +39,10 @@ const TASK_STATUS_TEXT = {
 
 export const taskActive = (status) => status === 'queued' || status === 'running';
 
-/** 任务状态文案。 */
 export function taskStatusText(status) {
   return TASK_STATUS_TEXT[status] || status || '未知';
 }
 
-/** 任务状态对应的徽标样式。 */
 export function taskStatusKind(status) {
   if (status === 'queued') return 'warning';
   if (status === 'running') return 'info';

@@ -8,15 +8,12 @@ part of 'network_config_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// 网络配置管理Provider
 
 @ProviderFor(NetworkConfigManager)
 final networkConfigManagerProvider = NetworkConfigManagerProvider._();
 
-/// 网络配置管理Provider
 final class NetworkConfigManagerProvider
     extends $NotifierProvider<NetworkConfigManager, NetworkConfigState> {
-  /// 网络配置管理Provider
   NetworkConfigManagerProvider._()
     : super(
         from: null,
@@ -46,8 +43,6 @@ final class NetworkConfigManagerProvider
 
 String _$networkConfigManagerHash() =>
     r'b7d2c3ef87fcc9bf190050bec47753e89ea0db91';
-
-/// 网络配置管理Provider
 
 abstract class _$NetworkConfigManager extends $Notifier<NetworkConfigState> {
   NetworkConfigState build();
