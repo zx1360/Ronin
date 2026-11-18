@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "check:build": "node --input-type=module -e \"import { build } from 'vite'; await build({ build: { write: false } })\"",
     "watch": "vite build --watch",
     "test": "node --test ../tests/*.mjs"
   },

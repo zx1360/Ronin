@@ -42,11 +42,11 @@ Android 通过局域网 HTTPS 和 API 密钥连接 Monarch。Northstar 只接受
 
    在运行 Monarch 的电脑上打开 [Northstar](http://127.0.0.1:7275/ops/)。画廊处理任务还需构建 Gallery CLI，在 `backend/` 执行 `go build -o gizmos/gallery.exe ./gizmos/cmd/gallery`。漫画下载与 AI 可按需配置。 [comix](backend/gizmos/comix/) · [AI 安装说明](backend/tools/ai/README.md)
 
-3. 编译 Torrid 前，把 Monarch 的公开证书 `backend/cert/server.crt` 放到 `android/android/app/src/main/res/raw/server.crt`，并按 [Android 构建配置](android/android/app/build.gradle.kts) 准备自己的签名。回到仓库根目录运行 `pwsh -File verify.ps1 -Scope android`，生成可安装的调试 APK。安装后在「个人 → 网络设置」填写电脑的局域网地址、HTTPS 端口和同一 API 密钥。
+3. 编译 Torrid 前，把 Monarch 的公开证书 `backend/cert/server.crt` 放到 `android/android/app/src/main/res/raw/server.crt`，并按 [Android 构建配置](android/android/app/build.gradle.kts) 准备自己的签名。在 `android/` 运行 `flutter build apk --debug` 生成调试 APK。安装后在「个人 → 网络设置」填写电脑的局域网地址、HTTPS 端口和同一 API 密钥。
 
 ## 备份与开发
 
 - 停止 Monarch 和相关 CLI 后，可从仓库根目录运行 `python backend/tools/backup_local.py --output backend/backups/manual-001`，备份数据库、附件和配置。脚本依赖 `python-dotenv`。画廊、漫画原文件以及仅存于手机或浏览器的数据需另行备份。 [备份脚本](backend/tools/backup_local.py)
-- 从仓库根目录运行 `pwsh -File verify.ps1 -Scope android` 验收 Android。也可选择 `backend`、`ops` 或 `contracts`。 [仓库约定](docs/architecture/instructions.md) · [跨端契约](backend/data/contracts/README.md)
+- 依赖就绪后，可从仓库根目录运行 `pwsh -File verify.ps1 -Scope <backend|android|ops|all>` 验收对应范围。日常检查的选择见[仓库验证规则](AGENTS.md#验证)。 [跨端契约](backend/data/contracts/README.md)
 
 本项目采用 [MIT 许可证](LICENSE)。
