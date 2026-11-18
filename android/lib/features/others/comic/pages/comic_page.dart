@@ -24,6 +24,7 @@ class _ComicPageState extends ConsumerState<ComicPage> {
   bool _showAllComics = false; // false=仅公开, true=全部
 
   Future<void> initInfos() async {
+    if (isInProgress) return;
     final option = await showOptionsDialog(
       context: context,
       title: "初始化漫画文件元数据.",
@@ -44,17 +45,19 @@ class _ComicPageState extends ConsumerState<ComicPage> {
         ),
       ],
     );
-    if (option == null) {
-      return;
+    if (option == null || !mounted || isInProgress) return;
+    setState(() => isInProgress = true);
+    try {
+      await option.onPressed();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('扫描本地漫画失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => isInProgress = false);
     }
-
-    setState(() {
-      isInProgress = true;
-    });
-    await option.onPressed();
-    setState(() {
-      isInProgress = false;
-    });
   }
 
   /// 与服务端同步本地漫画状态；编排在 [ComicService.syncWithServer] 里。
@@ -113,7 +116,6 @@ class _ComicPageState extends ConsumerState<ComicPage> {
                   setState(() {
                     _showAllComics = !_showAllComics;
                   });
-                  // 刷新在线列表以应用过滤
                   if (isOnlineComicsLoaded) {
                     ref.invalidate(comicsOnlineProvider);
                   }

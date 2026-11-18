@@ -10,7 +10,6 @@ import 'package:torrid/features/booklet/widgets/routine/overview/task_simple_wid
 
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
-import 'package:torrid/features/booklet/models/task.dart';
 
 class BookletOverviewPage extends ConsumerStatefulWidget {
   const BookletOverviewPage({super.key});
@@ -21,38 +20,15 @@ class BookletOverviewPage extends ConsumerStatefulWidget {
 }
 
 class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
-  Style? _currentStyle; // 当前选中的打卡样式
-  List<Record> _relatedRecords = []; // 当前样式的所有打卡记录（按日期倒序）
-  String? _selectedTaskId; // 当前选中的任务ID（用于筛选日历展示）
-
-  @override
-  void initState() {
-    super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final latestStyle = ref.read(latestStyleProvider);
-      if (latestStyle != null) {
-        _currentStyle = latestStyle;
-      }
-      setState(() {});
-    });
-  }
+  String? _selectedStyleId;
+  String? _selectedTaskId;
 
   void _onStyleChanged(String? newStyleId) {
-    if (newStyleId == null || newStyleId == _currentStyle?.id) return;
+    if (newStyleId == null || newStyleId == _selectedStyleId) return;
     setState(() {
-      _currentStyle = ref.read(styleByIdProvider(newStyleId));
-      _selectedTaskId = null; // 切换样式时重置任务筛选
+      _selectedStyleId = newStyleId;
+      _selectedTaskId = null;
     });
-  }
-
-  /// 当前筛选任务的标题；任务已被删除时回退到默认标题
-  String _selectedTaskTitle() {
-    final tasks = _currentStyle?.tasks ?? const <Task>[];
-    for (final task in tasks) {
-      if (task.id == _selectedTaskId) return task.title;
-    }
-    return '所选任务';
   }
 
   Future<void> _openCreateStyleBottomSheet() async {
@@ -63,21 +39,24 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
       builder: (_) => const CreateStyleSheet(),
     );
     if (!mounted || style == null) return;
-    setState(() {
-      _currentStyle = style;
-      _selectedTaskId = null;
-    });
+    _onStyleChanged(style.id);
   }
 
   @override
   Widget build(BuildContext context) {
-    Map<String, int> taskCompletionCounts = {};
-    if (_currentStyle != null) {
-      _relatedRecords = ref.watch(recordsByStyleIdProvider(_currentStyle!.id));
-      taskCompletionCounts = ref.watch(
-        allTaskCompletionCountsProvider(_currentStyle!.id),
-      );
-    }
+    final styles = ref.watch(sortedStylesProvider);
+    final currentStyle =
+        styles.where((style) => style.id == _selectedStyleId).firstOrNull ??
+        styles.firstOrNull;
+    final selectedTask = currentStyle?.tasks
+        .where((task) => task.id == _selectedTaskId)
+        .firstOrNull;
+    final List<Record> relatedRecords = currentStyle == null
+        ? const []
+        : ref.watch(recordsByStyleIdProvider(currentStyle.id));
+    final taskCompletionCounts = currentStyle == null
+        ? const <String, int>{}
+        : ref.watch(allTaskCompletionCountsProvider(currentStyle.id));
 
     return Scaffold(
       body: Container(
@@ -101,7 +80,7 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                     context,
                     MaterialPageRoute(
                       builder: (_) =>
-                          BookletHistoryPage(styleId: _currentStyle?.id),
+                          BookletHistoryPage(styleId: currentStyle?.id),
                     ),
                   ),
                   icon: const Icon(Icons.history),
@@ -115,7 +94,8 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                 children: [
                   Expanded(
                     child: StyleDropdown(
-                      currentStyle: _currentStyle,
+                      key: ValueKey(currentStyle?.id),
+                      currentStyle: currentStyle,
                       onStyleChanged: _onStyleChanged,
                     ),
                   ),
@@ -136,14 +116,14 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
               ),
               const SizedBox(height: 20),
 
-              CompactStyleOverview(currentStyle: _currentStyle),
+              CompactStyleOverview(currentStyle: currentStyle),
               const SizedBox(height: 6),
 
-              if (_currentStyle != null) ...[
+              if (currentStyle != null) ...[
                 Row(
                   children: [
                     Expanded(child: Text('打卡任务', style: noteTitle)),
-                    if (_selectedTaskId != null)
+                    if (selectedTask != null)
                       TextButton.icon(
                         onPressed: () {
                           setState(() {
@@ -169,9 +149,9 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                   height: 200,
                   child: ListView.builder(
                     padding: EdgeInsets.only(top: 0),
-                    itemCount: _currentStyle!.tasks.length,
+                    itemCount: currentStyle.tasks.length,
                     itemBuilder: (context, index) {
-                      Task task = _currentStyle!.tasks[index];
+                      final task = currentStyle.tasks[index];
                       final completionCount =
                           taskCompletionCounts[task.id] ?? 0;
                       final isSelected = _selectedTaskId == task.id;
@@ -201,16 +181,14 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
               const SizedBox(height: 18),
 
               Text(
-                _selectedTaskId != null
-                    ? '「${_selectedTaskTitle()}」完成记录'
-                    : '打卡记录总览',
+                selectedTask != null ? '「${selectedTask.title}」完成记录' : '打卡记录总览',
                 style: noteTitle,
               ),
               const SizedBox(height: 12),
               CheckinCalendar(
-                style: _currentStyle,
-                records: _relatedRecords,
-                selectedTaskId: _selectedTaskId,
+                style: currentStyle,
+                records: relatedRecords,
+                selectedTaskId: selectedTask?.id,
               ),
             ],
           ),

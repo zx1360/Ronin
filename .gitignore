@@ -9,56 +9,30 @@
 *.bak
 *.log
 
-# 通用构建输出（每个项目内部已有更具体的，但这里兜底）
-**/build/
-**/dist/
-**/out/
+# 构建和依赖
+build/
+dist/
+out/
+node_modules/
+coverage/
 
-# 依赖缓存（兜底）
-**/node_modules/
-**/vendor/
-
-# Flutter 生成的插件文件（如果子项目没忽略干净）
-**/.flutter-plugins
-**/.flutter-plugins-dependencies
-**/.packages
-**/.metadata
-
-# Dart
-**/.dart_tool/
-**/.pub/
-
-# Go 编译产物
+# Go
 *.exe
 *.exe~
 *.test
 *.out
-*.vbs
-
-# Go 构建缓存（本地沙箱构建时使用）
 .gocache/
 
-# Dart 依赖缓存（本地沙箱构建时使用）
-.pub-cache/
-
-# 测试覆盖率
-**/coverage/
-
-# 环境变量文件（绝对不要提交）
+# 本机配置和数据
 .env
 .env.*
-
-# 资源目录
-_static/
-
-# 跨端契约快照（生成物，真源是 Go 代码；用 backend/references/scripts/generate_refs.ps1 生成）
-backend/references/generated/
-backend/backups/
-
-# 隔离验收运行目录
-.acceptance-*/
-
-/.optimization-check-*/
-/.refactor-check/
+/_static/
+/backend/backups/
 /cert/
 /comic_index.json
+
+# 生成的参考快照和隔离验收目录
+/backend/references/generated/
+.acceptance-*/
+/.optimization-check-*/
+/.refactor-check/

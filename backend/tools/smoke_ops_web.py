@@ -1,9 +1,4 @@
-"""网页运维端冒烟：逐页 + 逐标签页检查渲染与控制台错误。
-
-用法：``python tools/smoke_ops_web.py --base http://127.0.0.1:17275``。
-仅验收显式指定的隔离实例；不启动服务。
-依赖 playwright + chromium（与 comix 爬虫同一套依赖）。
-"""
+"""在隔离 Monarch 实例上运行 Ops 渲染冒烟或单个交互用例。"""
 import argparse
 import base64
 import json
@@ -202,8 +197,16 @@ def errors_case(context):
     assert not context.cookies(), "密钥不应写入 cookie"
 
 
-def interaction_checks(browser, problems, console):
-    for case in (persons_case, polling_case, essay_case, errors_case):
+CASES = {
+    "persons": persons_case,
+    "polling": polling_case,
+    "essay": essay_case,
+    "errors": errors_case,
+}
+
+
+def interaction_checks(browser, cases, problems, console):
+    for case in cases:
         with browser.new_context(ignore_https_errors=True, viewport={"width": 1500, "height": 950}) as context:
             context.on("page", lambda page: page.on("pageerror", lambda error: problems.append(str(error))))
             def on_console(message):
@@ -217,13 +220,8 @@ def interaction_checks(browser, problems, console):
                 problems.append(f"{case.__name__}: {error}")
 
 
-def run() -> int:
-    problems: list[str] = []
-    console: list[str] = []
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        context = browser.new_context(ignore_https_errors=True, viewport={"width": 1500, "height": 950})
+def render_checks(browser, problems, console) -> bool:
+    with browser.new_context(ignore_https_errors=True, viewport={"width": 1500, "height": 950}) as context:
         page = context.new_page()
         page.on("console", lambda m: console.append(f"[{m.type}] {m.text}") if m.type == "error" else None)
         page.on("pageerror", lambda e: problems.append(f"pageerror: {e}"))
@@ -233,9 +231,7 @@ def run() -> int:
             page.wait_for_selector(".sidebar", timeout=15000)
         except Exception:
             problems.append("页面未渲染出侧边栏（请确认服务已运行且通过本机地址访问）")
-            browser.close()
-            report(problems, console)
-            return 1
+            return False
 
         for route in PAGES:
             page.evaluate("(r) => { window.location.hash = r; }", route)
@@ -254,8 +250,19 @@ def run() -> int:
                 if found:
                     problems.append(f"{route} [{label}] 渲染瑕疵: {', '.join(found)}")
 
-        context.close()
-        interaction_checks(browser, problems, console)
+    return True
+
+
+def run(case=None) -> int:
+    problems: list[str] = []
+    console: list[str] = []
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        if case:
+            interaction_checks(browser, [CASES[case]], problems, console)
+        elif render_checks(browser, problems, console):
+            interaction_checks(browser, CASES.values(), problems, console)
         browser.close()
 
     report(problems, console)
@@ -274,6 +281,7 @@ def report(problems: list[str], console: list[str]) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="验收 Go 托管的 Ops 构建产物；仅指定隔离实例。")
     parser.add_argument("--base", default=os.environ.get("OPS_SMOKE_BASE"), help="隔离 Monarch 地址，例如 http://127.0.0.1:17275")
+    parser.add_argument("--case", choices=CASES, help="只跑指定交互用例")
     args = parser.parse_args()
     if not args.base:
         parser.error("必须通过 --base 或 OPS_SMOKE_BASE 显式指定隔离实例")
@@ -282,4 +290,4 @@ if __name__ == "__main__":
     if target.scheme not in ("http", "https") or target.hostname not in ("127.0.0.1", "localhost", "::1") or target.path not in ("", "/") or target.query or target.fragment or target.username:
         parser.error("地址必须是无路径和凭据的本机 HTTP(S) 隔离实例")
     BASE = args.base.rstrip("/")
-    sys.exit(run())
+    sys.exit(run(args.case))

@@ -4,15 +4,13 @@ import 'package:torrid/features/booklet/pages/booklet_overview.dart';
 import 'package:torrid/features/booklet/pages/history_page.dart';
 
 import 'package:torrid/features/booklet/providers/providers.dart';
-import 'package:torrid/features/booklet/storage/booklet_store.dart';
 import 'package:torrid/features/booklet/widgets/routine/topbar/topbar.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_detail_sheet.dart';
 import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart';
 
 import 'package:torrid/features/booklet/models/style.dart';
-import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/features/booklet/models/record.dart';
-import 'package:torrid/core/models/mood.dart';
+import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 import 'package:torrid/core/utils/util.dart';
 
@@ -24,40 +22,40 @@ class BookletPage extends ConsumerStatefulWidget {
 }
 
 class _BookletPageState extends ConsumerState<BookletPage> {
-  Style? _latestStyle;
-  Record? _targetRecord;
-
-  /// 尚未落库的空记录按日期缓存：避免每次 build 都生成新 id（会造成同日多条记录）
-  final Map<String, Record> _draftRecords = {};
-  List<Task> _tasks = [];
-  Map<String, dynamic> _stats = {};
-  final List<bool> _completions = [];
-  late TextEditingController _messageController;
-  late FocusNode _focusNode;
-  BookletStore? _server;
+  final _draftRecords = <(String, DateTime), Record>{};
+  final _messageController = TextEditingController();
+  final _focusNode = FocusNode();
+  (String, DateTime)? _messageScope;
+  String _savedMessage = '';
   bool _saving = false;
-  DateTime targetDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-  );
+  (String, DateTime)? _selectedDay;
 
-  /// 取当前日期对应的记录；没有则创建一条草稿（同一天复用同一个草稿）
-  Record _recordFor(Style style) {
-    final key =
-        '${style.id}|${targetDate.year}-${targetDate.month}-${targetDate.day}';
-    return _draftRecords.putIfAbsent(
-      key,
-      () => Record.empty(style: style, date: targetDate),
-    );
+  Record _recordFor(Style style, DateTime date) {
+    final persisted = ref.watch(recordByDateProvider(targetDate: date));
+    if (persisted != null) return persisted;
+    return _draftRecords.putIfAbsent((
+      style.id,
+      date,
+    ), () => Record.empty(style: style, date: date));
   }
 
-  /// 写入当前记录，查询流会更新页面。
+  void _syncMessage(Record? record) {
+    final scope = record == null ? null : (record.styleId, record.date);
+    final message = record?.message ?? '';
+    if (scope != _messageScope || _messageController.text == _savedMessage) {
+      if (_messageController.text != message) _messageController.text = message;
+    }
+    _messageScope = scope;
+    _savedMessage = message;
+  }
+
   Future<void> _persist(Record record) async {
     if (_saving) return;
     setState(() => _saving = true);
     try {
-      await _server!.putRecord(styleId: record.styleId, record: record);
+      await ref
+          .read(bookletStoreProvider)
+          .putRecord(styleId: record.styleId, record: record);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -69,79 +67,48 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     }
   }
 
-  Future<void> toggleCompletion(String taskId, bool completed) async {
-    final record = _targetRecord;
-    if (record == null) return;
-    await _persist(
-      record.copyWith(
-        taskCompletion: {...record.taskCompletion, taskId: completed},
-      ),
-    );
-  }
-
-  Future<void> saveMessage() async {
-    final record = _targetRecord;
-    if (record == null || _latestStyle == null) return;
-    await _persist(record.copyWith(message: _messageController.text));
-  }
-
-  Future<void> updateMood(MoodType? mood) async {
-    final record = _targetRecord;
-    if (record == null) return;
-    await _persist(record.copyWith(mood: mood, clearMood: mood == null));
-  }
-
-  Future<void> selectDate(DateTimeRange? dateRange) async {
-    if (dateRange == null) return;
+  Future<void> _selectDate(
+    DateTimeRange? dateRange,
+    DateTime targetDate,
+  ) async {
+    final styleId = ref.read(latestStyleProvider)?.id;
+    if (dateRange == null || styleId == null) return;
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: targetDate,
+      initialDate: targetDate.isBefore(dateRange.start)
+          ? dateRange.start
+          : targetDate,
       firstDate: dateRange.start,
       lastDate: dateRange.end,
       helpText: '选择打卡日期',
       cancelText: '取消',
       confirmText: '确认',
     );
-    if (selectedDate != null) {
-      setState(() {
-        targetDate = selectedDate;
-      });
+    if (!mounted || selectedDate == null) return;
+    if (ref.read(latestStyleProvider)?.id == styleId) {
+      setState(() => _selectedDay = (styleId, selectedDate));
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _messageController = TextEditingController();
-    _focusNode = FocusNode();
   }
 
   @override
   Widget build(BuildContext context) {
-    _server = ref.watch(bookletStoreProvider);
-    _latestStyle = ref.watch(latestStyleProvider);
-    if (_latestStyle != null) {
-      final persisted = ref.watch(recordByDateProvider(targetDate: targetDate));
-      _targetRecord = persisted ?? _recordFor(_latestStyle!);
-      _completions.clear();
-
-      _tasks = _latestStyle!.tasks;
-      _stats = _latestStyle!.toJson();
-      _stats['latest_streak'] = ref.watch(
-        currentStreakProvider(_latestStyle!.id),
-      );
-
-      for (final task in _latestStyle!.tasks) {
-        _completions.add(_targetRecord!.taskCompletion[task.id] ?? false);
-      }
-      // 仅在内容确实不同且输入框未聚焦时同步，避免打字过程中光标被重置
-      if (!_focusNode.hasFocus &&
-          _messageController.text != _targetRecord!.message) {
-        _messageController.text = _targetRecord!.message;
-      }
+    final style = ref.watch(latestStyleProvider);
+    final dateRange = ref.watch(styleDateRangeProvider(style: style));
+    final today = getTodayDate();
+    final selected = _selectedDay;
+    final targetDate =
+        selected != null &&
+            selected.$1 == style?.id &&
+            !selected.$2.isAfter(today)
+        ? selected.$2
+        : today;
+    final record = style == null ? null : _recordFor(style, targetDate);
+    _syncMessage(record);
+    final stats = style?.toJson() ?? <String, dynamic>{};
+    if (style != null) {
+      stats['latest_streak'] = ref.watch(currentStreakProvider(style.id));
     }
-
-    final dateRange = ref.watch(styleDateRangeProvider(style: _latestStyle));
+    final tasks = style?.tasks ?? const <Task>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -164,7 +131,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
           ),
           IconButton(
             onPressed: () {
-              selectDate(dateRange);
+              _selectDate(dateRange, targetDate);
             },
             icon: Icon(Icons.date_range),
           ),
@@ -190,28 +157,31 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                   ),
                 );
               },
-              child: Topbar(stats: _stats),
+              child: Topbar(stats: stats),
             ),
 
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _tasks.length,
+                itemCount: tasks.length,
                 itemBuilder: (context, index) {
-                  Task taskData = _tasks[index];
+                  final taskData = tasks[index];
                   return GestureDetector(
                     onDoubleTap: () => showTaskDetails(context, taskData),
                     child: TaskWidget(
                       title: taskData.title,
                       description: taskData.description,
                       imgUrl: taskData.image,
-                      completed: _completions.isNotEmpty
-                          ? _completions[index]
-                          : false,
+                      completed: record?.taskCompletion[taskData.id] ?? false,
                       switchCB: (value) {
-                        toggleCompletion(
-                          _latestStyle!.tasks[index].id,
-                          value ?? false,
+                        if (record == null) return;
+                        _persist(
+                          record.copyWith(
+                            taskCompletion: {
+                              ...record.taskCompletion,
+                              taskData.id: value ?? false,
+                            },
+                          ),
                         );
                       },
                     ),
@@ -220,7 +190,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
               ),
             ),
 
-            if (_latestStyle != null)
+            if (record != null)
               Container(
                 margin: const EdgeInsets.all(12),
                 padding: const EdgeInsets.all(16),
@@ -272,21 +242,32 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                         Expanded(
                           child: isSameDay(targetDate, DateTime.now())
                               ? MoodSelector(
-                                  selectedMood: _targetRecord?.mood,
-                                  onMoodChanged: updateMood,
+                                  selectedMood: record.mood,
+                                  onMoodChanged: (mood) => _persist(
+                                    record.copyWith(
+                                      mood: mood,
+                                      clearMood: mood == null,
+                                    ),
+                                  ),
                                   compact: true,
                                   iconSize: 24,
                                 )
-                              : (_targetRecord?.mood != null
+                              : (record.mood != null
                                     ? MoodDisplay(
-                                        mood: _targetRecord?.mood,
+                                        mood: record.mood,
                                         iconSize: 24,
                                         showLabel: true,
                                       )
                                     : const SizedBox.shrink()),
                         ),
                         ElevatedButton(
-                          onPressed: _saving ? null : saveMessage,
+                          onPressed: _saving
+                              ? null
+                              : () => _persist(
+                                  record.copyWith(
+                                    message: _messageController.text,
+                                  ),
+                                ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.yellow[700],
                             foregroundColor: Colors.brown[900],

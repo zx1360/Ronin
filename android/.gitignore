@@ -1,8 +1,5 @@
 # Miscellaneous
 *.class
-*.log
-*.pyc
-*.swp
 .DS_Store
 .atom/
 .build/
@@ -16,17 +13,6 @@ migrate_working_dir/
 *.iml
 *.ipr
 *.iws
-.idea/
-# Python虚拟环境
-.venv/
-venv/
-env/
-__pycache__/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -34,9 +20,9 @@ __pycache__/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
-/build/
 
 # Symbolication related
 app.*.symbols
@@ -49,5 +35,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# 资源文件(图片等).
+# 本机构建资源
 /assets/
+/android/app/src/main/res/raw/server.crt

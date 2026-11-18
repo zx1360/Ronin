@@ -45,7 +45,7 @@ export default {
         <fieldset class="user-label-picker">
           <legend>标签（1 至 4 个）</legend>
           <label v-for="l in labels" :key="l.id">
-            <input type="checkbox" :checked="editor.labels.includes(l.id)" @change="toggleLabel(l.id)" />
+            <input type="checkbox" :checked="editor.labels.includes(l.id)" @change="toggleLabel(l.id,$event)" />
             {{l.path}}
           </label>
           <span v-if="!labels.length" class="muted">请先到标签页创建标签</span>

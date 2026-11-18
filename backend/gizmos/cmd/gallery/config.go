@@ -6,24 +6,28 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	"monarch/internal/config"
 )
 
 const schemaMarker = "references/db/sqlite.sql"
 
-func galleryDBFile() string {
-	if file := strings.TrimSpace(os.Getenv("DB_FILE")); filepath.IsAbs(file) {
-		return file
-	}
+func galleryDBConfig() config.DbConfig {
 	root := findBackendRoot()
 	_ = godotenv.Load(filepath.Join(root, ".env"))
-	file := strings.TrimSpace(os.Getenv("DB_FILE"))
-	if file == "" {
-		file = filepath.Join("data", "monarch.db")
+	resolve := func(key, fallback string) string {
+		path := strings.TrimSpace(os.Getenv(key))
+		if path == "" {
+			path = fallback
+		}
+		if filepath.IsAbs(path) {
+			return path
+		}
+		return filepath.Join(root, path)
 	}
-	if filepath.IsAbs(file) {
-		return file
+	return config.DbConfig{
+		File:       resolve("DB_FILE", filepath.Join("data", "monarch.db")),
+		SchemaFile: resolve("DB_SCHEMA_FILE", schemaMarker),
 	}
-	return filepath.Join(root, file)
 }
 
 func findBackendRoot() string {

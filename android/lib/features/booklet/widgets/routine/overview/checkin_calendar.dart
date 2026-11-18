@@ -27,15 +27,16 @@ class CheckinCalendar extends StatelessWidget {
     );
   }
 
-  int _statusIndex(Record? record, int taskCount) {
+  int _statusIndex(Record? record, Style style) {
     if (record == null) return 0;
     if (selectedTaskId != null) {
       return record.taskCompletion[selectedTaskId] == true ? 1 : 5;
     }
 
-    final completed = record.taskCompletion.values.where((done) => done).length;
-    final incomplete = taskCount - completed;
-    return incomplete >= 0 && incomplete <= 4 ? incomplete + 1 : 0;
+    final incomplete = style.tasks
+        .where((task) => record.taskCompletion[task.id] != true)
+        .length;
+    return (incomplete + 1).clamp(1, checkInColors.length - 1);
   }
 
   void _openDateDetailDialog(
@@ -157,11 +158,12 @@ class CheckinCalendar extends StatelessWidget {
     final today = getTodayDate();
     final start = records.isEmpty ? today : dateOnly(records.last.date);
     final end = records.isEmpty ? today : dateOnly(records.first.date);
-    final totalDays = end.difference(start).inDays + 1;
-
     final monthGroups = <String, List<DateTime>>{};
-    for (var i = 0; i < totalDays; i++) {
-      final date = start.add(Duration(days: i));
+    for (
+      var date = start;
+      !date.isAfter(end);
+      date = DateTime(date.year, date.month, date.day + 1)
+    ) {
       monthGroups.putIfAbsent(monthFormatter.format(date), () => []).add(date);
     }
 
@@ -201,12 +203,12 @@ class CheckinCalendar extends StatelessWidget {
 
                 final date = monthDates[index - offset];
                 final record = recordsByDate[dateOnly(date)];
-                final statusIndex = _statusIndex(record, style.tasks.length);
+                final statusIndex = _statusIndex(record, style);
                 final hasMessage = record?.message.isNotEmpty == true;
                 final mood = record?.mood;
 
                 return GestureDetector(
-                  onTap: (record == null || (statusIndex == 0 && !hasMessage))
+                  onTap: record == null
                       ? null
                       : () =>
                             _openDateDetailDialog(context, date, record, style),

@@ -1,9 +1,4 @@
-# 网页端源码即产物（无构建步骤），只需忽略编辑器与快捷方式残留。
+/web/vendor/
 *.lnk
-*.log
-.idea/
 *.iml
-
-# 编辑器
-*.swp
 .DS_Store

@@ -168,8 +168,27 @@ func StoragePath(relDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	relative := strings.TrimPrefix(relDir, "comics/")
-	return filepath.Join(root, filepath.FromSlash(relative)), nil
+	relative := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(relDir, "comics/")))
+	if relative == "." || !filepath.IsLocal(relative) {
+		return "", fmt.Errorf("漫画存储路径无效: %q", relDir)
+	}
+	path := filepath.Join(root, relative)
+	resolved, err := filepath.EvalSymlinks(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return path, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	within, err := filepath.Rel(resolvedRoot, resolved)
+	if err != nil || within == "." || !filepath.IsLocal(within) {
+		return "", fmt.Errorf("漫画存储路径超出存储根: %q", relDir)
+	}
+	return path, nil
 }
 
 // RemoveDirSafely 删除目录（Windows 下重试 + 处理只读文件）。
@@ -199,11 +218,11 @@ func RemoveDirSafely(path string) error {
 // clearReadOnly 清除目录树内所有文件的只读属性（RemoveAll 失败时的兜底）。
 func clearReadOnly(root string) {
 	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
+		if err != nil || d.Type()&os.ModeSymlink != 0 {
 			return nil
 		}
 		if info, statErr := d.Info(); statErr == nil && info.Mode()&0200 == 0 {
-			_ = os.Chmod(p, 0644)
+			_ = os.Chmod(p, info.Mode().Perm()|0200)
 		}
 		return nil
 	})

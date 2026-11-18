@@ -66,7 +66,6 @@ export function taskSummary(task) {
     const parts = [];
     if (typeof data.title === 'string' && data.title) parts.push(data.title);
     if (Array.isArray(data.reports)) parts.push(...updateCheckSummary(data.reports));
-    // add-url / update-check 的下载结果嵌套在 data.download 下（协议文档 §4.2/§4.4）
     if (data.download && typeof data.download === 'object') {
       parts.push(...downloadSummary(data.download, '新章节'));
     }

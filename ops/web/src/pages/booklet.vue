@@ -32,31 +32,43 @@ export default {
     const board = useUserData('booklet');
     const { data, save } = board;
     const tab = ref('today'), date = ref(day()), form = ref(null), dirty = ref(false);
-    const recordStyle = ref(null);
+    const recordStyle = ref(null), recordStyleId = ref(null);
     let formCursor = 0, styleCursor = 0;
     const styles = computed(() => [...data.value.styles].sort((a, b) => b.start_date.localeCompare(a.start_date) || Date.parse(b.updated_at) - Date.parse(a.updated_at) || a.id.localeCompare(b.id)));
-    const current = computed(() => styles.value.find((s) => s.start_date <= date.value));
+    const styleForDay = (date, id) => styles.value.find((s) => s.id === id)
+      || styles.value.find((s) => s.start_date <= date);
     const selectedId = ref('');
     const selected = computed(() => styles.value.find((s) => s.id === selectedId.value) || styles.value[0]);
     const related = computed(() => data.value.records.filter((r) => r.style_id === selected.value?.id));
     const stats = computed(() => statistics(related.value));
     function loadRecord() {
       formCursor = board.snapshotCursor();
-      const style = current.value;
+      const style = styleForDay(date.value, recordStyleId.value);
       recordStyle.value = style ? clone(style) : null;
       const saved = data.value.records.find((r) => r.style_id === style?.id && r.date === date.value);
       form.value = style ? clone(saved || { id: crypto.randomUUID(), style_id: style.id, date: date.value, message: '', mood: null, task_completion: Object.fromEntries(style.tasks.map((t) => [t.id, false])) }) : null;
       dirty.value = false;
     }
-    watch([date, () => current.value?.id], () => { if (!dirty.value) loadRecord(); });
+    watch(data, () => { if (!dirty.value) loadRecord(); });
     const progress = computed(() => recordStyle.value?.tasks.filter((t) => form.value?.task_completion[t.id]).length || 0);
     async function saveRecord() {
-      if (!form.value) return;
-      const row = clone(form.value);
+      const draft = form.value;
+      if (!draft) return;
+      const submitted = JSON.stringify(draft);
+      const row = JSON.parse(submitted);
       row.updated_at = stamp(row);
       const empty = !row.message.trim() && !row.mood && !Object.values(row.task_completion).some(Boolean);
       const payload = empty ? { tombstones: [{ collection: 'records', id: row.id, updated_at: row.updated_at }] } : { records: [row] };
-      if (await save(payload, undefined, { baseCursor: formCursor })) { loadRecord(); toast(empty ? '已撤销这一天的打卡' : '打卡已保存', 'success'); }
+      if (await save(payload, undefined, { baseCursor: formCursor })) {
+        if (form.value === draft) {
+          if (JSON.stringify(draft) === submitted) loadRecord();
+          else {
+            draft.updated_at = row.updated_at;
+            formCursor = board.snapshotCursor();
+          }
+        }
+        toast(empty ? '已撤销这一天的打卡' : '打卡已保存', 'success');
+      }
     }
     const creating = ref(false), newStyle = ref(null), files = new Map();
     useLeaveGuard(() => dirty.value || creating.value);
@@ -77,7 +89,9 @@ export default {
       creating.value = false; newStyle.value = null; files.clear();
     }
     async function saveStyle() {
-      const row = clone(newStyle.value);
+      const draft = newStyle.value;
+      const submitted = JSON.stringify(draft);
+      const row = JSON.parse(submitted);
       if (!row.tasks.every((t) => t.title.trim())) { toast('请填写每个任务的标题', 'error'); return; }
       const replaced = styles.value.filter((s) => s.start_date === day());
       const removed = data.value.records.filter((r) => r.date === day() || replaced.some((s) => s.id === r.style_id));
@@ -87,14 +101,27 @@ export default {
       const tombstones = [...replaced.map((s) => ({ collection: 'styles', id: s.id, updated_at: updated })), ...removed.map((r) => ({ collection: 'records', id: r.id, updated_at: updated }))];
       const refs = new Set(row.tasks.map((t) => t.image.split('/').pop()));
       if (await save({ styles: [row], tombstones }, new Map([...files].filter(([name]) => refs.has(name))), { baseCursor: styleCursor })) {
-        creating.value = false; date.value = day(); tab.value = 'today'; loadRecord(); toast('新样式已启用', 'success');
+        if (newStyle.value === draft) {
+          if (JSON.stringify(draft) === submitted) {
+            creating.value = false; date.value = day(); recordStyleId.value = null; tab.value = 'today'; loadRecord();
+          } else {
+            draft.id = crypto.randomUUID();
+            styleCursor = board.snapshotCursor();
+          }
+        }
+        toast('新样式已启用', 'success');
       }
     }
     async function removeStyle() {
       const style = selected.value;
-      if (!style || !await confirmAction(`删除 ${style.start_date} 的样式及其 ${related.value.length} 条打卡记录？`, { danger: true })) return;
-      const latest = [style, ...related.value].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0];
-      if (await save({ tombstones: [{ collection: 'styles', id: style.id, updated_at: stamp(latest) }] })) { loadRecord(); toast('样式已删除', 'success'); }
+      if (!style) return;
+      const baseCursor = board.snapshotCursor(), records = related.value;
+      if (!await confirmAction(`删除 ${style.start_date} 的样式及其 ${records.length} 条打卡记录？`, { danger: true })) return;
+      const latest = [style, ...records].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0];
+      if (await save({ tombstones: [{ collection: 'styles', id: style.id, updated_at: stamp(latest) }] }, undefined, { baseCursor })) {
+        if (!dirty.value) loadRecord();
+        toast('样式已删除', 'success');
+      }
     }
     const month = ref(day().slice(0, 7)), taskFilter = ref('');
     watch(() => selected.value?.id, () => { taskFilter.value = ''; });
@@ -117,11 +144,13 @@ export default {
     const visibleHistory = computed(() => history.value.slice(0, limit.value));
     const styleName = (id) => styles.value.find((s) => s.id === id)?.start_date || '已删除样式';
     const doneCount = (r) => Object.values(r.task_completion).filter(Boolean).length;
-    async function openDay(value) {
+    async function openDay(value, styleId = null) {
       if (!value || value > day()) return;
-      if (value === date.value) { tab.value = 'today'; return; }
+      if (value === date.value && styleForDay(value, styleId)?.id === recordStyle.value?.id) {
+        recordStyleId.value = styleId; tab.value = 'today'; return;
+      }
       if (dirty.value && !await confirmAction('切换日期将丢弃这一天尚未保存的输入，继续吗？', { danger: true })) return;
-      dirty.value = false; date.value = value; tab.value = 'today'; loadRecord();
+      recordStyleId.value = styleId; date.value = value; tab.value = 'today'; loadRecord();
     }
     async function changeDate(event) {
       const input = event.target;
@@ -266,7 +295,7 @@ export default {
         </template>
         <div class="user-calendar">
           <span v-for="w in ['一','二','三','四','五','六','日']" class="muted small">{{w}}</span>
-          <button v-for="d in calendar" :key="d.date" :class="{outside:d.outside, checked:d.checked, partial:d.record && !d.checked, today:d.date===today}" :disabled="d.date>today" :title="d.date + (d.record?.message ? ' · '+d.record.message : '')" @click="openDay(d.date)">
+          <button v-for="d in calendar" :key="d.date" :class="{outside:d.outside, checked:d.checked, partial:d.record && !d.checked, today:d.date===today}" :disabled="d.date>today" :title="d.date + (d.record?.message ? ' · '+d.record.message : '')" @click="openDay(d.date, d.record?.style_id)">
             {{d.number}}
           </button>
         </div>
@@ -284,7 +313,7 @@ export default {
       <Placeholder v-if="!history.length" text="没有匹配的打卡记录" />
       <div v-for="r in visibleHistory" :key="r.id" class="user-entry">
         <div class="row between">
-          <button class="ghost sm" @click="openDay(r.date)">{{r.date}}</button>
+          <button class="ghost sm" @click="openDay(r.date, r.style_id)">{{r.date}}</button>
           <span class="muted small">
             样式 {{styleName(r.style_id)}} · {{doneCount(r)}} / {{Object.keys(r.task_completion).length}} 项 · {{moodText(r.mood)}}
           </span>

@@ -24,18 +24,19 @@ export function useUserData(module) {
   let cursor = 0;
   async function pull() {
     let result;
+    let after = cursor;
     const path = `/API/user-data/sync/${module}?sync_version=${syncVersion}`;
     try {
       result = await api.get(`${path}&after=${cursor}`);
     } catch (e) {
-      if (!cursor || e.status !== 409) throw e;
-      cursor = 0;
+      if (!after || e.status !== 409 || e.body?.code !== 'invalid_sync_cursor') throw e;
+      after = 0;
       result = await api.get(path);
     }
     if (api.signal.aborted) return;
-    const next = applySyncDelta(module, data.value, result, cursor);
-    data.value = next.data;
+    const next = applySyncDelta(module, data.value, result, after);
     cursor = next.cursor;
+    data.value = next.data;
   }
   async function refresh() {
     if (api.signal.aborted || loading.value || busy.value) return;

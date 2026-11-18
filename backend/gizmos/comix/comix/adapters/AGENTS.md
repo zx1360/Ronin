@@ -1,6 +1,6 @@
 # 站点适配器
 
-实现 `BaseAdapter` 的 `search`、`get_chapters` 和 `_fetch_chapter_image_urls`。用 `normalize_match` 标记候选，下载与线路复用基类，Playwright 通过 `reader()` 打开。新增适配器在 `__init__.py` 注册，顺序决定尝试顺序。
+实现 `BaseAdapter` 的 `search`、`get_chapters` 和 `_fetch_chapter_image_urls`。候选经 `normalize_match`，线路和下载复用基类，浏览器通过 `reader()` 打开。`__init__.py` 的注册顺序决定站点尝试顺序。
 
-- manhuayu / nicemh 先读 `chapter_images`，回退路径分别为滚动采集和网络响应。nicemh 允许缺页。
-- morui 从 `chapterImages` 读取 CDN 路径。xmanhua 用桌面 UA 获取章节列表，并解码 packer。
+- manhuayu 和 nicemh 先读 `chapter_images`，分别回退滚动采集与网络响应。nicemh 允许缺页。
+- morui 从 `chapterImages` 读取 CDN 路径。xmanhua 用桌面 UA 获取章节并解码 packer。

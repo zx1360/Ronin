@@ -5,13 +5,13 @@ import 'package:torrid/core/models/mood.dart';
 class MoodSelector extends StatelessWidget {
   /// 当前选中的心情（可为空）
   final MoodType? selectedMood;
-  
+
   /// 心情变化回调
   final ValueChanged<MoodType?> onMoodChanged;
-  
+
   /// 是否为紧凑模式（只显示图标，不显示文字）
   final bool compact;
-  
+
   /// 图标大小
   final double iconSize;
 
@@ -45,11 +45,11 @@ class MoodSelector extends StatelessWidget {
               margin: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
               padding: EdgeInsets.all(compact ? 6 : 8),
               decoration: BoxDecoration(
-                color: isSelected 
+                color: isSelected
                     ? mood.color.withAlpha(51)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(compact ? 8 : 12),
-                border: isSelected 
+                border: isSelected
                     ? Border.all(color: mood.color, width: 2)
                     : null,
               ),
@@ -85,10 +85,10 @@ class MoodSelector extends StatelessWidget {
 class MoodDisplay extends StatelessWidget {
   /// 要显示的心情（可为空）
   final MoodType? mood;
-  
+
   /// 图标大小
   final double iconSize;
-  
+
   /// 是否显示文字标签
   final bool showLabel;
 
@@ -104,7 +104,7 @@ class MoodDisplay extends StatelessWidget {
     if (mood == null) {
       return const SizedBox.shrink();
     }
-    
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
