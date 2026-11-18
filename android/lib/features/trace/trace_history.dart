@@ -40,7 +40,7 @@ class _TraceHistoryState extends State<TraceHistory>
     final data = widget.data;
     if (identical(oldWidget.data, data)) return;
     var sceneId = _filters.scene;
-    if (data.sceneById[sceneId]?.deletion == TraceSceneDeletion.keep.name) {
+    if (data.sceneById[sceneId]?.deletion == TraceDeletion.keep.name) {
       sceneId = traceOtherSceneId;
     }
     if (sceneId != null &&

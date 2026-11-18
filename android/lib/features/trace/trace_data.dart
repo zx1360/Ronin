@@ -46,7 +46,7 @@ class TraceData {
   // 保留原始场景与事项关系，删除标记统一决定回顾归类。
   TraceScene historySceneFor(String sceneId) {
     final scene = sceneById[sceneId]!;
-    return scene.deletion == TraceSceneDeletion.keep.name ? otherScene : scene;
+    return scene.deletion == TraceDeletion.keep.name ? otherScene : scene;
   }
 
   TraceScene? historySceneById(String? sceneId) =>
@@ -64,7 +64,8 @@ class TraceData {
 
   Iterable<TraceItem> historyItemsIn(String? sceneId) => items.where((item) {
     final deletion = sceneById[item.sceneId]?.deletion;
-    if (deletion == TraceSceneDeletion.erase.name ||
+    if (item.deletion != null ||
+        deletion == TraceDeletion.erase.name ||
         (deletion != null && !_historicalItems.contains(item.id))) {
       return false;
     }
@@ -98,8 +99,9 @@ class TraceData {
     return (all: all, scenes: scenes);
   }
 
-  List<TraceItem> itemsIn(String sceneId) =>
-      items.where((item) => item.sceneId == sceneId).toList();
+  List<TraceItem> itemsIn(String sceneId) => items
+      .where((item) => item.sceneId == sceneId && item.deletion == null)
+      .toList();
 
   factory TraceData.fromJson(Map<String, dynamic> json) {
     if (json['format_version'] != 1) {
@@ -138,15 +140,14 @@ class TraceData {
               s.id == traceOtherSceneId ||
               s.name.trim().isEmpty ||
               s.version < 0 ||
-              (s.deletion != null &&
-                  (s.deletion != TraceSceneDeletion.keep.name &&
-                      s.deletion != TraceSceneDeletion.erase.name)),
+              (s.deletion != null && TraceDeletion.priority(s.deletion) == 0),
         ) ||
         data.items.any(
           (i) =>
               i.id.isEmpty ||
               i.name.trim().isEmpty ||
               i.version < 0 ||
+              (i.deletion != null && TraceDeletion.priority(i.deletion) == 0) ||
               !data.sceneById.containsKey(i.sceneId),
         ) ||
         data.tags.any(

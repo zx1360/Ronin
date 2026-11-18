@@ -466,8 +466,26 @@ class TraceItems extends Table with TableInfo<TraceItems, TraceItem> {
     requiredDuringInsert: true,
     $customConstraints: 'NOT NULL',
   );
+  static const VerificationMeta _deletionMeta = const VerificationMeta(
+    'deletion',
+  );
+  late final GeneratedColumn<String> deletion = GeneratedColumn<String>(
+    'deletion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'CHECK (deletion IN (\'keep\', \'erase\'))',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, sceneId, name, archived, version];
+  List<GeneratedColumn> get $columns => [
+    id,
+    sceneId,
+    name,
+    archived,
+    version,
+    deletion,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -515,6 +533,12 @@ class TraceItems extends Table with TableInfo<TraceItems, TraceItem> {
     } else if (isInserting) {
       context.missing(_versionMeta);
     }
+    if (data.containsKey('deletion')) {
+      context.handle(
+        _deletionMeta,
+        deletion.isAcceptableOrUnknown(data['deletion']!, _deletionMeta),
+      );
+    }
     return context;
   }
 
@@ -544,6 +568,10 @@ class TraceItems extends Table with TableInfo<TraceItems, TraceItem> {
         DriftSqlType.int,
         data['${effectivePrefix}version'],
       )!,
+      deletion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deletion'],
+      ),
     );
   }
 
@@ -562,12 +590,14 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
   final String name;
   final bool archived;
   final int version;
+  final String? deletion;
   const TraceItem({
     required this.id,
     required this.sceneId,
     required this.name,
     required this.archived,
     required this.version,
+    this.deletion,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -577,6 +607,9 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
     map['name'] = Variable<String>(name);
     map['archived'] = Variable<bool>(archived);
     map['version'] = Variable<int>(version);
+    if (!nullToAbsent || deletion != null) {
+      map['deletion'] = Variable<String>(deletion);
+    }
     return map;
   }
 
@@ -587,6 +620,9 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
       name: Value(name),
       archived: Value(archived),
       version: Value(version),
+      deletion: deletion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletion),
     );
   }
 
@@ -601,6 +637,7 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
       name: serializer.fromJson<String>(json['name']),
       archived: serializer.fromJson<bool>(json['archived']),
       version: serializer.fromJson<int>(json['version']),
+      deletion: serializer.fromJson<String?>(json['deletion']),
     );
   }
   @override
@@ -612,6 +649,7 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
       'name': serializer.toJson<String>(name),
       'archived': serializer.toJson<bool>(archived),
       'version': serializer.toJson<int>(version),
+      'deletion': serializer.toJson<String?>(deletion),
     };
   }
 
@@ -621,12 +659,14 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
     String? name,
     bool? archived,
     int? version,
+    Value<String?> deletion = const Value.absent(),
   }) => TraceItem(
     id: id ?? this.id,
     sceneId: sceneId ?? this.sceneId,
     name: name ?? this.name,
     archived: archived ?? this.archived,
     version: version ?? this.version,
+    deletion: deletion.present ? deletion.value : this.deletion,
   );
   TraceItem copyWithCompanion(TraceItemsCompanion data) {
     return TraceItem(
@@ -635,6 +675,7 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
       name: data.name.present ? data.name.value : this.name,
       archived: data.archived.present ? data.archived.value : this.archived,
       version: data.version.present ? data.version.value : this.version,
+      deletion: data.deletion.present ? data.deletion.value : this.deletion,
     );
   }
 
@@ -645,13 +686,15 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
           ..write('sceneId: $sceneId, ')
           ..write('name: $name, ')
           ..write('archived: $archived, ')
-          ..write('version: $version')
+          ..write('version: $version, ')
+          ..write('deletion: $deletion')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, sceneId, name, archived, version);
+  int get hashCode =>
+      Object.hash(id, sceneId, name, archived, version, deletion);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -660,7 +703,8 @@ class TraceItem extends DataClass implements Insertable<TraceItem> {
           other.sceneId == this.sceneId &&
           other.name == this.name &&
           other.archived == this.archived &&
-          other.version == this.version);
+          other.version == this.version &&
+          other.deletion == this.deletion);
 }
 
 class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
@@ -669,6 +713,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
   final Value<String> name;
   final Value<bool> archived;
   final Value<int> version;
+  final Value<String?> deletion;
   final Value<int> rowid;
   const TraceItemsCompanion({
     this.id = const Value.absent(),
@@ -676,6 +721,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
     this.name = const Value.absent(),
     this.archived = const Value.absent(),
     this.version = const Value.absent(),
+    this.deletion = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TraceItemsCompanion.insert({
@@ -684,6 +730,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
     required String name,
     this.archived = const Value.absent(),
     required int version,
+    this.deletion = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        sceneId = Value(sceneId),
@@ -695,6 +742,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
     Expression<String>? name,
     Expression<bool>? archived,
     Expression<int>? version,
+    Expression<String>? deletion,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -703,6 +751,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
       if (name != null) 'name': name,
       if (archived != null) 'archived': archived,
       if (version != null) 'version': version,
+      if (deletion != null) 'deletion': deletion,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -713,6 +762,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
     Value<String>? name,
     Value<bool>? archived,
     Value<int>? version,
+    Value<String?>? deletion,
     Value<int>? rowid,
   }) {
     return TraceItemsCompanion(
@@ -721,6 +771,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
       name: name ?? this.name,
       archived: archived ?? this.archived,
       version: version ?? this.version,
+      deletion: deletion ?? this.deletion,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -743,6 +794,9 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
     if (version.present) {
       map['version'] = Variable<int>(version.value);
     }
+    if (deletion.present) {
+      map['deletion'] = Variable<String>(deletion.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -757,6 +811,7 @@ class TraceItemsCompanion extends UpdateCompanion<TraceItem> {
           ..write('name: $name, ')
           ..write('archived: $archived, ')
           ..write('version: $version, ')
+          ..write('deletion: $deletion, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();

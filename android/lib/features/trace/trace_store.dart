@@ -112,7 +112,7 @@ class TraceStore {
     });
   }
 
-  Future<void> deleteScene(TraceScene scene, TraceSceneDeletion mode) =>
+  Future<void> deleteScene(TraceScene scene, TraceDeletion mode) =>
       db.transaction(() async {
         await _ensureSceneIdle(scene.id);
         final table = db.traceScenes;
@@ -127,7 +127,7 @@ class TraceStore {
               table.version.equals(scene.version) &
               table.deletion.isNull(),
         );
-        if (mode == TraceSceneDeletion.erase) await _eraseDeletedSceneRecords();
+        if (mode == TraceDeletion.erase) await _applyCatalogDeletions();
       });
 
   Future<void> _ensureSceneIdle(String sceneId) async {
@@ -140,16 +140,31 @@ class TraceStore {
     }
   }
 
-  Future<int> _eraseDeletedSceneRecords() => db.customUpdate(
-    """UPDATE trace_sessions SET deleted = 1, note = '', item_id = NULL,
-        tag_ids_json = '[]', ended_ms = started_ms,
-        boot_key = NULL, anchor_elapsed_ms = NULL, anchor_duration_ms = NULL,
-        anchor_wall_ms = NULL, version = MAX(version + 1, ?)
-      WHERE deleted = 0 AND scene_id IN (SELECT id FROM trace_scenes WHERE deletion = 'erase')""",
-    variables: [Variable<int>(_nextVersion(null))],
-    updates: {db.traceSessions},
-    updateKind: UpdateKind.update,
-  );
+  Future<int> _applyCatalogDeletions() async {
+    final version = _nextVersion(null);
+    final erased = await db.customUpdate(
+      """UPDATE trace_sessions SET deleted = 1, note = '', item_id = NULL,
+          tag_ids_json = '[]', ended_ms = started_ms,
+          boot_key = NULL, anchor_elapsed_ms = NULL, anchor_duration_ms = NULL,
+          anchor_wall_ms = NULL, version = MAX(version + 1, ?)
+        WHERE deleted = 0 AND (
+          scene_id IN (SELECT id FROM trace_scenes WHERE deletion = 'erase') OR
+          item_id IN (SELECT id FROM trace_items WHERE deletion = 'erase')
+        )""",
+      variables: [Variable<int>(version)],
+      updates: {db.traceSessions},
+      updateKind: UpdateKind.update,
+    );
+    final reassigned = await db.customUpdate(
+      """UPDATE trace_sessions SET item_id = NULL, version = MAX(version + 1, ?)
+        WHERE deleted = 0 AND
+          item_id IN (SELECT id FROM trace_items WHERE deletion = 'keep')""",
+      variables: [Variable<int>(version)],
+      updates: {db.traceSessions},
+      updateKind: UpdateKind.update,
+    );
+    return erased + reassigned;
+  }
 
   Future<TraceItem> saveItem(
     String sceneId,
@@ -174,10 +189,36 @@ class TraceStore {
         row,
         item == null
             ? null
-            : table.id.equals(item.id) & table.version.equals(item.version),
+            : table.id.equals(item.id) &
+                  table.version.equals(item.version) &
+                  table.deletion.isNull(),
       );
     });
   }
+
+  Future<void> deleteItem(TraceItem item, TraceDeletion mode) =>
+      db.transaction(() async {
+        if (await (_running()
+                  ..where((s) => s.itemId.equals(item.id))
+                  ..limit(1))
+                .getSingleOrNull() !=
+            null) {
+          throw StateError('请先结束这个事项的计时');
+        }
+        final table = db.traceItems;
+        await _writeCatalog(
+          table,
+          item.copyWith(
+            archived: true,
+            deletion: Value(mode.name),
+            version: _nextVersion(item.version),
+          ),
+          table.id.equals(item.id) &
+              table.version.equals(item.version) &
+              table.deletion.isNull(),
+        );
+        await _applyCatalogDeletions();
+      });
 
   Future<TraceTag> saveTag(String name, {TraceTag? tag, bool? archived}) {
     final table = db.traceTags;
@@ -331,7 +372,8 @@ class TraceStore {
                   (i) =>
                       i.id.equals(itemId) &
                       i.sceneId.equals(sceneId) &
-                      i.archived.equals(false),
+                      i.archived.equals(false) &
+                      i.deletion.isNull(),
                 ))
                 .getSingleOrNull() ==
             null) {
@@ -430,11 +472,7 @@ class TraceStore {
           remote.scenes,
           (row) => row.id,
           (row) => row.version,
-          priority: (row) => switch (row.deletion) {
-            'erase' => 2,
-            'keep' => 1,
-            _ => 0,
-          },
+          priority: (row) => TraceDeletion.priority(row.deletion),
         ),
         merge(
           db.traceItems,
@@ -442,6 +480,7 @@ class TraceStore {
           remote.items,
           (row) => row.id,
           (row) => row.version,
+          priority: (row) => TraceDeletion.priority(row.deletion),
         ),
         merge(
           db.traceTags,
@@ -474,7 +513,7 @@ class TraceStore {
         ),
       );
     });
-    if (await _eraseDeletedSceneRecords() > 0) {
+    if (await _applyCatalogDeletions() > 0) {
       return _read(includeDeleted: true);
     }
     return upload ? snapshot : null;

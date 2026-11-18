@@ -171,6 +171,12 @@ class _SceneCatalog extends ConsumerWidget {
             name: item.name,
             archived: item.archived,
             edit: () => _editItem(context, store, scene.id, item),
+            delete: () => _deleteItem(
+              context,
+              store,
+              item,
+              data.history.where((row) => row.itemId == item.id).length,
+            ),
             setArchived: () => store.saveItem(
               scene.id,
               item.name,
@@ -256,48 +262,82 @@ class _SceneCatalog extends ConsumerWidget {
     TraceScene scene,
     int count,
   ) async {
-    final TraceSceneDeletion? mode;
-    if (count == 0) {
-      final confirmed = await confirmTraceDiscard(
-        context,
-        '删除「${scene.name}」？',
-        '删除后无法恢复此场景。',
-        action: '删除场景',
-      );
-      mode = confirmed ? TraceSceneDeletion.keep : null;
-    } else {
-      mode = await showDialog<TraceSceneDeletion>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('删除「${scene.name}」？'),
-          content: Text('此场景有 $count 条历史记录。可归入「其他」，也可和场景一起永久删除。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, TraceSceneDeletion.erase),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-              ),
-              child: const Text('删除场景和记录'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, TraceSceneDeletion.keep),
-              child: const Text('记录归入「其他」'),
-            ),
-          ],
-        ),
-      );
-    }
-    final selection = mode;
-    if (!context.mounted || selection == null) return;
+    final mode = await _confirmDeletion(
+      context,
+      name: scene.name,
+      category: '场景',
+      destination: '「其他」',
+      count: count,
+    );
+    if (!context.mounted || mode == null) return;
     await traceAction(context, () async {
-      await store.deleteScene(scene, selection);
+      await store.deleteScene(scene, mode);
       if (context.mounted) Navigator.pop(context);
     });
   }
+
+  Future<void> _deleteItem(
+    BuildContext context,
+    TraceStore store,
+    TraceItem item,
+    int count,
+  ) async {
+    final mode = await _confirmDeletion(
+      context,
+      name: item.name,
+      category: '事项',
+      destination: '所属场景',
+      count: count,
+    );
+    if (context.mounted && mode != null) {
+      await traceAction(context, () => store.deleteItem(item, mode));
+    }
+  }
+}
+
+Future<TraceDeletion?> _confirmDeletion(
+  BuildContext context, {
+  required String name,
+  required String category,
+  required String destination,
+  required int count,
+}) async {
+  final title = '删除「$name」？';
+  if (count == 0) {
+    final confirmed = await confirmTraceDiscard(
+      context,
+      title,
+      '删除后无法恢复此$category。',
+      action: '删除$category',
+    );
+    return confirmed ? TraceDeletion.keep : null;
+  }
+  return showDialog<TraceDeletion>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(
+        '此$category有 $count 条历史记录。可归入$destination，也可和$category一起永久删除。',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, TraceDeletion.erase),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+          child: Text('删除$category和记录'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, TraceDeletion.keep),
+          child: Text('记录归入$destination'),
+        ),
+      ],
+    ),
+  );
 }
 
 Future<bool> _confirmArchive(BuildContext context, String name) =>
@@ -374,30 +414,39 @@ class _CatalogRow extends StatelessWidget {
     required this.archived,
     required this.edit,
     required this.setArchived,
+    this.delete,
   });
 
   final String name;
   final bool archived;
   final VoidCallback edit;
   final Future<void> Function() setArchived;
+  final VoidCallback? delete;
 
   @override
   Widget build(BuildContext context) => ListTile(
     title: Text(name),
     onTap: edit,
-    trailing: PopupMenuButton<bool>(
+    trailing: PopupMenuButton<VoidCallback>(
       tooltip: '$name的操作',
-      onSelected: (archive) async {
-        if (!archive) {
-          edit();
-          return;
-        }
-        if (!archived && !await _confirmArchive(context, name)) return;
-        if (context.mounted) await traceAction(context, setArchived);
-      },
+      onSelected: (action) => action(),
       itemBuilder: (_) => [
-        const PopupMenuItem(value: false, child: Text('编辑')),
-        PopupMenuItem(value: true, child: Text(archived ? '恢复' : '归档')),
+        PopupMenuItem(value: edit, child: const Text('编辑')),
+        PopupMenuItem(
+          value: () async {
+            if (!archived && !await _confirmArchive(context, name)) return;
+            if (context.mounted) await traceAction(context, setArchived);
+          },
+          child: Text(archived ? '恢复' : '归档'),
+        ),
+        if (delete != null)
+          PopupMenuItem(
+            value: delete,
+            child: Text(
+              '删除事项',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
       ],
     ),
   );

@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -77,6 +77,9 @@ class AppDatabase extends _$AppDatabase {
               },
             ),
           );
+        }
+        if (from < 5) {
+          await migrator.addColumn(traceItems, traceItems.deletion);
         }
       }
     }),

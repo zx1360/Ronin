@@ -12,7 +12,8 @@ CREATE TABLE trace_items (
   scene_id TEXT NOT NULL REFERENCES trace_scenes(id),
   name TEXT NOT NULL,
   archived BOOLEAN NOT NULL DEFAULT FALSE,
-  version INTEGER NOT NULL
+  version INTEGER NOT NULL,
+  deletion TEXT CHECK (deletion IN ('keep', 'erase'))
 );
 
 CREATE TABLE trace_tags (
