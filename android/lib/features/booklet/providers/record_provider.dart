@@ -34,10 +34,7 @@ Record? recordByDate(Ref ref, {required DateTime targetDate}) {
 
 /// 各任务的完成次数，忽略不属于该计划的任务。
 @riverpod
-Map<String, int> allTaskCompletionCounts(
-  Ref ref,
-  String styleId,
-) {
+Map<String, int> allTaskCompletionCounts(Ref ref, String styleId) {
   final records = ref.watch(recordsByStyleIdProvider(styleId));
   final style = ref.watch(styleByIdProvider(styleId));
 
@@ -67,7 +64,11 @@ int currentStreak(Ref ref, String styleId) {
 
   final currentDates = currentRecords.map((r) => dateOnly(r.date)).toSet();
   final todayDate = getTodayDate();
-  final yesterdayDate = todayDate.subtract(const Duration(days: 1));
+  final yesterdayDate = DateTime(
+    todayDate.year,
+    todayDate.month,
+    todayDate.day - 1,
+  );
 
   final hasTodayRecord = currentDates.contains(todayDate);
   final hasYesterdayRecord = currentDates.contains(dateOnly(yesterdayDate));
@@ -78,7 +79,11 @@ int currentStreak(Ref ref, String styleId) {
   DateTime currentDate = hasTodayRecord ? todayDate : yesterdayDate;
   while (currentDates.contains(dateOnly(currentDate))) {
     streak++;
-    currentDate = currentDate.subtract(const Duration(days: 1));
+    currentDate = DateTime(
+      currentDate.year,
+      currentDate.month,
+      currentDate.day - 1,
+    );
   }
   return streak;
 }
@@ -88,11 +93,12 @@ int currentStreak(Ref ref, String styleId) {
 DateTimeRange? styleDateRange(Ref ref, {required Style? style}) {
   if (style == null) return null;
 
-  final records = ref.watch(recordsByStyleIdProvider(style.id));
-  if (records.isEmpty) {
-    return DateTimeRange(start: getTodayDate(), end: getTodayDate());
-  }
-
-  final earliestDate = dateOnly(records.last.date);
-  return DateTimeRange(start: earliestDate, end: getTodayDate());
+  final firstRecord = ref.watch(recordsByStyleIdProvider(style.id)).lastOrNull;
+  final start = dateOnly(
+    firstRecord != null && firstRecord.date.isBefore(style.startDate)
+        ? firstRecord.date
+        : style.startDate,
+  );
+  final today = getTodayDate();
+  return start.isAfter(today) ? null : DateTimeRange(start: start, end: today);
 }

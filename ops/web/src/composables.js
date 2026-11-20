@@ -1,9 +1,9 @@
 import { onUnmounted } from 'vue';
 import { confirmAction, setLeaveGuard } from './store.js';
 
-export function useLeaveGuard(dirty) {
-  const clear = setLeaveGuard(() => !dirty() || confirmAction('当前有未保存的修改，离开将丢弃这些输入。继续吗？', { danger: true }));
-  const warn = (event) => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } };
+export function useLeaveGuard(dirty, busy) {
+  const clear = setLeaveGuard(() => !busy() && (!dirty() || confirmAction('当前有未保存的修改，离开将丢弃这些输入。继续吗？', { danger: true })));
+  const warn = (event) => { if (dirty() || busy()) { event.preventDefault(); event.returnValue = ''; } };
   window.addEventListener('beforeunload', warn);
   onUnmounted(() => { clear(); window.removeEventListener('beforeunload', warn); });
 }

@@ -194,13 +194,14 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Widget _buildSideMenu(double menuWidth, double height) {
+    final verticalSpacing = height < 600 ? 24.0 : _largeSpacing;
     return Container(
       width: menuWidth,
       height: height,
       decoration: _buildSideMenuDecoration(),
       child: Column(
         children: [
-          const SizedBox(height: _largeSpacing),
+          SizedBox(height: verticalSpacing),
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: _mediumSpacing,
@@ -210,6 +211,8 @@ class _HomePageState extends ConsumerState<HomePage>
               alignment: Alignment.centerLeft,
               child: Text(
                 _motto,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: "kaiti",
                   fontSize: 22,
@@ -265,7 +268,7 @@ class _HomePageState extends ConsumerState<HomePage>
               ),
             ),
           ),
-          const SizedBox(height: _largeSpacing),
+          SizedBox(height: verticalSpacing),
         ],
       ),
     );

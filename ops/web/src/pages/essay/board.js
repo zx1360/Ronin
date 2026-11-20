@@ -43,12 +43,17 @@ export function useEssayBoard() {
     clearTimeout(timer);
     if (!editor.value) return draftWrites.then(() => true);
     const essay = clone(editor.value), savedRevision = revision;
-    if (!essay.title.trim() && !essay.content.trim() && !essay.imgs.length && !essay.labels.length && !essay.mood) { pending = false; return Promise.resolve(true); }
+    const empty = !original.value && !essay.title.trim() && !essay.content.trim()
+      && !essay.imgs.length && !essay.labels.length && !essay.mood;
     const refs = new Set(essay.imgs.map((path) => path.split('/').pop()));
     const snapshot = { id: essay.id, essay, original: clone(original.value), files: [...files.value].filter(([name]) => refs.has(name)), saved_at: Date.now() };
-    const run = draftWrites.then(() => draftStore('put', snapshot));
+    const run = draftWrites.then(() => empty ? draftStore('delete', essay.id) : draftStore('put', snapshot));
     draftWrites = run.catch(() => {});
-    return run.then(async () => { if (revision === savedRevision) { pending = false; draftStatus.value = '草稿已存本机'; } if (!disposed) await loadDrafts(); return true; }, (e) => { draftStatus.value = `草稿保存失败：${e.message}`; return false; });
+    return run.then(async () => {
+      if (revision === savedRevision) { pending = false; draftStatus.value = empty ? '' : '草稿已存本机'; }
+      if (!disposed) await loadDrafts();
+      return true;
+    }, (e) => { draftStatus.value = `草稿保存失败：${e.message}`; return false; });
   }
   watch(editor, () => {
     if (!editor.value) return;
@@ -100,21 +105,26 @@ export function useEssayBoard() {
     toast('已建立新草稿，原草稿仍保留');
   }
   async function removeEssay(row) {
+    const baseCursor = board.snapshotCursor();
     if (!await confirmAction(`删除随笔「${row.title || '无标题'}」？`, { danger: true })) return;
-    if (await save({ tombstones: [{ collection: 'essays', id: row.id, updated_at: stamp(row) }] })) { detailId.value = ''; toast('随笔已删除', 'success'); }
+    if (await save({ tombstones: [{ collection: 'essays', id: row.id, updated_at: stamp(row) }] }, undefined, { baseCursor })) { detailId.value = ''; toast('随笔已删除', 'success'); }
   }
-  const message = ref('');
+  const messages = ref(new Map());
+  const message = computed({
+    get: () => messages.value.get(detailId.value) || '',
+    set: (value) => value ? messages.value.set(detailId.value, value) : messages.value.delete(detailId.value),
+  });
+  const hasMessageDrafts = () => [...messages.value.values()].some((value) => value.trim());
   async function appendMessage() {
     if (!message.value.trim() || !detail.value) return;
     const row = clone(detail.value);
     row.messages.push({ timestamp: new Date().toISOString(), content: message.value.trim() }); row.updated_at = stamp(row);
-    if (await save({ essays: [row] }, undefined, { checkLabels: false })) { message.value = ''; toast('留言已添加', 'success'); }
+    if (await save({ essays: [row] }, undefined, { checkLabels: false })) { messages.value.delete(row.id); toast('留言已添加', 'success'); }
   }
   function toggleLabel(id) {
     const selected = editor.value.labels;
     if (selected.includes(id)) editor.value.labels = selected.filter((value) => value !== id);
     else if (selected.length < 4) selected.push(id);
-    else toast('最多选择 4 个标签', 'warning');
   }
   const labelForm = ref(null);
   let labelCursor = 0;
@@ -133,10 +143,11 @@ export function useEssayBoard() {
   }
   const protectedLabel = (l) => l.id === hiddenID || (l.name === '隐藏' && !l.parent_id);
   async function removeLabel(label) {
+    const baseCursor = board.snapshotCursor();
     await loadDrafts();
     if (draftError.value || protectedLabel(label) || data.value.labels.some((l) => l.parent_id === label.id) || labelCount(label.id) || drafts.value.some((d) => d.essay.labels.includes(label.id))) { toast('只能删除未被随笔或草稿使用、没有子标签的普通标签', 'error'); return; }
     if (!await confirmAction(`删除标签「${label.path}」？`, { danger: true })) return;
-    if (await save({ tombstones: [{ collection: 'labels', id: label.id, updated_at: stamp(label) }] })) toast('标签已删除', 'success');
+    if (await save({ tombstones: [{ collection: 'labels', id: label.id, updated_at: stamp(label) }] }, undefined, { baseCursor })) toast('标签已删除', 'success');
   }
   const stats = computed(() => {
     const rows = filtered.value, counts = new Map(), moods = new Map(), months = new Map();
@@ -160,10 +171,11 @@ export function useEssayBoard() {
     seen.add(picked.id); detailId.value = picked.id; tab.value = 'browse';
   }
   const clearLeaveGuard = setLeaveGuard(async () => {
-    if ((labelForm.value || message.value.trim()) && !await confirmAction('当前有未保存的标签或留言，离开将丢弃这些输入。继续吗？', { danger: true })) return false;
+    if (publishing.value || busy.value) return false;
+    if ((labelForm.value || hasMessageDrafts()) && !await confirmAction('当前有未保存的标签或留言，离开将丢弃这些输入。继续吗？', { danger: true })) return false;
     return persist();
   });
-  const beforeUnload = (event) => { if (pending || labelForm.value || message.value.trim()) { event.preventDefault(); event.returnValue = ''; } };
+  const beforeUnload = (event) => { if (pending || labelForm.value || hasMessageDrafts() || publishing.value || busy.value) { event.preventDefault(); event.returnValue = ''; } };
   onMounted(() => { loadDrafts(); window.addEventListener('beforeunload', beforeUnload); });
   onUnmounted(() => { clearLeaveGuard(); disposed = true; persist(); clearTimeout(timer); window.removeEventListener('beforeunload', beforeUnload); });
   return { ...board, busy: computed(() => busy.value || publishing.value), tab, query, year, years, labelFilter, sort, showHidden, filtered, page, limit, detailId, detail, labels, labelName, labelCount,

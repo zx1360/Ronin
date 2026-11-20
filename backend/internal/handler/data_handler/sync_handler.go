@@ -62,6 +62,10 @@ func syncPreferences(c *gin.Context) {
 	defer backupMu.Unlock()
 	filePath := preferencesPath()
 	content, err := os.ReadFile(filePath)
+	if errors.Is(err, os.ErrNotExist) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "服务器尚未备份偏好", "code": "preferences_not_backed_up"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败: " + err.Error()})
 		return

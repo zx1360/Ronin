@@ -155,6 +155,10 @@ func Start(opt Options, afterExit func()) (*taskengine.Task, error) {
 	if dbFile == "" {
 		return nil, errors.New("Monarch 数据库未初始化")
 	}
+	schemaFile, err := filepath.Abs(config.DbConf.SchemaFile)
+	if err != nil {
+		return nil, fmt.Errorf("解析建表脚本路径失败: %w", err)
+	}
 
 	exe := ExecutablePath()
 	return Manager.Start(taskengine.Spec{
@@ -162,7 +166,7 @@ func Start(opt Options, afterExit func()) (*taskengine.Task, error) {
 		Exe:          exe,
 		Args:         BuildArgs(opt),
 		Dir:          filepath.Dir(exe),
-		Env:          []string{"DB_FILE=" + dbFile},
+		Env:          []string{"DB_FILE=" + dbFile, "DB_SCHEMA_FILE=" + schemaFile},
 		StreamStdout: true, // CLI 的统计与进度都打在 stdout
 		AfterExit:    afterExit,
 	})

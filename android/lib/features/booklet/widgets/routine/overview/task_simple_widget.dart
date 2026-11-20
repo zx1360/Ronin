@@ -1,7 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:torrid/core/services/io/io_service.dart';
+import 'package:torrid/core/widgets/file_img_builder/file_img_builder.dart';
 
 /// 任务简洁展示组件
 /// 用于 Overview 页面展示任务的基本信息和完成次数
@@ -18,8 +16,10 @@ class TaskSimpleWidget extends StatelessWidget {
   final String title;
   final String description;
   final String imgUrl;
+
   /// 任务完成次数，可选参数
   final int? completionCount;
+
   /// 是否被选中（用于筛选日历）
   final bool isSelected;
 
@@ -49,37 +49,13 @@ class TaskSimpleWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 任务相关图片
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: FutureBuilder<File?>(
-              future: IoService.getImageFile(imgUrl),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  if (snapshot.hasData) {
-                    return Image.file(
-                      snapshot.data!,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildPlaceholder();
-                      },
-                    );
-                  }
-                }
-                return Container(
-                  width: 60,
-                  height: 60,
-                  color: Colors.yellow.shade200,
-                  child: snapshot.connectionState == ConnectionState.waiting
-                      ? const CircularProgressIndicator(strokeWidth: 2)
-                      : Icon(Icons.task, color: Colors.yellow.shade700),
-                );
-              },
+          if (imgUrl.isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: FileImageBuilder(relativeImagePath: imgUrl),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
+          ],
           // 任务标题和描述等信息
           Expanded(
             child: Column(
@@ -108,10 +84,7 @@ class TaskSimpleWidget extends StatelessWidget {
                   Text(
                     description,
                     overflow: TextOverflow.visible,
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
                   ),
                 ],
               ],
@@ -122,20 +95,6 @@ class TaskSimpleWidget extends StatelessWidget {
     );
   }
 
-  /// 构建图片占位符
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 60,
-      height: 60,
-      color: Colors.yellow.shade200,
-      child: Icon(
-        Icons.task,
-        color: Colors.yellow.shade700,
-      ),
-    );
-  }
-
-  /// 构建完成次数徽章
   Widget _buildCompletionBadge(int count) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

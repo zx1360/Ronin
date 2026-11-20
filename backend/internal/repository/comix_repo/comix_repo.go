@@ -293,7 +293,14 @@ func DeleteComic(comicID int, keepFiles bool) (*DeletedComic, error) {
 			if err != nil {
 				return nil, err
 			}
-			if fi, statErr := os.Stat(absDir); statErr == nil && fi.IsDir() {
+			fi, statErr := os.Lstat(absDir)
+			switch {
+			case errors.Is(statErr, os.ErrNotExist):
+			case statErr != nil:
+				return nil, fmt.Errorf("读取漫画目录失败: %w", statErr)
+			case !fi.IsDir():
+				return nil, fmt.Errorf("漫画目录无效: %s", absDir)
+			default:
 				renamed = absDir + ".deleting_" + strconv.FormatInt(time.Now().Unix(), 10)
 				if renameErr := os.Rename(absDir, renamed); renameErr != nil {
 					return nil, fmt.Errorf("重命名漫画目录失败: %w", renameErr)
@@ -304,10 +311,13 @@ func DeleteComic(comicID int, keepFiles bool) (*DeletedComic, error) {
 
 		// ② 删除 DB 记录（外键级联）
 		if _, err := db.Exec(ctx, `DELETE FROM comics WHERE id = ?`, comicID); err != nil {
+			err = fmt.Errorf("删除漫画记录失败: %w", err)
 			if renamed != "" {
-				_ = os.Rename(renamed, absDir) // 回滚改名
+				if restoreErr := os.Rename(renamed, absDir); restoreErr != nil {
+					err = errors.Join(err, fmt.Errorf("恢复漫画目录失败，文件保留在 %s: %w", renamed, restoreErr))
+				}
 			}
-			return nil, fmt.Errorf("删除漫画记录失败(已回滚目录改名): %w", err)
+			return nil, err
 		}
 
 		// ③ 移除改名目录（尽力而为）

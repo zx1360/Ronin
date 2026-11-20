@@ -5,13 +5,13 @@ import 'package:torrid/core/models/mood.dart';
 class MoodSelector extends StatelessWidget {
   /// 当前选中的心情（可为空）
   final MoodType? selectedMood;
-  
+
   /// 心情变化回调
-  final ValueChanged<MoodType?> onMoodChanged;
-  
+  final ValueChanged<MoodType?>? onMoodChanged;
+
   /// 是否为紧凑模式（只显示图标，不显示文字）
   final bool compact;
-  
+
   /// 图标大小
   final double iconSize;
 
@@ -25,19 +25,13 @@ class MoodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
       children: MoodType.values.map((mood) {
         final isSelected = selectedMood == mood;
         return GestureDetector(
-          onTap: () {
-            // 点击已选中的心情则取消选择
-            if (isSelected) {
-              onMoodChanged(null);
-            } else {
-              onMoodChanged(mood);
-            }
-          },
+          onTap: onMoodChanged == null
+              ? null
+              : () => onMoodChanged!(isSelected ? null : mood),
           child: Tooltip(
             message: mood.description,
             child: AnimatedContainer(
@@ -45,21 +39,18 @@ class MoodSelector extends StatelessWidget {
               margin: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
               padding: EdgeInsets.all(compact ? 6 : 8),
               decoration: BoxDecoration(
-                color: isSelected 
+                color: isSelected
                     ? mood.color.withAlpha(51)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(compact ? 8 : 12),
-                border: isSelected 
+                border: isSelected
                     ? Border.all(color: mood.color, width: 2)
                     : null,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    mood.emoji,
-                    style: TextStyle(fontSize: iconSize),
-                  ),
+                  Text(mood.emoji, style: TextStyle(fontSize: iconSize)),
                   if (!compact) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -67,7 +58,9 @@ class MoodSelector extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 10,
                         color: isSelected ? mood.color : Colors.grey[500],
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -85,10 +78,10 @@ class MoodSelector extends StatelessWidget {
 class MoodDisplay extends StatelessWidget {
   /// 要显示的心情（可为空）
   final MoodType? mood;
-  
+
   /// 图标大小
   final double iconSize;
-  
+
   /// 是否显示文字标签
   final bool showLabel;
 
@@ -104,23 +97,14 @@ class MoodDisplay extends StatelessWidget {
     if (mood == null) {
       return const SizedBox.shrink();
     }
-    
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          mood!.emoji,
-          style: TextStyle(fontSize: iconSize),
-        ),
+        Text(mood!.emoji, style: TextStyle(fontSize: iconSize)),
         if (showLabel) ...[
           const SizedBox(width: 4),
-          Text(
-            mood!.label,
-            style: TextStyle(
-              fontSize: 12,
-              color: mood!.color,
-            ),
-          ),
+          Text(mood!.label, style: TextStyle(fontSize: 12, color: mood!.color)),
         ],
       ],
     );

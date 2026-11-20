@@ -15,8 +15,7 @@ class TaskWidget extends StatelessWidget {
   final String imgUrl;
   final bool completed;
 
-  /// 完成状态切换回调（复选框值可能为 null）
-  final ValueChanged<bool?> switchCB;
+  final ValueChanged<bool?>? switchCB;
 
   @override
   Widget build(BuildContext context) {
@@ -31,11 +30,13 @@ class TaskWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: FileImageBuilder(relativeImagePath: imgUrl),
-          ),
-          const SizedBox(width: 12),
+          if (imgUrl.isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: FileImageBuilder(relativeImagePath: imgUrl),
+            ),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,9 +71,7 @@ class TaskWidget extends StatelessWidget {
             scale: 1.2,
             child: Checkbox(
               value: completed,
-              onChanged: (value) {
-                switchCB(value);
-              },
+              onChanged: switchCB,
               activeColor: Colors.yellow.shade600,
               checkColor: Colors.white,
               shape: RoundedRectangleBorder(

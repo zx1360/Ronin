@@ -10,7 +10,7 @@ const List<Color> checkInColors = [
   Color(0xFFC4E17F), // 3. 差1个（浅黄绿色，接近完成，轻微提醒）
   Color(0xFFFFE066), // 4. 差2个（浅黄色，中等差距，普通提醒）
   Color(0xFFFFAB91), // 5. 差3个（浅橙色，较大差距，强烈提醒）
-  Color(0xFFEF5350), // 6. 差4个（红色，差距极大，紧急警示）
+  Color(0xFFEF5350), // 差 4 个及以上
 ];
 const Color messageMarkerColor = Color(0xFF8B5A2B); // 留言标记色
 

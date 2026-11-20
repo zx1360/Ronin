@@ -9,6 +9,8 @@
 - Northstar 用 `POST /API/user-data/edit/:module` 携带读取快照的 `base_cursor`。过期返回 409 和 `sync_conflict`，数据库与附件一并回滚。旧后端缺少该入口时保留输入，等待后端升级。
 - 同样式同日多 ID 打卡按版本归一并为落败 ID 写 tombstone。仍有更新的关联记录时拒绝删除样式。标签树和引用失败均回滚。合并后重算统计，已存在的附件按不可变文件名保留。详见[用户数据存储](../../references/db/user_data.md)。
 
+尚无偏好备份时，`GET /API/user-data/sync/preferences` 返回 404 和 `preferences_not_backed_up`，客户端保留本机设置并继续完成同步。
+
 ## 时迹
 
 `GET /API/user-data/trace/backup` 在无备份时返回 revision 0 和 `snapshot: null`。PUT 提交读取的 revision 与合并后的快照，过期返回 409，成功返回新 revision。快照使用 `format_version: 1`，包含 `scenes`、`items`、`tags`、`sessions`，时刻使用毫秒绝对时间。颜色用 `#RRGGBB`，恢复兼容旧 ARGB 整数。场景删除值为空、`keep`（历史归到「其他」）或 `erase`（删除关联记录）。

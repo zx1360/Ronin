@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:torrid/features/booklet/models/record.dart';
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/widgets/routine/overview/constants/global_constants.dart';
-import 'package:torrid/core/utils/util.dart';
 
-class CheckinCalendar extends StatelessWidget {
-  final Style? style;
+class CheckinCalendar extends StatefulWidget {
+  final Style style;
   final List<Record> records;
 
   final String? selectedTaskId;
@@ -16,26 +15,21 @@ class CheckinCalendar extends StatelessWidget {
     this.selectedTaskId,
   });
 
-  Widget _buildWeekDayLabel(String label) {
-    return Expanded(
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(color: const Color(0xFF8B7355), fontSize: 11),
-        ),
-      ),
-    );
-  }
+  @override
+  State<CheckinCalendar> createState() => _CheckinCalendarState();
+}
 
-  int _statusIndex(Record? record, int taskCount) {
+class _CheckinCalendarState extends State<CheckinCalendar> {
+  DateTime? _selectedMonth;
+
+  int _statusIndex(Record? record, Style style) {
     if (record == null) return 0;
-    if (selectedTaskId != null) {
-      return record.taskCompletion[selectedTaskId] == true ? 1 : 5;
-    }
-
-    final completed = record.taskCompletion.values.where((done) => done).length;
-    final incomplete = taskCount - completed;
-    return incomplete >= 0 && incomplete <= 4 ? incomplete + 1 : 0;
+    final taskId = widget.selectedTaskId;
+    if (taskId != null) return record.taskCompletion[taskId] == true ? 1 : 5;
+    final incomplete = style.tasks
+        .where((task) => record.taskCompletion[task.id] != true)
+        .length;
+    return (incomplete + 1).clamp(1, checkInColors.length - 1);
   }
 
   void _openDateDetailDialog(
@@ -144,128 +138,141 @@ class CheckinCalendar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = this.style;
-    if (style == null) {
-      return const Center(child: Text('请先选择或创建打卡计划'));
-    }
-
-    final recordsByDate = <DateTime, Record>{};
-    for (final record in records) {
-      recordsByDate.putIfAbsent(dateOnly(record.date), () => record);
-    }
-    // 调用方按日期倒序传入记录。
-    final today = getTodayDate();
-    final start = records.isEmpty ? today : dateOnly(records.last.date);
-    final end = records.isEmpty ? today : dateOnly(records.first.date);
-    final totalDays = end.difference(start).inDays + 1;
-
-    final monthGroups = <String, List<DateTime>>{};
-    for (var i = 0; i < totalDays; i++) {
-      final date = start.add(Duration(days: i));
-      monthGroups.putIfAbsent(monthFormatter.format(date), () => []).add(date);
-    }
-
+    final style = widget.style;
+    final records = widget.records;
+    final start =
+        records.isNotEmpty && records.last.date.isBefore(style.startDate)
+        ? records.last.date
+        : style.startDate;
+    final end = records.isEmpty ? style.startDate : records.first.date;
+    final firstMonth = DateTime(start.year, start.month);
+    final lastMonth = DateTime(end.year, end.month);
+    final selected = _selectedMonth;
+    final month =
+        selected != null &&
+            !selected.isBefore(firstMonth) &&
+            !selected.isAfter(lastMonth)
+        ? selected
+        : lastMonth;
+    final offset = month.weekday - 1;
+    final endDay = DateTime(month.year, month.month + 1, 0).day;
+    final recordsByDay = {
+      for (final record in records)
+        if (record.date.year == month.year && record.date.month == month.month)
+          record.date.day: record,
+    };
     return Column(
-      children: monthGroups.entries.toList().reversed.map((monthEntry) {
-        final month = monthEntry.key;
-        final monthDates = monthEntry.value;
-        final offset = monthDates.first.weekday - 1;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(month, style: noteTitle),
-            ),
-
-            Row(
-              children: [
-                for (final day in const ['一', '二', '三', '四', '五', '六', '日'])
-                  _buildWeekDayLabel(day),
-              ],
-            ),
-
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                childAspectRatio: 1.2,
-                crossAxisSpacing: 4,
-                mainAxisSpacing: 4,
-              ),
-              itemCount: offset + monthDates.length,
-              itemBuilder: (context, index) {
-                if (index < offset) return const SizedBox.shrink();
-
-                final date = monthDates[index - offset];
-                final record = recordsByDate[dateOnly(date)];
-                final statusIndex = _statusIndex(record, style.tasks.length);
-                final hasMessage = record?.message.isNotEmpty == true;
-                final mood = record?.mood;
-
-                return GestureDetector(
-                  onTap: (record == null || (statusIndex == 0 && !hasMessage))
-                      ? null
-                      : () =>
-                            _openDateDetailDialog(context, date, record, style),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: checkInColors[statusIndex],
-                          border: Border.all(
-                            color: const Color(0xFFD4C8B8),
-                            width: 0.5,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Center(
-                          child: Text(
-                            dayFormatter.format(date),
-                            style: noteSmall.copyWith(
-                              color: date.isAfter(getTodayDate())
-                                  ? const Color(0xFF8B7355).withAlpha(
-                                      128,
-                                    ) // 未来日期半透明
-                                  : const Color(0xFF3A2E2F),
-                            ),
-                          ),
-                        ),
+            IconButton(
+              tooltip: '上个月',
+              onPressed: month.isAfter(firstMonth)
+                  ? () => setState(
+                      () => _selectedMonth = DateTime(
+                        month.year,
+                        month.month - 1,
                       ),
-
-                      if (hasMessage)
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: messageMarkerColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                      if (mood != null)
-                        Positioned(
-                          bottom: 2,
-                          right: 2,
-                          child: Text(
-                            mood.emoji,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+                    )
+                  : null,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Expanded(
+              child: Text(
+                monthFormatter.format(month),
+                style: noteTitle,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            IconButton(
+              tooltip: '下个月',
+              onPressed: month.isBefore(lastMonth)
+                  ? () => setState(
+                      () => _selectedMonth = DateTime(
+                        month.year,
+                        month.month + 1,
+                      ),
+                    )
+                  : null,
+              icon: const Icon(Icons.chevron_right),
             ),
           ],
-        );
-      }).toList(),
+        ),
+        Row(
+          children: [
+            for (final day in const ['一', '二', '三', '四', '五', '六', '日'])
+              Expanded(
+                child: Text(day, style: noteSmall, textAlign: TextAlign.center),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        GridView.builder(
+          padding: EdgeInsets.zero,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 1.2,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
+          itemCount: offset + endDay,
+          itemBuilder: (context, index) {
+            if (index < offset) return const SizedBox.shrink();
+            final day = index - offset + 1;
+            final record = recordsByDay[day];
+            final mood = record?.mood;
+            return InkWell(
+              onTap: record == null
+                  ? null
+                  : () => _openDateDetailDialog(
+                      context,
+                      DateTime(month.year, month.month, day),
+                      record,
+                      style,
+                    ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: checkInColors[_statusIndex(record, style)],
+                  border: Border.all(
+                    color: const Color(0xFFD4C8B8),
+                    width: 0.5,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Text('$day', style: noteSmall),
+                    if (record?.message.isNotEmpty == true)
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            color: messageMarkerColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const SizedBox.square(dimension: 6),
+                        ),
+                      ),
+                    if (mood != null)
+                      Positioned(
+                        bottom: 2,
+                        right: 2,
+                        child: Text(
+                          mood.emoji,
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }

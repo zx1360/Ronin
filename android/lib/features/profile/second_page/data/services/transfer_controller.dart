@@ -152,10 +152,19 @@ class TransferController extends _$TransferController {
       try {
         response = await fetch(cursor);
       } on DioException catch (error) {
+        final payload = error.response?.data;
+        if (target == TransferTarget.preferences &&
+            error.response?.statusCode == 404 &&
+            payload is Map &&
+            payload['code'] == 'preferences_not_backed_up') {
+          const message = '服务器尚未备份偏好，已保留本机设置';
+          _completeTransfer(true, message);
+          return TransferResult.success(message: message)._withElapsed(started);
+        }
         if (cursor == 0 ||
             error.response?.statusCode != 409 ||
-            error.response?.data is! Map ||
-            error.response?.data['code'] != 'invalid_sync_cursor') {
+            payload is! Map ||
+            payload['code'] != 'invalid_sync_cursor') {
           rethrow;
         }
         after = 0;
