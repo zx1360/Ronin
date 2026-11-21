@@ -9,6 +9,7 @@ import 'package:torrid/features/booklet/widgets/routine/overview/style_info_widg
 import 'package:torrid/features/booklet/widgets/routine/overview/task_simple_widget.dart';
 
 import 'package:torrid/features/booklet/models/style.dart';
+import 'package:torrid/features/booklet/models/record.dart';
 
 class BookletOverviewPage extends ConsumerStatefulWidget {
   const BookletOverviewPage({super.key});
@@ -19,12 +20,13 @@ class BookletOverviewPage extends ConsumerStatefulWidget {
 }
 
 class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
-  String? _styleId;
+  String? _selectedStyleId;
   String? _selectedTaskId;
 
   void _onStyleChanged(String? newStyleId) {
+    if (newStyleId == null || newStyleId == _selectedStyleId) return;
     setState(() {
-      _styleId = newStyleId;
+      _selectedStyleId = newStyleId;
       _selectedTaskId = null;
     });
   }
@@ -43,24 +45,20 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
   @override
   Widget build(BuildContext context) {
     final styles = ref.watch(sortedStylesProvider);
-    final style =
-        styles.where((style) => style.id == _styleId).firstOrNull ??
+    final currentStyle =
+        styles.where((style) => style.id == _selectedStyleId).firstOrNull ??
         styles.firstOrNull;
-    final selectedTask = style?.tasks
+    final selectedTask = currentStyle?.tasks
         .where((task) => task.id == _selectedTaskId)
         .firstOrNull;
-    final records = style == null
-        ? null
-        : ref.watch(recordsByStyleIdProvider(style.id));
-    final counts = style == null
-        ? null
-        : ref.watch(allTaskCompletionCountsProvider(style.id));
+    final List<Record> relatedRecords = currentStyle == null
+        ? const []
+        : ref.watch(recordsByStyleIdProvider(currentStyle.id));
+    final taskCompletionCounts = currentStyle == null
+        ? const <String, int>{}
+        : ref.watch(allTaskCompletionCountsProvider(currentStyle.id));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('历来打卡总览'),
-        backgroundColor: const Color(0xFFF5F0E1),
-      ),
       body: Container(
         color: const Color(0xFFF5F0E1),
         child: Container(
@@ -74,13 +72,15 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             children: [
+              Text('历来打卡总览', style: noteTitle.copyWith(fontSize: 22)),
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => BookletHistoryPage(styleId: style?.id),
+                      builder: (_) =>
+                          BookletHistoryPage(styleId: currentStyle?.id),
                     ),
                   ),
                   icon: const Icon(Icons.history),
@@ -94,8 +94,8 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                 children: [
                   Expanded(
                     child: StyleDropdown(
-                      key: ValueKey(style?.id),
-                      currentStyle: style,
+                      key: ValueKey(currentStyle?.id),
+                      currentStyle: currentStyle,
                       onStyleChanged: _onStyleChanged,
                     ),
                   ),
@@ -116,10 +116,10 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
               ),
               const SizedBox(height: 20),
 
-              CompactStyleOverview(currentStyle: style),
+              CompactStyleOverview(currentStyle: currentStyle),
               const SizedBox(height: 6),
 
-              if (style != null) ...[
+              if (currentStyle != null) ...[
                 Row(
                   children: [
                     Expanded(child: Text('打卡任务', style: noteTitle)),
@@ -141,35 +141,55 @@ class _BookletOverviewPageState extends ConsumerState<BookletOverviewPage> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                for (final task in style.tasks)
-                  GestureDetector(
-                    key: ValueKey(task.id),
-                    onTap: () => setState(() {
-                      _selectedTaskId = selectedTask == task ? null : task.id;
-                    }),
-                    child: TaskSimpleWidget(
-                      title: task.title,
-                      description: task.description,
-                      imgUrl: task.image,
-                      completionCount: counts![task.id] ?? 0,
-                      isSelected: selectedTask == task,
-                    ),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                const SizedBox(height: 18),
-                Text(
-                  selectedTask == null
-                      ? '打卡记录总览'
-                      : '「${selectedTask.title}」完成记录',
-                  style: noteTitle,
-                ),
-                const SizedBox(height: 12),
-                CheckinCalendar(
-                  key: ValueKey(style.id),
-                  style: style,
-                  records: records!,
-                  selectedTaskId: selectedTask?.id,
+                  clipBehavior: Clip.antiAlias,
+                  height: 200,
+                  child: ListView.builder(
+                    padding: EdgeInsets.only(top: 0),
+                    itemCount: currentStyle.tasks.length,
+                    itemBuilder: (context, index) {
+                      final task = currentStyle.tasks[index];
+                      final completionCount =
+                          taskCompletionCounts[task.id] ?? 0;
+                      final isSelected = _selectedTaskId == task.id;
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (_selectedTaskId == task.id) {
+                              _selectedTaskId = null; // 再次点击取消选中
+                            } else {
+                              _selectedTaskId = task.id;
+                            }
+                          });
+                        },
+                        child: TaskSimpleWidget(
+                          title: task.title,
+                          description: task.description,
+                          imgUrl: task.image,
+                          completionCount: completionCount,
+                          isSelected: isSelected,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
+
+              const SizedBox(height: 18),
+
+              Text(
+                selectedTask != null ? '「${selectedTask.title}」完成记录' : '打卡记录总览',
+                style: noteTitle,
+              ),
+              const SizedBox(height: 12),
+              CheckinCalendar(
+                style: currentStyle,
+                records: relatedRecords,
+                selectedTaskId: selectedTask?.id,
+              ),
             ],
           ),
         ),

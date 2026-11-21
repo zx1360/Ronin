@@ -7,7 +7,7 @@ class MoodSelector extends StatelessWidget {
   final MoodType? selectedMood;
 
   /// 心情变化回调
-  final ValueChanged<MoodType?>? onMoodChanged;
+  final ValueChanged<MoodType?> onMoodChanged;
 
   /// 是否为紧凑模式（只显示图标，不显示文字）
   final bool compact;
@@ -25,13 +25,19 @@ class MoodSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: MoodType.values.map((mood) {
         final isSelected = selectedMood == mood;
         return GestureDetector(
-          onTap: onMoodChanged == null
-              ? null
-              : () => onMoodChanged!(isSelected ? null : mood),
+          onTap: () {
+            // 点击已选中的心情则取消选择
+            if (isSelected) {
+              onMoodChanged(null);
+            } else {
+              onMoodChanged(mood);
+            }
+          },
           child: Tooltip(
             message: mood.description,
             child: AnimatedContainer(
@@ -50,7 +56,10 @@ class MoodSelector extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(mood.emoji, style: TextStyle(fontSize: iconSize)),
+                  Text(
+                    mood.emoji,
+                    style: TextStyle(fontSize: iconSize),
+                  ),
                   if (!compact) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -58,9 +67,7 @@ class MoodSelector extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 10,
                         color: isSelected ? mood.color : Colors.grey[500],
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -101,10 +108,19 @@ class MoodDisplay extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(mood!.emoji, style: TextStyle(fontSize: iconSize)),
+        Text(
+          mood!.emoji,
+          style: TextStyle(fontSize: iconSize),
+        ),
         if (showLabel) ...[
           const SizedBox(width: 4),
-          Text(mood!.label, style: TextStyle(fontSize: 12, color: mood!.color)),
+          Text(
+            mood!.label,
+            style: TextStyle(
+              fontSize: 12,
+              color: mood!.color,
+            ),
+          ),
         ],
       ],
     );

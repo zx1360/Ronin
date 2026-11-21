@@ -75,25 +75,35 @@ export function useEssayBoard() {
     try { await draftStore('delete', draft.id); await loadDrafts(); } catch (e) { toast(e.message, 'error'); }
   }
   async function publish() {
-    if (publishing.value || busy.value || board.loading.value) return;
+    const draft = editor.value;
+    if (!draft || publishing.value || busy.value || board.loading.value) return;
+    const essay = clone(draft), base = original.value, submitted = editable(essay);
+    const refs = new Set(essay.imgs.map((path) => path.split('/').pop()));
+    const attachments = new Map([...files.value].filter(([name]) => refs.has(name)));
     publishing.value = true;
     try {
-      if ((!editor.value.content.trim() && !editor.value.imgs.length) || !editor.value.labels.length || editor.value.labels.length > 4) { toast('请填写正文或添加图片，并选择 1 至 4 个标签', 'error'); return; }
+      if ((!essay.content.trim() && !essay.imgs.length) || !essay.labels.length || essay.labels.length > 4) { toast('请填写正文或添加图片，并选择 1 至 4 个标签', 'error'); return; }
       if (!await persist()) return;
       await board.refresh();
-      if (board.error.value) return;
-      const current = data.value.essays.find((e) => e.id === editor.value.id);
-      if (original.value && (!current || editable(current) !== editable(original.value))) { toast('原随笔已被另一端修改或删除，草稿已保留，请核对原文；也可另存为新随笔', 'error'); return; }
-      const essay = clone(editor.value);
+      if (board.error.value || disposed) return;
+      const current = data.value.essays.find((e) => e.id === essay.id);
+      if (base && (!current || editable(current) !== editable(base))) { toast('原随笔已被另一端修改或删除，草稿已保留，请核对原文；也可另存为新随笔', 'error'); return; }
       essay.title = essay.title.trim(); essay.content = essay.content.trim(); essay.word_count = essay.content.length;
       essay.messages = current?.messages || essay.messages;
       essay.updated_at = stamp(current || essay);
-      const refs = new Set(essay.imgs.map((path) => path.split('/').pop()));
-      if (await save({ essays: [essay] }, new Map([...files.value].filter(([name]) => refs.has(name))))) {
-        clearTimeout(timer); editor.value = null;
-        await draftWrites;
-        try { await draftStore('delete', essay.id); await loadDrafts(); } catch (e) { toast(`随笔已保存，草稿清理失败：${e.message}`, 'warning'); }
-        detailId.value = essay.id; tab.value = 'browse'; toast('随笔已保存', 'success');
+      if (await save({ essays: [essay] }, attachments)) {
+        if (editor.value === draft) {
+          if (editable(draft) === submitted) {
+            clearTimeout(timer); editor.value = null;
+            await draftWrites;
+            try { await draftStore('delete', essay.id); await loadDrafts(); } catch (e) { toast(`随笔已保存，草稿清理失败：${e.message}`, 'warning'); }
+            detailId.value = essay.id; tab.value = 'browse';
+          } else {
+            original.value = clone(data.value.essays.find((e) => e.id === essay.id) || essay);
+            await persist();
+          }
+        }
+        toast('随笔已保存', 'success');
       }
     } finally { publishing.value = false; }
   }
@@ -116,15 +126,23 @@ export function useEssayBoard() {
   });
   const hasMessageDrafts = () => [...messages.value.values()].some((value) => value.trim());
   async function appendMessage() {
-    if (!message.value.trim() || !detail.value) return;
+    const submitted = message.value;
+    if (!submitted.trim() || !detail.value) return;
     const row = clone(detail.value);
-    row.messages.push({ timestamp: new Date().toISOString(), content: message.value.trim() }); row.updated_at = stamp(row);
-    if (await save({ essays: [row] }, undefined, { checkLabels: false })) { messages.value.delete(row.id); toast('留言已添加', 'success'); }
+    row.messages.push({ timestamp: new Date().toISOString(), content: submitted.trim() }); row.updated_at = stamp(row);
+    if (await save({ essays: [row] }, undefined, { checkLabels: false })) {
+      if (messages.value.get(row.id) === submitted) messages.value.delete(row.id);
+      toast('留言已添加', 'success');
+    }
   }
-  function toggleLabel(id) {
+  function toggleLabel(id, event) {
     const selected = editor.value.labels;
     if (selected.includes(id)) editor.value.labels = selected.filter((value) => value !== id);
     else if (selected.length < 4) selected.push(id);
+    else {
+      event.target.checked = false;
+      toast('最多选择 4 个标签', 'warning');
+    }
   }
   const labelForm = ref(null);
   let labelCursor = 0;
@@ -171,11 +189,10 @@ export function useEssayBoard() {
     seen.add(picked.id); detailId.value = picked.id; tab.value = 'browse';
   }
   const clearLeaveGuard = setLeaveGuard(async () => {
-    if (publishing.value || busy.value) return false;
     if ((labelForm.value || hasMessageDrafts()) && !await confirmAction('当前有未保存的标签或留言，离开将丢弃这些输入。继续吗？', { danger: true })) return false;
     return persist();
   });
-  const beforeUnload = (event) => { if (pending || labelForm.value || hasMessageDrafts() || publishing.value || busy.value) { event.preventDefault(); event.returnValue = ''; } };
+  const beforeUnload = (event) => { if (pending || labelForm.value || hasMessageDrafts()) { event.preventDefault(); event.returnValue = ''; } };
   onMounted(() => { loadDrafts(); window.addEventListener('beforeunload', beforeUnload); });
   onUnmounted(() => { clearLeaveGuard(); disposed = true; persist(); clearTimeout(timer); window.removeEventListener('beforeunload', beforeUnload); });
   return { ...board, busy: computed(() => busy.value || publishing.value), tab, query, year, years, labelFilter, sort, showHidden, filtered, page, limit, detailId, detail, labels, labelName, labelCount,

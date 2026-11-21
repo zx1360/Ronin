@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:torrid/core/modals/confirm_modal.dart';
 import 'package:torrid/features/booklet/pages/booklet_overview.dart';
 import 'package:torrid/features/booklet/pages/history_page.dart';
 
@@ -11,6 +10,7 @@ import 'package:torrid/features/booklet/widgets/routine/widget/task_widget.dart'
 
 import 'package:torrid/features/booklet/models/style.dart';
 import 'package:torrid/features/booklet/models/record.dart';
+import 'package:torrid/features/booklet/models/task.dart';
 import 'package:torrid/core/widgets/mood_selector/mood_selector.dart';
 import 'package:torrid/core/utils/util.dart';
 
@@ -22,22 +22,24 @@ class BookletPage extends ConsumerStatefulWidget {
 }
 
 class _BookletPageState extends ConsumerState<BookletPage> {
-  final _messageController = TextEditingController();
   final _draftRecords = <(String, DateTime), Record>{};
+  final _messageController = TextEditingController();
+  final _focusNode = FocusNode();
   (String, DateTime)? _messageScope;
   String _savedMessage = '';
   bool _saving = false;
-  DateTime? _selectedDate;
+  (String, DateTime)? _selectedDay;
 
   Record _recordFor(Style style, DateTime date) {
-    return ref.watch(recordByDateProvider(targetDate: date)) ??
-        _draftRecords.putIfAbsent((
-          style.id,
-          date,
-        ), () => Record.empty(style: style, date: date));
+    final persisted = ref.watch(recordByDateProvider(targetDate: date));
+    if (persisted != null) return persisted;
+    return _draftRecords.putIfAbsent((
+      style.id,
+      date,
+    ), () => Record.empty(style: style, date: date));
   }
 
-  void _loadMessage(Record? record) {
+  void _syncMessage(Record? record) {
     final scope = record == null ? null : (record.styleId, record.date);
     final message = record?.message ?? '';
     if (scope != _messageScope || _messageController.text == _savedMessage) {
@@ -45,32 +47,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     }
     _messageScope = scope;
     _savedMessage = message;
-  }
-
-  Future<bool> _confirmLeavingMessage() async =>
-      _messageController.text == _savedMessage ||
-      await showConfirmDialog(
-            context: context,
-            title: '放弃未保存的留言？',
-            content: '当前留言还没有保存。',
-            confirmFunc: () {},
-          ) ==
-          true;
-
-  Future<void> _selectDate(DateTimeRange range, DateTime current) async {
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: current,
-      firstDate: range.start,
-      lastDate: range.end,
-      helpText: '选择打卡日期',
-      cancelText: '取消',
-      confirmText: '确认',
-    );
-    if (selected == null || selected == current || !mounted) return;
-    if (await _confirmLeavingMessage() && mounted) {
-      setState(() => _selectedDate = selected);
-    }
   }
 
   Future<void> _persist(Record record) async {
@@ -91,26 +67,48 @@ class _BookletPageState extends ConsumerState<BookletPage> {
     }
   }
 
+  Future<void> _selectDate(
+    DateTimeRange? dateRange,
+    DateTime targetDate,
+  ) async {
+    final styleId = ref.read(latestStyleProvider)?.id;
+    if (dateRange == null || styleId == null) return;
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: targetDate.isBefore(dateRange.start)
+          ? dateRange.start
+          : targetDate,
+      firstDate: dateRange.start,
+      lastDate: dateRange.end,
+      helpText: '选择打卡日期',
+      cancelText: '取消',
+      confirmText: '确认',
+    );
+    if (!mounted || selectedDate == null) return;
+    if (ref.read(latestStyleProvider)?.id == styleId) {
+      setState(() => _selectedDay = (styleId, selectedDate));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = ref.watch(latestStyleProvider);
-    final range = ref.watch(styleDateRangeProvider(style: style));
-    final selected = _selectedDate;
-    final date =
-        range != null &&
-            selected != null &&
-            !selected.isBefore(range.start) &&
-            !selected.isAfter(range.end)
-        ? selected
-        : getTodayDate();
-    final record = style == null || range == null
-        ? null
-        : _recordFor(style, date);
-    _loadMessage(record);
+    final dateRange = ref.watch(styleDateRangeProvider(style: style));
+    final today = getTodayDate();
+    final selected = _selectedDay;
+    final targetDate =
+        selected != null &&
+            selected.$1 == style?.id &&
+            !selected.$2.isAfter(today)
+        ? selected.$2
+        : today;
+    final record = style == null ? null : _recordFor(style, targetDate);
+    _syncMessage(record);
     final stats = style?.toJson() ?? <String, dynamic>{};
     if (style != null) {
       stats['latest_streak'] = ref.watch(currentStreakProvider(style.id));
     }
+    final tasks = style?.tasks ?? const <Task>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -132,11 +130,10 @@ class _BookletPageState extends ConsumerState<BookletPage> {
             icon: const Icon(Icons.history),
           ),
           IconButton(
-            tooltip: '选择打卡日期',
-            onPressed: _saving || range == null
-                ? null
-                : () => _selectDate(range, date),
-            icon: const Icon(Icons.date_range),
+            onPressed: () {
+              _selectDate(dateRange, targetDate);
+            },
+            icon: Icon(Icons.date_range),
           ),
         ],
 
@@ -149,7 +146,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
 
       body: Container(
         color: Colors.yellow.shade50,
-        child: ListView(
+        child: Column(
           children: [
             GestureDetector(
               onTap: () async {
@@ -162,35 +159,38 @@ class _BookletPageState extends ConsumerState<BookletPage> {
               },
               child: Topbar(stats: stats),
             ),
-            if (record != null && style != null) ...[
-              if (!isSameDay(date, getTodayDate()))
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    MaterialLocalizations.of(context).formatFullDate(date),
-                  ),
-                ),
-              for (final task in style.tasks)
-                GestureDetector(
-                  key: ValueKey(task.id),
-                  onTap: () => showTaskDetails(context, task),
-                  child: TaskWidget(
-                    title: task.title,
-                    description: task.description,
-                    imgUrl: task.image,
-                    completed: record.taskCompletion[task.id] ?? false,
-                    switchCB: _saving
-                        ? null
-                        : (value) => _persist(
-                            record.copyWith(
-                              taskCompletion: {
-                                ...record.taskCompletion,
-                                task.id: value ?? false,
-                              },
-                            ),
+
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  final taskData = tasks[index];
+                  return GestureDetector(
+                    onDoubleTap: () => showTaskDetails(context, taskData),
+                    child: TaskWidget(
+                      title: taskData.title,
+                      description: taskData.description,
+                      imgUrl: taskData.image,
+                      completed: record?.taskCompletion[taskData.id] ?? false,
+                      switchCB: (value) {
+                        if (record == null) return;
+                        _persist(
+                          record.copyWith(
+                            taskCompletion: {
+                              ...record.taskCompletion,
+                              taskData.id: value ?? false,
+                            },
                           ),
-                  ),
-                ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            if (record != null)
               Container(
                 margin: const EdgeInsets.all(12),
                 padding: const EdgeInsets.all(16),
@@ -211,7 +211,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                   children: [
                     TextField(
                       controller: _messageController,
-                      readOnly: _saving,
+                      focusNode: _focusNode,
                       maxLines: 3,
                       style: TextStyle(
                         color: Colors.brown[800],
@@ -219,7 +219,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                         fontFamily: 'NotoSerif',
                       ),
                       decoration: InputDecoration(
-                        hintText: '给这一天留段话吧…',
+                        hintText: "给今天的自己留段话吧...",
                         hintStyle: TextStyle(
                           color: Colors.brown[400],
                           fontSize: 14,
@@ -232,35 +232,34 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                         contentPadding: const EdgeInsets.all(12),
                       ),
                       onTapOutside: (event) {
-                        FocusManager.instance.primaryFocus?.unfocus();
+                        _focusNode.unfocus();
                       },
                     ),
                     const SizedBox(height: 6),
-                    Wrap(
-                      alignment: WrapAlignment.spaceBetween,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 12,
+                    Row(
                       children: [
-                        if (isSameDay(date, getTodayDate()))
-                          MoodSelector(
-                            selectedMood: record.mood,
-                            onMoodChanged: _saving
-                                ? null
-                                : (mood) => _persist(
+                        // 今日：可选择心情；往期：只读显示（如有）
+                        Expanded(
+                          child: isSameDay(targetDate, DateTime.now())
+                              ? MoodSelector(
+                                  selectedMood: record.mood,
+                                  onMoodChanged: (mood) => _persist(
                                     record.copyWith(
                                       mood: mood,
                                       clearMood: mood == null,
                                     ),
                                   ),
-                            compact: true,
-                            iconSize: 24,
-                          )
-                        else
-                          MoodDisplay(
-                            mood: record.mood,
-                            iconSize: 24,
-                            showLabel: true,
-                          ),
+                                  compact: true,
+                                  iconSize: 24,
+                                )
+                              : (record.mood != null
+                                    ? MoodDisplay(
+                                        mood: record.mood,
+                                        iconSize: 24,
+                                        showLabel: true,
+                                      )
+                                    : const SizedBox.shrink()),
+                        ),
                         ElevatedButton(
                           onPressed: _saving
                               ? null
@@ -287,7 +286,6 @@ class _BookletPageState extends ConsumerState<BookletPage> {
                   ],
                 ),
               ),
-            ],
           ],
         ),
       ),
@@ -297,6 +295,7 @@ class _BookletPageState extends ConsumerState<BookletPage> {
   @override
   void dispose() {
     _messageController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 }

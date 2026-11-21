@@ -121,6 +121,7 @@ class IoService {
   }
 
   static Future<File?> getImageFile(String key) async {
+    if (key.isEmpty) return null;
     try {
       final file = await userFile(key);
       return await file.exists() ? file : null;

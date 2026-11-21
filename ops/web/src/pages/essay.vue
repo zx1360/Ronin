@@ -27,42 +27,39 @@ export default {
     </div>
     <Placeholder v-if="error" :error="error" />
     <Card v-if="editor" :title="original ? '编辑随笔' : '写随笔'">
-      <form @submit.prevent="publish">
-        <fieldset class="col form-fields" :disabled="busy">
-          <label class="field">
-            标题（可选）
-            <input v-model="editor.title" maxlength="200" placeholder="为这段记忆起个名字" />
+      <form class="col" @submit.prevent="publish">
+        <label class="field">
+          标题（可选）
+          <input v-model="editor.title" maxlength="200" placeholder="为这段记忆起个名字" />
+        </label>
+        <div class="row">
+          <span class="small muted">{{dateText(editor.date)}} · {{editor.content.trim().length}} 字</span>
+          <span class="spacer"></span>
+          <button type="button" class="sm" @click="preview=!preview">{{preview?'继续编辑':'Markdown 预览'}}</button>
+        </div>
+        <MarkdownText v-if="preview" :text="editor.content" />
+        <label v-else class="field">
+          正文
+          <textarea class="essay-writing" v-model="editor.content" rows="14" placeholder="写下今天，支持 Markdown…"></textarea>
+        </label>
+        <fieldset class="user-label-picker">
+          <legend>标签（1 至 4 个）</legend>
+          <label v-for="l in labels" :key="l.id">
+            <input type="checkbox" :checked="editor.labels.includes(l.id)" @change="toggleLabel(l.id,$event)" />
+            {{l.path}}
           </label>
-          <div class="row">
-            <span class="small muted">{{dateText(editor.date)}} · {{editor.content.trim().length}} 字</span>
-            <span class="spacer"></span>
-            <button type="button" class="sm" @click="preview=!preview">{{preview?'继续编辑':'Markdown 预览'}}</button>
-          </div>
-          <MarkdownText v-if="preview" :text="editor.content" />
-          <label v-else class="field">
-            正文
-            <textarea class="essay-writing" v-model="editor.content" rows="14" placeholder="写下今天，支持 Markdown…"></textarea>
-          </label>
-          <fieldset class="user-label-picker">
-            <legend>标签（1 至 4 个）</legend>
-            <label v-for="l in labels" :key="l.id">
-              <input type="checkbox" :checked="editor.labels.includes(l.id)"
-                :disabled="editor.labels.length >= 4 && !editor.labels.includes(l.id)" @change="toggleLabel(l.id)" />
-              {{l.path}}
-            </label>
-            <span v-if="!labels.length" class="muted">请先到标签页创建标签</span>
-          </fieldset>
-          <ImagePicker v-model:images="editor.imgs" :files="files" module="essay" :max="9" @file="files.set($event.name,$event.file)" />
-          <div class="row">
-            <MoodSelect v-model="editor.mood" />
-            <span class="small muted" role="status">{{draftStatus}}</span>
-            <span class="spacer"></span>
-            <button v-if="original" type="button" :disabled="busy" @click="saveAsNew">另存为新随笔</button>
-            <button type="button" :disabled="busy" @click="closeEditor">收起并保留草稿</button>
-            <button class="primary" :disabled="busy || loading">{{busy?'保存中…':'保存随笔'}}</button>
-          </div>
-          <p class="small muted">草稿及草稿图片仅保存在当前浏览器。编辑期间保留正式原文，保存成功后才更新。</p>
+          <span v-if="!labels.length" class="muted">请先到标签页创建标签</span>
         </fieldset>
+        <ImagePicker v-model:images="editor.imgs" :files="files" module="essay" :max="9" @file="files.set($event.name,$event.file)" />
+        <div class="row">
+          <MoodSelect v-model="editor.mood" />
+          <span class="small muted" role="status">{{draftStatus}}</span>
+          <span class="spacer"></span>
+          <button v-if="original" type="button" :disabled="busy" @click="saveAsNew">另存为新随笔</button>
+          <button type="button" :disabled="busy" @click="closeEditor">收起并保留草稿</button>
+          <button class="primary" :disabled="busy || loading">{{busy?'保存中…':'保存随笔'}}</button>
+        </div>
+        <p class="small muted">草稿及草稿图片仅保存在当前浏览器。编辑期间保留正式原文，保存成功后才更新。</p>
       </form>
     </Card>
     <div class="tabs">
@@ -139,7 +136,7 @@ export default {
           <form class="col" @submit.prevent="appendMessage">
             <label class="field">
               追加留言
-              <textarea v-model="message" rows="3" :disabled="busy" placeholder="后来想说的话…"></textarea>
+              <textarea v-model="message" rows="3" placeholder="后来想说的话…"></textarea>
             </label>
             <button class="primary" :disabled="busy || !message.trim()">添加留言</button>
           </form>

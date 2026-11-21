@@ -93,12 +93,11 @@ int currentStreak(Ref ref, String styleId) {
 DateTimeRange? styleDateRange(Ref ref, {required Style? style}) {
   if (style == null) return null;
 
-  final firstRecord = ref.watch(recordsByStyleIdProvider(style.id)).lastOrNull;
-  final start = dateOnly(
-    firstRecord != null && firstRecord.date.isBefore(style.startDate)
-        ? firstRecord.date
-        : style.startDate,
-  );
   final today = getTodayDate();
-  return start.isAfter(today) ? null : DateTimeRange(start: start, end: today);
+  final firstRecord = ref.watch(recordsByStyleIdProvider(style.id)).lastOrNull;
+  final earliest = firstRecord == null ? today : dateOnly(firstRecord.date);
+  return DateTimeRange(
+    start: earliest.isAfter(today) ? today : earliest,
+    end: today,
+  );
 }

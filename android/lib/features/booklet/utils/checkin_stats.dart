@@ -18,8 +18,9 @@ int longestConsecutiveDays(List<DateTime> sortedDates) {
   int currentStreak = 1;
 
   for (int i = 1; i < sortedDates.length; i++) {
-    final dayDiff = sortedDates[i].difference(sortedDates[i - 1]).inDays;
-    if (dayDiff == 1) {
+    final previous = sortedDates[i - 1];
+    final next = DateTime(previous.year, previous.month, previous.day + 1);
+    if (isSameDay(sortedDates[i], next)) {
       currentStreak++;
       maxStreak = max(maxStreak, currentStreak);
     } else {
