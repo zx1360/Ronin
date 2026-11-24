@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
-import 'package:torrid/features/others/gallery/models/batch_data.dart';
-import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/models/media_tag_link.dart';
-import 'package:torrid/features/others/gallery/models/tag.dart';
-import 'package:torrid/features/others/gallery/services/gallery_api_service.dart';
-import 'package:torrid/features/others/gallery/services/gallery_database_service.dart';
+import 'package:torrid/features/gallery/models/batch_data.dart';
+import 'package:torrid/features/gallery/models/media_asset.dart';
+import 'package:torrid/features/gallery/models/media_tag_link.dart';
+import 'package:torrid/features/gallery/models/tag.dart';
+import 'package:torrid/features/gallery/services/gallery_api_service.dart';
+import 'package:torrid/features/gallery/services/gallery_database_service.dart';
 
 void main() {
   test('Gallery 回传队列和工作副本同库保存，确认前不可清理或换库', () async {

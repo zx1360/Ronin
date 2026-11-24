@@ -6,15 +6,16 @@ import (
 
 // AI 能力标识。phash 在 Go 进程内完成，其余通过外部进程接入。
 const (
-	CapPHash = "phash" // 感知哈希（纯 Go，无外部进程）
-	CapEmbed = "embed" // SigLIP 图像向量
-	CapFace  = "face"  // InsightFace 人脸检测与特征
-	CapOCR   = "ocr"   // RapidOCR / PP-OCR 文字识别
-	CapVLM   = "vlm"   // Ollama VLM 描述与关键词
+	CapPHash   = "phash"   // 感知哈希（纯 Go，无外部进程）
+	CapEmbed   = "embed"   // SigLIP 图像向量
+	CapFace    = "face"    // InsightFace 人脸检测与特征
+	CapOCR     = "ocr"     // RapidOCR / PP-OCR 文字识别
+	CapCleanup = "cleanup" // 手动筛选待审核的删除候选
+	CapVLM     = "vlm"     // Ollama VLM 描述与关键词
 )
 
 // AllCapabilities 全部能力，顺序即处理优先级（廉价能力优先）。
-var AllCapabilities = []string{CapPHash, CapEmbed, CapFace, CapOCR, CapVLM}
+var AllCapabilities = []string{CapPHash, CapEmbed, CapFace, CapOCR, CapCleanup, CapVLM}
 
 // 输入图源档位，复用 gallery 派生图目录。
 const (
@@ -36,6 +37,7 @@ type CapabilitySpec struct {
 	TierNote    string `json:"tier_note"`   // 档位的作用说明（如"长边 1024 派生图"）
 	Executor    string `json:"executor"`    // 实际执行者（进程内实现 / 模型名 / Ollama 模型名）
 	InputSig    string `json:"input_sig"`
+	Manual      bool   `json:"manual,omitempty"`
 }
 
 // InputSignature 计算"输入档位 + 执行者"指纹。

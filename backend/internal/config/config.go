@@ -99,10 +99,7 @@ func Load() error {
 
 	loadAiConfig()
 
-	if err := Validate(); err != nil {
-		return err
-	}
-	return loadAPIKey()
+	return Validate()
 }
 
 func envAbsOr(key, def string) string {

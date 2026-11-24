@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"monarch/internal/repository/ai_repo"
-	"monarch/internal/service/ai"
 )
 
 // ListPersons 处理 GET /API/ai/persons
@@ -76,17 +75,21 @@ func UpdatePerson(c *gin.Context) {
 
 // DeletePerson 处理 DELETE /API/ai/persons/:id（人脸回到未分配，不删媒体）。
 func DeletePerson(c *gin.Context) {
-	if !schemaGuard(c) {
+	e := engine(c)
+	if e == nil || !schemaGuard(c) {
 		return
 	}
 	id, ok := pathUUID(c, "id", "人物 ID ")
 	if !ok {
 		return
 	}
+	e.ClusterLock()
+	defer e.ClusterUnlock()
 	if err := ai_repo.DeletePerson(id); err != nil {
 		writePersonError(c, err)
 		return
 	}
+	e.Cluster().Invalidate()
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
 }
 
@@ -124,6 +127,8 @@ func MergePersons(c *gin.Context) {
 		return
 	}
 
+	e.ClusterLock()
+	defer e.ClusterUnlock()
 	moved, err := ai_repo.MergePersons(sources, target)
 	if err != nil {
 		fail(c, err)
@@ -165,6 +170,8 @@ func AssignFaces(c *gin.Context) {
 		personID = &id
 	}
 
+	e.ClusterLock()
+	defer e.ClusterUnlock()
 	if err := ai_repo.ReassignFaces(faces, personID); err != nil {
 		fail(c, err)
 		return
@@ -195,7 +202,7 @@ func Recluster(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Minute)
 	defer cancel()
 
-	result, err := e.Cluster().Recluster(ctx, ai.ReclusterOptions{Reset: req.Reset})
+	result, err := e.Cluster().Recluster(ctx, req.Reset)
 	if err != nil {
 		fail(c, err)
 		return

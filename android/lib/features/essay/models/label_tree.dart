@@ -44,15 +44,21 @@ List<Essay> visibleEssays(Iterable<Essay> essays, Iterable<Label> labels) {
   return essays.where((essay) => !essay.labels.any(hidden.contains)).toList();
 }
 
-List<Label> countEssayLabels(Iterable<Essay> essays, Iterable<Label> labels) {
+List<Label> countEssayLabels(
+  Iterable<Essay> essays,
+  Iterable<Label> labels, {
+  bool countEveryAncestor = false,
+}) {
   final byId = {for (final label in labels) label.id: label};
   final children = _labelsByParent(byId.values);
-  final roots = <String, String>{};
+  final rollup = <String, String>{};
   for (final root in children[null] ?? const <Label>[]) {
     final pending = [root];
     while (pending.isNotEmpty) {
       final label = pending.removeLast();
-      roots[label.id] = root.id;
+      if (label.parentId case final parent?) {
+        rollup[label.id] = countEveryAncestor ? parent : root.id;
+      }
       if (children[label.id] case final descendants?) {
         pending.addAll(descendants);
       }
@@ -60,11 +66,13 @@ List<Label> countEssayLabels(Iterable<Essay> essays, Iterable<Label> labels) {
   }
   final counts = <String, int>{};
   for (final essay in essays) {
-    final linked = {
-      ...essay.labels,
-      for (final id in essay.labels)
-        if (roots[id] case final root?) root,
-    };
+    final linked = <String>{};
+    for (final id in essay.labels) {
+      String? ancestor = id;
+      while (ancestor != null && linked.add(ancestor)) {
+        ancestor = rollup[ancestor];
+      }
+    }
     for (final id in linked) {
       counts[id] = (counts[id] ?? 0) + 1;
     }

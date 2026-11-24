@@ -14,7 +14,7 @@ import 'package:torrid/core/services/storage/cache_service.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
 import 'package:torrid/core/services/storage/prefs_service.dart';
 import 'package:torrid/core/services/personalization/personalization_service.dart';
-import 'package:torrid/features/others/comic/provider/download_task_provider.dart';
+import 'package:torrid/features/comic/providers/download_task_provider.dart';
 import 'package:torrid/features/home/widgets/default_background.dart';
 import 'package:torrid/features/trace/trace_store.dart';
 import 'package:torrid/features/trace/trace_timing.dart';
@@ -64,7 +64,6 @@ class _SplashPageState extends ConsumerState<SplashPage>
     setState(() => _startupError = null);
     if (!_loadingAnimCtrl.isAnimating) _loadingAnimCtrl.repeat(reverse: true);
     try {
-<<<<<<< HEAD
       await CertTrust.init();
       await PrefsService().initPrefs();
       try {
@@ -73,13 +72,6 @@ class _SplashPageState extends ConsumerState<SplashPage>
         if (mounted) ref.invalidate(appDatabaseProvider);
         rethrow;
       }
-=======
-      await Hive.initFlutter();
-      await PrefsService().initPrefs();
-      CertTrust.init();
-      await HiveService.init();
-      await HiveService.initComic();
->>>>>>> 1fc83d9 (重构瘦身+分发性.)
       await ref.read(comicDownloadTasksProvider.notifier).initialize();
       unawaited(const CacheService().performStartupCleanup());
 

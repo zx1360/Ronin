@@ -177,7 +177,7 @@ func TestAiWrites(t *testing.T) {
 	}
 
 	// 人脸写入（bbox 走 JSON 文本）
-	if err := ai_repo.ReplaceFaces(mediaID, []ai_repo.FaceWrite{{
+	if _, _, err := ai_repo.ReplaceFaces(mediaID, []ai_repo.FaceWrite{{
 		ID: uuid.New(), MediaID: mediaID, Box: []float32{0.1, 0.2, 0.3, 0.4},
 		DetScore: 0.9, Quality: 0.8, Embedding: make([]byte, 2048),
 	}}, "ai1024|insightface-buffalo_l"); err != nil {
@@ -195,21 +195,13 @@ func TestAiWrites(t *testing.T) {
 		t.Fatalf("bbox 往返不符: %v", box)
 	}
 
-	// 人物分组：新建 → 分配 → 统计 → 合并 → 改名 → 删除
-	personID, err := ai_repo.CreatePerson(nil)
-	if err != nil {
-		t.Fatalf("创建人物失败: %v", err)
-	}
-	otherID, err := ai_repo.CreatePerson(nil)
-	if err != nil {
-		t.Fatalf("创建人物失败: %v", err)
-	}
+	personID, otherID := uuid.New(), uuid.New()
 	faceID := faces[mediaID][0].ID
-	if err := ai_repo.AssignFaces([]uuid.UUID{faceID}, &personID); err != nil {
-		t.Fatalf("分配人脸失败: %v", err)
-	}
-	if err := ai_repo.RefreshPersonStats([]uuid.UUID{personID}); err != nil {
-		t.Fatalf("重算人物统计失败: %v", err)
+	if err := ai_repo.ApplyFaceGroups(t.Context(), []ai_repo.FaceGroup{
+		{PersonID: personID, FaceIDs: []uuid.UUID{faceID}, New: true},
+		{PersonID: otherID, New: true},
+	}, false); err != nil {
+		t.Fatalf("创建人物并分配人脸失败: %v", err)
 	}
 	persons, err := ai_repo.ListPersons()
 	if err != nil {
@@ -237,14 +229,17 @@ func TestAiWrites(t *testing.T) {
 	if err := ai_repo.DeletePerson(personID); err != ai_repo.ErrPersonMissing {
 		t.Fatalf("重复删除应返回 ErrPersonMissing，实际 %v", err)
 	}
-	if err := ai_repo.ResetAllFaceAssignments(); err != nil {
+	if err := ai_repo.ApplyFaceGroups(t.Context(), []ai_repo.FaceGroup{
+		{PersonID: personID, FaceIDs: []uuid.UUID{faceID}, New: true},
+	}, false); err != nil {
+		t.Fatalf("准备重置前的人物失败: %v", err)
+	}
+	if err := ai_repo.ApplyFaceGroups(t.Context(), nil, true); err != nil {
 		t.Fatalf("重置人脸归属失败: %v", err)
 	}
-	if err := ai_repo.RefreshAllPersonStats(); err != nil {
-		t.Fatalf("全量重算人物统计失败: %v", err)
-	}
-	if _, err := ai_repo.DropEmptyPersons(); err != nil {
-		t.Fatalf("清理空人物分组失败: %v", err)
+	faces, err = ai_repo.ListFacesByMedia([]uuid.UUID{mediaID})
+	if err != nil || len(faces[mediaID]) != 1 || faces[mediaID][0].PersonID != nil {
+		t.Fatalf("重置应保留人脸并解除归属: %v, %v", faces, err)
 	}
 
 	// 去重人工判定
@@ -293,15 +288,9 @@ func TestAiJobQueue(t *testing.T) {
 	if n, err := ai_repo.Enqueue(model.CapVLM, mediaIDs, "ai1024|ollama:test"); err != nil || n != 0 {
 		t.Fatalf("重复入队应幂等: n=%d err=%v", n, err)
 	}
-<<<<<<< HEAD
 	pending, err := ai_repo.PendingCapabilities(context.Background())
 	if err != nil || !slices.Contains(pending, model.CapVLM) {
 		t.Fatalf("入队后应有待处理任务: pending=%v err=%v", pending, err)
-=======
-	pending, err := ai_repo.HasPending(t.Context(), model.CapVLM)
-	if err != nil || !pending {
-		t.Fatalf("应存在待处理任务: %v", err)
->>>>>>> 1fc83d9 (重构瘦身+分发性.)
 	}
 
 	claimed, err := ai_repo.Claim(model.CapVLM, 16)

@@ -79,7 +79,7 @@ func EnqueueMissing(capability string, limit int, priority int, inputSig string)
 		INSERT INTO jobs (capability, media_id, priority, input_sig)
 		SELECT ?, m.id, ?, ?
 		FROM media_assets m
-		WHERE m.is_deleted = 0
+		WHERE m.is_deleted = 0`+enqueueFilter(capability)+`
 		  AND NOT EXISTS (
 		      SELECT 1 FROM jobs j WHERE j.capability = ? AND j.media_id = m.id
 		  )
@@ -141,7 +141,7 @@ func Regenerate(capability string, inputSig string, priority int) (cleared int64
 			INSERT INTO jobs (capability, media_id, priority, input_sig)
 			SELECT ?, m.id, ?, ?
 			FROM media_assets m
-			WHERE m.is_deleted = 0
+			WHERE m.is_deleted = 0`+enqueueFilter(capability)+`
 			  AND NOT EXISTS (
 			      SELECT 1 FROM jobs j WHERE j.capability = ? AND j.media_id = m.id
 			  )
@@ -227,19 +227,15 @@ func clearCapabilityResults(ctx context.Context, tx *sql.Tx, capability string) 
 			return 0, fmt.Errorf("清除 AI 标签失败: %w", err)
 		}
 		return rowsAffected(res, nil, "")
+	case model.CapCleanup:
+		res, err := tx.ExecContext(ctx, `DELETE FROM deletion_candidates`)
+		return rowsAffected(res, err, "清除删除候选失败")
 	case model.CapEmbed:
 		res, err := tx.ExecContext(ctx, `DELETE FROM embeddings`)
 		return rowsAffected(res, err, "清除图像向量失败")
 	case model.CapFace:
-		// 人脸清空后人物分组必然为空，一并清掉避免留下无法解释的空分组
-		res, err := tx.ExecContext(ctx, `DELETE FROM faces`)
-		if err != nil {
-			return 0, fmt.Errorf("清除人脸失败: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM persons`); err != nil {
-			return 0, fmt.Errorf("清除人物分组失败: %w", err)
-		}
-		return rowsAffected(res, nil, "")
+		// 新检测逐个替换旧结果，保留能够匹配到的人工归组。
+		return 0, nil
 	default:
 		return 0, fmt.Errorf("未知能力: %s", capability)
 	}
@@ -573,7 +569,6 @@ func ListJobs(capability, status string, limit, offset int) ([]model.AiJob, int,
 	return jobs, total, rows.Err()
 }
 
-<<<<<<< HEAD
 // 每种能力只做一次索引存在性检查，不扫描历史任务或探测模型。
 func PendingCapabilities(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -599,14 +594,6 @@ func PendingCapabilities(ctx context.Context) ([]string, error) {
 		pending = append(pending, capability)
 	}
 	return pending, rows.Err()
-=======
-func HasPending(ctx context.Context, capability string) (bool, error) {
-	var pending bool
-	err := db.Read().QueryRowContext(ctx, `
-        SELECT EXISTS(SELECT 1 FROM jobs WHERE capability = ? AND status = 'pending')`,
-		capability).Scan(&pending)
-	return pending, err
->>>>>>> 1fc83d9 (重构瘦身+分发性.)
 }
 
 // int64Args 把 int64 列表转为 SQL 参数。

@@ -54,9 +54,47 @@ Widget traceCalendarStyle(BuildContext context, Widget? child) =>
       ),
     );
 
+Future<int?> pickTraceDateTime(
+  BuildContext context, {
+  required String label,
+  required int initialMs,
+  required int firstMs,
+  required int lastMs,
+}) async {
+  final initial = traceDate(initialMs.clamp(firstMs, lastMs));
+  final date = await showDatePicker(
+    context: context,
+    firstDate: traceDate(firstMs),
+    lastDate: traceDate(lastMs),
+    initialDate: initial,
+    helpText: '选择$label日期',
+    cancelText: '返回',
+    confirmText: '下一步',
+    builder: traceCalendarStyle,
+  );
+  if (!context.mounted || date == null) return null;
+  final time = await showTimePicker(
+    context: context,
+    initialTime: TimeOfDay.fromDateTime(initial),
+    helpText: '选择$label时间',
+    cancelText: '返回',
+    confirmText: '确定',
+    builder: traceCalendarStyle,
+  );
+  return time == null
+      ? null
+      : DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          time.minute,
+        ).millisecondsSinceEpoch;
+}
+
 Future<int?> editTraceDuration(
   BuildContext context,
-  TraceSession session,
+  int startedMs,
   int initialMs, {
   int? latestEndMs,
 }) => showDialog<int>(
@@ -64,7 +102,7 @@ Future<int?> editTraceDuration(
   builder: (context) => Theme(
     data: traceTheme(Theme.of(context)),
     child: _DurationDialog(
-      startedMs: session.startedMs,
+      startedMs: startedMs,
       initialMs: initialMs,
       latestEndMs: latestEndMs,
     ),
@@ -124,44 +162,18 @@ class _DurationDialogState extends State<_DurationDialog> {
 
   Future<void> _pickEnd() async {
     FocusScope.of(context).unfocus();
-    final start = traceDate(widget.startedMs);
-    final estimate = traceDate(widget.startedMs + _duration);
-    final lastDate = traceDate(
-      widget.latestEndMs ??
-          math.max(
-            estimate.millisecondsSinceEpoch,
-            DateTime.now().millisecondsSinceEpoch,
-          ),
+    final estimate = widget.startedMs + _duration;
+    final end = await pickTraceDateTime(
+      context,
+      label: '结束',
+      initialMs: estimate,
+      firstMs: widget.startedMs,
+      lastMs:
+          widget.latestEndMs ??
+          math.max(estimate, DateTime.now().millisecondsSinceEpoch),
     );
-    final date = await showDatePicker(
-      context: context,
-      firstDate: start,
-      lastDate: lastDate,
-      initialDate: estimate,
-      helpText: '选择结束日期',
-      cancelText: '返回',
-      confirmText: '下一步',
-      builder: traceCalendarStyle,
-    );
-    if (!mounted || date == null) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(estimate),
-      helpText: '选择结束时间',
-      cancelText: '返回',
-      confirmText: '确定',
-      builder: traceCalendarStyle,
-    );
-    if (!mounted || time == null) return;
-    final ms =
-        DateTime(
-          date.year,
-          date.month,
-          date.day,
-          time.hour,
-          time.minute,
-        ).millisecondsSinceEpoch -
-        widget.startedMs;
+    if (!mounted || end == null) return;
+    final ms = end - widget.startedMs;
     setState(() {
       _error = _validate(ms);
       if (_error != null) return;
@@ -329,7 +341,7 @@ class _RecoveryDialogState extends State<_RecoveryDialog> {
   Future<void> _adjust() async {
     final duration = await editTraceDuration(
       context,
-      _session,
+      _session.startedMs,
       _ms,
       latestEndMs: widget.estimated
           ? null

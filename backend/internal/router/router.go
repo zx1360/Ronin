@@ -101,6 +101,7 @@ func SetupRouter() *gin.Engine {
 			galleryGroup.DELETE("/tags/:id", gallery_handler.DeleteTag)
 			galleryGroup.GET("/media", gallery_handler.QueryMedia)
 			galleryGroup.PATCH("/media", gallery_handler.PatchMedia)
+			galleryGroup.PATCH("/media/selected", gallery_handler.PatchSelectedMedia)
 			galleryGroup.POST("/media/tags", gallery_handler.BatchMediaTags)
 			galleryGroup.PUT("/media/:id/tags", gallery_handler.SetMediaTags)
 			// 获取一批次的媒体资产 + 全量标签 + 对应的标签关联（客户端本地缓存下载）
@@ -148,6 +149,7 @@ func SetupRouter() *gin.Engine {
 			aiGroup.POST("/chat", ai_handler.Chat)
 			aiGroup.GET("/chat/info", ai_handler.ChatInfo)
 			aiGroup.POST("/chat/start", ai_handler.StartChatModel)
+			aiGroup.POST("/essay/suggestions", ai_handler.EssaySuggestions)
 
 			// 近期回顾：后端算确定性统计（+ 可选随机素材）后交本地模型叙述
 			aiGroup.POST("/review", ai_handler.Review)
@@ -158,11 +160,14 @@ func SetupRouter() *gin.Engine {
 			aiGroup.GET("/search", ai_handler.Search)
 			aiGroup.POST("/search/image", ai_handler.SearchByImage)
 			aiGroup.GET("/similar/:id", ai_handler.Similar)
+			aiGroup.GET("/related/:id", ai_handler.RelatedMedia)
 			aiGroup.GET("/media/:id", ai_handler.MediaDetail)
 			aiGroup.GET("/duplicates", ai_handler.Duplicates)
 			aiGroup.POST("/duplicates/ignore", ai_handler.IgnoreDuplicates)
 			aiGroup.POST("/duplicates/unignore", ai_handler.UnignoreDuplicates)
 			aiGroup.GET("/duplicates/ignored", ai_handler.ListIgnoredDuplicates)
+			aiGroup.GET("/cleanup", ai_handler.Cleanup)
+			aiGroup.POST("/cleanup/scan", ai_handler.ScanCleanup)
 			aiGroup.GET("/tags", ai_handler.ListVLMTags)
 
 			// 组织：人物分组

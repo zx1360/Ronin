@@ -191,14 +191,13 @@ class EssayContentWidget extends ConsumerWidget {
                   },
                 ),
                 icon: Icon(
-                  Icons.delete_outline,
+                  const IconData(0xe649, fontFamily: "iconfont"),
                   color: AppTheme.outline,
                 ),
                 padding: EdgeInsets.zero,
                 splashRadius: 16,
                 tooltip: "删除随笔(当天可用)",
               ),
-<<<<<<< HEAD
             IconButton(
               onPressed: () async {
                 try {
@@ -224,23 +223,6 @@ class EssayContentWidget extends ConsumerWidget {
               icon: Icon(
                 const IconData(0xe60c, fontFamily: "iconfont"),
                 color: AppTheme.outline,
-=======
-            if (isToday)
-              IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EssayWritePage(original: essay),
-                  ),
-                ),
-                icon: Icon(
-                  Icons.edit_outlined,
-                  color: AppTheme.outline,
-                ),
-                padding: EdgeInsets.zero,
-                splashRadius: 16,
-                tooltip: "编辑随笔(当天可用，原文保留至保存)",
->>>>>>> 1fc83d9 (重构瘦身+分发性.)
               ),
               padding: EdgeInsets.zero,
               splashRadius: 16,

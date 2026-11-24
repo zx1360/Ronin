@@ -259,8 +259,11 @@ class TraceStore {
   Future<TraceSession> start(
     String sceneId, {
     TraceDetails details = emptyTraceDetails,
+    int? startedMs,
   }) async {
     final clock = await readClock();
+    final start = startedMs ?? clock.wallMs;
+    final duration = _elapsedSinceStart(start, clock.wallMs);
     return db.transaction(() async {
       final available =
           await (db.select(db.traceScenes)..where(
@@ -285,14 +288,14 @@ class TraceStore {
             TraceSessionsCompanion.insert(
               id: _uuid.v4(),
               sceneId: sceneId,
-              startedMs: clock.wallMs,
+              startedMs: start,
               version: _nextVersion(null),
               itemId: Value(details.itemId),
               tagIdsJson: Value(_encodeTags(details.tagIds)),
               note: Value(details.note.trim()),
               bootKey: Value(clock.bootKey),
               anchorElapsedMs: Value(clock.elapsedMs),
-              anchorDurationMs: const Value(0),
+              anchorDurationMs: Value(duration),
               anchorWallMs: Value(clock.wallMs),
             ),
           );
@@ -305,12 +308,7 @@ class TraceStore {
       if ((await sceneById(current.sceneId)).deletion != null) {
         throw StateError('场景已删除，请结束或丢弃这次计时');
       }
-      return current.copyWith(
-        bootKey: Value(clock.bootKey),
-        anchorElapsedMs: Value(clock.elapsedMs),
-        anchorDurationMs: Value(durationMs ?? clock.durationMs(current)),
-        anchorWallMs: Value(clock.wallMs),
-      );
+      return _anchor(current, clock, durationMs ?? clock.durationMs(current));
     }, runningOnly: true);
   }
 
@@ -318,7 +316,8 @@ class TraceStore {
     final clock = await readClock();
     return _updateSession(
       session,
-      (current) => _withDuration(current, clock.durationMs(current)),
+      (current) =>
+          _withEnd(current, current.startedMs + clock.durationMs(current)),
       runningOnly: true,
     );
   }
@@ -326,31 +325,37 @@ class TraceStore {
   Future<TraceSession> finish(TraceSession session, int durationMs) =>
       _updateSession(
         session,
-        (current) => _withDuration(current, durationMs),
+        (current) => _withEnd(current, current.startedMs + durationMs),
         runningOnly: true,
       );
 
   Future<TraceSession> saveDetails(
     TraceSession session, {
     required TraceDetails details,
-    int? durationMs,
+    int? startedMs,
+    int? endedMs,
   }) => _updateSession(session, (current) async {
     await _checkDetails(current.sceneId, details, previous: current);
-    final edited = current.copyWith(
+    var edited = current.copyWith(
+      startedMs: startedMs,
       itemId: Value(details.itemId),
       tagIdsJson: _encodeTags(details.tagIds),
       note: details.note.trim(),
-      version: _nextVersion(current.version),
     );
-    return durationMs == null ? edited : _withDuration(edited, durationMs);
+    final end = endedMs ?? current.endedMs;
+    if (edited.startedMs != current.startedMs) {
+      final clock = await readClock();
+      final duration = _elapsedSinceStart(edited.startedMs, clock.wallMs);
+      if (end == null) edited = _anchor(edited, clock, duration);
+    }
+    return end == null
+        ? edited.copyWith(version: _nextVersion(current.version))
+        : _withEnd(edited, end);
   });
 
   Future<TraceSession> discard(TraceSession session) =>
       _updateSession(session, (current) {
-        return _withDuration(
-          current,
-          (current.endedMs ?? current.startedMs) - current.startedMs,
-        ).copyWith(
+        return _withEnd(current, current.endedMs ?? current.startedMs).copyWith(
           deleted: true,
           itemId: const Value(null),
           tagIdsJson: '[]',
@@ -389,11 +394,28 @@ class TraceStore {
     if (tags.length != added.length) throw StateError('所选标签已归档，请重新选择');
   }
 
-  TraceSession _withDuration(TraceSession session, int durationMs) {
-    if (durationMs < 0) throw ArgumentError('结束时间早于开始时间');
+  int _elapsedSinceStart(int startedMs, int nowMs) {
+    if (startedMs < 0) throw ArgumentError('开始时间无效');
+    if (startedMs > nowMs) throw ArgumentError('开始时间不能晚于当前时间');
+    return nowMs - startedMs;
+  }
+
+  TraceSession _anchor(
+    TraceSession session,
+    TraceClock clock,
+    int durationMs,
+  ) => session.copyWith(
+    bootKey: Value(clock.bootKey),
+    anchorElapsedMs: Value(clock.elapsedMs),
+    anchorDurationMs: Value(durationMs),
+    anchorWallMs: Value(clock.wallMs),
+  );
+
+  TraceSession _withEnd(TraceSession session, int endedMs) {
+    if (endedMs < session.startedMs) throw ArgumentError('结束时间早于开始时间');
     return session
         .copyWith(
-          endedMs: Value(session.startedMs + durationMs),
+          endedMs: Value(endedMs),
           version: _nextVersion(session.version),
         )
         .withClockOf(null);
@@ -434,7 +456,7 @@ class TraceStore {
         T Function(T?, T)? keepLocalFields,
       }) {
         final rows = {for (final row in kept) identity(row): row};
-        final changes = <T>[];
+        final changes = <Insertable<T>>[];
         for (final incoming in received) {
           final id = identity(incoming);
           final previous = rows[id];
@@ -447,7 +469,8 @@ class TraceStore {
             final merged =
                 keepLocalFields?.call(previous, incoming) ?? incoming;
             rows[id] = merged;
-            changes.add(merged);
+            // 备份是完整行，空值也需要覆盖旧值。
+            changes.add(RawValuesInsertable<T>(merged.toColumns(false)));
           } else if (rank < 0 || version(incoming) < version(previous)) {
             upload = true;
           } else if (!_sameBackupRow(previous, incoming)) {
@@ -502,11 +525,12 @@ class TraceStore {
               : 0,
           keepLocalFields: (previous, incoming) {
             if (previous == null) return incoming;
-            if (previous.sceneId != incoming.sceneId ||
-                previous.startedMs != incoming.startedMs) {
-              throw const FormatException('备份中的计时起点与本机记录冲突');
+            if (previous.sceneId != incoming.sceneId) {
+              throw const FormatException('备份中的计时场景与本机记录冲突');
             }
-            return incoming.endedMs == null && !incoming.deleted
+            return incoming.endedMs == null &&
+                    !incoming.deleted &&
+                    previous.startedMs == incoming.startedMs
                 ? incoming.withClockOf(previous)
                 : incoming;
           },

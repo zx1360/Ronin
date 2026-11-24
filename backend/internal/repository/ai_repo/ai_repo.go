@@ -11,6 +11,8 @@ import (
 	"math"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"monarch/internal/service/db"
 )
 
@@ -96,4 +98,12 @@ func DecodeFloat32(raw []byte) []float32 {
 		out[i] = math.Float32frombits(bits)
 	}
 	return out
+}
+
+func uuidArgs(ids []uuid.UUID) []any {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return args
 }

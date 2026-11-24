@@ -65,11 +65,7 @@ class UserTile extends ConsumerWidget {
   Widget _defaultAvatar() {
     return const CircleAvatar(
       radius: 30,
-<<<<<<< HEAD
       backgroundImage: AssetImage("assets/icons/six.ico"),
-=======
-      child: Icon(Icons.person),
->>>>>>> 1fc83d9 (重构瘦身+分发性.)
     );
   }
 }

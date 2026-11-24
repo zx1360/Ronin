@@ -1,6 +1,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { confirmAction, toast, setLeaveGuard } from '../../store.js';
-import { useUserData, clone, day, stamp, labelTree, hiddenLabels, descendants } from '../user-data.js';
+import { useUserData, clone, day, stamp, labelTree, hiddenLabels, descendants } from '../../user-data/store.js';
 import { draftStore } from './drafts.js';
 
 const hiddenID = '00000000-0000-4000-8000-000000000001';

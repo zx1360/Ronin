@@ -188,7 +188,9 @@ func (e *Engine) reapLoop(ctx context.Context) {
 				idle = 120 * time.Second
 			}
 			e.ollama.reapIdle(idle)
-			if e.index.ReleaseIdle(e.Config().IdleTimeout) {
+			timeout := e.Config().IdleTimeout
+			indexReleased := e.index.ReleaseIdle(timeout)
+			if e.cluster.ReleaseIdle(timeout) || indexReleased {
 				debug.FreeOSMemory()
 			}
 		}

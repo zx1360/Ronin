@@ -34,6 +34,7 @@ type VideoInfo struct {
 	DurationMs    int64 `json:"duration_ms"`
 	Width         int   `json:"width"`
 	Height        int   `json:"height"`
+	HasAudio      bool  `json:"-"`
 	frameInterval float64
 }
 
@@ -136,6 +137,10 @@ func resolveTools() (ffmpeg, ffprobe string, err error) {
 
 // 缓存随源文件变化失效，编辑后不沿用旧时长和画面。
 func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
+	return ProbeVideoContext(context.Background(), assetID, srcPath)
+}
+
+func ProbeVideoContext(parent context.Context, assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 	revision, err := revisionOf(assetID, srcPath)
 	if err != nil {
 		return VideoInfo{}, err
@@ -149,7 +154,7 @@ func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 		return VideoInfo{}, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+	ctx, cancel := context.WithTimeout(parent, probeTimeout)
 	defer cancel()
 
 	out, err := exec.CommandContext(ctx, ffprobe,
@@ -181,7 +186,10 @@ func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 	durationSec, _ := strconv.ParseFloat(parsed.Format.Duration, 64)
 	info := VideoInfo{DurationMs: int64(durationSec * 1000)}
 	for _, stream := range parsed.Streams {
-		if stream.Codec == "video" {
+		if stream.Codec == "audio" {
+			info.HasAudio = true
+		}
+		if stream.Codec == "video" && info.Width == 0 {
 			info.Width, info.Height = stream.Width, stream.Height
 			if duration, _ := strconv.ParseFloat(stream.Duration, 64); duration > 0 {
 				info.DurationMs = int64(duration * 1000)
@@ -190,7 +198,6 @@ func ProbeVideo(assetID uuid.UUID, srcPath string) (VideoInfo, error) {
 			if _, err := fmt.Sscanf(stream.FrameRate, "%f/%f", &numerator, &denominator); err == nil && numerator > 0 && denominator > 0 {
 				info.frameInterval = denominator / numerator
 			}
-			break
 		}
 	}
 
@@ -206,6 +213,15 @@ func ExtractFrame(assetID uuid.UUID, srcPath string, sec float64) ([]byte, error
 }
 
 func ExtractFrameContext(parent context.Context, assetID uuid.UUID, srcPath string, sec float64) ([]byte, error) {
+	return extractFrame(parent, assetID, srcPath, sec, false)
+}
+
+// ExtractPreviewFrame 缩小抽帧结果，批量分析时不占用播放器的帧缓存。
+func ExtractPreviewFrame(parent context.Context, assetID uuid.UUID, srcPath string, sec float64) ([]byte, error) {
+	return extractFrame(parent, assetID, srcPath, sec, true)
+}
+
+func extractFrame(parent context.Context, assetID uuid.UUID, srcPath string, sec float64, preview bool) ([]byte, error) {
 	if math.IsNaN(sec) || math.IsInf(sec, 0) {
 		return nil, fmt.Errorf("无效的取帧时间")
 	}
@@ -224,8 +240,10 @@ func ExtractFrameContext(parent context.Context, assetID uuid.UUID, srcPath stri
 		sec = math.Min(sec, math.Max(0, float64(info.DurationMs)/1000-interval-0.001))
 	}
 	cacheKey := frameCacheKey{revision: revision, step: int64(sec * 1000 / frameSecStep)}
-	if data, ok := frameCache.get(cacheKey); ok {
-		return data, nil
+	if !preview {
+		if data, ok := frameCache.get(cacheKey); ok {
+			return data, nil
+		}
 	}
 
 	ffmpeg, _, err := resolveTools()
@@ -236,15 +254,20 @@ func ExtractFrameContext(parent context.Context, assetID uuid.UUID, srcPath stri
 	ctx, cancel := context.WithTimeout(parent, frameTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, ffmpeg,
+	args := []string{
 		"-ss", strconv.FormatFloat(sec, 'f', 6, 64),
 		"-i", srcPath,
 		"-frames:v", "1",
+	}
+	if preview {
+		args = append(args, "-vf", "scale=w='min(512,iw)':h='min(512,ih)':force_original_aspect_ratio=decrease")
+	}
+	cmd := exec.CommandContext(ctx, ffmpeg, append(args,
 		"-q:v", "3",
 		"-f", "image2pipe",
 		"-vcodec", "mjpeg",
 		"-",
-	)
+	)...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
@@ -255,6 +278,8 @@ func ExtractFrameContext(parent context.Context, assetID uuid.UUID, srcPath stri
 	}
 
 	data := out.Bytes()
-	frameCache.put(cacheKey, data)
+	if !preview {
+		frameCache.put(cacheKey, data)
+	}
 	return data, nil
 }

@@ -1,6 +1,6 @@
 <script>
 import { onUnmounted } from 'vue';
-import { imageUrl } from '../pages/user-data.js';
+import { imageUrl } from '../user-data/store.js';
 import { toast } from '../store.js';
 export default {
   props: { images: Array, files: Map, module: String, max: { default: 12 } },

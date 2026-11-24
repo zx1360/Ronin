@@ -4,18 +4,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import dotenv_values, load_dotenv
+from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_ROOT = PROJECT_ROOT.parent.parent
 
 load_dotenv(BACKEND_ROOT / ".env")
-<<<<<<< HEAD
-=======
-for key, value in dotenv_values(PROJECT_ROOT / ".env").items():
-    if value is not None and key not in {"MONARCH_DB_FILE", "DB_FILE", "COMIC_STORAGE_ROOT"}:
-        os.environ[key] = value
->>>>>>> 1fc83d9 (重构瘦身+分发性.)
 
 
 def _resolve(raw: str, default: Path) -> str:

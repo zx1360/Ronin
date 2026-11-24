@@ -38,11 +38,22 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 	if capability == model.CapPHash {
 		return true, "" // 纯 Go 实现，无外部依赖
 	}
-	if capability == model.CapVLM {
+	if capability == model.CapVLM || capability == model.CapCleanup {
 		if strings.TrimSpace(e.VLMModel()) == "" {
 			return false, "尚未选定标注模型：本机没有可用的 Ollama 模型"
 		}
-		return e.ollama.Ready(ctx, e.VLMModel(), true)
+		if ok, reason := e.ollama.Ready(ctx, e.VLMModel()); !ok {
+			return false, reason
+		}
+		if capability == model.CapCleanup {
+			models, _ := e.ollama.ListModelInfo(ctx)
+			for _, info := range models {
+				if (strings.EqualFold(info.Name, e.VLMModel()) || strings.EqualFold(info.Name, e.VLMModel()+":latest")) && !info.Vision {
+					return false, "请在 Ops 中为低价值筛选选用支持图片的标注模型"
+				}
+			}
+		}
+		return true, ""
 	}
 
 	sidecar := e.sidecarFor(capability)
@@ -69,9 +80,6 @@ func (e *Engine) CapabilityReady(ctx context.Context, capability string) (bool, 
 	}
 	for _, name := range requirement.models {
 		if !probe.Models[name] {
-			if capability == model.CapFace {
-				return false, "请将有授权的检测和识别权重放入 tools/ai/models/buffalo_l"
-			}
 			return false, fmt.Sprintf("缺少模型 %s（运行 tools/ai/install.ps1）", name)
 		}
 	}

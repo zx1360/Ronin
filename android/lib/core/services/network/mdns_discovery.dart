@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:multicast_dns/multicast_dns.dart';
 
@@ -55,8 +56,7 @@ class MDnsDiscovery {
       client.stop();
     }
 
-    return services.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    return services.values.toList()..sort((a, b) => a.name.compareTo(b.name));
   }
 
   /// 收集 PTR 响应并解析, 直到静默期或总超时结束
@@ -66,7 +66,9 @@ class MDnsDiscovery {
     Duration timeout,
     Duration quietPeriod,
   ) async {
-    final pending = <Future<void>>[];
+    final pending = <String, Future<void>>{};
+    final elapsed = Stopwatch()..start();
+    Duration remaining() => timeout - elapsed.elapsed;
     final done = Completer<void>();
     Timer? quietTimer;
 
@@ -78,15 +80,19 @@ class MDnsDiscovery {
     final subscription = client
         .lookup<PtrResourceRecord>(
           ResourceRecordQuery.serverPointer(_serviceType),
+          timeout: timeout,
         )
-        .listen(
-      (ptr) {
-        pending.add(_resolveService(client, ptr.domainName, services));
-        quietTimer?.cancel();
-        quietTimer = Timer(quietPeriod, finish);
-      },
-      onError: (_) {},
-    );
+        .listen((ptr) {
+          if (pending.containsKey(ptr.domainName)) return;
+          pending[ptr.domainName] = _resolveService(
+            client,
+            ptr.domainName,
+            services,
+            remaining,
+          );
+          quietTimer?.cancel();
+          quietTimer = Timer(quietPeriod, finish);
+        }, onError: (_) {});
 
     try {
       await done.future;
@@ -96,121 +102,75 @@ class MDnsDiscovery {
       await subscription.cancel();
     }
 
-    // 等待已开始的解析, 避免丢掉刚发现的服务
-    if (pending.isNotEmpty) {
-      await Future.wait(pending).timeout(
-        const Duration(milliseconds: 800),
-        onTimeout: () => <void>[],
-      );
-    }
+    await Future.wait(pending.values);
   }
 
-  /// 解析服务的 SRV / A / TXT 记录
   static Future<void> _resolveService(
     MDnsClient client,
     String domainName,
     Map<String, DiscoveredService> services,
+    Duration Function() remaining,
   ) async {
-    try {
-      // 1. 获取 SRV 记录 (端口 + 目标主机名)
-      final srvRecords = await client
-          .lookup<SrvResourceRecord>(
-            ResourceRecordQuery.service(domainName),
-          )
-          .toList();
-
-      if (srvRecords.isEmpty) return;
-
-      // 2. 获取 TXT 记录 (scheme / auth 等元信息)
-      List<TxtResourceRecord> txtRecords;
+    Future<T?> resolve<T extends ResourceRecord>(
+      ResourceRecordQuery query,
+    ) async {
       try {
-        txtRecords = await client
-            .lookup<TxtResourceRecord>(
-              ResourceRecordQuery.text(domainName),
-            )
-            .toList();
+        final time = remaining();
+        if (time <= Duration.zero) return null;
+        return await client.lookup<T>(query, timeout: time).first;
       } catch (_) {
-        txtRecords = [];
+        return null;
       }
-      final txt = _parseTxtRecords(txtRecords);
-
-      for (final srv in srvRecords) {
-        // 3. 从 SRV target 提取主机名
-        final srvTarget = _stripTrailingDot(srv.target);
-
-        // 4. 查询该主机的 A 记录以获取真实 IP
-        String host = '';
-        try {
-          await for (final ip in client.lookup<IPAddressResourceRecord>(
-            ResourceRecordQuery.addressIPv4(srvTarget),
-          ).timeout(const Duration(seconds: 2))) {
-            host = ip.address.address;
-            break; // 取第一个 IPv4
-          }
-        } catch (_) {}
-
-        // 5. 回退：尝试用 TXT 中的 ip 字段
-        if (host.isEmpty) {
-          host = txt['ip'] ?? '';
-        }
-
-        // 6. 最后回退：尝试直接解析 srvTarget（若其本身就是 IP 或可解析的域名）
-        if (host.isEmpty && _looksLikeIP(srvTarget)) {
-          host = srvTarget;
-        }
-
-        if (host.isEmpty) continue;
-
-        final scheme = txt['scheme'] == 'http' ? 'http' : 'https';
-        final hasAuth = txt['auth'] == 'yes';
-
-        final key = '$host:${srv.port}';
-        if (!services.containsKey(key)) {
-          services[key] = DiscoveredService(
-            name: domainName,
-            host: host,
-            port: srv.port,
-            scheme: scheme,
-            hasAuth: hasAuth,
-            txtRecords: txt,
-          );
-        }
-      }
-    } catch (_) {
-      // 解析失败则跳过该服务
     }
+
+    final txtResult = resolve<TxtResourceRecord>(
+      ResourceRecordQuery.text(domainName),
+    );
+    final srv = await resolve<SrvResourceRecord>(
+      ResourceRecordQuery.service(domainName),
+    );
+    if (srv == null) return;
+    final target = srv.target.replaceFirst(RegExp(r'\.$'), '');
+    final directAddress = _ipv4(target);
+    final address = directAddress == null
+        ? await resolve<IPAddressResourceRecord>(
+            ResourceRecordQuery.addressIPv4(target),
+          )
+        : null;
+    final txt = _parseTxtRecords((await txtResult)?.text ?? '');
+    final host = address?.address.address ?? _ipv4(txt['ip']) ?? directAddress;
+    if (host == null) return;
+    services.putIfAbsent(
+      '$host:${srv.port}',
+      () => DiscoveredService(
+        name: domainName,
+        host: host,
+        port: srv.port,
+        scheme: txt['scheme'] == 'http' ? 'http' : 'https',
+        hasAuth: txt['auth'] == 'yes',
+        txtRecords: txt,
+      ),
+    );
   }
 
-  /// 解析 mDNS TXT 记录为 Map
-  ///
-  /// DNS-SD 标准: 每个 key=value 对是 TXT RDATA 中的独立 character-string。
-  /// Dart multicast_dns 包的 TxtResourceRecord.text 会将它们拼接在一起。
-  /// 我们同时尝试 ';' 分隔和无分隔两种模式。
-  static Map<String, String> _parseTxtRecords(List<TxtResourceRecord> records) {
+  static Map<String, String> _parseTxtRecords(String text) {
     final result = <String, String>{};
-    for (final record in records) {
-      final raw = record.text;
-      // 尝试 ';' 分隔
-      final entries = raw.contains(';') ? raw.split(';') : <String>[raw];
-      for (final entry in entries) {
-        final eq = entry.indexOf('=');
-        if (eq > 0) {
-          final key = entry.substring(0, eq).trim();
-          final value = entry.substring(eq + 1).trim();
-          if (key.isNotEmpty && value.isNotEmpty) {
-            result[key] = value;
-          }
-        }
+    for (final entry in text.split(RegExp(r'[;\r\n]+'))) {
+      final eq = entry.indexOf('=');
+      if (eq > 0) {
+        final key = entry.substring(0, eq).trim();
+        final value = entry.substring(eq + 1).trim();
+        if (key.isNotEmpty && value.isNotEmpty) result[key] = value;
       }
     }
     return result;
   }
 
-  static String _stripTrailingDot(String s) {
-    return s.endsWith('.') ? s.substring(0, s.length - 1) : s;
-  }
-
-  static bool _looksLikeIP(String s) {
-    return RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(s);
+  static String? _ipv4(String? value) {
+    final address = value == null ? null : InternetAddress.tryParse(value);
+    if (address == null || address.type != InternetAddressType.IPv4) {
+      return null;
+    }
+    return address.address;
   }
 }

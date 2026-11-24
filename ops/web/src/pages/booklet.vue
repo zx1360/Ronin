@@ -6,7 +6,7 @@ import { useLeaveGuard } from '../composables.js';
 import { confirmAction, toast } from '../store.js';
 import MoodSelect from '../components/MoodSelect.vue';
 import ImagePicker from '../components/ImagePicker.vue';
-import { useUserData, day, stamp, clone, imageUrl, moodText } from './user-data.js';
+import { useUserData, day, stamp, clone, imageUrl, moodText } from '../user-data/store.js';
 
 function statistics(records) {
   let longest = 0, longestFull = 0, streak = 0, fullStreak = 0, full = 0, previous = '', previousFull = '';

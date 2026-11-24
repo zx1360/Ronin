@@ -82,6 +82,7 @@ export default {
           probeError: (sidecar && sidecar.probe_error) || '',
           missingModels: sidecar && Array.isArray(sidecar.missing_models) ? sidecar.missing_models : [],
           isVlm: source.capability === 'vlm',
+          manual: source.manual === true,
         };
       });
     });
@@ -171,7 +172,7 @@ export default {
       return list.map((item) => String(item));
     });
 
-    const capabilityOptions = computed(() => (props.capabilities || []).map((cap) => ({
+    const capabilityOptions = computed(() => (props.capabilities || []).filter((cap) => !cap?.manual).map((cap) => ({
       name: (cap && cap.capability) || '',
       label: (cap && (cap.label || cap.capability)) || '',
     })));
@@ -209,17 +210,19 @@ export default {
 
     /** 全量重生成：清空该能力既有产物后全库重排，破坏性，必须二次确认。 */
     const regenerate = async (card) => {
+      const faces = card.name === 'face';
       const ok = await confirmAction(
-        '将先清空「' + card.label + '」的 ' + card.done + ' 条既有结果，再把全部媒体重新排队。\n'
-        + '清空期间这项能力的检索/筛选会短暂为空；其它能力的产物不受影响。\n'
-        + '本操作只作用于「' + card.label + '」。',
+        faces
+          ? '将重新检测全库人脸，逐文件更新检测结果，并保留可匹配人脸的归组和人物命名。'
+          : '将先清空「' + card.label + '」的 ' + card.done + ' 条既有结果，再把全部媒体重新排队。\n'
+            + '清空期间这项能力的检索和筛选可能暂时为空。',
         { title: '确认全量重生成', danger: true },
       );
       if (!ok) return;
       await act('', async () => {
         const data = await api.post('/API/ai/regenerate', { capability: card.name }, { timeoutMs: 1800000 });
         toast(
-          '已清空 ' + num(data && data.cleared) + ' 条旧结果，重新排队 ' + num(data && data.enqueued) + ' 条',
+          '已重新排队 ' + num(data && data.enqueued) + ' 条',
           'success',
         );
       });
@@ -364,9 +367,10 @@ export default {
             缺少模型：{{ card.missingModels.join('、') }}（运行 tools/ai/install.ps1）
           </div>
 
-          <div class="progress"><div :style="{ width: card.percent + '%' }"></div></div>
+          <div v-if="!card.manual" class="progress"><div :style="{ width: card.percent + '%' }"></div></div>
           <div class="small muted">
-            已处理 {{ card.done }} / {{ card.total }} · 排队 {{ card.pending }} · 尚无产物 {{ card.missing }} · 失败 {{ card.failed }}
+            已处理 {{ card.done }}<span v-if="!card.manual"> / {{ card.total }} · 尚无产物 {{ card.missing }}</span>
+            · 排队 {{ card.pending }} · 失败 {{ card.failed }}
             <span v-if="card.idleSeconds > 0"> · 空闲 {{ card.idleSeconds }}s（{{ card.idleTimeout }}s 后自动退出）</span>
           </div>
 
@@ -380,6 +384,7 @@ export default {
             <button class="ghost sm" v-if="card.isVlm" :disabled="busy" @click="unloadVlm()">卸载 VLM 模型</button>
             <button
               class="ghost sm"
+              v-if="!card.manual"
               :disabled="busy || card.missing === 0"
               @click="enqueueMissing(card)"
             >补处理 {{ card.missing }}</button>

@@ -83,12 +83,14 @@ class ApiClient {
     Map<String, dynamic>? queryParams,
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
+    Duration? receiveTimeout,
   }) async {
     return _dio.get(
       path,
       queryParameters: queryParams,
       cancelToken: cancelToken,
       onReceiveProgress: onReceiveProgress,
+      options: Options(receiveTimeout: receiveTimeout),
     );
   }
 
@@ -98,13 +100,17 @@ class ApiClient {
     Map<String, dynamic>? queryParams,
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
+    Duration? receiveTimeout,
   }) async {
     return _dio.get<Uint8List>(
       path,
       queryParameters: queryParams,
       cancelToken: cancelToken,
       onReceiveProgress: onReceiveProgress,
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(
+        responseType: ResponseType.bytes,
+        receiveTimeout: receiveTimeout,
+      ),
     );
   }
 

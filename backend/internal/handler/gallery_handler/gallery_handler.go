@@ -193,6 +193,8 @@ func respondRepoError(c *gin.Context, err error) {
 		errors.Is(err, gallery_repo.ErrMediaNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, gallery_repo.ErrTagNameConflict), errors.Is(err, gallery_repo.ErrTagIDConflict),
+		errors.Is(err, gallery_repo.ErrMediaGroupSelection),
+		errors.Is(err, gallery_repo.ErrMediaKept),
 		errors.Is(err, gallery_repo.ErrProcessedRequestMismatch):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, gallery_repo.ErrTagParentNotFound),
@@ -384,6 +386,14 @@ func BatchMediaTags(c *gin.Context) {
 // 字段缺省表示不修改；message 空串表示清空；group_id 传 null 表示解绑；
 // edit_params 传 null 表示清除。
 func PatchMedia(c *gin.Context) {
+	patchMedia(c, false)
+}
+
+func PatchSelectedMedia(c *gin.Context) {
+	patchMedia(c, true)
+}
+
+func patchMedia(c *gin.Context, onlySelected bool) {
 	var req model.MediaPatchRequest
 	if !bindJSON(c, &req) {
 		return
@@ -400,6 +410,7 @@ func PatchMedia(c *gin.Context) {
 	patch := gallery_repo.MediaPatch{
 		MediaIDs:      req.MediaIDs,
 		IsDeleted:     req.IsDeleted,
+		OnlySelected:  onlySelected,
 		Message:       req.Message,
 		MarkProcessed: req.MarkProcessed,
 		RequestID:     req.RequestID,

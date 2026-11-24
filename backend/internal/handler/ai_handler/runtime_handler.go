@@ -188,6 +188,10 @@ func UpdateSettings(c *gin.Context) {
 
 	if req.AutoCapabilities != nil {
 		for _, capability := range *req.AutoCapabilities {
+			if capability == model.CapCleanup {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "低价值媒体筛选仅支持手动触发"})
+				return
+			}
 			if !model.IsValidCapability(capability) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "未知能力: " + capability})
 				return

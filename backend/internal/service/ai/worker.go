@@ -135,15 +135,7 @@ func (e *Engine) runOneBatch(ctx context.Context) (bool, error) {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
-<<<<<<< HEAD
 		if !slices.Contains(pending, capability) {
-=======
-		pending, err := ai_repo.HasPending(ctx, capability)
-		if err != nil {
-			return false, err
-		}
-		if !pending {
->>>>>>> 1fc83d9 (重构瘦身+分发性.)
 			continue
 		}
 		if ready, _ := e.CapabilityReady(ctx, capability); !ready {
@@ -165,6 +157,9 @@ func (e *Engine) runOneBatch(ctx context.Context) (bool, error) {
 
 // batchLimit 返回该能力单批处理条数。
 func (e *Engine) batchLimit(capability string) int {
+	if capability == model.CapCleanup {
+		return 1
+	}
 	limit := e.Config().BatchSize
 	if capability == model.CapVLM && limit > vlmBatchMax {
 		limit = vlmBatchMax
@@ -214,32 +209,36 @@ func (e *Engine) executeBatch(parent context.Context, capability string, claimed
 		return
 	}
 
-	items, missing, err := e.resolveItems(capability, mediaIDs)
-	if err != nil {
-		e.failJobs(claimed, capability, fmt.Sprintf("解析媒体失败: %v", err))
-		info.Failed = len(claimed)
-		return
-	}
-
 	failed := map[string]string{}
-	for _, id := range missing {
-		failed[id] = "媒体文件缺失或未生成派生图"
-	}
+	if capability == model.CapCleanup {
+		e.runCleanup(batchCtx, claimed, failed)
+	} else {
+		items, missing, err := e.resolveItems(capability, mediaIDs)
+		if err != nil {
+			e.failJobs(claimed, capability, fmt.Sprintf("解析媒体失败: %v", err))
+			info.Failed = len(claimed)
+			return
+		}
 
-	switch capability {
-	case model.CapPHash:
-		e.runPHash(items, spec.InputSig, failed)
-	case model.CapEmbed:
-		e.runEmbed(batchCtx, items, spec.InputSig, failed)
-	case model.CapFace:
-		e.runFace(batchCtx, items, spec.InputSig, failed)
-	case model.CapOCR:
-		e.runOCR(batchCtx, items, spec.InputSig, failed)
-	case model.CapVLM:
-		e.runVLM(batchCtx, items, spec.InputSig, failed)
-	default:
-		for _, item := range items {
-			failed[item.MediaID] = "未知能力: " + capability
+		for _, id := range missing {
+			failed[id] = "媒体文件缺失或未生成派生图"
+		}
+
+		switch capability {
+		case model.CapPHash:
+			e.runPHash(items, spec.InputSig, failed)
+		case model.CapEmbed:
+			e.runEmbed(batchCtx, items, spec.InputSig, failed)
+		case model.CapFace:
+			e.runFace(batchCtx, items, spec.InputSig, failed)
+		case model.CapOCR:
+			e.runOCR(batchCtx, items, spec.InputSig, failed)
+		case model.CapVLM:
+			e.runVLM(batchCtx, items, spec.InputSig, failed)
+		default:
+			for _, item := range items {
+				failed[item.MediaID] = "未知能力: " + capability
+			}
 		}
 	}
 
@@ -384,8 +383,15 @@ func (e *Engine) runFace(ctx context.Context, items []MediaItem, inputSig string
 		return
 	}
 
-	var assigned []FaceInput
+	e.ClusterLock()
+	defer e.ClusterUnlock()
+	var assigned []ai_repo.FaceEmbedding
+	var changed bool
 	for _, res := range results {
+		if ctx.Err() != nil {
+			failed[res.ID] = ctx.Err().Error()
+			continue
+		}
 		if !res.OK {
 			failed[res.ID] = firstNonEmpty(res.Error, "侧车未返回人脸结果")
 			continue
@@ -402,7 +408,6 @@ func (e *Engine) runFace(ctx context.Context, items []MediaItem, inputSig string
 		}
 
 		writes := make([]ai_repo.FaceWrite, 0, len(payload.Faces))
-		inputs := make([]FaceInput, 0, len(payload.Faces))
 		for _, f := range payload.Faces {
 			raw, err := base64.StdEncoding.DecodeString(f.Embedding)
 			if err != nil || len(raw) != 512*4 {
@@ -421,26 +426,26 @@ func (e *Engine) runFace(ctx context.Context, items []MediaItem, inputSig string
 				Quality:   quality,
 				Embedding: raw,
 			})
-			inputs = append(inputs, FaceInput{
-				FaceID:  faceID,
-				MediaID: mediaID,
-				Quality: quality,
-				Vector:  ai_repo.DecodeFloat32(raw),
-			})
 		}
 
-		if err := ai_repo.ReplaceFaces(mediaID, writes, inputSig); err != nil {
+		added, hadAssignments, err := ai_repo.ReplaceFaces(mediaID, writes, inputSig)
+		if err != nil {
 			failed[res.ID] = err.Error()
 			continue
 		}
-		// 只把确实落库的人脸交给聚类，避免归并到不存在的记录
-		assigned = append(assigned, inputs...)
+		changed = changed || hadAssignments
+		for _, face := range added {
+			assigned = append(assigned, ai_repo.FaceEmbedding{
+				ID: face.ID, MediaID: mediaID, Quality: face.Quality,
+				Vector: ai_repo.DecodeFloat32(face.Embedding),
+			})
+		}
 	}
 
-	if len(assigned) == 0 {
-		return
+	if changed {
+		e.cluster.Invalidate()
 	}
-	if _, err := e.cluster.AssignIncremental(assigned); err != nil {
+	if err := e.cluster.AssignIncremental(ctx, assigned); err != nil {
 		// 归并失败不影响"人脸已入库"这一事实，仅记录日志等待下一次聚类收敛
 		log.Printf("[AI] 人脸增量归并失败: %v", err)
 	}

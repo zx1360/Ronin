@@ -9,13 +9,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:torrid/app/theme/theme_book.dart';
 import 'package:torrid/core/services/network/api_client.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
-import 'package:torrid/features/others/gallery/models/media_asset.dart';
-import 'package:torrid/features/others/gallery/pages/gallery_page.dart';
-import 'package:torrid/features/others/gallery/pages/image_editor_page.dart';
-import 'package:torrid/features/others/gallery/pages/media_detail_page.dart';
-import 'package:torrid/features/others/gallery/pages/video_trimmer_page.dart';
-import 'package:torrid/features/others/gallery/providers/gallery_providers.dart';
-import 'package:torrid/features/others/gallery/widgets/main_widgets/gallery_video.dart';
+import 'package:torrid/features/gallery/models/media_asset.dart';
+import 'package:torrid/features/gallery/pages/gallery_page.dart';
+import 'package:torrid/features/gallery/pages/image_editor_page.dart';
+import 'package:torrid/features/gallery/pages/media_detail_page.dart';
+import 'package:torrid/features/gallery/pages/video_trimmer_page.dart';
+import 'package:torrid/features/gallery/providers/gallery_providers.dart';
+import 'package:torrid/features/gallery/widgets/main_widgets/gallery_video.dart';
 import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class _OfflineClient extends ApiClientManager {
@@ -36,6 +36,7 @@ class _OfflineApi extends ApiClient {
     Map<String, dynamic>? queryParams,
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
+    Duration? receiveTimeout,
   }) async => throw const ApiException('测试离线');
 }
 

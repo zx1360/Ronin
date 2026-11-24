@@ -91,10 +91,12 @@ class _EssayBrowsePageState extends ConsumerState<EssayBrowsePage> {
           ),
           IconButton(
             tooltip: '本机草稿',
-            icon: Badge.count(
-              count: draftCount,
-              isLabelVisible: draftCount > 0,
-              child: const Icon(Icons.drafts_outlined),
+            icon: ExcludeSemantics(
+              child: Badge.count(
+                count: draftCount,
+                isLabelVisible: draftCount > 0,
+                child: const Icon(Icons.drafts_outlined),
+              ),
             ),
             onPressed: () => Navigator.push(
               context,

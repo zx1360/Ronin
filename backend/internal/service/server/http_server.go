@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -19,7 +20,8 @@ import (
 
 // StartServer 提供 HTTPS 与仅回环 HTTP；取消上下文或任一监听失败时关闭两端。
 func StartServer(ctx context.Context) error {
-	certFile, keyFile := tls.CertFile, tls.KeyFile
+	certFile := filepath.Join("cert", "server.crt")
+	keyFile := filepath.Join("cert", "server.key")
 	if err := tls.EnsureCert(certFile, keyFile); err != nil {
 		return fmt.Errorf("证书初始化失败: %w", err)
 	}

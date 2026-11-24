@@ -1,6 +1,6 @@
 <script>
 import { h } from 'vue';
-import { imageUrl } from '../user-data.js';
+import { imageUrl } from '../../user-data/store.js';
 
 function safeLink(raw) {
   try {

@@ -23,7 +23,6 @@ import (
 	"monarch/internal/service/comix"
 	"monarch/internal/service/gallery"
 	"monarch/internal/service/taskengine"
-	"monarch/internal/service/tls"
 )
 
 // store 网页端偏好存储，由服务启动时注入。
@@ -40,16 +39,13 @@ func SetStore(s *config.OpsStore) { store = s }
 func Bootstrap(c *gin.Context) {
 	galleryOK, galleryMsg := gallery.Available()
 	comixOK, comixMsg := comix.Available()
-	c.Header("Cache-Control", "no-store")
 
 	c.JSON(http.StatusOK, gin.H{
 		"apiKey":       os.Getenv("API_KEY_SERVER"),
 		"settings":     store.Snapshot(),
 		"settingsPath": absPath(store.Path()),
 		"service": gin.H{
-			"port":              util_handler.ServedPort(c),
-			"httpsPort":         config.NetConf.LocalPort,
-			"certificateSHA256": tls.Fingerprint(),
+			"port": util_handler.ServedPort(c),
 		},
 		"paths": gin.H{
 			"staticDir":    absPath(config.AppConf.StaticDir),
@@ -167,12 +163,10 @@ func Reveal(c *gin.Context) {
 
 	// explorer 的 /select 参数必须与路径同处一个参数；explorer 自身会立即返回，
 	// 因此不等待（它的退出码总是非 0），失败只可能发生在启动阶段。
-	cmd := exec.Command("explorer.exe", "/select,"+target)
-	if err := cmd.Start(); err != nil {
+	if err := exec.Command("explorer.exe", "/select,"+target).Start(); err != nil {
 		badRequest(c, "打开资源管理器失败: "+err.Error())
 		return
 	}
-	go func() { _ = cmd.Wait() }()
 	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{"path": target}})
 }
 

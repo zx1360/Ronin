@@ -42,9 +42,11 @@ class AppTheme {
   static TabBar appBarTabs(
     ColorScheme colors, {
     TabController? controller,
+    EdgeInsetsGeometry? labelPadding,
     required List<Tab> tabs,
   }) => TabBar(
     controller: controller,
+    labelPadding: labelPadding,
     labelColor: colors.onPrimary,
     unselectedLabelColor: colors.onPrimary.withValues(alpha: 0.9),
     labelStyle: const TextStyle(fontWeight: FontWeight.w700),

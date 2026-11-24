@@ -1,0 +1,181 @@
+<script>
+// 页面进入或手动刷新时取诊断，自动刷新只读取轻量进度。
+
+import { ref, computed, watch, onMounted } from 'vue';
+import { useApi } from '../../api.js';
+import { state, toast } from '../../store.js';
+import { usePolling } from '../../composables.js';
+import OverviewTab from './overview.vue';
+import JobsTab from './jobs.vue';
+import PersonsTab from './persons.vue';
+import SearchTab from './search.vue';
+import DuplicatesTab from './duplicates.vue';
+import DeletedTab from './deleted.vue';
+import { mergeProgress } from './state.js';
+
+const TABS = [
+  { key: 'overview', label: '概览' },
+  { key: 'jobs', label: '任务' },
+  { key: 'persons', label: '人物' },
+  { key: 'search', label: '检索' },
+  { key: 'duplicates', label: '去重' },
+  { key: 'deleted', label: '已删除' },
+];
+
+export default {
+  components: {
+    OverviewTab, JobsTab, PersonsTab, SearchTab, DuplicatesTab, DeletedTab,
+  },
+  setup() {
+    const api = useApi();
+    const tab = ref('overview');
+    const status = ref(null);
+    const runtime = ref(null);
+    const error = ref('');
+    const pollError = ref('');
+    const loading = ref(false);
+    const busy = ref(false);
+
+    const disabled = computed(() => !!status.value && status.value.enabled === false);
+    const schemaMissing = computed(() => {
+      if (!status.value) return false;
+      return status.value.schema_ready === false;
+    });
+    const capabilities = computed(() => status.value?.capabilities || []);
+
+    const active = computed(() => {
+      const source = status.value;
+      if (!source) return false;
+      if (source.sidecars?.some((sidecar) => sidecar.running)) return true;
+      if (Array.isArray(source.capabilities) && source.capabilities.some(
+        (cap) => cap && cap.sidecar && cap.sidecar.running === true,
+      )) return true;
+      if (source.last_run && source.last_run.running === true) return true;
+      if (source.paused === true) return false;
+      if (Number(source.pending_total) > 0) return true;
+      return !!(source.ollama && source.ollama.owned_server === true);
+    });
+
+    let diagnostics = true;
+    let refreshModels = false;
+    const load = async () => {
+      const silent = !diagnostics, refresh = refreshModels;
+      diagnostics = false;
+      refreshModels = false;
+      if (api.signal.aborted || (silent && disabled.value)) return;
+      // 轮询不切换「刷新中…」，避免每几秒闪一次
+      if (!silent) loading.value = true;
+      const results = await Promise.allSettled([
+        api.get(silent ? '/API/ai/progress' : `/API/ai/status${refresh ? '?refresh=true' : ''}`),
+        ...(!silent ? [api.get('/API/ai/settings')] : []),
+      ]);
+      if (api.signal.aborted) return;
+      const [statusResult, settingsResult] = results;
+
+      if (statusResult.status === 'fulfilled') {
+        status.value = silent ? mergeProgress(status.value, statusResult.value) : statusResult.value;
+        error.value = '';
+        pollError.value = '';
+      } else {
+        const reason = statusResult.reason;
+        const message = reason && reason.message ? reason.message : '状态接口不可用';
+        // 503 = AI 表未初始化或处理层未装配，给明确提示而不是反复静默重试
+        if (reason && reason.status === 503) error.value = message;
+        else if (silent) pollError.value = message;
+        else error.value = message;
+      }
+
+      if (settingsResult?.status === 'fulfilled') runtime.value = settingsResult.value || null;
+
+      if (settingsResult?.status === 'rejected') error.value = settingsResult.reason.message;
+      loading.value = false;
+    };
+
+    const poller = usePolling(load, {
+      interval: () => state.settings.ai_refresh_seconds || 3,
+      enabled: () => !disabled.value && active.value,
+    });
+
+    const refresh = (models = false) => {
+      diagnostics = true;
+      refreshModels ||= models;
+      return poller.trigger();
+    };
+    const reload = () => refresh(true);
+
+    onMounted(async () => {
+      const initialProgress = api.get('/API/ai/progress').then((progress) => {
+        if (!api.signal.aborted && !status.value) status.value = mergeProgress(null, progress);
+      });
+      await Promise.allSettled([initialProgress, poller.trigger()]);
+    });
+    watch(active, (value) => {
+      if (value && !disabled.value) poller.trigger();
+    });
+    watch(() => status.value?.pending_total, (next, previous) => {
+      if (next === 0 && previous > 0 && !disabled.value) refresh();
+    });
+
+    const run = async (notice, action) => {
+      if (busy.value) return false;
+      busy.value = true;
+      try {
+        const result = await action();
+        if (notice) toast(notice, 'success');
+        await refresh();
+        return result === undefined ? true : result;
+      } catch (err) {
+        if (api.signal.aborted || err.name === 'AbortError') return false;
+        toast('操作失败: ' + (err && err.message ? err.message : String(err)), 'error');
+        return false;
+      } finally {
+        busy.value = false;
+      }
+    };
+
+    return {
+      TABS, tab, status, runtime, capabilities, error, pollError, loading, busy,
+      disabled, schemaMissing, active, reload, run,
+    };
+  },
+};
+</script>
+
+<template>
+  <div>
+    <p class="small muted" v-if="loading">刷新中…</p>
+
+    <div class="tabs">
+      <button
+        v-for="item in TABS"
+        :key="item.key"
+        :class="{ active: tab === item.key }"
+        @click="tab = item.key"
+      >{{ item.label }}</button>
+    </div>
+
+    <OverviewTab
+      v-if="tab === 'overview'"
+      :status="status"
+      :capabilities="capabilities"
+      :runtime="runtime"
+      :error="error"
+      :busy="busy"
+      :ai-disabled="disabled"
+      :schema-missing="schemaMissing"
+      :poll-error="pollError"
+      :run="run"
+      :refresh="reload"
+    />
+    <JobsTab
+      v-else-if="tab === 'jobs'"
+      :capabilities="capabilities"
+      :ai-disabled="disabled"
+      :active="active"
+    />
+    <PersonsTab v-else-if="tab === 'persons'" :ai-disabled="disabled" />
+    <SearchTab v-else-if="tab === 'search'" :ai-disabled="disabled" />
+    <DuplicatesTab v-else-if="tab === 'duplicates'" :ai-disabled="disabled" />
+    <DeletedTab v-else :ai-disabled="disabled" />
+  </div>
+</template>

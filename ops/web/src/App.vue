@@ -4,13 +4,13 @@ import { state, bootstrap, navigate, parseRoute, canLeave } from './store.js';
 import Toasts from './components/Toasts.vue';
 import ConfirmHost from './components/ConfirmHost.vue';
 import DashboardPage from './pages/dashboard.vue';
-import AiPage from './pages/ai.vue';
-import ComixPage from './pages/comix.vue';
+import AiPage from './pages/ai/index.vue';
+import ComixPage from './pages/comix/index.vue';
 import TasksPage from './pages/tasks.vue';
 import SettingsPage from './pages/settings.vue';
 import HelpPage from './pages/help.vue';
 import BookletPage from './pages/booklet.vue';
-import EssayPage from './pages/essay.vue';
+import EssayPage from './pages/essay/index.vue';
 
 export const routes = [
   { path: '/dashboard', group: '运行与维护', label: '工作台', component: DashboardPage },

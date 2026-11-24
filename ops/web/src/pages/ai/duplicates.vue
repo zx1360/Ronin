@@ -89,7 +89,7 @@ export default {
       if (!ok) return;
       busy.value = true;
       try {
-        const data = await api.patch('/API/gallery/media', { media_ids: ids, is_deleted: true });
+        const data = await api.patch('/API/gallery/media/selected', { media_ids: ids, is_deleted: true });
         const count = data && Array.isArray(data.media_assets) ? data.media_assets.length : 0;
         toast('已标记软删除 ' + count + ' 张（可在「已删除」页取消）', 'success');
         selected.value = selected.value.filter((id) => ids.indexOf(id) < 0);
@@ -107,7 +107,7 @@ export default {
       busy.value = true;
       try {
         const data = await api.post('/API/ai/duplicates/ignore', { media_ids: ids });
-        toast('已把 ' + ids.length + ' 张标记为非重复（共 ' + num(data && data.total) + ' 张）', 'success');
+        toast('已保留 ' + ids.length + ' 张（共 ' + num(data && data.total) + ' 张）', 'success');
         selected.value = selected.value.filter((id) => ids.indexOf(id) < 0);
         await load();
       } catch (err) {
@@ -154,7 +154,7 @@ export default {
       busy.value = true;
       try {
         await api.post('/API/ai/duplicates/unignore', { media_ids: ids });
-        toast('已恢复 ' + ids.length + ' 张到近重复分组', 'success');
+        toast('已恢复 ' + ids.length + ' 张的推荐资格', 'success');
         await load();
         await loadIgnored();
       } catch (err) {
@@ -209,7 +209,7 @@ export default {
       <template #actions>
         <span class="small muted" v-if="loading">计算中…</span>
         <span class="small muted" v-if="loaded && !loading">共 {{ groupCards.length }} 组</span>
-        <button v-if="ignoredTotal > 0" class="ghost sm" @click="loadIgnored()">已忽略 {{ ignoredTotal }} 张</button>
+        <button v-if="ignoredTotal > 0" class="ghost sm" @click="loadIgnored()">已保留 {{ ignoredTotal }} 张</button>
         <label class="field" style="min-width: 150px">
           最大差异位数（1-4）
           <input type="number" min="1" max="4" v-model.number="maxDistance" />
@@ -221,7 +221,7 @@ export default {
 
       <div class="small muted">
         汉明距离不超过设定值的图片会被归为一组，可识别同一张图的缩放、转码、加水印等变体。
-        「标记删除」是软删除（可在「已删除」页取消）；「标记非重复」用于同组里其实不是重复的图，标记后不再参与分组。
+        「标记删除」只处理所选文件，可在「已删除」页恢复。「保留」会将所选图片排除在近重复和低价值推荐之外。
       </div>
       <div class="small" style="color: var(--warning)" v-if="aiDisabled">
         AI 处理层已通过 AI_ENABLED=false 关闭，近重复接口可能不可用。
@@ -252,7 +252,7 @@ export default {
                 rel="noreferrer"
               >预览所选</a>
               <button class="ghost sm" :disabled="busy || !group.selectedCount" @click="revealSelected(group)">打开所在目录</button>
-              <button class="ghost sm" :disabled="busy || !group.selectedCount" @click="markIgnored(selectedInGroup(group))">标记非重复</button>
+              <button class="ghost sm" :disabled="busy || !group.selectedCount" @click="markIgnored(selectedInGroup(group))">保留</button>
               <button class="danger sm" :disabled="busy || !group.selectedCount" @click="markDeleted(selectedInGroup(group))">标记删除</button>
             </span>
           </div>
@@ -279,7 +279,7 @@ export default {
       </div>
     </Card>
 
-    <Card v-if="showIgnored" title="已标记为非重复">
+    <Card v-if="showIgnored" title="已保留">
       <template #actions>
         <span class="small muted" v-if="ignoredLoading">加载中…</span>
         <button class="ghost sm" @click="showIgnored = false">关闭</button>

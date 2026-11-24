@@ -1,17 +1,21 @@
+import 'dart:collection';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:torrid/core/services/network/api_client.dart';
-import 'package:torrid/features/chat/models/chat_options.dart';
 import 'package:torrid/features/chat/pages/chat_settings_page.dart';
 import 'package:torrid/features/chat/providers/chat_providers.dart';
 import 'package:torrid/features/chat/services/chat_api_service.dart';
 import 'package:torrid/features/essay/models/essay.dart';
+import 'package:torrid/features/essay/models/label.dart';
 import 'package:torrid/features/essay/models/label_tree.dart';
 import 'package:torrid/features/essay/providers/essay_data_provider.dart';
 import 'package:torrid/features/essay/providers/status_provider.dart';
 import 'package:torrid/features/essay/services/essay_label_suggestions.dart';
+import 'package:torrid/features/essay/widgets/label_selector.dart';
+import 'package:torrid/providers/api_client/api_client_provider.dart';
 
 class EssayLabelSuggestionsPage extends ConsumerStatefulWidget {
   const EssayLabelSuggestionsPage({super.key});
@@ -24,10 +28,13 @@ class EssayLabelSuggestionsPage extends ConsumerStatefulWidget {
 class _EssayLabelSuggestionsPageState
     extends ConsumerState<EssayLabelSuggestionsPage> {
   final _results = <({Essay source, EssaySuggestions suggestions})>[];
-  final _pending = <String>[];
+  final _pending = Queue<String>();
   CancelToken? _request;
   int _count = 3;
   int _total = 0;
+  int _processed = 0;
+  String? _scopeId;
+  String? _batchScopeId;
   String? _model;
   String? _error;
   bool _saving = false;
@@ -38,16 +45,35 @@ class _EssayLabelSuggestionsPageState
     super.dispose();
   }
 
+  bool _canAnalyze(Essay essay, Set<String> hidden) =>
+      !essay.labels.any(hidden.contains) && essay.content.trim().isNotEmpty;
+
   void _startBatch() {
-    final sample = visibleEssays(
-      ref.read(essayStreamProvider).value ?? [],
-      ref.read(labelStreamProvider).value ?? [],
-    ).where((essay) => essay.content.trim().isNotEmpty).toList()..shuffle();
+    final labels = ref.read(labelStreamProvider).requireValue;
+    final hidden = hiddenLabelIds(labels);
+    final scope = _scopeId;
+    final branch = scope == null ? null : labelSubtree(labels, [scope]);
+    final sample = ref
+        .read(essayStreamProvider)
+        .requireValue
+        .where(
+          (essay) =>
+              _canAnalyze(essay, hidden) &&
+              (branch == null || essay.labels.any(branch.contains)),
+        )
+        .toList();
+    if (branch == null) sample.shuffle();
     setState(() {
+      _batchScopeId = scope;
+      _processed = 0;
       _results.clear();
       _pending
         ..clear()
-        ..addAll(sample.take(_count).map((essay) => essay.id));
+        ..addAll(
+          (branch == null ? sample.take(_count) : sample).map(
+            (essay) => essay.id,
+          ),
+        );
       _total = _pending.length;
       _model = null;
       _error = _pending.isEmpty ? '暂无可分析的随笔' : null;
@@ -62,9 +88,9 @@ class _EssayLabelSuggestionsPageState
       _error = null;
     });
     try {
-      final api = ref.read(chatApiProvider);
+      final api = ref.read(apiClientManagerProvider);
       final selected = ref.read(chatOptionsControllerProvider).model;
-      final info = await api.info(cancelToken: token);
+      final info = await ref.read(chatApiProvider).info(cancelToken: token);
       if (!mounted || token.isCancelled) return;
       final installed = info.candidates
           .where((item) => item.installed)
@@ -86,41 +112,59 @@ class _EssayLabelSuggestionsPageState
         throw StateError('模型 $selected 当前不可用，请在对话设置中重新选择');
       }
       setState(() => _model = model);
-      final options = ChatOptions(
-        model: model,
-        numCtx: 8192,
-        temperature: 0.1,
-        customKeepAlive: true,
-        keepAliveSeconds: 60,
-      );
+      final scope = _batchScopeId;
+      final store = ref.read(essayStoreProvider);
+      List<Label>? catalog;
+      Set<String> hidden = {};
+      Set<String>? branch;
+      Map<String, String> candidates = {};
+      String? branchName;
       while (_pending.isNotEmpty) {
-        final store = ref.read(essayStoreProvider);
-        final (essay, labels) = await store.db.transaction(
-          () async => (await store.essay(_pending.first), await store.labels()),
-        );
+        final essay = await store.essay(_pending.first);
         if (!mounted || token.isCancelled) return;
-        final hidden = hiddenLabelIds(labels);
+        final labels = ref.read(labelStreamProvider).requireValue;
+        if (!identical(catalog, labels)) {
+          catalog = labels;
+          hidden = hiddenLabelIds(labels);
+          branch = scope == null ? null : labelSubtree(labels, [scope]);
+          candidates = labelPaths(labels);
+          branchName = candidates[scope];
+          if (scope != null && (branchName == null || hidden.contains(scope))) {
+            throw StateError('所选标签分支已不可用，请重新选择');
+          }
+          final currentBranch = branch;
+          candidates.removeWhere(
+            (id, _) =>
+                hidden.contains(id) ||
+                (currentBranch != null && !currentBranch.contains(id)),
+          );
+        }
         if (essay == null ||
-            essay.content.trim().isEmpty ||
-            essay.labels.any(hidden.contains)) {
+            !_canAnalyze(essay, hidden) ||
+            (branch != null && !essay.labels.any(branch.contains))) {
           setState(() {
-            _pending.removeAt(0);
+            _pending.removeFirst();
             _total--;
           });
           continue;
         }
         final suggestions = await suggestEssay(
           api: api,
-          options: options,
+          model: model,
           essay: essay,
-          labelPaths: labelPaths(labels)
-            ..removeWhere((id, _) => hidden.contains(id)),
+          labelPaths: candidates,
+          branch: branchName,
           cancelToken: token,
         );
         if (!mounted || token.isCancelled) return;
         setState(() {
-          _pending.removeAt(0);
-          _results.add((source: essay, suggestions: suggestions));
+          _pending.removeFirst();
+          _processed++;
+          if (scope == null ||
+              suggestions.labels.isNotEmpty ||
+              suggestions.removeLabels.isNotEmpty) {
+            _results.add((source: essay, suggestions: suggestions));
+          }
         });
       }
     } catch (error) {
@@ -136,13 +180,25 @@ class _EssayLabelSuggestionsPageState
     }
   }
 
-  Future<void> _apply(Essay source, String? title, List<String> labels) async {
+  Future<void> _apply(
+    Essay source,
+    String? title,
+    List<String> labels,
+    List<String> removeLabels,
+    String? branchId,
+  ) async {
     setState(() => _saving = true);
     var message = '已应用到随笔';
     try {
       await ref
           .read(essayStoreProvider)
-          .acceptSuggestions(source, title: title, labelIds: labels);
+          .acceptSuggestions(
+            source,
+            title: title,
+            labelIds: labels,
+            removeLabelIds: removeLabels,
+            branchId: branchId,
+          );
     } catch (error) {
       message = error is StateError
           ? error.message.toString()
@@ -157,13 +213,175 @@ class _EssayLabelSuggestionsPageState
     }
   }
 
+  void _changeScope(String? scope) {
+    if (scope == _scopeId) return;
+    setState(() {
+      _scopeId = scope;
+      _batchScopeId = null;
+      _pending.clear();
+      _results.clear();
+      _total = 0;
+      _processed = 0;
+      _error = null;
+      _model = null;
+    });
+  }
+
+  Future<void> _pickBranch(List<Label> labels, Set<String> parentIds) async {
+    final hidden = hiddenLabelIds(labels);
+    final essays = ref.read(essayStreamProvider).requireValue;
+    final parents = countEssayLabels(
+      essays.where((essay) => _canAnalyze(essay, hidden)),
+      labels,
+      countEveryAncestor: true,
+    ).where((label) => parentIds.contains(label.id)).toList();
+    final id = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: 0.75,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: LabelSelector(
+              labels: parents,
+              countUnit: ' 篇',
+              selectedLabels: [if (_scopeId case final scope?) scope],
+              onToggleLabel: (id) => Navigator.pop(context, id),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (id != null && mounted) _changeScope(id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final running = _request != null;
-    final labels = ref.watch(labelStreamProvider).value ?? [];
+    final labelState = ref.watch(labelStreamProvider);
+    final essayState = ref.watch(essayStreamProvider);
+    final dataReady = labelState.hasValue && essayState.hasValue;
+    final labels = labelState.value ?? [];
     final hidden = hiddenLabelIds(labels);
     final paths = ref.watch(idMapProvider);
     final theme = Theme.of(context);
+    final parentIds = {
+      for (final label in labels)
+        if (label.parentId case final id? when !hidden.contains(label.id)) id,
+    };
+    final random = _scopeId == null;
+    final scopePath = paths[_scopeId];
+    final controls = Card.filled(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('随机抽取'),
+                  selected: random,
+                  onSelected: running || _saving
+                      ? null
+                      : (_) => _changeScope(null),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.account_tree_outlined, size: 18),
+                  label: Text(
+                    scopePath ?? '选择标签分支',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed:
+                      running || _saving || !dataReady || parentIds.isEmpty
+                      ? null
+                      : () => _pickBranch(labels, parentIds),
+                ),
+              ],
+            ),
+            Text(
+              random
+                  ? '选中想保留的标题和标签，逐篇应用。'
+                  : '分析关联此标签或任意下级标签的全部可见随笔，逐篇审核新增和移除项。',
+            ),
+            if (random)
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final count in [1, 3, 5, 10])
+                    ChoiceChip(
+                      label: Text('$count 篇'),
+                      selected: _count == count,
+                      onSelected: running || _saving
+                          ? null
+                          : (_) => setState(() => _count = count),
+                    ),
+                ],
+              ),
+            if (_total > 0) ...[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(value: _processed / _total),
+              const SizedBox(height: 8),
+              Text(
+                running && _pending.isNotEmpty
+                    ? '正在分析第 ${_processed + 1} 篇，共 $_total 篇'
+                    : '已分析 $_processed / $_total 篇${random ? '' : ' · ${_results.length} 篇有建议'}',
+              ),
+              if (_model case final model?)
+                Text(model, style: theme.textTheme.bodySmall),
+            ],
+            if ((_error ??
+                    labelState.error?.toString() ??
+                    essayState.error?.toString())
+                case final error?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  error,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed:
+                      _saving || !dataReady || (!random && scopePath == null)
+                      ? null
+                      : running
+                      ? () => _request?.cancel()
+                      : _pending.isNotEmpty
+                      ? _analyze
+                      : _startBatch,
+                  icon: Icon(running ? Icons.stop : Icons.auto_awesome),
+                  label: Text(
+                    running
+                        ? '停止分析'
+                        : _pending.isNotEmpty
+                        ? '继续分析'
+                        : _total == 0
+                        ? '开始分析'
+                        : random
+                        ? '再抽一批'
+                        : '重新分析',
+                  ),
+                ),
+                if (!running && _pending.isNotEmpty && random)
+                  TextButton(
+                    onPressed: _saving || !dataReady ? null : _startBatch,
+                    child: const Text('换一批'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -182,91 +400,23 @@ class _EssayLabelSuggestionsPageState
           ),
         ],
       ),
-      body: ListView(
+      body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Card.filled(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('随机抽取随笔', style: theme.textTheme.titleMedium),
-                  const Text('选中想保留的标题和标签，逐篇应用。'),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final count in [1, 3, 5, 10])
-                        ChoiceChip(
-                          label: Text('$count 篇'),
-                          selected: _count == count,
-                          onSelected: running || _saving
-                              ? null
-                              : (_) => setState(() => _count = count),
-                        ),
-                    ],
-                  ),
-                  if (_total > 0) ...[
-                    const SizedBox(height: 12),
-                    LinearProgressIndicator(value: _results.length / _total),
-                    const SizedBox(height: 8),
-                    Text(
-                      running
-                          ? '正在分析第 ${_results.length + 1} 篇，共 $_total 篇'
-                          : '已分析 ${_results.length} / $_total 篇',
-                    ),
-                    if (_model case final model?)
-                      Text(model, style: theme.textTheme.bodySmall),
-                  ],
-                  if (_error case final error?)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        error,
-                        style: TextStyle(color: theme.colorScheme.error),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _saving
-                            ? null
-                            : running
-                            ? () => _request?.cancel()
-                            : _pending.isNotEmpty
-                            ? _analyze
-                            : _startBatch,
-                        icon: Icon(running ? Icons.stop : Icons.auto_awesome),
-                        label: Text(
-                          running
-                              ? '停止分析'
-                              : _pending.isNotEmpty
-                              ? '继续分析'
-                              : _total == 0
-                              ? '开始分析'
-                              : '再抽一批',
-                        ),
-                      ),
-                      if (!running && _pending.isNotEmpty)
-                        TextButton(
-                          onPressed: _saving ? null : _startBatch,
-                          child: const Text('换一批'),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          for (final result in _results)
-            if (ref.watch(essayByIdProvider(result.source.id)).value
-                case final essay? when !essay.labels.any(hidden.contains))
-              _SuggestionCard(
-                key: ObjectKey(result.source),
+        itemCount: _results.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) return controls;
+          final result = _results[index - 1];
+          final batchScope = _batchScopeId;
+          return Consumer(
+            key: ObjectKey(result.source),
+            builder: (context, ref, _) {
+              final essay = ref
+                  .watch(essayByIdProvider(result.source.id))
+                  .value;
+              if (essay == null || essay.labels.any(hidden.contains)) {
+                return const SizedBox.shrink();
+              }
+              return _SuggestionCard(
                 source: result.source,
                 essay: essay,
                 suggestions: result.suggestions,
@@ -274,9 +424,17 @@ class _EssayLabelSuggestionsPageState
                 hidden: hidden,
                 onApply: _saving
                     ? null
-                    : (title, ids) => _apply(result.source, title, ids),
-              ),
-        ],
+                    : (title, ids, removed) => _apply(
+                        result.source,
+                        title,
+                        ids,
+                        removed,
+                        batchScope,
+                      ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -284,7 +442,6 @@ class _EssayLabelSuggestionsPageState
 
 class _SuggestionCard extends StatefulWidget {
   const _SuggestionCard({
-    super.key,
     required this.source,
     required this.essay,
     required this.suggestions,
@@ -298,18 +455,24 @@ class _SuggestionCard extends StatefulWidget {
   final EssaySuggestions suggestions;
   final Map<String, String> paths;
   final Set<String> hidden;
-  final void Function(String?, List<String>)? onApply;
+  final void Function(String?, List<String>, List<String>)? onApply;
 
   @override
   State<_SuggestionCard> createState() => _SuggestionCardState();
 }
 
-class _SuggestionCardState extends State<_SuggestionCard> {
+class _SuggestionCardState extends State<_SuggestionCard>
+    with AutomaticKeepAliveClientMixin {
   late bool _useTitle = widget.source.title.isEmpty;
   late final _chosen = widget.suggestions.labels.toSet();
+  final _removed = <String>{};
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final essay = widget.essay;
     final title = widget.suggestions.title;
@@ -325,13 +488,19 @@ class _SuggestionCardState extends State<_SuggestionCard> {
         )
         .toList();
     final picked = labelIds.where(_chosen.contains).toList();
-    final slots = (4 - essay.labels.length).clamp(0, 4);
+    final removable = widget.suggestions.removeLabels
+        .where(essay.labels.contains)
+        .toList();
+    final pickedRemovals = removable.where(_removed.contains).toList();
+    final slots = (4 - essay.labels.length + pickedRemovals.length).clamp(0, 4);
     final hasTitle = title.isNotEmpty && title != essay.title;
     final pickedTitle = hasTitle && canUseTitle && _useTitle ? title : null;
     final canApply =
         !stale &&
         picked.length <= slots &&
-        (pickedTitle != null || picked.isNotEmpty);
+        (pickedRemovals.isEmpty ||
+            essay.labels.length + picked.length > pickedRemovals.length) &&
+        (pickedTitle != null || picked.isNotEmpty || pickedRemovals.isNotEmpty);
 
     return Card.outlined(
       margin: const EdgeInsets.only(top: 12),
@@ -377,14 +546,19 @@ class _SuggestionCardState extends State<_SuggestionCard> {
             const Divider(height: 24),
             if (stale)
               const Text('正文已修改，请重新分析')
-            else if (!hasTitle && labelIds.isEmpty)
+            else if (!hasTitle && labelIds.isEmpty && removable.isEmpty)
               Text(
                 title == essay.title && title.isNotEmpty ||
-                        widget.suggestions.labels.any(essay.labels.contains)
+                        widget.suggestions.labels.any(essay.labels.contains) ||
+                        widget.suggestions.removeLabels.any(
+                          (id) => !essay.labels.contains(id),
+                        )
                     ? '建议已应用'
                     : '没有新的建议',
               )
             else ...[
+              if (widget.suggestions.reason.isNotEmpty)
+                Text(widget.suggestions.reason),
               if (hasTitle) ...[
                 Text(
                   canUseTitle ? '建议标题' : '建议标题 · 原标题已修改',
@@ -428,10 +602,37 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                   ],
                 ),
               ],
+              if (removable.isNotEmpty) ...[
+                Text('建议移除', style: theme.textTheme.labelLarge),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final id in removable)
+                      FilterChip(
+                        label: Text(
+                          widget.paths[id] ?? id,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        selected: _removed.contains(id),
+                        onSelected: widget.onApply == null
+                            ? null
+                            : (selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _removed.add(id);
+                                  } else {
+                                    _removed.remove(id);
+                                  }
+                                });
+                              },
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 8),
               FilledButton.tonal(
                 onPressed: canApply && widget.onApply != null
-                    ? () => widget.onApply!(pickedTitle, picked)
+                    ? () => widget.onApply!(pickedTitle, picked, pickedRemovals)
                     : null,
                 child: const Text('应用所选'),
               ),

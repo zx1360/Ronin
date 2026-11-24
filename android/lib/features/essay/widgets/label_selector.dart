@@ -7,6 +7,7 @@ class LabelSelector extends StatefulWidget {
   final List<Label> labels;
   final List<String> selectedLabels;
   final Map<String, String> selectionHints;
+  final String countUnit;
   final ValueChanged<String> onToggleLabel;
   final ValueChanged<String>? onRemoveLabel;
   final Widget Function(Label)? trailingBuilder;
@@ -17,6 +18,7 @@ class LabelSelector extends StatefulWidget {
     required this.labels,
     required this.selectedLabels,
     this.selectionHints = const {},
+    this.countUnit = '',
     required this.onToggleLabel,
     this.onRemoveLabel,
     this.trailingBuilder,
@@ -302,7 +304,7 @@ class _LabelSelectorState extends State<LabelSelector> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Text(
-                    '${label.essayCount}',
+                    '${label.essayCount}${widget.countUnit}',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

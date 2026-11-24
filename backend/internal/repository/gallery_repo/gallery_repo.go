@@ -700,15 +700,17 @@ func rebuildTagPaths(ctx context.Context, tx *sql.Tx) error {
 
 // 标签/媒体操作的可识别错误（由 handler 映射为 400/404/409）
 var (
-	ErrTagNotFound       = errors.New("标签不存在")
-	ErrTagNameConflict   = errors.New("同级已存在同名标签")
-	ErrTagIDConflict     = errors.New("标签 ID 已存在且内容不一致")
-	ErrTagParentNotFound = errors.New("父标签不存在")
-	ErrTagCycle          = errors.New("不能将标签移动到其子孙节点下")
-	ErrTagEmptyName      = errors.New("标签名不能为空")
-	ErrMediaNotFound     = errors.New("媒体不存在")
-	ErrMediaSelfGroup    = errors.New("媒体不能捆绑到自身")
-	ErrMediaGroupLead    = errors.New("主文件必须为未删除的独立媒体")
+	ErrTagNotFound         = errors.New("标签不存在")
+	ErrTagNameConflict     = errors.New("同级已存在同名标签")
+	ErrTagIDConflict       = errors.New("标签 ID 已存在且内容不一致")
+	ErrTagParentNotFound   = errors.New("父标签不存在")
+	ErrTagCycle            = errors.New("不能将标签移动到其子孙节点下")
+	ErrTagEmptyName        = errors.New("标签名不能为空")
+	ErrMediaNotFound       = errors.New("媒体不存在")
+	ErrMediaSelfGroup      = errors.New("媒体不能捆绑到自身")
+	ErrMediaGroupLead      = errors.New("主文件必须为未删除的独立媒体")
+	ErrMediaGroupSelection = errors.New("此次操作涉及未选中的组员，请先在相册中检查该捆绑组")
+	ErrMediaKept           = errors.New("选中的文件中有已保留项目，请先恢复其推荐资格")
 )
 
 // TagPatch 标签更新意图（nil 字段表示不修改）
@@ -1065,6 +1067,7 @@ type MediaPatch struct {
 	RequestID       *uuid.UUID
 	MediaIDs        []uuid.UUID
 	IsDeleted       *bool
+	OnlySelected    bool
 	Message         *string // 空串表示清空
 	GroupID         *uuid.UUID
 	ClearGroup      bool
@@ -1074,13 +1077,20 @@ type MediaPatch struct {
 }
 
 // UNION 同时处理旧的嵌套分组，并防止循环关系导致无限展开。
-func expandWithGroupMembers(ctx context.Context, tx *sql.Tx, ids []uuid.UUID) ([]uuid.UUID, error) {
+func expandWithGroupMembers(ctx context.Context, tx *sql.Tx, ids []uuid.UUID, deletion *bool) ([]uuid.UUID, error) {
 	clause, args := inClause(ids)
+	selectMembers := `SELECT id FROM members`
+	if deletion != nil {
+		selectMembers = `SELECT g.id FROM members g JOIN media_assets m ON m.id = g.id
+			WHERE m.is_deleted <> ? OR g.id IN (SELECT id FROM selected)`
+		args = append(args, *deletion)
+	}
 	rows, err := tx.QueryContext(ctx, `
-        WITH RECURSIVE members(id) AS (
-            SELECT id FROM media_assets WHERE id `+clause+`
+        WITH RECURSIVE selected(id) AS (SELECT id FROM media_assets WHERE id `+clause+`),
+        members(id) AS (
+            SELECT id FROM selected
             UNION SELECT m.id FROM media_assets m JOIN members g ON m.group_id = g.id
-        ) SELECT id FROM members`, args...)
+        ) `+selectMembers, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1112,10 +1122,17 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 		affected := ids
 		var expanded []uuid.UUID
 		if patch.IsDeleted != nil || patch.GroupID != nil {
+			var deletion *bool
+			if patch.OnlySelected && patch.GroupID == nil {
+				deletion = patch.IsDeleted
+			}
 			var err error
-			expanded, err = expandWithGroupMembers(ctx, tx, ids)
+			expanded, err = expandWithGroupMembers(ctx, tx, ids, deletion)
 			if err != nil {
 				return err
+			}
+			if patch.OnlySelected && len(expanded) != len(ids) {
+				return ErrMediaGroupSelection
 			}
 			affected = uniqueUUIDs(append(append([]uuid.UUID{}, ids...), expanded...))
 		}
@@ -1159,6 +1176,18 @@ func PatchMediaAssets(patch MediaPatch) ([]model.MediaAsset, error) {
 			}
 		}
 		if patch.IsDeleted != nil {
+			if patch.OnlySelected && *patch.IsDeleted {
+				clause, args := inClause(ids)
+				var kept bool
+				if err := tx.QueryRowContext(ctx, `SELECT EXISTS (
+					SELECT 1 FROM duplicate_ignores WHERE media_id `+clause+`
+				)`, args...).Scan(&kept); err != nil {
+					return err
+				}
+				if kept {
+					return ErrMediaKept
+				}
+			}
 			var deletion setBuilder
 			deletion.add("is_deleted = ?", *patch.IsDeleted)
 			if err := update(expanded, deletion); err != nil {

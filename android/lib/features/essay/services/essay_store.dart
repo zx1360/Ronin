@@ -226,6 +226,8 @@ class EssayStore {
     Essay source, {
     String? title,
     required List<String> labelIds,
+    List<String> removeLabelIds = const [],
+    String? branchId,
   }) => db.transaction(() async {
     final allLabels = await labels();
     final hidden = hiddenLabelIds(allLabels);
@@ -244,9 +246,24 @@ class EssayStore {
       for (final label in allLabels) label.id,
     }.difference(hidden);
     if (!available.containsAll(labelIds)) throw StateError('所选标签已不可用');
+    if (branchId != null) {
+      final branch = labelSubtree(allLabels, [branchId]).intersection(available);
+      if (!branch.contains(branchId) ||
+          !current.labels.any(branch.contains) ||
+          !branch.containsAll([...labelIds, ...removeLabelIds])) {
+        throw StateError('随笔或标签分支已变更，请重新分析');
+      }
+    }
+    if (removeLabelIds.isNotEmpty &&
+        (branchId == null ||
+            !listEquals(current.labels, source.labels) ||
+            current.labelsUpdatedAt != source.labelsUpdatedAt)) {
+      throw StateError('随笔标签已变更，请重新分析');
+    }
+    final kept = current.labels.where((id) => !removeLabelIds.contains(id));
     final additions = labelIds.toSet().difference(current.labels.toSet());
     await _saveEssay(
-      current.copyWith(title: title, labels: [...current.labels, ...additions]),
+      current.copyWith(title: title, labels: [...kept, ...additions]),
       current,
     );
   });

@@ -228,13 +228,18 @@ CREATE INDEX IF NOT EXISTS idx_jobs_claim   ON jobs (capability, status, priorit
 CREATE INDEX IF NOT EXISTS idx_jobs_media   ON jobs (media_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_updated ON jobs (updated_at);
 
--- 去重人工判定："非重复"标记；删除本表记录即可完全恢复原有分组结果。
+-- 人工保留的媒体同时排除于近重复与低价值推荐。
 CREATE TABLE IF NOT EXISTS duplicate_ignores (
     media_id   TEXT PRIMARY KEY REFERENCES media_assets(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_duplicate_ignores_created ON duplicate_ignores (created_at);
+
+CREATE TABLE IF NOT EXISTS deletion_candidates (
+    media_id TEXT PRIMARY KEY REFERENCES media_assets(id) ON DELETE CASCADE,
+    reason   TEXT NOT NULL
+);
 
 -- 运行时设置（能力开关、VLM 模型选择）
 CREATE TABLE IF NOT EXISTS settings (

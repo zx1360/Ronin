@@ -9,7 +9,7 @@ class OthersPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('媒体')),
+      appBar: AppBar(title: const Text('其他')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: GridView.extent(

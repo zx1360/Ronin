@@ -110,7 +110,7 @@ class _TraceDeskState extends State<TraceDesk> {
           final initial = clock.durationMs(session);
           final duration = await editTraceDuration(
             context,
-            session,
+            session.startedMs,
             initial,
             latestEndMs: clock.matches(session)
                 ? session.startedMs + initial

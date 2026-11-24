@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:torrid/core/modals/snack_bar.dart';
 import 'package:torrid/core/modals/text_input_dialog.dart';
 import 'package:torrid/core/services/storage/app_database.dart';
 
@@ -30,13 +31,16 @@ class _EditorState extends ConsumerState<_Editor> {
   late final _note = TextEditingController(text: widget.session?.note);
   late final _tags = decodeTraceTags(widget.session?.tagIdsJson ?? '[]');
   late String? _item = widget.session?.itemId;
-  int? _duration;
+  int? _editedStartMs;
+  int? _editedEndMs;
   bool _busy = false;
   bool _dirty = false;
   String? _error;
 
   bool get _starting => widget.session == null;
   bool get _finished => widget.session?.endedMs != null;
+  int? get _startedMs => _editedStartMs ?? widget.session?.startedMs;
+  int? get _endedMs => _editedEndMs ?? widget.session?.endedMs;
 
   @override
   void dispose() {
@@ -133,14 +137,35 @@ class _EditorState extends ConsumerState<_Editor> {
     });
   }
 
-  Future<void> _adjust() async {
-    final session = widget.session!;
-    final duration = await editTraceDuration(
+  Future<void> _pickStart() async {
+    FocusScope.of(context).unfocus();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final end = _endedMs;
+    final start = await pickTraceDateTime(
       context,
-      session,
-      _duration ?? (session.endedMs! - session.startedMs),
+      label: '开始',
+      initialMs: _startedMs ?? now,
+      firstMs: 0,
+      lastMs: end != null && end < now ? end : now,
     );
-    if (mounted && duration != null) _changed(() => _duration = duration);
+    if (!mounted || start == null) return;
+    if (end != null && start > end) {
+      displaySnackBar(context, '开始时间不能晚于结束时间');
+      return;
+    }
+    if (start > DateTime.now().millisecondsSinceEpoch) {
+      displaySnackBar(context, '开始时间不能晚于当前时间');
+      return;
+    }
+    _changed(() => _editedStartMs = start);
+  }
+
+  Future<void> _adjust() async {
+    final start = _startedMs!;
+    final duration = await editTraceDuration(context, start, _endedMs! - start);
+    if (mounted && duration != null) {
+      _changed(() => _editedEndMs = start + duration);
+    }
   }
 
   Future<void> _save(TraceStore store, {bool delete = false}) async {
@@ -163,12 +188,17 @@ class _EditorState extends ConsumerState<_Editor> {
     try {
       final details = (itemId: _item, tagIds: _tags.toSet(), note: _note.text);
       final saved = switch (widget.session) {
-        null => await store.start(widget.sceneId, details: details),
+        null => await store.start(
+          widget.sceneId,
+          details: details,
+          startedMs: _editedStartMs,
+        ),
         final session when delete => await store.discard(session),
         final session when _dirty => await store.saveDetails(
           session,
           details: details,
-          durationMs: _duration,
+          startedMs: _editedStartMs,
+          endedMs: _editedEndMs,
         ),
         final session => session,
       };
@@ -194,6 +224,8 @@ class _EditorState extends ConsumerState<_Editor> {
         : data!.historySceneFor(scene.id);
     final unavailable = scene?.archived == true || scene?.deletion != null;
     final theme = Theme.of(context);
+    final start = _startedMs;
+    final end = _endedMs;
     return PopScope<TraceSession>(
       canPop: !_dirty && !_busy,
       onPopInvokedWithResult: (popped, _) async {
@@ -277,34 +309,32 @@ class _EditorState extends ConsumerState<_Editor> {
                             ),
                           ],
                         ),
-                        if (widget.session case final session?) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            '${traceStamp(session.startedMs)} 开始',
-                            style: theme.textTheme.bodySmall,
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('开始时间'),
+                          subtitle: Text(
+                            start == null ? '当前时间' : traceStamp(start),
                           ),
-                          if (_finished) ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    traceHms(
-                                      _duration ??
-                                          (session.endedMs! -
-                                              session.startedMs),
-                                    ),
-                                    style: theme.textTheme.headlineSmall,
-                                  ),
+                          trailing: const Icon(Icons.edit_calendar_outlined),
+                          onTap: _busy || (_starting && unavailable)
+                              ? null
+                              : _pickStart,
+                        ),
+                        if (end != null)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  traceHms(end - start!),
+                                  style: theme.textTheme.headlineSmall,
                                 ),
-                                TextButton(
-                                  onPressed: _busy ? null : _adjust,
-                                  child: const Text('修正时长'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
+                              ),
+                              TextButton(
+                                onPressed: _busy ? null : _adjust,
+                                child: const Text('修正时长'),
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ),

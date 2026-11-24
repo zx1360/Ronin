@@ -118,7 +118,13 @@ func (e *Engine) ResolveVLMModel() string {
 
 // AutoCapabilities 返回"入库后自动入队"的能力列表。
 func (e *Engine) AutoCapabilities() []string {
-	return e.rt.Config().AutoCaps
+	var caps []string
+	for _, capability := range e.rt.Config().AutoCaps {
+		if capability != model.CapCleanup {
+			caps = append(caps, capability)
+		}
+	}
+	return caps
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +177,12 @@ var capabilityStatics = []capabilityStatic{
 		tier:        model.TierAI,
 		executor:    "", // 由当前 VLM 模型决定
 	},
+	{
+		capability:  model.CapCleanup,
+		label:       "低价值媒体筛选",
+		description: "手动筛选，生成供审核的删除建议",
+		tier:        model.TierAI,
+	},
 }
 
 // tierNote 档位的作用说明（供消费端展示，避免端上自行解释档位含义）。
@@ -192,6 +204,8 @@ func (e *Engine) CapabilitySpecs() []model.CapabilitySpec {
 			executor = cfg.EmbedModel
 		case model.CapVLM:
 			executor = "ollama:" + e.VLMModel()
+		case model.CapCleanup:
+			executor = "ollama:" + e.VLMModel() + ":cleanup-v1"
 		}
 		specs = append(specs, model.CapabilitySpec{
 			Capability:  item.capability,
@@ -201,6 +215,7 @@ func (e *Engine) CapabilitySpecs() []model.CapabilitySpec {
 			TierNote:    tierNote(item.tier),
 			Executor:    executor,
 			InputSig:    model.InputSignature(item.tier, executor),
+			Manual:      item.capability == model.CapCleanup,
 		})
 	}
 	return specs

@@ -30,8 +30,8 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
     '../../../features/essay/services/essay.drift',
     '../../../features/booklet/storage/booklet.drift',
     '../../../features/chat/services/chat.drift',
-    '../../../features/others/comic/services/comic.drift',
-    '../../../features/others/gallery/services/gallery.drift',
+    '../../../features/comic/services/comic.drift',
+    '../../../features/gallery/services/gallery.drift',
     '../../../features/trace/trace.drift',
   },
 )

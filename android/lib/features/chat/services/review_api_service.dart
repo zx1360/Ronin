@@ -24,7 +24,10 @@ class ReviewApiService {
     try {
       final response = await _client.postJson(
         '/API/user-data/check-images/essay',
-        data: {'filenames': <String>[]},
+        data: {
+          'filenames': <String>[],
+          'essay_schema_version': essaySchemaVersion,
+        },
         cancelToken: cancelToken,
       );
       requireEssaySchema(response.data);

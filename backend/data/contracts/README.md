@@ -18,3 +18,7 @@
 ## AI
 
 对话和回顾返回 NDJSON，回顾先发 `stats` 再发正文增量。客户端处理 `notice`、`aborted` 及开始流前的 JSON 503。网页合并轻量进度时保留已有诊断和候选模型。回顾预设由服务端整体保存，客户端用返回值更新镜像。
+
+- `POST /API/ai/essay/suggestions` 接收单篇随笔、现有标签 ID 和候选标签路径。指定分支时由客户端提供可见子树的候选项，返回新增与移除建议，审核写入仍走随笔存储和同步。
+- `GET /API/ai/cleanup` 分页返回低价值候选及队列进度。`POST /API/ai/cleanup/scan` 按 `limit` 提交未筛选文件，0 表示全量。近重复和低价值审核共用 `/API/ai/duplicates/ignore` 及其恢复接口。
+- `GET /API/ai/related/:id` 返回已捆绑媒体，以及拍摄时间接近、向量相似的候选。推荐删除和捆绑用 `PATCH /API/gallery/media/selected`，请求体与原接口一致。操作若会改变未选组员的状态，或把已保留文件标记待删除，则返回 409，整批不写入。

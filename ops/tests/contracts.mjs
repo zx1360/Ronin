@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
 const load = (path) => import(`data:text/javascript;base64,${readFileSync(new URL(path, import.meta.url)).toString('base64')}`);
-const { applySyncDelta } = await load('../web/src/pages/user-data-sync.js');
+const { applySyncDelta } = await load('../web/src/user-data/sync.js');
 const { mergeProgress } = await load('../web/src/pages/ai/state.js');
 const fixture = read('../../backend/data/contracts/user_data.json');
 

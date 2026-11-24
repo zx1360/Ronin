@@ -1,5 +1,5 @@
 <script>
-import { moods } from '../pages/user-data.js';
+import { moods } from '../user-data/store.js';
 export default {
   props: ['modelValue'], emits: ['update:modelValue'],
   setup: () => ({ moods }),

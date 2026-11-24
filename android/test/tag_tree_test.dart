@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:torrid/features/others/gallery/models/tag.dart';
-import 'package:torrid/features/others/gallery/models/tag_tree.dart';
+import 'package:torrid/features/gallery/models/tag.dart';
+import 'package:torrid/features/gallery/models/tag_tree.dart';
 
 final _epoch = DateTime(2026, 1, 1);
 
